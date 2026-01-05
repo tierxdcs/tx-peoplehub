@@ -10,6 +10,7 @@ type Profile = {
   status: string;
   tenure: string;
   photoUrl: string;
+  certifications: string[];
 };
 
 const PROFILES: Record<string, Profile> = {
@@ -21,7 +22,8 @@ const PROFILES: Record<string, Profile> = {
     manager: 'Chloe Bishop',
     status: 'Active',
     tenure: '3y 8m',
-    photoUrl: 'assets/people/nithin-gangadhar.svg'
+    photoUrl: 'assets/people/nithin-gangadhar.svg',
+    certifications: []
   }
 };
 
@@ -34,9 +36,29 @@ const PROFILES: Record<string, Profile> = {
 })
 export class PeopleProfileComponent {
   private readonly route = inject(ActivatedRoute);
+  private readonly storageKey = 'tx-peoplehub-admin-draft';
   readonly profileId =
     this.route.snapshot.paramMap.get('id') ?? 'alina-torres';
   readonly profile = PROFILES[this.profileId] ?? PROFILES['alina-torres'];
+
+  ngOnInit() {
+    const stored = localStorage.getItem(this.storageKey);
+    if (!stored) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(stored) as { certifications?: string };
+      const certifications =
+        parsed.certifications
+          ?.split(',')
+          .map((item) => item.trim())
+          .filter(Boolean) ?? [];
+      this.profile.certifications = certifications;
+    } catch {
+      this.profile.certifications = [];
+    }
+  }
 
   onPhotoSelected(event: Event) {
     const input = event.target as HTMLInputElement | null;

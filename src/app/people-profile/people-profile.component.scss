@@ -348,6 +348,21 @@ button:hover,
   color: var(--ink-900);
 }
 
+.certifications {
+  margin: 8px 0 0;
+  padding: 0 0 0 16px;
+  color: var(--ink-600);
+  display: grid;
+  gap: 4px;
+  font-size: 0.88rem;
+}
+
+.empty {
+  margin: 6px 0 0;
+  color: var(--ink-500);
+  font-size: 0.85rem;
+}
+
 .full {
   width: 100%;
 }
