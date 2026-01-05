@@ -19,7 +19,15 @@
 
   <section class="profile-hero">
     <div class="profile-photo">
-      <img [src]="profile.photoUrl" [alt]="profile.name" />
+      <img
+        [src]="profile.photoUrl"
+        [alt]="profile.name"
+        class="profile-image"
+      />
+      <label class="upload">
+        Change photo
+        <input type="file" accept="image/*" (change)="onPhotoSelected($event)" />
+      </label>
     </div>
     <div class="summary">
       <p class="eyebrow">Employee profile</p>
