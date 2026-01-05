@@ -27,4 +27,8 @@ export class SettingsComponent {
     this.departments = [...this.departments, { name, head }];
     this.newDepartment = { name: '', head: '' };
   }
+
+  removeDepartment(index: number) {
+    this.departments = this.departments.filter((_, i) => i !== index);
+  }
 }
