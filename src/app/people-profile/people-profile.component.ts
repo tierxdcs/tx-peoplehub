@@ -13,7 +13,7 @@ type Profile = {
 
 const PROFILES: Record<string, Profile> = {
   'alina-torres': {
-    name: 'Alina Torres',
+    name: 'Nithin Gangadhar',
     title: 'Network Operations Manager',
     location: 'Austin, TX',
     team: 'Operations',
