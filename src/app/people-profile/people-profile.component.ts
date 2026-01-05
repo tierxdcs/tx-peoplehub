@@ -37,4 +37,20 @@ export class PeopleProfileComponent {
   readonly profileId =
     this.route.snapshot.paramMap.get('id') ?? 'alina-torres';
   readonly profile = PROFILES[this.profileId] ?? PROFILES['alina-torres'];
+
+  onPhotoSelected(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        this.profile.photoUrl = reader.result;
+      }
+    };
+    reader.readAsDataURL(file);
+  }
 }
