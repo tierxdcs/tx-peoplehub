@@ -1,0 +1,150 @@
+<main class="profile-shell">
+  <header class="profile-topbar">
+    <div class="brand">
+      <span class="product">tx-peoplehub</span>
+      <span class="org">TierX Data Center Solutions</span>
+    </div>
+    <nav class="breadcrumbs">
+      <a routerLink="/">Home</a>
+      <span>/</span>
+      <span>People</span>
+      <span>/</span>
+      <span>{{ profile.name }}</span>
+    </nav>
+    <div class="actions">
+      <button class="ghost" type="button">Message</button>
+      <button class="primary" type="button">Start review</button>
+    </div>
+  </header>
+
+  <section class="profile-hero">
+    <div class="summary">
+      <p class="eyebrow">Employee profile</p>
+      <h1>{{ profile.name }}</h1>
+      <p class="subtitle">{{ profile.title }}</p>
+      <div class="badges">
+        <span>{{ profile.location }}</span>
+        <span>{{ profile.team }}</span>
+        <span>{{ profile.status }}</span>
+      </div>
+      <div class="meta">
+        <div>
+          <span class="label">Manager</span>
+          <span class="value">{{ profile.manager }}</span>
+        </div>
+        <div>
+          <span class="label">Tenure</span>
+          <span class="value">{{ profile.tenure }}</span>
+        </div>
+        <div>
+          <span class="label">Role</span>
+          <span class="value">Manager</span>
+        </div>
+      </div>
+    </div>
+    <div class="profile-card">
+      <div class="card-header">
+        <span>Engagement</span>
+        <span class="pill">Q4 cycle</span>
+      </div>
+      <div class="score">
+        <span class="value">4.8</span>
+        <span class="label">Engagement score</span>
+      </div>
+      <div class="progress">
+        <div class="bar" style="width: 86%"></div>
+      </div>
+      <div class="stat-grid">
+        <div>
+          <span class="label">Goals on track</span>
+          <span class="value">92%</span>
+        </div>
+        <div>
+          <span class="label">Feedback</span>
+          <span class="value">16 notes</span>
+        </div>
+      </div>
+      <button class="ghost" type="button">Open scorecard</button>
+    </div>
+  </section>
+
+  <section class="profile-grid">
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Direct reports</h2>
+        <button class="ghost" type="button">View team</button>
+      </div>
+      <div class="report">
+        <div>
+          <strong>Jessie Moore</strong>
+          <span>Network Engineer</span>
+        </div>
+        <span class="tag">Austin</span>
+      </div>
+      <div class="report">
+        <div>
+          <strong>Iman Shah</strong>
+          <span>Systems Analyst</span>
+        </div>
+        <span class="tag">Remote</span>
+      </div>
+      <div class="report">
+        <div>
+          <strong>Ravi Patel</strong>
+          <span>Infrastructure Lead</span>
+        </div>
+        <span class="tag">Dallas</span>
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Recent activity</h2>
+        <button class="ghost" type="button">View timeline</button>
+      </div>
+      <div class="activity">
+        <span class="time">Today</span>
+        <div>
+          <strong>Submitted Q4 review</strong>
+          <p>Focus on network uptime and site readiness.</p>
+        </div>
+      </div>
+      <div class="activity">
+        <span class="time">Yesterday</span>
+        <div>
+          <strong>Completed training</strong>
+          <p>Leadership essentials and escalation paths.</p>
+        </div>
+      </div>
+      <div class="activity">
+        <span class="time">Mon</span>
+        <div>
+          <strong>Approved time-off</strong>
+          <p>3 requests for Austin operations.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Compliance</h2>
+        <button class="ghost" type="button">Audit view</button>
+      </div>
+      <div class="compliance">
+        <div>
+          <span class="label">Certifications</span>
+          <span class="value">5 active</span>
+        </div>
+        <div>
+          <span class="label">Background</span>
+          <span class="value">Verified</span>
+        </div>
+        <div>
+          <span class="label">Safety training</span>
+          <span class="value">Completed</span>
+        </div>
+      </div>
+      <button class="primary full" type="button">Run compliance report</button>
+    </article>
+  </section>
+</main>
