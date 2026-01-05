@@ -1,1 +1,25 @@
-<router-outlet />
+<div class="app-shell">
+  <header class="app-topbar">
+    <div class="brand">
+      <span class="product">tx-peoplehub</span>
+      <span class="org">TierX Data Center Solutions</span>
+    </div>
+    <nav class="nav">
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+        >People</a
+      >
+      <a routerLink="/teams" routerLinkActive="active">Teams</a>
+      <a routerLink="/admin" routerLinkActive="active">Admin</a>
+      <a routerLink="/settings" routerLinkActive="active">Settings</a>
+    </nav>
+    <div class="actions">
+      <button class="ghost" type="button">Search</button>
+      <a class="primary button-link" routerLink="/admin">New Hire</a>
+      <div class="avatar" aria-label="Account">AT</div>
+    </div>
+  </header>
+
+  <main class="app-content">
+    <router-outlet />
+  </main>
+</div>
