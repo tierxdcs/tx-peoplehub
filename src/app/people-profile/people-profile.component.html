@@ -18,6 +18,9 @@
   </header>
 
   <section class="profile-hero">
+    <div class="profile-photo">
+      <img [src]="profile.photoUrl" [alt]="profile.name" />
+    </div>
     <div class="summary">
       <p class="eyebrow">Employee profile</p>
       <h1>{{ profile.name }}</h1>

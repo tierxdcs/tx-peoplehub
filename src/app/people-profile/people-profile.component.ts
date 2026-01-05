@@ -9,6 +9,7 @@ type Profile = {
   manager: string;
   status: string;
   tenure: string;
+  photoUrl: string;
 };
 
 const PROFILES: Record<string, Profile> = {
@@ -19,7 +20,8 @@ const PROFILES: Record<string, Profile> = {
     team: 'Operations',
     manager: 'Chloe Bishop',
     status: 'Active',
-    tenure: '3y 8m'
+    tenure: '3y 8m',
+    photoUrl: 'assets/people/nithin-gangadhar.svg'
   }
 };
 
