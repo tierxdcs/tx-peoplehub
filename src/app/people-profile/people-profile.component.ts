@@ -16,6 +16,7 @@ type Profile = {
     role: string;
     location: string;
     department: string;
+    reportsTo?: string;
   }[];
 };
 
@@ -35,25 +36,29 @@ const PROFILES: Record<string, Profile> = {
         name: 'Jessie Moore',
         role: 'Network Engineer',
         location: 'Austin',
-        department: 'Operations'
+        department: 'Operations',
+        reportsTo: 'Nithin Gangadhar'
       },
       {
         name: 'Iman Shah',
         role: 'Systems Analyst',
         location: 'Remote',
-        department: 'Operations'
+        department: 'Operations',
+        reportsTo: 'Nithin Gangadhar'
       },
       {
         name: 'Ravi Patel',
         role: 'Infrastructure Lead',
         location: 'Dallas',
-        department: 'Operations'
+        department: 'Operations',
+        reportsTo: 'Nithin Gangadhar'
       },
       {
         name: 'Camila Cruz',
         role: 'NOC Technician',
         location: 'Phoenix',
-        department: 'Operations'
+        department: 'Operations',
+        reportsTo: 'Nithin Gangadhar'
       },
       {
         name: 'Liam Ortiz',
@@ -79,10 +84,23 @@ export class PeopleProfileComponent {
     this.route.snapshot.paramMap.get('id') ?? 'alina-torres';
   readonly profile = PROFILES[this.profileId] ?? PROFILES['alina-torres'];
   isTeamModalOpen = false;
+  adminDirectReports: { name: string; role: string; location: string }[] = [];
   get filteredTeamMembers() {
     return this.profile.teamMembers.filter(
       (member) => member.department === this.profile.team
     );
+  }
+  get directReports() {
+    return [
+      ...this.profile.teamMembers
+        .filter((member) => member.reportsTo === this.profile.name)
+        .map((member) => ({
+          name: member.name,
+          role: member.role,
+          location: member.location
+        })),
+      ...this.adminDirectReports
+    ];
   }
 
   ngOnInit() {
@@ -92,13 +110,28 @@ export class PeopleProfileComponent {
     }
 
     try {
-      const parsed = JSON.parse(stored) as { certifications?: string };
+      const parsed = JSON.parse(stored) as {
+        certifications?: string;
+        fullName?: string;
+        jobTitle?: string;
+        location?: string;
+        manager?: string;
+      };
       const certifications =
         parsed.certifications
           ?.split(',')
           .map((item) => item.trim())
           .filter(Boolean) ?? [];
       this.profile.certifications = certifications;
+      if (parsed.manager === this.profile.name && parsed.fullName) {
+        this.adminDirectReports = [
+          {
+            name: parsed.fullName,
+            role: parsed.jobTitle ?? 'Direct report',
+            location: parsed.location ?? 'Unspecified'
+          }
+        ];
+      }
     } catch {
       this.profile.certifications = [];
     }
