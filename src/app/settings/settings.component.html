@@ -41,12 +41,19 @@
         >Add department</button
       >
       <div class="department-list">
-        @for (department of departments; track department.name) {
+        @for (department of departments; track department.name; let i = $index) {
           <div class="department-row">
             <div>
               <strong>{{ department.name }}</strong>
               <span>{{ department.head }}</span>
             </div>
+            <button
+              class="ghost small"
+              type="button"
+              (click)="removeDepartment(i)"
+            >
+              Delete
+            </button>
           </div>
         }
       </div>
