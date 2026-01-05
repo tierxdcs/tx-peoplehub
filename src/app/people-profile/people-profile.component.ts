@@ -25,6 +25,7 @@ const PROFILES: Record<string, Profile> = {
 
 @Component({
   selector: 'app-people-profile',
+  standalone: true,
   imports: [RouterLink],
   templateUrl: './people-profile.component.html',
   styleUrl: './people-profile.component.scss'
