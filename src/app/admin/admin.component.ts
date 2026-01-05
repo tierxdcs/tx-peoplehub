@@ -1,15 +1,65 @@
 import { Component } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, FormsModule],
   templateUrl: './admin.component.html',
   styleUrl: './admin.component.scss'
 })
 export class AdminComponent {
+  private readonly storageKey = 'tx-peoplehub-admin-draft';
   saved = false;
+  adminData = {
+    fullName: '',
+    employeeId: '',
+    email: '',
+    location: 'Austin, TX',
+    department: 'Operations',
+    startDate: '',
+    jobTitle: '',
+    manager: '',
+    employmentType: 'Full-time',
+    status: 'Active',
+    schedule: 'Day shift',
+    costCenter: '',
+    baseSalary: '',
+    paySchedule: 'Bi-weekly',
+    bonusEligible: 'Yes',
+    equityPlan: 'Not eligible',
+    benefitsTier: 'Standard',
+    compensationEffectiveDate: '',
+    annualPto: '',
+    sickLeave: '',
+    floatingHolidays: '',
+    parentalLeave: '',
+    carryoverCap: '',
+    policyEffective: '',
+    certifications: '',
+    backgroundCheck: 'Verified',
+    safetyTraining: 'Completed',
+    workAuthorization: 'Valid',
+    complianceDocumentName: '',
+    nextAuditDate: '',
+    checklistOffer: false,
+    checklistEquipment: false,
+    checklistBadges: false,
+    checklistOrientation: false
+  };
+
+  ngOnInit() {
+    const raw = localStorage.getItem(this.storageKey);
+    if (!raw) {
+      return;
+    }
+    try {
+      this.adminData = { ...this.adminData, ...JSON.parse(raw) };
+    } catch {
+      localStorage.removeItem(this.storageKey);
+    }
+  }
 
   save(event: Event) {
     event.preventDefault();
@@ -19,6 +69,13 @@ export class AdminComponent {
       return;
     }
 
+    localStorage.setItem(this.storageKey, JSON.stringify(this.adminData));
     this.saved = true;
+  }
+
+  onFileSelected(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    const fileName = input?.files?.[0]?.name ?? '';
+    this.adminData.complianceDocumentName = fileName;
   }
 }
