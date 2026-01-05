@@ -32,7 +32,9 @@
           <span class="value">Austin, Dallas, Phoenix</span>
         </div>
       </div>
-      <button class="ghost full" type="button">View roster</button>
+      <button class="ghost full" type="button" (click)="openRoster('Operations')"
+        >View roster</button
+      >
     </article>
 
     <article class="panel">
@@ -55,7 +57,9 @@
           <span class="value">Austin, Phoenix</span>
         </div>
       </div>
-      <button class="ghost full" type="button">View roster</button>
+      <button class="ghost full" type="button" (click)="openRoster('Facilities')"
+        >View roster</button
+      >
     </article>
 
     <article class="panel">
@@ -78,7 +82,9 @@
           <span class="value">Dallas, Austin</span>
         </div>
       </div>
-      <button class="ghost full" type="button">View roster</button>
+      <button class="ghost full" type="button" (click)="openRoster('Security')"
+        >View roster</button
+      >
     </article>
 
     <article class="panel">
@@ -101,7 +107,34 @@
           <span class="value">Austin</span>
         </div>
       </div>
-      <button class="ghost full" type="button">View roster</button>
+      <button class="ghost full" type="button" (click)="openRoster('HR & People Ops')"
+        >View roster</button
+      >
     </article>
   </section>
 </main>
+
+@if (selectedTeam) {
+  <div class="modal-backdrop" (click)="closeRoster()"></div>
+  <div class="modal" role="dialog" aria-modal="true">
+    <header>
+      <div>
+        <p class="eyebrow">Team roster</p>
+        <h3>{{ selectedTeam.name }}</h3>
+        <p class="subtitle">Head: {{ selectedTeam.head }}</p>
+      </div>
+      <button class="ghost" type="button" (click)="closeRoster()">Close</button>
+    </header>
+    <div class="modal-body">
+      @for (member of selectedTeam.roster; track member.name) {
+        <div class="member-row">
+          <div>
+            <strong>{{ member.name }}</strong>
+            <span>{{ member.role }}</span>
+          </div>
+          <span class="pill soft">{{ member.location }}</span>
+        </div>
+      }
+    </div>
+  </div>
+}
