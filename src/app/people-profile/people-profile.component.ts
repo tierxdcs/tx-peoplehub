@@ -11,6 +11,7 @@ type Profile = {
   tenure: string;
   photoUrl: string;
   certifications: string[];
+  teamMembers: { name: string; role: string; location: string }[];
 };
 
 const PROFILES: Record<string, Profile> = {
@@ -23,7 +24,13 @@ const PROFILES: Record<string, Profile> = {
     status: 'Active',
     tenure: '3y 8m',
     photoUrl: 'assets/people/nithin-gangadhar.svg',
-    certifications: []
+    certifications: [],
+    teamMembers: [
+      { name: 'Jessie Moore', role: 'Network Engineer', location: 'Austin' },
+      { name: 'Iman Shah', role: 'Systems Analyst', location: 'Remote' },
+      { name: 'Ravi Patel', role: 'Infrastructure Lead', location: 'Dallas' },
+      { name: 'Camila Cruz', role: 'NOC Technician', location: 'Phoenix' }
+    ]
   }
 };
 
@@ -40,6 +47,7 @@ export class PeopleProfileComponent {
   readonly profileId =
     this.route.snapshot.paramMap.get('id') ?? 'alina-torres';
   readonly profile = PROFILES[this.profileId] ?? PROFILES['alina-torres'];
+  isTeamModalOpen = false;
 
   ngOnInit() {
     const stored = localStorage.getItem(this.storageKey);
@@ -74,5 +82,13 @@ export class PeopleProfileComponent {
       }
     };
     reader.readAsDataURL(file);
+  }
+
+  openTeamModal() {
+    this.isTeamModalOpen = true;
+  }
+
+  closeTeamModal() {
+    this.isTeamModalOpen = false;
   }
 }
