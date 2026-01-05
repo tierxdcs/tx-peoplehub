@@ -11,7 +11,12 @@ type Profile = {
   tenure: string;
   photoUrl: string;
   certifications: string[];
-  teamMembers: { name: string; role: string; location: string }[];
+  teamMembers: {
+    name: string;
+    role: string;
+    location: string;
+    department: string;
+  }[];
 };
 
 const PROFILES: Record<string, Profile> = {
@@ -26,10 +31,36 @@ const PROFILES: Record<string, Profile> = {
     photoUrl: 'assets/people/nithin-gangadhar.svg',
     certifications: [],
     teamMembers: [
-      { name: 'Jessie Moore', role: 'Network Engineer', location: 'Austin' },
-      { name: 'Iman Shah', role: 'Systems Analyst', location: 'Remote' },
-      { name: 'Ravi Patel', role: 'Infrastructure Lead', location: 'Dallas' },
-      { name: 'Camila Cruz', role: 'NOC Technician', location: 'Phoenix' }
+      {
+        name: 'Jessie Moore',
+        role: 'Network Engineer',
+        location: 'Austin',
+        department: 'Operations'
+      },
+      {
+        name: 'Iman Shah',
+        role: 'Systems Analyst',
+        location: 'Remote',
+        department: 'Operations'
+      },
+      {
+        name: 'Ravi Patel',
+        role: 'Infrastructure Lead',
+        location: 'Dallas',
+        department: 'Operations'
+      },
+      {
+        name: 'Camila Cruz',
+        role: 'NOC Technician',
+        location: 'Phoenix',
+        department: 'Operations'
+      },
+      {
+        name: 'Liam Ortiz',
+        role: 'Facilities Coordinator',
+        location: 'Austin',
+        department: 'Facilities'
+      }
     ]
   }
 };
@@ -48,6 +79,11 @@ export class PeopleProfileComponent {
     this.route.snapshot.paramMap.get('id') ?? 'alina-torres';
   readonly profile = PROFILES[this.profileId] ?? PROFILES['alina-torres'];
   isTeamModalOpen = false;
+  get filteredTeamMembers() {
+    return this.profile.teamMembers.filter(
+      (member) => member.department === this.profile.team
+    );
+  }
 
   ngOnInit() {
     const stored = localStorage.getItem(this.storageKey);
