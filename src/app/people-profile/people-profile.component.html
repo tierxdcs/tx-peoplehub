@@ -145,7 +145,18 @@
       <div class="compliance">
         <div>
           <span class="label">Certifications</span>
-          <span class="value">5 active</span>
+          <span class="value"
+            >{{ profile.certifications.length }} active</span
+          >
+          @if (profile.certifications.length) {
+            <ul class="certifications">
+              @for (cert of profile.certifications; track cert) {
+                <li>{{ cert }}</li>
+              }
+            </ul>
+          } @else {
+            <p class="empty">No certifications on file.</p>
+          }
         </div>
         <div>
           <span class="label">Background</span>
