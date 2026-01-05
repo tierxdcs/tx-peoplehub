@@ -1,0 +1,179 @@
+<main class="admin-shell">
+  <header class="admin-topbar">
+    <div>
+      <p class="eyebrow">Admin console</p>
+      <h1>HR data entry</h1>
+      <p class="subtitle">
+        Capture employee records, org structure, and compliance details in one
+        place.
+      </p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" routerLink="/">Back to home</a>
+      <button class="primary" type="button">Save changes</button>
+    </div>
+  </header>
+
+  <section class="admin-grid">
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Employee profile</h2>
+        <span class="pill">Required</span>
+      </div>
+      <form class="form-grid">
+        <label>
+          Full name
+          <input type="text" placeholder="First and last name" />
+        </label>
+        <label>
+          Employee ID
+          <input type="text" placeholder="TX-24819" />
+        </label>
+        <label>
+          Work email
+          <input type="email" placeholder="name@tierx.com" />
+        </label>
+        <label>
+          Location
+          <select>
+            <option>Austin, TX</option>
+            <option>Dallas, TX</option>
+            <option>Phoenix, AZ</option>
+            <option>Remote</option>
+          </select>
+        </label>
+        <label>
+          Department
+          <select>
+            <option>Operations</option>
+            <option>Facilities</option>
+            <option>Security</option>
+            <option>HR</option>
+          </select>
+        </label>
+        <label>
+          Start date
+          <input type="date" />
+        </label>
+      </form>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Role & reporting</h2>
+        <span class="pill soft">Org</span>
+      </div>
+      <form class="form-grid">
+        <label>
+          Job title
+          <input type="text" placeholder="Network Operations Manager" />
+        </label>
+        <label>
+          Manager
+          <input type="text" placeholder="Search by name" />
+        </label>
+        <label>
+          Employment type
+          <select>
+            <option>Full-time</option>
+            <option>Part-time</option>
+            <option>Contractor</option>
+            <option>Intern</option>
+          </select>
+        </label>
+        <label>
+          Status
+          <select>
+            <option>Active</option>
+            <option>On leave</option>
+            <option>Pending</option>
+            <option>Separated</option>
+          </select>
+        </label>
+        <label>
+          Work schedule
+          <select>
+            <option>Day shift</option>
+            <option>Night shift</option>
+            <option>Rotational</option>
+          </select>
+        </label>
+        <label>
+          Cost center
+          <input type="text" placeholder="OPS-401" />
+        </label>
+      </form>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Compliance & credentials</h2>
+        <span class="pill">Audit</span>
+      </div>
+      <form class="form-grid">
+        <label>
+          Certifications
+          <input type="text" placeholder="OSHA, Network+, Security+" />
+        </label>
+        <label>
+          Background check
+          <select>
+            <option>Verified</option>
+            <option>Pending</option>
+            <option>Not required</option>
+          </select>
+        </label>
+        <label>
+          Safety training
+          <select>
+            <option>Completed</option>
+            <option>In progress</option>
+            <option>Not started</option>
+          </select>
+        </label>
+        <label>
+          Work authorization
+          <select>
+            <option>Valid</option>
+            <option>Pending</option>
+            <option>Expired</option>
+          </select>
+        </label>
+        <label class="upload">
+          Upload documents
+          <input type="file" />
+        </label>
+        <label>
+          Next audit date
+          <input type="date" />
+        </label>
+      </form>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Onboarding checklist</h2>
+        <span class="pill soft">Workflow</span>
+      </div>
+      <div class="checklist">
+        <label>
+          <input type="checkbox" />
+          Offer letter signed
+        </label>
+        <label>
+          <input type="checkbox" />
+          Equipment provisioned
+        </label>
+        <label>
+          <input type="checkbox" />
+          Access badges issued
+        </label>
+        <label>
+          <input type="checkbox" />
+          Orientation scheduled
+        </label>
+      </div>
+      <button class="ghost full" type="button">Assign tasks</button>
+    </article>
+  </section>
+</main>
