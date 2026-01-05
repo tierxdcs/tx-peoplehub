@@ -185,14 +185,18 @@
       >
     </header>
     <div class="modal-body">
-      @for (member of filteredTeamMembers; track member.name) {
-        <div class="member-row">
-          <div>
-            <strong>{{ member.name }}</strong>
-            <span>{{ member.role }} · {{ member.department }}</span>
+      @if (filteredTeamMembers.length) {
+        @for (member of filteredTeamMembers; track member.name) {
+          <div class="member-row">
+            <div>
+              <strong>{{ member.name }}</strong>
+              <span>{{ member.role }} · {{ member.department }}</span>
+            </div>
+            <span class="tag">{{ member.location }}</span>
           </div>
-          <span class="tag">{{ member.location }}</span>
-        </div>
+        }
+      } @else {
+        <p class="empty">No team members found for this department.</p>
       }
     </div>
   </div>
