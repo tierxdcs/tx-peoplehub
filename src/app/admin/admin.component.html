@@ -19,7 +19,7 @@
       Changes saved to draft.
     </div>
 
-    <section class="admin-grid">
+  <section class="admin-grid">
     <article class="panel">
       <div class="panel-header">
         <h2>Employee profile</h2>
@@ -85,6 +85,85 @@
             name="startDate"
             required
             [(ngModel)]="adminData.startDate"
+          />
+        </label>
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Engagement inputs</h2>
+        <span class="pill soft">Score</span>
+      </div>
+      <div class="form-grid">
+        <label>
+          Survey score (0-100)
+          <input
+            type="number"
+            name="surveyScore"
+            placeholder="88"
+            min="0"
+            max="100"
+            required
+            [(ngModel)]="adminData.surveyScore"
+          />
+        </label>
+        <label>
+          Approved leave days (last 90)
+          <input
+            type="number"
+            name="approvedLeaveDays"
+            placeholder="4"
+            min="0"
+            required
+            [(ngModel)]="adminData.approvedLeaveDays"
+          />
+        </label>
+        <label>
+          Training completion (%)
+          <input
+            type="number"
+            name="trainingCompletion"
+            placeholder="92"
+            min="0"
+            max="100"
+            required
+            [(ngModel)]="adminData.trainingCompletion"
+          />
+        </label>
+        <label>
+          Goals updated (last 90)
+          <input
+            type="number"
+            name="goalsUpdated"
+            placeholder="6"
+            min="0"
+            required
+            [(ngModel)]="adminData.goalsUpdated"
+          />
+        </label>
+        <label>
+          Feedback submitted (last 90)
+          <input
+            type="number"
+            name="feedbackSubmitted"
+            placeholder="8"
+            min="0"
+            required
+            [(ngModel)]="adminData.feedbackSubmitted"
+          />
+        </label>
+        <label>
+          Absence rate (%)
+          <input
+            type="number"
+            name="absenceRate"
+            placeholder="1.5"
+            min="0"
+            max="100"
+            step="0.1"
+            required
+            [(ngModel)]="adminData.absenceRate"
           />
         </label>
       </div>
