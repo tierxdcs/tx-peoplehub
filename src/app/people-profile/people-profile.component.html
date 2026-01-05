@@ -85,7 +85,9 @@
     <article class="panel">
       <div class="panel-header">
         <h2>Direct reports</h2>
-        <button class="ghost" type="button">View team</button>
+        <button class="ghost" type="button" (click)="openTeamModal()"
+          >View team</button
+        >
       </div>
       <div class="report">
         <div>
@@ -169,3 +171,29 @@
     </article>
   </section>
 </main>
+
+@if (isTeamModalOpen) {
+  <div class="modal-backdrop" (click)="closeTeamModal()"></div>
+  <div class="modal" role="dialog" aria-modal="true">
+    <header>
+      <div>
+        <p class="eyebrow">Team members</p>
+        <h3>{{ profile.team }} · {{ profile.location }}</h3>
+      </div>
+      <button class="ghost" type="button" (click)="closeTeamModal()"
+        >Close</button
+      >
+    </header>
+    <div class="modal-body">
+      @for (member of profile.teamMembers; track member.name) {
+        <div class="member-row">
+          <div>
+            <strong>{{ member.name }}</strong>
+            <span>{{ member.role }}</span>
+          </div>
+          <span class="tag">{{ member.location }}</span>
+        </div>
+      }
+    </div>
+  </div>
+}
