@@ -7,11 +7,13 @@
       </div>
     </div>
     <nav class="nav">
-      <a class="active" href="#">People</a>
-      <a href="#">Teams</a>
-      <a href="#">Time</a>
-      <a href="#">Insights</a>
-      <a href="#">Admin</a>
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+        >People</a
+      >
+      <button class="nav-button" type="button">Teams</button>
+      <button class="nav-button" type="button">Time</button>
+      <button class="nav-button" type="button">Insights</button>
+      <a routerLink="/admin" routerLinkActive="active">Admin</a>
     </nav>
     <div class="actions">
       <button class="ghost" type="button">Search</button>

@@ -94,15 +94,21 @@
   color: var(--ink-600);
 }
 
-.nav a {
+.nav a,
+.nav .nav-button {
   text-decoration: none;
   color: inherit;
   padding: 6px 2px;
   position: relative;
+  background: transparent;
+  border: none;
+  font: inherit;
+  cursor: pointer;
 }
 
 .nav a.active,
-.nav a:hover {
+.nav a:hover,
+.nav .nav-button:hover {
   color: var(--brand-blue);
 }
 
