@@ -1,0 +1,90 @@
+<main class="scorecard-shell">
+  <header class="scorecard-topbar">
+    <div>
+      <p class="eyebrow">Performance scorecard</p>
+      <h1>Employee scorecard</h1>
+      <p class="subtitle">Quarterly insights for key outcomes and growth.</p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" [routerLink]="['/people', profileId]"
+        >Back to profile</a
+      >
+      <button class="primary" type="button">Export PDF</button>
+    </div>
+  </header>
+
+  <section class="scorecard-grid">
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Overall score</h2>
+        <span class="pill">Q4</span>
+      </div>
+      <div class="score">
+        <span class="value">4.8</span>
+        <span class="label">Exceeds expectations</span>
+      </div>
+      <div class="progress">
+        <div class="bar" style="width: 86%"></div>
+      </div>
+      <div class="stat-grid">
+        <div>
+          <span class="label">Goal completion</span>
+          <span class="value">92%</span>
+        </div>
+        <div>
+          <span class="label">Quality rating</span>
+          <span class="value">4.9</span>
+        </div>
+        <div>
+          <span class="label">Reliability</span>
+          <span class="value">4.7</span>
+        </div>
+        <div>
+          <span class="label">Leadership</span>
+          <span class="value">4.6</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Key outcomes</h2>
+        <span class="pill soft">Ops</span>
+      </div>
+      <div class="outcome">
+        <strong>Network uptime</strong>
+        <p>Delivered 99.98% uptime across TierX sites.</p>
+      </div>
+      <div class="outcome">
+        <strong>Incident response</strong>
+        <p>Reduced MTTR by 18% through new escalation playbooks.</p>
+      </div>
+      <div class="outcome">
+        <strong>Team readiness</strong>
+        <p>Onboarded 4 new technicians with zero compliance gaps.</p>
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Growth & development</h2>
+        <span class="pill">Focus</span>
+      </div>
+      <div class="development">
+        <div>
+          <span class="label">Next role readiness</span>
+          <span class="value">75%</span>
+        </div>
+        <div>
+          <span class="label">Mentorship</span>
+          <span class="value">2 active mentees</span>
+        </div>
+        <div>
+          <span class="label">Training hours</span>
+          <span class="value">36 hrs</span>
+        </div>
+      </div>
+      <button class="ghost full" type="button">Open development plan</button>
+    </article>
+  </section>
+</main>
