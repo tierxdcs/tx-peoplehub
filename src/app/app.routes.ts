@@ -4,6 +4,7 @@ import { PeopleProfileComponent } from './people-profile/people-profile.componen
 import { AdminComponent } from './admin/admin.component';
 import { ScorecardComponent } from './scorecard/scorecard.component';
 import { TeamsComponent } from './teams/teams.component';
+import { SettingsComponent } from './settings/settings.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -11,5 +12,6 @@ export const routes: Routes = [
   { path: 'people/:id', component: PeopleProfileComponent },
   { path: 'people/:id/scorecard', component: ScorecardComponent },
   { path: 'admin', component: AdminComponent },
+  { path: 'settings', component: SettingsComponent },
   { path: '**', redirectTo: '' }
 ];

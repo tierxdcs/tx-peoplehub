@@ -1,0 +1,150 @@
+<main class="settings-shell">
+  <header class="settings-topbar">
+    <div>
+      <p class="eyebrow">Settings</p>
+      <h1>System configuration</h1>
+      <p class="subtitle">
+        Manage access, notifications, and operational preferences.
+      </p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" routerLink="/">Back to home</a>
+      <button class="primary" type="button">Save settings</button>
+    </div>
+  </header>
+
+  <section class="settings-grid">
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Access control</h2>
+        <span class="pill">Security</span>
+      </div>
+      <div class="form-grid">
+        <label>
+          Default role
+          <select>
+            <option>Employee</option>
+            <option>Manager</option>
+            <option>Admin</option>
+          </select>
+        </label>
+        <label>
+          MFA requirement
+          <select>
+            <option>Required</option>
+            <option>Optional</option>
+            <option>Disabled</option>
+          </select>
+        </label>
+        <label>
+          Session timeout
+          <select>
+            <option>30 minutes</option>
+            <option>1 hour</option>
+            <option>8 hours</option>
+          </select>
+        </label>
+        <label>
+          Audit logging
+          <select>
+            <option>Enabled</option>
+            <option>Disabled</option>
+          </select>
+        </label>
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Notifications</h2>
+        <span class="pill soft">Comms</span>
+      </div>
+      <div class="form-grid">
+        <label>
+          New hire alerts
+          <select>
+            <option>HR + Manager</option>
+            <option>HR only</option>
+            <option>Off</option>
+          </select>
+        </label>
+        <label>
+          Compliance reminders
+          <select>
+            <option>Weekly</option>
+            <option>Monthly</option>
+            <option>Off</option>
+          </select>
+        </label>
+        <label>
+          Survey reminders
+          <select>
+            <option>On</option>
+            <option>Off</option>
+          </select>
+        </label>
+        <label>
+          Digest delivery
+          <select>
+            <option>Monday 9:00 AM</option>
+            <option>Friday 4:00 PM</option>
+            <option>Off</option>
+          </select>
+        </label>
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Branding</h2>
+        <span class="pill">Theme</span>
+      </div>
+      <div class="form-grid">
+        <label>
+          Accent color
+          <input type="text" placeholder="#0b62b3" />
+        </label>
+        <label>
+          Secondary color
+          <input type="text" placeholder="#37b34a" />
+        </label>
+        <label>
+          Display name
+          <input type="text" placeholder="tx-peoplehub" />
+        </label>
+        <label>
+          Region
+          <select>
+            <option>US Central</option>
+            <option>US West</option>
+            <option>EMEA</option>
+          </select>
+        </label>
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Integrations</h2>
+        <span class="pill soft">Systems</span>
+      </div>
+      <div class="integrations">
+        <div>
+          <strong>Payroll</strong>
+          <span>Not connected</span>
+        </div>
+        <button class="ghost" type="button">Connect</button>
+        <div>
+          <strong>LMS</strong>
+          <span>Connected</span>
+        </div>
+        <button class="ghost" type="button">Manage</button>
+        <div>
+          <strong>Attendance</strong>
+          <span>Not connected</span>
+        </div>
+        <button class="ghost" type="button">Connect</button>
+      </div>
+    </article>
+  </section>
+</main>
