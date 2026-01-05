@@ -85,27 +85,19 @@
           >View team</button
         >
       </div>
-      <div class="report">
-        <div>
-          <strong>Jessie Moore</strong>
-          <span>Network Engineer</span>
-        </div>
-        <span class="tag">Austin</span>
-      </div>
-      <div class="report">
-        <div>
-          <strong>Iman Shah</strong>
-          <span>Systems Analyst</span>
-        </div>
-        <span class="tag">Remote</span>
-      </div>
-      <div class="report">
-        <div>
-          <strong>Ravi Patel</strong>
-          <span>Infrastructure Lead</span>
-        </div>
-        <span class="tag">Dallas</span>
-      </div>
+      @if (directReports.length) {
+        @for (member of directReports; track member.name) {
+          <div class="report">
+            <div>
+              <strong>{{ member.name }}</strong>
+              <span>{{ member.role }}</span>
+            </div>
+            <span class="tag">{{ member.location }}</span>
+          </div>
+        }
+      } @else {
+        <p class="empty">No direct reports on file.</p>
+      }
     </article>
 
     <article class="panel">
