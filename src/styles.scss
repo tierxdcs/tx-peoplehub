@@ -1,0 +1,39 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Sora:wght@400;500;600;700&display=swap");
+
+:root {
+  color-scheme: light;
+  --font-body: "Manrope", sans-serif;
+  --font-display: "Sora", sans-serif;
+
+  --brand-blue: #0b62b3;
+  --brand-green: #37b34a;
+
+  --ink-900: #0f172a;
+  --ink-700: #1f2937;
+  --ink-600: #334155;
+  --ink-500: #64748b;
+
+  --shadow-soft: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: linear-gradient(135deg, #f5f7fb 0%, #eef2f9 40%, #f9fbff 100%);
+  color: var(--ink-900);
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+button {
+  font-family: var(--font-body);
+}
