@@ -1,26 +1,31 @@
 <main class="admin-shell">
-  <header class="admin-topbar">
-    <div>
-      <p class="eyebrow">Admin console</p>
-      <h1>HR data entry</h1>
-      <p class="subtitle">
-        Capture employee records, org structure, and compliance details in one
-        place.
-      </p>
-    </div>
-    <div class="actions">
-      <a class="ghost button-link" routerLink="/">Back to home</a>
-      <button class="primary" type="button">Save changes</button>
-    </div>
-  </header>
+  <form class="admin-form" (submit)="save($event)">
+    <header class="admin-topbar">
+      <div>
+        <p class="eyebrow">Admin console</p>
+        <h1>HR data entry</h1>
+        <p class="subtitle">
+          Capture employee records, org structure, and compliance details in one
+          place.
+        </p>
+      </div>
+      <div class="actions">
+        <a class="ghost button-link" routerLink="/">Back to home</a>
+        <button class="primary" type="submit">Save changes</button>
+      </div>
+    </header>
 
-  <section class="admin-grid">
+    <div class="save-banner" [class.show]="saved" role="status">
+      Changes saved to draft.
+    </div>
+
+    <section class="admin-grid">
     <article class="panel">
       <div class="panel-header">
         <h2>Employee profile</h2>
         <span class="pill">Required</span>
       </div>
-      <form class="form-grid">
+      <div class="form-grid">
         <label>
           Full name
           <input type="text" placeholder="First and last name" required />
@@ -55,7 +60,7 @@
           Start date
           <input type="date" required />
         </label>
-      </form>
+      </div>
     </article>
 
     <article class="panel">
@@ -63,7 +68,7 @@
         <h2>Role & reporting</h2>
         <span class="pill soft">Org</span>
       </div>
-      <form class="form-grid">
+      <div class="form-grid">
         <label>
           Job title
           <input type="text" placeholder="Network Operations Manager" required />
@@ -102,7 +107,7 @@
           Cost center
           <input type="text" placeholder="OPS-401" required />
         </label>
-      </form>
+      </div>
     </article>
 
     <article class="panel">
@@ -110,7 +115,7 @@
         <h2>Compensation & benefits</h2>
         <span class="pill">Payroll</span>
       </div>
-      <form class="form-grid">
+      <div class="form-grid">
         <label>
           Base salary
           <input type="number" placeholder="$85,000" required />
@@ -149,7 +154,7 @@
           Effective date
           <input type="date" required />
         </label>
-      </form>
+      </div>
     </article>
 
     <article class="panel">
@@ -157,7 +162,7 @@
         <h2>Leave allowances</h2>
         <span class="pill soft">Time off</span>
       </div>
-      <form class="form-grid">
+      <div class="form-grid">
         <label>
           Annual PTO (days)
           <input type="number" placeholder="15" required />
@@ -182,7 +187,7 @@
           Policy effective
           <input type="date" required />
         </label>
-      </form>
+      </div>
     </article>
 
     <article class="panel">
@@ -190,7 +195,7 @@
         <h2>Compliance & credentials</h2>
         <span class="pill">Audit</span>
       </div>
-      <form class="form-grid">
+      <div class="form-grid">
         <label>
           Certifications
           <input type="text" placeholder="OSHA, Network+, Security+" required />
@@ -227,7 +232,7 @@
           Next audit date
           <input type="date" required />
         </label>
-      </form>
+      </div>
     </article>
 
     <article class="panel">
@@ -255,5 +260,6 @@
       </div>
       <button class="ghost full" type="button">Assign tasks</button>
     </article>
-  </section>
+    </section>
+  </form>
 </main>
