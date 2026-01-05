@@ -28,19 +28,37 @@
       <div class="form-grid">
         <label>
           Full name
-          <input type="text" placeholder="First and last name" required />
+          <input
+            type="text"
+            name="fullName"
+            placeholder="First and last name"
+            required
+            [(ngModel)]="adminData.fullName"
+          />
         </label>
         <label>
           Employee ID
-          <input type="text" placeholder="TX-24819" required />
+          <input
+            type="text"
+            name="employeeId"
+            placeholder="TX-24819"
+            required
+            [(ngModel)]="adminData.employeeId"
+          />
         </label>
         <label>
           Work email
-          <input type="email" placeholder="name@tierx.com" required />
+          <input
+            type="email"
+            name="email"
+            placeholder="name@tierx.com"
+            required
+            [(ngModel)]="adminData.email"
+          />
         </label>
         <label>
           Location
-          <select required>
+          <select name="location" required [(ngModel)]="adminData.location">
             <option>Austin, TX</option>
             <option>Dallas, TX</option>
             <option>Phoenix, AZ</option>
@@ -49,7 +67,11 @@
         </label>
         <label>
           Department
-          <select required>
+          <select
+            name="department"
+            required
+            [(ngModel)]="adminData.department"
+          >
             <option>Operations</option>
             <option>Facilities</option>
             <option>Security</option>
@@ -58,7 +80,12 @@
         </label>
         <label>
           Start date
-          <input type="date" required />
+          <input
+            type="date"
+            name="startDate"
+            required
+            [(ngModel)]="adminData.startDate"
+          />
         </label>
       </div>
     </article>
@@ -71,15 +98,31 @@
       <div class="form-grid">
         <label>
           Job title
-          <input type="text" placeholder="Network Operations Manager" required />
+          <input
+            type="text"
+            name="jobTitle"
+            placeholder="Network Operations Manager"
+            required
+            [(ngModel)]="adminData.jobTitle"
+          />
         </label>
         <label>
           Manager
-          <input type="text" placeholder="Search by name" required />
+          <input
+            type="text"
+            name="manager"
+            placeholder="Search by name"
+            required
+            [(ngModel)]="adminData.manager"
+          />
         </label>
         <label>
           Employment type
-          <select required>
+          <select
+            name="employmentType"
+            required
+            [(ngModel)]="adminData.employmentType"
+          >
             <option>Full-time</option>
             <option>Part-time</option>
             <option>Contractor</option>
@@ -88,7 +131,7 @@
         </label>
         <label>
           Status
-          <select required>
+          <select name="status" required [(ngModel)]="adminData.status">
             <option>Active</option>
             <option>On leave</option>
             <option>Pending</option>
@@ -97,7 +140,7 @@
         </label>
         <label>
           Work schedule
-          <select required>
+          <select name="schedule" required [(ngModel)]="adminData.schedule">
             <option>Day shift</option>
             <option>Night shift</option>
             <option>Rotational</option>
@@ -105,7 +148,13 @@
         </label>
         <label>
           Cost center
-          <input type="text" placeholder="OPS-401" required />
+          <input
+            type="text"
+            name="costCenter"
+            placeholder="OPS-401"
+            required
+            [(ngModel)]="adminData.costCenter"
+          />
         </label>
       </div>
     </article>
@@ -118,11 +167,21 @@
       <div class="form-grid">
         <label>
           Base salary
-          <input type="number" placeholder="$85,000" required />
+          <input
+            type="number"
+            name="baseSalary"
+            placeholder="$85,000"
+            required
+            [(ngModel)]="adminData.baseSalary"
+          />
         </label>
         <label>
           Pay schedule
-          <select required>
+          <select
+            name="paySchedule"
+            required
+            [(ngModel)]="adminData.paySchedule"
+          >
             <option>Bi-weekly</option>
             <option>Monthly</option>
             <option>Weekly</option>
@@ -130,21 +189,33 @@
         </label>
         <label>
           Bonus eligibility
-          <select required>
+          <select
+            name="bonusEligible"
+            required
+            [(ngModel)]="adminData.bonusEligible"
+          >
             <option>Yes</option>
             <option>No</option>
           </select>
         </label>
         <label>
           Equity plan
-          <select required>
+          <select
+            name="equityPlan"
+            required
+            [(ngModel)]="adminData.equityPlan"
+          >
             <option>Not eligible</option>
             <option>Eligible</option>
           </select>
         </label>
         <label>
           Benefits tier
-          <select required>
+          <select
+            name="benefitsTier"
+            required
+            [(ngModel)]="adminData.benefitsTier"
+          >
             <option>Standard</option>
             <option>Premium</option>
             <option>Executive</option>
@@ -152,7 +223,12 @@
         </label>
         <label>
           Effective date
-          <input type="date" required />
+          <input
+            type="date"
+            name="compensationEffectiveDate"
+            required
+            [(ngModel)]="adminData.compensationEffectiveDate"
+          />
         </label>
       </div>
     </article>
@@ -165,27 +241,62 @@
       <div class="form-grid">
         <label>
           Annual PTO (days)
-          <input type="number" placeholder="15" required />
+          <input
+            type="number"
+            name="annualPto"
+            placeholder="15"
+            required
+            [(ngModel)]="adminData.annualPto"
+          />
         </label>
         <label>
           Sick leave (days)
-          <input type="number" placeholder="10" required />
+          <input
+            type="number"
+            name="sickLeave"
+            placeholder="10"
+            required
+            [(ngModel)]="adminData.sickLeave"
+          />
         </label>
         <label>
           Floating holidays
-          <input type="number" placeholder="3" required />
+          <input
+            type="number"
+            name="floatingHolidays"
+            placeholder="3"
+            required
+            [(ngModel)]="adminData.floatingHolidays"
+          />
         </label>
         <label>
           Parental leave (weeks)
-          <input type="number" placeholder="6" required />
+          <input
+            type="number"
+            name="parentalLeave"
+            placeholder="6"
+            required
+            [(ngModel)]="adminData.parentalLeave"
+          />
         </label>
         <label>
           Carryover cap (days)
-          <input type="number" placeholder="5" required />
+          <input
+            type="number"
+            name="carryoverCap"
+            placeholder="5"
+            required
+            [(ngModel)]="adminData.carryoverCap"
+          />
         </label>
         <label>
           Policy effective
-          <input type="date" required />
+          <input
+            type="date"
+            name="policyEffective"
+            required
+            [(ngModel)]="adminData.policyEffective"
+          />
         </label>
       </div>
     </article>
@@ -198,11 +309,21 @@
       <div class="form-grid">
         <label>
           Certifications
-          <input type="text" placeholder="OSHA, Network+, Security+" required />
+          <input
+            type="text"
+            name="certifications"
+            placeholder="OSHA, Network+, Security+"
+            required
+            [(ngModel)]="adminData.certifications"
+          />
         </label>
         <label>
           Background check
-          <select required>
+          <select
+            name="backgroundCheck"
+            required
+            [(ngModel)]="adminData.backgroundCheck"
+          >
             <option>Verified</option>
             <option>Pending</option>
             <option>Not required</option>
@@ -210,7 +331,11 @@
         </label>
         <label>
           Safety training
-          <select required>
+          <select
+            name="safetyTraining"
+            required
+            [(ngModel)]="adminData.safetyTraining"
+          >
             <option>Completed</option>
             <option>In progress</option>
             <option>Not started</option>
@@ -218,7 +343,11 @@
         </label>
         <label>
           Work authorization
-          <select required>
+          <select
+            name="workAuthorization"
+            required
+            [(ngModel)]="adminData.workAuthorization"
+          >
             <option>Valid</option>
             <option>Pending</option>
             <option>Expired</option>
@@ -226,11 +355,26 @@
         </label>
         <label class="upload">
           Upload documents
-          <input type="file" required />
+          <input
+            type="file"
+            name="complianceDocument"
+            [required]="!adminData.complianceDocumentName"
+            (change)="onFileSelected($event)"
+          />
         </label>
+        <span
+          class="file-name"
+          *ngIf="adminData.complianceDocumentName"
+          >Last uploaded: {{ adminData.complianceDocumentName }}</span
+        >
         <label>
           Next audit date
-          <input type="date" required />
+          <input
+            type="date"
+            name="nextAuditDate"
+            required
+            [(ngModel)]="adminData.nextAuditDate"
+          />
         </label>
       </div>
     </article>
@@ -242,19 +386,39 @@
       </div>
       <div class="checklist">
         <label>
-          <input type="checkbox" required />
+          <input
+            type="checkbox"
+            name="checklistOffer"
+            required
+            [(ngModel)]="adminData.checklistOffer"
+          />
           Offer letter signed
         </label>
         <label>
-          <input type="checkbox" required />
+          <input
+            type="checkbox"
+            name="checklistEquipment"
+            required
+            [(ngModel)]="adminData.checklistEquipment"
+          />
           Equipment provisioned
         </label>
         <label>
-          <input type="checkbox" required />
+          <input
+            type="checkbox"
+            name="checklistBadges"
+            required
+            [(ngModel)]="adminData.checklistBadges"
+          />
           Access badges issued
         </label>
         <label>
-          <input type="checkbox" required />
+          <input
+            type="checkbox"
+            name="checklistOrientation"
+            required
+            [(ngModel)]="adminData.checklistOrientation"
+          />
           Orientation scheduled
         </label>
       </div>

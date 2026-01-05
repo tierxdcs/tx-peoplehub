@@ -173,6 +173,12 @@ select:focus {
   padding: 8px 10px;
 }
 
+.file-name {
+  font-size: 0.8rem;
+  color: var(--ink-500);
+  margin-top: -6px;
+}
+
 .checklist {
   display: grid;
   gap: 10px;
