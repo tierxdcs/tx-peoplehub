@@ -46,13 +46,7 @@ export class AdminComponent {
     checklistOffer: false,
     checklistEquipment: false,
     checklistBadges: false,
-    checklistOrientation: false,
-    surveyScore: '',
-    approvedLeaveDays: '',
-    trainingCompletion: '',
-    goalsUpdated: '',
-    feedbackSubmitted: '',
-    absenceRate: ''
+    checklistOrientation: false
   };
 
   ngOnInit() {
