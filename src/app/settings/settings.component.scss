@@ -162,6 +162,30 @@ select:focus {
   font-size: 0.85rem;
 }
 
+.department-list {
+  display: grid;
+  gap: 10px;
+}
+
+.department-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.department-row strong {
+  display: block;
+}
+
+.department-row span {
+  color: var(--ink-500);
+  font-size: 0.85rem;
+}
+
 
 @media (max-width: 1100px) {
   .settings-topbar {
