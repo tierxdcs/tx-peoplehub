@@ -32,7 +32,7 @@ const PROFILES: Record<string, Profile> = {
 })
 export class PeopleProfileComponent {
   private readonly route = inject(ActivatedRoute);
-  readonly profile =
-    PROFILES[this.route.snapshot.paramMap.get('id') ?? ''] ??
-    PROFILES['alina-torres'];
+  readonly profileId =
+    this.route.snapshot.paramMap.get('id') ?? 'alina-torres';
+  readonly profile = PROFILES[this.profileId] ?? PROFILES['alina-torres'];
 }
