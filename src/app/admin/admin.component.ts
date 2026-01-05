@@ -11,7 +11,9 @@ import { RouterLink } from '@angular/router';
 })
 export class AdminComponent {
   private readonly storageKey = 'tx-peoplehub-admin-draft';
+  private readonly departmentsKey = 'tx-peoplehub-departments';
   saved = false;
+  departments: { name: string; head: string }[] = [];
   adminData = {
     fullName: '',
     employeeId: '',
@@ -50,6 +52,21 @@ export class AdminComponent {
   };
 
   ngOnInit() {
+    const storedDepartments = localStorage.getItem(this.departmentsKey);
+    if (storedDepartments) {
+      try {
+        const parsed = JSON.parse(storedDepartments) as {
+          name: string;
+          head: string;
+        }[];
+        if (Array.isArray(parsed)) {
+          this.departments = parsed;
+        }
+      } catch {
+        localStorage.removeItem(this.departmentsKey);
+      }
+    }
+
     const raw = localStorage.getItem(this.storageKey);
     if (!raw) {
       return;

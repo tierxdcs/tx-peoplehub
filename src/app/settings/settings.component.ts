@@ -10,6 +10,7 @@ import { RouterLink } from '@angular/router';
   styleUrl: './settings.component.scss'
 })
 export class SettingsComponent {
+  private readonly storageKey = 'tx-peoplehub-departments';
   newDepartment = { name: '', head: '' };
   departments = [
     { name: 'Operations', head: 'Nithin Gangadhar' },
@@ -17,6 +18,21 @@ export class SettingsComponent {
     { name: 'Security', head: 'Andre Lewis' },
     { name: 'HR & People Ops', head: 'Chloe Bishop' }
   ];
+
+  ngOnInit() {
+    const stored = localStorage.getItem(this.storageKey);
+    if (!stored) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored) as { name: string; head: string }[];
+      if (Array.isArray(parsed) && parsed.length) {
+        this.departments = parsed;
+      }
+    } catch {
+      localStorage.removeItem(this.storageKey);
+    }
+  }
 
   addDepartment() {
     const name = this.newDepartment.name.trim();
@@ -26,9 +42,11 @@ export class SettingsComponent {
     }
     this.departments = [...this.departments, { name, head }];
     this.newDepartment = { name: '', head: '' };
+    localStorage.setItem(this.storageKey, JSON.stringify(this.departments));
   }
 
   removeDepartment(index: number) {
     this.departments = this.departments.filter((_, i) => i !== index);
+    localStorage.setItem(this.storageKey, JSON.stringify(this.departments));
   }
 }
