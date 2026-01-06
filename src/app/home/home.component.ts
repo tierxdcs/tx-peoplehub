@@ -14,6 +14,13 @@ export class HomeComponent {
   isIdeasOpen = false;
   ideaStatus = '';
   managerName = 'Direct Manager';
+  ideaHistory: {
+    title: string;
+    type: string;
+    summary: string;
+    manager: string;
+    submittedAt: string;
+  }[] = [];
   pendingRequests = [
     { type: 'PTO', range: 'Feb 12 - Feb 14', status: 'Pending' },
     { type: 'Sick', range: 'Jan 22', status: 'Pending' }
@@ -31,6 +38,7 @@ export class HomeComponent {
     manager: ''
   };
   leaveError = '';
+  private readonly ideasKey = 'tx-peoplehub-ideas';
 
   ngOnInit() {
     const raw = localStorage.getItem('tx-peoplehub-admin-draft');
@@ -44,6 +52,19 @@ export class HomeComponent {
       }
     } catch {
       localStorage.removeItem('tx-peoplehub-admin-draft');
+    }
+
+    const storedIdeas = localStorage.getItem(this.ideasKey);
+    if (!storedIdeas) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(storedIdeas) as typeof this.ideaHistory;
+      if (Array.isArray(parsed)) {
+        this.ideaHistory = parsed;
+      }
+    } catch {
+      localStorage.removeItem(this.ideasKey);
     }
   }
 
@@ -70,6 +91,15 @@ export class HomeComponent {
       this.ideaStatus = 'Add a title and summary before submitting.';
       return;
     }
+    const idea = {
+      title: this.ideaForm.title.trim(),
+      type: this.ideaForm.type,
+      summary: this.ideaForm.summary.trim(),
+      manager: this.managerName,
+      submittedAt: new Date().toISOString()
+    };
+    this.ideaHistory = [idea, ...this.ideaHistory];
+    localStorage.setItem(this.ideasKey, JSON.stringify(this.ideaHistory));
     this.ideaStatus = `Idea sent to ${this.managerName}.`;
     this.ideaForm = {
       title: '',
