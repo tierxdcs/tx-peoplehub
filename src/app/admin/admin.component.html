@@ -236,6 +236,29 @@
             [(ngModel)]="adminData.compensationEffectiveDate"
           />
         </label>
+        <label>
+          Comp band
+          <input
+            type="text"
+            name="compBand"
+            placeholder="Ops-4"
+            required
+            [(ngModel)]="adminData.compBand"
+          />
+        </label>
+        <label>
+          Positioning
+          <select
+            name="compPositioning"
+            required
+            [(ngModel)]="adminData.compPositioning"
+          >
+            <option>Mid-senior</option>
+            <option>Junior</option>
+            <option>Midpoint</option>
+            <option>Senior</option>
+          </select>
+        </label>
         <label class="upload">
           Offer letter
           <input
