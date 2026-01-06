@@ -11,6 +11,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 export class App {
   notificationsOpen = false;
   showChrome = true;
+  avatarOpen = false;
 
   constructor(private readonly router: Router) {}
 
@@ -24,10 +25,21 @@ export class App {
 
   toggleNotifications() {
     this.notificationsOpen = !this.notificationsOpen;
+    if (this.notificationsOpen) {
+      this.avatarOpen = false;
+    }
   }
 
   logout() {
     this.notificationsOpen = false;
+    this.avatarOpen = false;
     this.router.navigateByUrl('/login');
+  }
+
+  toggleAvatarMenu() {
+    this.avatarOpen = !this.avatarOpen;
+    if (this.avatarOpen) {
+      this.notificationsOpen = false;
+    }
   }
 }
