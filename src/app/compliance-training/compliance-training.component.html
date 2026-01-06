@@ -32,5 +32,23 @@
       </div>
     </article>
 
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Completed training</h2>
+        <span class="pill soft">Last 90 days</span>
+      </div>
+      <div class="list">
+        @for (item of completed; track item.title) {
+          <div class="row">
+            <div>
+              <strong>{{ item.title }}</strong>
+              <span>Completed {{ item.completed }}</span>
+            </div>
+            <span class="status">Done</span>
+          </div>
+        }
+      </div>
+    </article>
+
   </section>
 </main>
