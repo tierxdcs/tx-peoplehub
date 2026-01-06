@@ -16,51 +16,6 @@
   <section class="settings-grid">
     <article class="panel">
       <div class="panel-header">
-        <h2>Manage teams</h2>
-        <span class="pill">Org</span>
-      </div>
-      <div class="form-grid">
-        <label>
-          Department name
-          <input
-            type="text"
-            placeholder="Operations"
-            [(ngModel)]="newDepartment.name"
-          />
-        </label>
-        <label>
-          Department head
-          <input
-            type="text"
-            placeholder="Select manager"
-            [(ngModel)]="newDepartment.head"
-          />
-        </label>
-      </div>
-      <button class="ghost full" type="button" (click)="addDepartment()"
-        >Add department</button
-      >
-      <div class="department-list">
-        @for (department of departments; track department.name; let i = $index) {
-          <div class="department-row">
-            <div>
-              <strong>{{ department.name }}</strong>
-              <span>{{ department.head }}</span>
-            </div>
-            <button
-              class="ghost small"
-              type="button"
-              (click)="removeDepartment(i)"
-            >
-              Delete
-            </button>
-          </div>
-        }
-      </div>
-    </article>
-
-    <article class="panel">
-      <div class="panel-header">
         <h2>Notifications</h2>
         <span class="pill soft">Comms</span>
       </div>
