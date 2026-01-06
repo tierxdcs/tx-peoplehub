@@ -1,11 +1,11 @@
-.compliance-shell {
+.module-shell {
   min-height: 100vh;
   padding: 32px 48px 64px;
   display: grid;
   gap: 28px;
 }
 
-.compliance-topbar {
+.module-topbar {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -25,7 +25,7 @@
   color: var(--ink-500);
 }
 
-.compliance-topbar h1 {
+.module-topbar h1 {
   margin: 8px 0 8px;
   font-family: var(--font-display);
   font-size: clamp(2rem, 1.8rem + 1vw, 2.6rem);
@@ -72,12 +72,6 @@ button:hover,
   border: 1px solid rgba(148, 163, 184, 0.28);
 }
 
-.compliance-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
-}
-
 .panel {
   background: rgba(255, 255, 255, 0.92);
   border-radius: 20px;
@@ -112,50 +106,43 @@ button:hover,
   font-weight: 600;
 }
 
-.pill.soft {
-  background: rgba(52, 178, 77, 0.12);
-  color: var(--brand-green);
-}
-
-.list {
+.question-list {
   display: grid;
   gap: 12px;
 }
 
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
+.question-card {
   border-radius: 12px;
-  background: rgba(15, 23, 42, 0.04);
-}
-
-.row span {
-  color: var(--ink-500);
-  font-size: 0.85rem;
-}
-
-.row-actions {
-  display: inline-flex;
-  align-items: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  display: grid;
   gap: 10px;
 }
 
-.status {
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.2);
-  color: var(--ink-600);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.question-text {
+  margin: 0;
+  color: var(--ink-800);
+  font-weight: 600;
 }
 
-.small {
-  padding: 6px 12px;
-  font-size: 0.75rem;
+.option-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.option-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--ink-600);
+}
+
+.meta {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-500);
 }
 
 .empty {
@@ -165,18 +152,14 @@ button:hover,
 }
 
 @media (max-width: 1100px) {
-  .compliance-topbar {
+  .module-topbar {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .compliance-grid {
-    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 720px) {
-  .compliance-shell {
+  .module-shell {
     padding: 24px;
   }
 }

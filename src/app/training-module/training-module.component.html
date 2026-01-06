@@ -1,0 +1,91 @@
+<main class="module-shell">
+  <header class="module-topbar">
+    <div>
+      <p class="eyebrow">Compliance & training</p>
+      <h1>{{ moduleTitle }}</h1>
+      <p class="subtitle">Complete the required training module.</p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" routerLink="/compliance-training">Back to required learning</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Training questions</h2>
+        @if (moduleDue) {
+          <p class="meta">Due {{ moduleDue }}</p>
+        }
+      </div>
+      <span class="pill">Responses autosave</span>
+    </div>
+
+    @if (status) {
+      <p class="empty">{{ status }}</p>
+    } @else {
+      @if (questions.length) {
+        <div class="question-list">
+          @for (question of questions; track $index; let qi = $index) {
+            <div class="question-card">
+              <p class="question-text">{{ question.text }}</p>
+              @if (question.type === 'Multiple choice') {
+                <div class="option-grid">
+                  @for (option of options; track option) {
+                    <label class="option-row">
+                      <input
+                        type="checkbox"
+                        [checked]="isMultiSelected(qi, option)"
+                        (change)="toggleMultiResponse(qi, option)"
+                      />
+                      <span>{{ option }}</span>
+                    </label>
+                  }
+                </div>
+              } @else if (question.type === 'Single choice') {
+                <div class="option-grid">
+                  @for (option of options; track option) {
+                    <label class="option-row">
+                      <input
+                        type="radio"
+                        [name]="'single-' + qi"
+                        [value]="option"
+                        [ngModel]="getSingleResponse(qi)"
+                        (ngModelChange)="setResponse(qi, $event)"
+                      />
+                      <span>{{ option }}</span>
+                    </label>
+                  }
+                </div>
+              } @else if (question.type === 'True/False') {
+                <div class="option-grid">
+                  @for (option of trueFalseOptions; track option) {
+                    <label class="option-row">
+                      <input
+                        type="radio"
+                        [name]="'tf-' + qi"
+                        [value]="option"
+                        [ngModel]="getSingleResponse(qi)"
+                        (ngModelChange)="setResponse(qi, $event)"
+                      />
+                      <span>{{ option }}</span>
+                    </label>
+                  }
+                </div>
+              } @else {
+                <textarea
+                  rows="3"
+                  placeholder="Type your answer"
+                  [ngModel]="getSingleResponse(qi)"
+                  (ngModelChange)="setResponse(qi, $event)"
+                ></textarea>
+              }
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="empty">No questions added to this module yet.</p>
+      }
+    }
+  </section>
+</main>
