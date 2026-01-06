@@ -247,6 +247,13 @@
   gap: 8px;
   min-height: 150px;
   animation: rise 0.7s ease both;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.module-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
 }
 
 .module-card h3 {
