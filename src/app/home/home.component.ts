@@ -64,6 +64,12 @@ export class HomeComponent {
   }
 
   cancelRequest(index: number) {
+    const confirmed = window.confirm(
+      'Cancel this leave request? This cannot be undone.'
+    );
+    if (!confirmed) {
+      return;
+    }
     this.pendingRequests = this.pendingRequests.filter((_, i) => i !== index);
   }
 }
