@@ -1,0 +1,53 @@
+<main class="compliance-shell">
+  <header class="compliance-topbar">
+    <div>
+      <p class="eyebrow">Compliance & training</p>
+      <h1>Required learning</h1>
+      <p class="subtitle">
+        Assign, complete, and track compliance and employee training.
+      </p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" routerLink="/">Back to home</a>
+      <button class="primary" type="button">Assign training</button>
+    </div>
+  </header>
+
+  <section class="compliance-grid">
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Training assignments</h2>
+        <span class="pill">Active</span>
+      </div>
+      <div class="list">
+        @for (training of trainings; track training.title) {
+          <div class="row">
+            <div>
+              <strong>{{ training.title }}</strong>
+              <span>Due {{ training.due }}</span>
+            </div>
+            <span class="status">{{ training.status }}</span>
+          </div>
+        }
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Compliance checklist</h2>
+        <span class="pill soft">Audit</span>
+      </div>
+      <div class="list">
+        @for (item of compliance; track item.item) {
+          <div class="row">
+            <div>
+              <strong>{{ item.item }}</strong>
+              <span>Status</span>
+            </div>
+            <span class="status">{{ item.status }}</span>
+          </div>
+        }
+      </div>
+    </article>
+  </section>
+</main>
