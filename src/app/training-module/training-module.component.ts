@@ -15,7 +15,7 @@ export class TrainingModuleComponent {
   private readonly statusKey = 'tx-peoplehub-training-status';
   moduleTitle = '';
   moduleDue = '';
-  questions: { text: string; type: string }[] = [];
+  questions: { text: string; type: string; options?: string[] }[] = [];
   status = '';
   submitted = false;
   responses: Record<string, Record<number, string | string[]>> = {};
@@ -47,7 +47,7 @@ export class TrainingModuleComponent {
       const parsed = JSON.parse(stored) as {
         title: string;
         dueDate: string;
-        questions?: { text: string; type: string }[];
+        questions?: { text: string; type: string; options?: string[] }[];
       }[];
       const match = Array.isArray(parsed)
         ? parsed.find((assignment) => assignment.title === this.moduleTitle)
@@ -126,6 +126,16 @@ export class TrainingModuleComponent {
   isMultiSelected(index: number, option: string) {
     const current = this.responses[this.moduleTitle]?.[index];
     return Array.isArray(current) && current.includes(option);
+  }
+
+  getQuestionOptions(question: { type: string; options?: string[] }) {
+    if (question.type === 'True/False') {
+      return question.options?.length ? question.options : this.trueFalseOptions;
+    }
+    if (question.type === 'Multiple choice' || question.type === 'Single choice') {
+      return question.options?.length ? question.options : this.options;
+    }
+    return [];
   }
 
   submitModule() {
