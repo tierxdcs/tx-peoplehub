@@ -1,0 +1,48 @@
+<main class="assign-shell">
+  <header class="assign-topbar">
+    <div>
+      <p class="eyebrow">Admin console</p>
+      <h1>Assign training</h1>
+      <p class="subtitle">Create a training assignment for employees.</p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" routerLink="/admin">Back to admin</a>
+      <button class="primary" type="button" (click)="assign()">
+        Assign training
+      </button>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2>Assignment details</h2>
+      <span class="pill">Required</span>
+    </div>
+    <form class="form-grid">
+      <label>
+        Training title
+        <input type="text" [(ngModel)]="form.title" name="title" />
+      </label>
+      <label>
+        Audience
+        <select [(ngModel)]="form.audience" name="audience">
+          <option>All employees</option>
+          <option>Managers</option>
+          <option>Operations</option>
+          <option>Security</option>
+        </select>
+      </label>
+      <label>
+        Due date
+        <input type="date" [(ngModel)]="form.dueDate" name="dueDate" />
+      </label>
+      <label class="full">
+        Notes
+        <textarea rows="4" [(ngModel)]="form.notes" name="notes"></textarea>
+      </label>
+    </form>
+    @if (status) {
+      <p class="status">{{ status }}</p>
+    }
+  </section>
+</main>
