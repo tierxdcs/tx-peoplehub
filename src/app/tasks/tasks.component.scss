@@ -25,18 +25,29 @@
   color: var(--ink-500);
 }
 
-.tasks-topbar h1 {
-  margin: 6px 0 6px;
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 1.8rem + 1vw, 2.6rem);
-}
-
 .tasks-topbar .eyebrow {
   margin-bottom: 4px;
 }
 
-.tasks-topbar .subtitle {
-  margin-top: 4px;
+.title-line {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  color: var(--ink-900);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.title-line .divider {
+  color: var(--ink-500);
+}
+
+.title-line .subtitle {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink-600);
 }
 
 .subtitle {
