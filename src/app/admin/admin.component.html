@@ -417,18 +417,6 @@
             [(ngModel)]="adminData.nextAuditDate"
           />
         </label>
-        <label class="upload">
-          Training modules
-          <input
-            type="file"
-            name="trainingModules"
-            multiple
-            (change)="onTrainingModulesSelected($event)"
-          />
-        </label>
-        <span class="file-name" *ngIf="adminData.trainingModules.length"
-          >Uploaded: {{ adminData.trainingModules.join(', ') }}</span
-        >
       </div>
     </article>
 

@@ -52,8 +52,7 @@ export class AdminComponent {
     checklistOffer: false,
     checklistEquipment: false,
     checklistBadges: false,
-    checklistOrientation: false,
-    trainingModules: [] as string[]
+    checklistOrientation: false
   };
 
   ngOnInit() {
@@ -116,14 +115,5 @@ export class AdminComponent {
       }
     };
     reader.readAsDataURL(file);
-  }
-
-  onTrainingModulesSelected(event: Event) {
-    const input = event.target as HTMLInputElement | null;
-    const files = input?.files ? Array.from(input.files) : [];
-    if (!files.length) {
-      return;
-    }
-    this.adminData.trainingModules = files.map((file) => file.name);
   }
 }
