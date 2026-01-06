@@ -14,5 +14,9 @@ export class ComplianceTrainingComponent {
     { title: 'Data Center Access', status: 'In progress', due: 'Feb 20' },
     { title: 'Incident Response', status: 'Required', due: 'Mar 1' }
   ];
-  compliance = [];
+  completed = [
+    { title: 'Workplace conduct', completed: 'Dec 12' },
+    { title: 'Information security', completed: 'Nov 28' },
+    { title: 'Equipment handling', completed: 'Oct 6' }
+  ];
 }
