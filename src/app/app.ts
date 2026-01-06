@@ -25,4 +25,9 @@ export class App {
   toggleNotifications() {
     this.notificationsOpen = !this.notificationsOpen;
   }
+
+  logout() {
+    this.notificationsOpen = false;
+    this.router.navigateByUrl('/login');
+  }
 }

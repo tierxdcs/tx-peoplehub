@@ -22,6 +22,7 @@
         >
           <span aria-hidden="true">🔔</span>
         </button>
+        <button class="ghost" type="button" (click)="logout()">Logout</button>
         @if (notificationsOpen) {
           <div class="notifications-panel" role="dialog" aria-label="Notifications">
             <div class="notifications-header">
