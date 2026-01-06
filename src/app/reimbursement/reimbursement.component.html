@@ -1,0 +1,56 @@
+<main class="reimburse-shell">
+  <header class="reimburse-topbar">
+    <div>
+      <p class="eyebrow">Reimbursement</p>
+      <h1>Expense reimbursements</h1>
+      <p class="subtitle">Submit expenses and track approval status.</p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" routerLink="/">Back to home</a>
+      <button class="primary" type="button">New reimbursement</button>
+    </div>
+  </header>
+
+  <section class="reimburse-grid">
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Recent claims</h2>
+        <span class="pill">This month</span>
+      </div>
+      <div class="claim-list">
+        @for (claim of claims; track claim.title) {
+          <div class="claim-row">
+            <div>
+              <strong>{{ claim.title }}</strong>
+              <span>{{ claim.submitted }}</span>
+            </div>
+            <div class="meta">
+              <span class="amount">{{ claim.amount }}</span>
+              <span class="status">{{ claim.status }}</span>
+            </div>
+          </div>
+        }
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Policy summary</h2>
+        <span class="pill soft">FY26</span>
+      </div>
+      <div class="detail">
+        <span class="label">Monthly cap</span>
+        <span class="value">$1,500</span>
+      </div>
+      <div class="detail">
+        <span class="label">Home office</span>
+        <span class="value">Eligible</span>
+      </div>
+      <div class="detail">
+        <span class="label">Travel</span>
+        <span class="value">Pre-approval required</span>
+      </div>
+      <button class="ghost full" type="button">View policy</button>
+    </article>
+  </section>
+</main>
