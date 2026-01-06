@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, HostListener } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 @Component({
@@ -40,6 +40,19 @@ export class App {
     this.avatarOpen = !this.avatarOpen;
     if (this.avatarOpen) {
       this.notificationsOpen = false;
+    }
+  }
+
+  @HostListener('document:click', ['$event'])
+  handleDocumentClick(event: MouseEvent) {
+    const target = event.target as HTMLElement | null;
+    if (!target) {
+      return;
+    }
+    const actions = target.closest('.actions');
+    if (!actions) {
+      this.notificationsOpen = false;
+      this.avatarOpen = false;
     }
   }
 }
