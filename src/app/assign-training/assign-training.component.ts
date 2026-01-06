@@ -14,7 +14,9 @@ export class AssignTrainingComponent {
     title: '',
     audience: 'All employees',
     dueDate: '',
-    notes: ''
+    questions: [
+      { text: '', type: 'Multiple choice' }
+    ]
   };
   status = '';
 
@@ -23,7 +25,28 @@ export class AssignTrainingComponent {
       this.status = 'Please provide a title and due date.';
       return;
     }
+    const hasQuestion = this.form.questions.some((q) => q.text.trim());
+    if (!hasQuestion) {
+      this.status = 'Add at least one training question.';
+      return;
+    }
     this.status = 'Training assigned.';
-    this.form = { title: '', audience: 'All employees', dueDate: '', notes: '' };
+    this.form = {
+      title: '',
+      audience: 'All employees',
+      dueDate: '',
+      questions: [{ text: '', type: 'Multiple choice' }]
+    };
+  }
+
+  addQuestion() {
+    this.form.questions = [
+      ...this.form.questions,
+      { text: '', type: 'Multiple choice' }
+    ];
+  }
+
+  removeQuestion(index: number) {
+    this.form.questions = this.form.questions.filter((_, i) => i !== index);
   }
 }
