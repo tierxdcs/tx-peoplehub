@@ -127,6 +127,13 @@ button:hover {
   padding-top: 96px;
 }
 
+.app-footer {
+  text-align: center;
+  padding: 24px 16px 32px;
+  color: var(--ink-500);
+  font-size: 0.85rem;
+}
+
 @media (max-width: 1100px) {
   .app-topbar {
     flex-wrap: wrap;
