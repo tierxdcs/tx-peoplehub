@@ -10,6 +10,7 @@ import { RouterLink } from '@angular/router';
   styleUrl: './reimbursement-form.component.scss'
 })
 export class ReimbursementFormComponent {
+  private readonly storageKey = 'tx-peoplehub-reimbursements';
   form = {
     title: '',
     amount: '',
@@ -24,6 +25,26 @@ export class ReimbursementFormComponent {
       this.statusMessage = 'Please complete title, amount, and date.';
       return;
     }
+
+    const numericAmount = this.form.amount.toString().replace(/[^\d.]/g, '');
+    const formattedAmount = `₹${numericAmount}`;
+    const submitted = new Date(this.form.date).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric'
+    });
+    const newClaim = {
+      title: this.form.title,
+      amount: formattedAmount,
+      status: 'Pending',
+      submitted
+    };
+    const stored = localStorage.getItem(this.storageKey);
+    const existing = stored ? (JSON.parse(stored) as typeof newClaim[]) : [];
+    localStorage.setItem(
+      this.storageKey,
+      JSON.stringify([newClaim, ...existing])
+    );
+
     this.statusMessage = 'Reimbursement submitted for approval.';
     this.form = { title: '', amount: '', category: 'Travel', date: '', notes: '' };
   }
