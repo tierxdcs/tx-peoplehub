@@ -109,52 +109,35 @@
     <div class="panel insights">
       <div class="panel-header">
         <div>
-          <h2>Workforce pulse</h2>
-          <p>Signals you should know right now.</p>
+          <h2>Apply for leave</h2>
+          <p>Request time off and track approval status.</p>
         </div>
-        <button class="ghost" type="button">View dashboards</button>
+        <button class="ghost" type="button">View balances</button>
       </div>
-      <div class="metric-list">
-        <article>
-          <span class="label">Attrition risk</span>
-          <strong>Low</strong>
-          <span class="delta positive">-0.8%</span>
-        </article>
-        <article>
-          <span class="label">Open roles</span>
-          <strong>18</strong>
-          <span class="delta neutral">Stable</span>
-        </article>
-        <article>
-          <span class="label">Time-off utilization</span>
-          <strong>72%</strong>
-          <span class="delta negative">+4.2%</span>
-        </article>
-      </div>
-      <div class="timeline">
-        <div>
-          <span class="time">9:30</span>
-          <div>
-            <h4>Leadership sync</h4>
-            <p>Review headcount proposal for Phoenix expansion.</p>
-          </div>
-        </div>
-        <div>
-          <span class="time">11:00</span>
-          <div>
-            <h4>Benefits vendor call</h4>
-            <p>Finalize Q2 carrier updates and rollout plan.</p>
-          </div>
-        </div>
-        <div>
-          <span class="time">15:45</span>
-          <div>
-            <h4>Talent calibration</h4>
-            <p>Prep for VP check-ins and promotion review.</p>
-          </div>
-        </div>
-      </div>
-      <button class="primary full" type="button">Open command center</button>
+      <form class="leave-form">
+        <label>
+          Leave type
+          <select>
+            <option>PTO</option>
+            <option>Sick</option>
+            <option>Personal</option>
+            <option>Parental</option>
+          </select>
+        </label>
+        <label>
+          Start date
+          <input type="date" />
+        </label>
+        <label>
+          End date
+          <input type="date" />
+        </label>
+        <label>
+          Notes
+          <textarea rows="3" placeholder="Add context for your manager"></textarea>
+        </label>
+      </form>
+      <button class="primary full" type="button">Submit request</button>
     </div>
   </section>
 </main>
