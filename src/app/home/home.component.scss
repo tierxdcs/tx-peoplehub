@@ -373,6 +373,18 @@
   resize: vertical;
 }
 
+.leave-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.leave-status {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--brand-green);
+  font-weight: 600;
+}
+
 @keyframes rise {
   from {
     transform: translateY(10px);
