@@ -10,6 +10,10 @@ import { RouterLink } from '@angular/router';
 })
 export class HomeComponent {
   isBalanceOpen = false;
+  pendingRequests = [
+    { type: 'PTO', range: 'Feb 12 - Feb 14', status: 'Pending' },
+    { type: 'Sick', range: 'Jan 22', status: 'Pending' }
+  ];
 
   openBalances() {
     this.isBalanceOpen = true;
