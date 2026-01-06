@@ -116,6 +116,12 @@ export class AssignTrainingComponent {
     if (!assignment) {
       return;
     }
+    const confirmed = window.confirm(
+      'Delete this question? This cannot be undone.'
+    );
+    if (!confirmed) {
+      return;
+    }
     assignment.questions = assignment.questions.filter((_, i) => i !== questionIndex);
     this.saveAssignments();
   }
