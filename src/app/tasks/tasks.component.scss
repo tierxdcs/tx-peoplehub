@@ -1,0 +1,124 @@
+.tasks-shell {
+  min-height: 100vh;
+  padding: 32px 48px 64px;
+  display: grid;
+  gap: 24px;
+}
+
+.tasks-topbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: var(--shadow-soft);
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-500);
+}
+
+.tasks-topbar h1 {
+  margin: 8px 0 8px;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 1.8rem + 1vw, 2.6rem);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--ink-600);
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+button,
+.button-link {
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  padding: 10px 16px;
+  border-radius: 999px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button:hover,
+.button-link:hover {
+  transform: translateY(-1px);
+}
+
+.primary {
+  background: linear-gradient(120deg, var(--brand-blue), var(--brand-green));
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(11, 100, 184, 0.25);
+}
+
+.ghost {
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--ink-700);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.tasks-list {
+  display: grid;
+  gap: 12px;
+}
+
+.task-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: var(--shadow-soft);
+}
+
+.task-card span {
+  display: block;
+  color: var(--ink-500);
+  font-size: 0.85rem;
+}
+
+.pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--ink-600);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 1100px) {
+  .tasks-topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .tasks-shell {
+    padding: 24px;
+  }
+
+  .task-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
