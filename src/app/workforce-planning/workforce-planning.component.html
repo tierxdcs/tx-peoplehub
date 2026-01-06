@@ -1,0 +1,120 @@
+<main class="planning-shell">
+  <header class="planning-topbar">
+    <div>
+      <p class="eyebrow">Workforce planning</p>
+      <h1>Resource requisitions</h1>
+      <p class="subtitle">Submit headcount requests for CFO and CEO approval.</p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" routerLink="/">Back to home</a>
+      <button class="primary" type="button" (click)="submitRequest()">
+        Submit request
+      </button>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2>New request</h2>
+      <span class="pill">Required</span>
+    </div>
+    <form class="form-grid">
+      <label>
+        Role title
+        <input type="text" [(ngModel)]="form.title" name="title" />
+      </label>
+      <label>
+        Department
+        <select [(ngModel)]="form.department" name="department">
+          <option>Operations</option>
+          <option>Facilities</option>
+          <option>Security</option>
+          <option>HR & People Ops</option>
+          <option>Finance</option>
+        </select>
+      </label>
+      <label>
+        Location
+        <input type="text" [(ngModel)]="form.location" name="location" />
+      </label>
+      <label>
+        Headcount
+        <input type="number" [(ngModel)]="form.headcount" name="headcount" min="1" />
+      </label>
+      <label>
+        Level
+        <select [(ngModel)]="form.level" name="level">
+          <option>Junior</option>
+          <option>Mid</option>
+          <option>Senior</option>
+          <option>Lead</option>
+        </select>
+      </label>
+      <label>
+        Hire type
+        <select [(ngModel)]="form.hireType" name="hireType">
+          <option>Full-time</option>
+          <option>Contract</option>
+          <option>Temp</option>
+          <option>Intern</option>
+        </select>
+      </label>
+      <label>
+        Target start date
+        <input type="date" [(ngModel)]="form.startDate" name="startDate" />
+      </label>
+      <label>
+        Hiring manager
+        <input type="text" [(ngModel)]="form.manager" name="manager" />
+      </label>
+      <label class="full">
+        Justification
+        <textarea
+          rows="3"
+          [(ngModel)]="form.justification"
+          name="justification"
+          placeholder="Explain the business need and urgency."
+        ></textarea>
+      </label>
+      <label class="full">
+        Budget impact
+        <textarea
+          rows="2"
+          [(ngModel)]="form.budgetImpact"
+          name="budgetImpact"
+          placeholder="Expected annual cost, band, or funding source."
+        ></textarea>
+      </label>
+    </form>
+    @if (status) {
+      <p class="status">{{ status }}</p>
+    }
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2>Submitted requests</h2>
+      <span class="pill soft">Approval flow</span>
+    </div>
+    @if (requests.length) {
+      <div class="request-list">
+        @for (item of requests; track item.title + item.submittedAt) {
+          <div class="request-row">
+            <div>
+              <strong>{{ item.title }}</strong>
+              <span>
+                {{ item.department }} · {{ item.headcount }} headcount · {{ item.level }}
+              </span>
+            </div>
+            <div class="request-meta">
+              <span class="status-pill">{{ item.approval }}</span>
+              <span class="date">{{ item.submittedAt | date : 'mediumDate' }}</span>
+            </div>
+          </div>
+        }
+      </div>
+    } @else {
+      <p class="empty">No requests submitted yet.</p>
+    }
+  </section>
+</main>
