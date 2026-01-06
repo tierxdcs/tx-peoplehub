@@ -112,7 +112,9 @@
           <h2>Apply for leave</h2>
           <p>Request time off and track approval status.</p>
         </div>
-        <button class="ghost" type="button">View balances</button>
+        <button class="ghost" type="button" (click)="openBalances()">
+          View balances
+        </button>
       </div>
       <form class="leave-form">
         <label>
@@ -141,3 +143,41 @@
     </div>
   </section>
 </main>
+
+@if (isBalanceOpen) {
+  <div class="modal-backdrop" (click)="closeBalances()"></div>
+  <div class="modal" role="dialog" aria-modal="true">
+    <header>
+      <div>
+        <p class="eyebrow">Leave balances</p>
+        <h3>Current balances</h3>
+      </div>
+      <button class="ghost" type="button" (click)="closeBalances()">
+        Close
+      </button>
+    </header>
+    <div class="modal-body">
+      <div class="balance-row">
+        <div>
+          <strong>PTO</strong>
+          <span>Available</span>
+        </div>
+        <span class="value">12 days</span>
+      </div>
+      <div class="balance-row">
+        <div>
+          <strong>Sick</strong>
+          <span>Available</span>
+        </div>
+        <span class="value">8 days</span>
+      </div>
+      <div class="balance-row">
+        <div>
+          <strong>Personal</strong>
+          <span>Available</span>
+        </div>
+        <span class="value">3 days</span>
+      </div>
+    </div>
+  </div>
+}
