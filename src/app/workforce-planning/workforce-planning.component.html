@@ -67,6 +67,10 @@
         Hiring manager
         <input type="text" [(ngModel)]="form.manager" name="manager" />
       </label>
+      <label>
+        Cost center
+        <input type="text" [(ngModel)]="form.costCenter" name="costCenter" />
+      </label>
       <label class="full">
         Justification
         <textarea
@@ -104,6 +108,9 @@
               <strong>{{ item.title }}</strong>
               <span>
                 {{ item.department }} · {{ item.headcount }} headcount · {{ item.level }}
+                @if (item.costCenter) {
+                  · Cost center {{ item.costCenter }}
+                }
               </span>
             </div>
             <div class="request-meta">

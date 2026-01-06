@@ -23,6 +23,7 @@ export class WorkforcePlanningComponent {
     startDate: string;
     justification: string;
     budgetImpact: string;
+    costCenter: string;
     manager: string;
     approval: string;
     submittedAt: string;
@@ -37,7 +38,8 @@ export class WorkforcePlanningComponent {
     startDate: '',
     justification: '',
     budgetImpact: '',
-    manager: ''
+    manager: '',
+    costCenter: ''
   };
 
   ngOnInit() {
@@ -85,6 +87,7 @@ export class WorkforcePlanningComponent {
       startDate: this.form.startDate,
       justification: this.form.justification.trim(),
       budgetImpact: this.form.budgetImpact.trim(),
+      costCenter: this.form.costCenter.trim(),
       manager: this.form.manager || 'Direct Manager',
       approval: 'Pending CFO & CEO approval',
       submittedAt: new Date().toISOString()
@@ -102,7 +105,8 @@ export class WorkforcePlanningComponent {
       startDate: '',
       justification: '',
       budgetImpact: '',
-      manager: this.form.manager
+      manager: this.form.manager,
+      costCenter: ''
     };
   }
 }
