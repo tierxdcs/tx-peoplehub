@@ -345,6 +345,34 @@
   width: 100%;
 }
 
+.leave-form {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.leave-form label {
+  display: grid;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--ink-600);
+}
+
+.leave-form input,
+.leave-form select,
+.leave-form textarea {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  padding: 10px 12px;
+  font: inherit;
+  background: #fff;
+  color: var(--ink-900);
+}
+
+.leave-form textarea {
+  resize: vertical;
+}
+
 @keyframes rise {
   from {
     transform: translateY(10px);
