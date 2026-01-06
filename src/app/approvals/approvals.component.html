@@ -1,0 +1,68 @@
+<main class="approvals-shell">
+  <header class="approvals-topbar">
+    <div>
+      <p class="eyebrow">Approvals</p>
+      <h1>Open approvals</h1>
+      <p class="subtitle">Review pending requests and take action.</p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" routerLink="/tasks">Back to open tasks</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2>Requests awaiting review</h2>
+      <span class="pill">{{ requests.length }} open</span>
+    </div>
+    <div class="request-list">
+      @for (request of requests; track request.id) {
+        <button class="request-row" type="button" (click)="openRequest(request)">
+          <div>
+            <strong>{{ request.title }}</strong>
+            <span>{{ request.submittedBy }} · {{ request.summary }}</span>
+          </div>
+          <span class="status-pill">{{ request.status }}</span>
+        </button>
+      }
+    </div>
+  </section>
+</main>
+
+@if (selectedRequest) {
+  <div class="modal-backdrop" (click)="closeRequest()"></div>
+  <div class="modal" role="dialog" aria-modal="true">
+    <header>
+      <div>
+        <p class="eyebrow">Approval detail</p>
+        <h3>{{ selectedRequest.title }}</h3>
+        <p class="subtitle">{{ selectedRequest.submittedBy }} · {{ selectedRequest.summary }}</p>
+      </div>
+      <button class="ghost" type="button" (click)="closeRequest()">Close</button>
+    </header>
+    <div class="modal-body">
+      <div class="detail-row">
+        <span>Status</span>
+        <strong>{{ selectedRequest.status }}</strong>
+      </div>
+      <div class="detail-row">
+        <span>Requested by</span>
+        <strong>{{ selectedRequest.submittedBy }}</strong>
+      </div>
+      <div class="detail-row">
+        <span>Details</span>
+        <strong>{{ selectedRequest.summary }}</strong>
+      </div>
+      <div class="notes">
+        <label>
+          Reviewer notes
+          <textarea rows="3" placeholder="Add any decision context"></textarea>
+        </label>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost" type="button" (click)="rejectRequest()">Reject</button>
+      <button class="primary" type="button" (click)="approveRequest()">Approve</button>
+    </div>
+  </div>
+}

@@ -12,13 +12,13 @@
 
   <section class="tasks-list">
     @for (task of tasks; track task.title) {
-      <article class="task-card">
+      <button class="task-card" type="button" routerLink="/approvals">
         <div>
           <strong>{{ task.title }}</strong>
           <span>{{ task.owner }}</span>
         </div>
         <span class="pill">{{ task.due }}</span>
-      </article>
+      </button>
     }
   </section>
 </main>
