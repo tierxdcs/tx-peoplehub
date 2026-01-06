@@ -12,6 +12,7 @@ import { PerformanceComponent } from './performance/performance.component';
 import { ReimbursementComponent } from './reimbursement/reimbursement.component';
 import { ReimbursementFormComponent } from './reimbursement-form/reimbursement-form.component';
 import { ComplianceTrainingComponent } from './compliance-training/compliance-training.component';
+import { AssignTrainingComponent } from './assign-training/assign-training.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -23,6 +24,7 @@ export const routes: Routes = [
   { path: 'reimbursement/new', component: ReimbursementFormComponent },
   { path: 'performance', component: PerformanceComponent },
   { path: 'compliance-training', component: ComplianceTrainingComponent },
+  { path: 'admin/assign-training', component: AssignTrainingComponent },
   { path: 'people/:id', component: PeopleProfileComponent },
   { path: 'people/:id/scorecard', component: ScorecardComponent },
   { path: 'admin', component: AdminComponent },
