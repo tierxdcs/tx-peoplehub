@@ -10,6 +10,7 @@ import { TasksComponent } from './tasks/tasks.component';
 import { FinancialsComponent } from './financials/financials.component';
 import { PerformanceComponent } from './performance/performance.component';
 import { ReimbursementComponent } from './reimbursement/reimbursement.component';
+import { ReimbursementFormComponent } from './reimbursement-form/reimbursement-form.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -18,6 +19,7 @@ export const routes: Routes = [
   { path: 'financials', component: FinancialsComponent },
   { path: 'tasks', component: TasksComponent },
   { path: 'reimbursement', component: ReimbursementComponent },
+  { path: 'reimbursement/new', component: ReimbursementFormComponent },
   { path: 'performance', component: PerformanceComponent },
   { path: 'people/:id', component: PeopleProfileComponent },
   { path: 'people/:id/scorecard', component: ScorecardComponent },

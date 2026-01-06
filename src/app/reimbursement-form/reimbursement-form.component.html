@@ -1,0 +1,50 @@
+<main class="reimburse-form-shell">
+  <header class="reimburse-form-topbar">
+    <div>
+      <p class="eyebrow">Reimbursement</p>
+      <h1>New reimbursement</h1>
+      <p class="subtitle">Submit a new expense for approval.</p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" routerLink="/reimbursement">Back to reimbursements</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2>Expense details</h2>
+      <span class="pill">Required</span>
+    </div>
+    <form class="form-grid">
+      <label>
+        Title
+        <input type="text" [(ngModel)]="form.title" name="title" placeholder="Client travel" />
+      </label>
+      <label>
+        Amount (₹)
+        <input type="number" [(ngModel)]="form.amount" name="amount" placeholder="1250" />
+      </label>
+      <label>
+        Category
+        <select [(ngModel)]="form.category" name="category">
+          <option>Travel</option>
+          <option>Meals</option>
+          <option>Supplies</option>
+          <option>Training</option>
+        </select>
+      </label>
+      <label>
+        Date
+        <input type="date" [(ngModel)]="form.date" name="date" />
+      </label>
+      <label class="full">
+        Notes
+        <textarea rows="4" [(ngModel)]="form.notes" name="notes"></textarea>
+      </label>
+    </form>
+    <button class="primary" type="button" (click)="submit()">Submit reimbursement</button>
+    @if (statusMessage) {
+      <p class="status">{{ statusMessage }}</p>
+    }
+  </section>
+</main>
