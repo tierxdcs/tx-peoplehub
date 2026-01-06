@@ -236,6 +236,18 @@
             [(ngModel)]="adminData.compensationEffectiveDate"
           />
         </label>
+        <label class="upload">
+          Offer letter
+          <input
+            type="file"
+            name="offerLetter"
+            [required]="!adminData.offerLetterName"
+            (change)="onOfferLetterSelected($event)"
+          />
+        </label>
+        <span class="file-name" *ngIf="adminData.offerLetterName"
+          >Uploaded: {{ adminData.offerLetterName }}</span
+        >
       </div>
     </article>
 

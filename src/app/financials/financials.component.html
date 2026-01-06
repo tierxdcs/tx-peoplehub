@@ -42,7 +42,18 @@
         Offer letter signed on Jan 12, 2024. Includes compensation, title, and
         employment terms.
       </p>
-      <button class="ghost full" type="button">View offer letter</button>
+      @if (offerLetterData) {
+        <a
+          class="ghost button-link full"
+          [href]="offerLetterData"
+          [attr.download]="offerLetterName || 'offer-letter'"
+          >Download offer letter</a
+        >
+      } @else {
+        <button class="ghost full" type="button" disabled>
+          Offer letter unavailable
+        </button>
+      }
     </article>
 
     <article class="panel">

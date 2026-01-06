@@ -33,6 +33,8 @@ export class AdminComponent {
     equityPlan: 'Not eligible',
     benefitsTier: 'Standard',
     compensationEffectiveDate: '',
+    offerLetterName: '',
+    offerLetterData: '',
     annualPto: '',
     sickLeave: '',
     floatingHolidays: '',
@@ -94,5 +96,22 @@ export class AdminComponent {
     const input = event.target as HTMLInputElement | null;
     const fileName = input?.files?.[0]?.name ?? '';
     this.adminData.complianceDocumentName = fileName;
+  }
+
+  onOfferLetterSelected(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        this.adminData.offerLetterName = file.name;
+        this.adminData.offerLetterData = reader.result;
+      }
+    };
+    reader.readAsDataURL(file);
   }
 }
