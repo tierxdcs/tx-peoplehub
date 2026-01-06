@@ -36,10 +36,41 @@
         Due date
         <input type="date" [(ngModel)]="form.dueDate" name="dueDate" />
       </label>
-      <label class="full">
-        Notes
-        <textarea rows="4" [(ngModel)]="form.notes" name="notes"></textarea>
-      </label>
+      <div class="questions full">
+        <div class="questions-header">
+          <h3>Training questions</h3>
+          <button class="ghost" type="button" (click)="addQuestion()">
+            Add question
+          </button>
+        </div>
+        <div class="question-list">
+          @for (question of form.questions; track $index; let i = $index) {
+            <div class="question-row">
+              <label>
+                Question
+                <input
+                  type="text"
+                  [(ngModel)]="question.text"
+                  name="question-{{ i }}"
+                  placeholder="Enter the question"
+                />
+              </label>
+              <label>
+                Answer type
+                <select [(ngModel)]="question.type" name="question-type-{{ i }}">
+                  <option>Multiple choice</option>
+                  <option>Single choice</option>
+                  <option>True/False</option>
+                  <option>Short answer</option>
+                </select>
+              </label>
+              <button class="ghost small" type="button" (click)="removeQuestion(i)">
+                Remove
+              </button>
+            </div>
+          }
+        </div>
+      </div>
     </form>
     @if (status) {
       <p class="status">{{ status }}</p>

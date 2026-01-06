@@ -140,6 +140,50 @@ textarea {
   font-weight: 600;
 }
 
+.questions {
+  display: grid;
+  gap: 12px;
+}
+
+.questions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.questions-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-family: var(--font-display);
+}
+
+.question-list {
+  display: grid;
+  gap: 12px;
+}
+
+.question-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px auto;
+  gap: 12px;
+  align-items: end;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.small {
+  padding: 6px 10px;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .question-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1100px) {
   .assign-topbar {
     flex-direction: column;
