@@ -10,6 +10,7 @@ import { RouterLink } from '@angular/router';
   styleUrl: './assign-training.component.scss'
 })
 export class AssignTrainingComponent {
+  private readonly storageKey = 'tx-peoplehub-assigned-training';
   form = {
     title: '',
     audience: 'All employees',
@@ -19,6 +20,34 @@ export class AssignTrainingComponent {
     ]
   };
   status = '';
+  assignments: {
+    title: string;
+    audience: string;
+    dueDate: string;
+    completed: number;
+    total: number;
+  }[] = [];
+
+  ngOnInit() {
+    const stored = localStorage.getItem(this.storageKey);
+    if (!stored) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored) as {
+        title: string;
+        audience: string;
+        dueDate: string;
+        completed: number;
+        total: number;
+      }[];
+      if (Array.isArray(parsed)) {
+        this.assignments = parsed;
+      }
+    } catch {
+      localStorage.removeItem(this.storageKey);
+    }
+  }
 
   assign() {
     if (!this.form.title || !this.form.dueDate) {
@@ -30,6 +59,16 @@ export class AssignTrainingComponent {
       this.status = 'Add at least one training question.';
       return;
     }
+    const newAssignment = {
+      title: this.form.title,
+      audience: this.form.audience,
+      dueDate: this.form.dueDate,
+      completed: 0,
+      total: 12
+    };
+    this.assignments = [newAssignment, ...this.assignments];
+    localStorage.setItem(this.storageKey, JSON.stringify(this.assignments));
+
     this.status = 'Training assigned.';
     this.form = {
       title: '',
