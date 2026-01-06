@@ -9,6 +9,7 @@ import { PeopleDirectoryComponent } from './people-directory/people-directory.co
 import { TasksComponent } from './tasks/tasks.component';
 import { FinancialsComponent } from './financials/financials.component';
 import { PerformanceComponent } from './performance/performance.component';
+import { ReimbursementComponent } from './reimbursement/reimbursement.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -16,6 +17,7 @@ export const routes: Routes = [
   { path: 'people', component: PeopleDirectoryComponent },
   { path: 'financials', component: FinancialsComponent },
   { path: 'tasks', component: TasksComponent },
+  { path: 'reimbursement', component: ReimbursementComponent },
   { path: 'performance', component: PerformanceComponent },
   { path: 'people/:id', component: PeopleProfileComponent },
   { path: 'people/:id/scorecard', component: ScorecardComponent },
