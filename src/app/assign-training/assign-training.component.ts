@@ -50,7 +50,10 @@ export class AssignTrainingComponent {
         this.assignments = parsed.map((item) => ({
           ...item,
           questions: item.questions ?? [],
-          participants: item.participants ?? []
+          participants: (item.participants ?? []).map((participant) => ({
+            name: participant.name,
+            status: participant.status === 'Completed' ? 'Completed' : 'Pending'
+          }))
         }));
       }
     } catch {
@@ -79,10 +82,10 @@ export class AssignTrainingComponent {
         type: question.type
       })),
       participants: [
-        { name: 'Nithin Gangadhar', status: 'Completed' },
-        { name: 'Jessie Moore', status: 'Pending' },
-        { name: 'Iman Shah', status: 'Pending' },
-        { name: 'Ravi Patel', status: 'Completed' }
+        { name: 'Nithin Gangadhar', status: 'Completed' as const },
+        { name: 'Jessie Moore', status: 'Pending' as const },
+        { name: 'Iman Shah', status: 'Pending' as const },
+        { name: 'Ravi Patel', status: 'Completed' as const }
       ]
     };
     this.assignments = [newAssignment, ...this.assignments];
