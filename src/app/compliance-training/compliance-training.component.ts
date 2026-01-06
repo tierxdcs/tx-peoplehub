@@ -14,9 +14,5 @@ export class ComplianceTrainingComponent {
     { title: 'Data Center Access', status: 'In progress', due: 'Feb 20' },
     { title: 'Incident Response', status: 'Required', due: 'Mar 1' }
   ];
-  compliance = [
-    { item: 'Background check', status: 'Verified' },
-    { item: 'Work authorization', status: 'Valid' },
-    { item: 'Policy acknowledgements', status: 'Complete' }
-  ];
+  compliance = [];
 }

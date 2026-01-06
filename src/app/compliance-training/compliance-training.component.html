@@ -32,22 +32,5 @@
       </div>
     </article>
 
-    <article class="panel">
-      <div class="panel-header">
-        <h2>Compliance checklist</h2>
-        <span class="pill soft">Audit</span>
-      </div>
-      <div class="list">
-        @for (item of compliance; track item.item) {
-          <div class="row">
-            <div>
-              <strong>{{ item.item }}</strong>
-              <span>Status</span>
-            </div>
-            <span class="status">{{ item.status }}</span>
-          </div>
-        }
-      </div>
-    </article>
   </section>
 </main>
