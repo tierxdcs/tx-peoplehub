@@ -19,7 +19,7 @@ export class AssignTrainingComponent {
     department: 'All departments',
     dueDate: '',
     questions: [
-      { text: '', type: 'Multiple choice' }
+      { text: '', type: 'Multiple choice', options: ['Option A', 'Option B', 'Option C'] }
     ]
   };
   status = '';
@@ -30,7 +30,7 @@ export class AssignTrainingComponent {
     dueDate: string;
     completed: number;
     total: number;
-    questions: { text: string; type: string }[];
+    questions: { text: string; type: string; options: string[] }[];
     participants: { name: string; status: 'Completed' | 'Pending' }[];
   }[] = [];
   expandedIndex: number | null = null;
@@ -66,14 +66,18 @@ export class AssignTrainingComponent {
         dueDate: string;
         completed: number;
         total: number;
-        questions?: { text: string; type: string }[];
+        questions?: { text: string; type: string; options?: string[] }[];
         participants?: { name: string; status: 'Completed' | 'Pending' }[];
       }[];
       if (Array.isArray(parsed)) {
         this.assignments = parsed.map((item) => ({
           ...item,
           department: item.department ?? 'All departments',
-          questions: item.questions ?? [],
+          questions: (item.questions ?? []).map((question) => ({
+            text: question.text,
+            type: question.type,
+            options: this.normalizeOptions(question.type, question.options)
+          })),
           participants: (item.participants ?? []).map((participant) => ({
             name: participant.name,
             status: participant.status === 'Completed' ? 'Completed' : 'Pending'
@@ -104,7 +108,8 @@ export class AssignTrainingComponent {
       total: 12,
       questions: this.form.questions.map((question) => ({
         text: question.text.trim(),
-        type: question.type
+        type: question.type,
+        options: this.normalizeOptions(question.type, question.options)
       })),
       participants: [
         { name: 'Nithin Gangadhar', status: 'Completed' as const },
@@ -122,14 +127,16 @@ export class AssignTrainingComponent {
       audience: 'All employees',
       department: this.departments[0]?.name ?? 'All departments',
       dueDate: '',
-      questions: [{ text: '', type: 'Multiple choice' }]
+      questions: [
+        { text: '', type: 'Multiple choice', options: ['Option A', 'Option B', 'Option C'] }
+      ]
     };
   }
 
   addQuestion() {
     this.form.questions = [
       ...this.form.questions,
-      { text: '', type: 'Multiple choice' }
+      { text: '', type: 'Multiple choice', options: ['Option A', 'Option B', 'Option C'] }
     ];
   }
 
@@ -148,7 +155,7 @@ export class AssignTrainingComponent {
     }
     assignment.questions = [
       ...assignment.questions,
-      { text: '', type: 'Multiple choice' }
+      { text: '', type: 'Multiple choice', options: ['Option A', 'Option B', 'Option C'] }
     ];
     this.saveAssignments();
   }
@@ -170,6 +177,44 @@ export class AssignTrainingComponent {
 
   saveAssignments() {
     localStorage.setItem(this.storageKey, JSON.stringify(this.assignments));
+  }
+
+  onQuestionTypeChange(question: { type: string; options: string[] }, save = false) {
+    question.options = this.normalizeOptions(question.type, question.options);
+    if (save) {
+      this.saveAssignments();
+    }
+  }
+
+  addOption(question: { options: string[] }, save = false) {
+    question.options = [...question.options, ''];
+    if (save) {
+      this.saveAssignments();
+    }
+  }
+
+  removeOption(question: { options: string[] }, index: number, save = false) {
+    question.options = question.options.filter((_, i) => i !== index);
+    if (save) {
+      this.saveAssignments();
+    }
+  }
+
+  updateOption(question: { options: string[] }, index: number, value: string, save = false) {
+    question.options = question.options.map((option, i) => (i === index ? value : option));
+    if (save) {
+      this.saveAssignments();
+    }
+  }
+
+  normalizeOptions(type: string, options?: string[]) {
+    if (type === 'Short answer') {
+      return [];
+    }
+    if (type === 'True/False') {
+      return options?.length ? options : ['True', 'False'];
+    }
+    return options?.length ? options : ['Option A', 'Option B', 'Option C'];
   }
 
   countStatus(

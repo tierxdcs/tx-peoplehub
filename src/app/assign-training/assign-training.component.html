@@ -66,7 +66,11 @@
               </label>
               <label>
                 Answer type
-                <select [(ngModel)]="question.type" name="question-type-{{ i }}">
+                <select
+                  [(ngModel)]="question.type"
+                  name="question-type-{{ i }}"
+                  (ngModelChange)="onQuestionTypeChange(question)"
+                >
                   <option>Multiple choice</option>
                   <option>Single choice</option>
                   <option>True/False</option>
@@ -76,6 +80,36 @@
               <button class="ghost small" type="button" (click)="removeQuestion(i)">
                 Remove
               </button>
+              @if (question.type !== 'Short answer') {
+                <div class="options-editor">
+                  <div class="options-header">
+                    <span>Answer options</span>
+                    <button class="ghost small" type="button" (click)="addOption(question)">
+                      Add option
+                    </button>
+                  </div>
+                  <div class="options-grid">
+                    @for (option of question.options; track $index; let oi = $index) {
+                      <div class="option-row">
+                        <input
+                          type="text"
+                          [ngModel]="option"
+                          name="question-option-{{ i }}-{{ oi }}"
+                          placeholder="Option label"
+                          (ngModelChange)="updateOption(question, oi, $event)"
+                        />
+                        <button
+                          class="ghost small"
+                          type="button"
+                          (click)="removeOption(question, oi)"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
             </div>
           }
         </div>
@@ -142,7 +176,7 @@
                       <select
                         [(ngModel)]="question.type"
                         name="assigned-question-type-{{ i }}-{{ qi }}"
-                        (ngModelChange)="saveAssignments()"
+                        (ngModelChange)="onQuestionTypeChange(question, true)"
                       >
                         <option>Multiple choice</option>
                         <option>Single choice</option>
@@ -157,6 +191,40 @@
                     >
                       Delete
                     </button>
+                    @if (question.type !== 'Short answer') {
+                      <div class="options-editor">
+                        <div class="options-header">
+                          <span>Answer options</span>
+                          <button
+                            class="ghost small"
+                            type="button"
+                            (click)="addOption(question, true)"
+                          >
+                            Add option
+                          </button>
+                        </div>
+                        <div class="options-grid">
+                          @for (option of question.options; track $index; let oi = $index) {
+                            <div class="option-row">
+                              <input
+                                type="text"
+                                [ngModel]="option"
+                                name="assigned-question-option-{{ i }}-{{ qi }}-{{ oi }}"
+                                placeholder="Option label"
+                                (ngModelChange)="updateOption(question, oi, $event, true)"
+                              />
+                              <button
+                                class="ghost small"
+                                type="button"
+                                (click)="removeOption(question, oi, true)"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    }
                   </div>
                 }
               </div>

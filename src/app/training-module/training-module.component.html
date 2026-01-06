@@ -34,7 +34,7 @@
               <p class="question-text">{{ question.text }}</p>
               @if (question.type === 'Multiple choice') {
                 <div class="option-grid">
-                  @for (option of options; track option) {
+                  @for (option of getQuestionOptions(question); track option) {
                     <label class="option-row">
                       <input
                         type="checkbox"
@@ -47,7 +47,7 @@
                 </div>
               } @else if (question.type === 'Single choice') {
                 <div class="option-grid">
-                  @for (option of options; track option) {
+                  @for (option of getQuestionOptions(question); track option) {
                     <label class="option-row">
                       <input
                         type="radio"
@@ -62,7 +62,7 @@
                 </div>
               } @else if (question.type === 'True/False') {
                 <div class="option-grid">
-                  @for (option of trueFalseOptions; track option) {
+                  @for (option of getQuestionOptions(question); track option) {
                     <label class="option-row">
                       <input
                         type="radio"
