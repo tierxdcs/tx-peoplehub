@@ -7,6 +7,9 @@
     </div>
     <div class="actions">
       <a class="ghost button-link" routerLink="/compliance-training">Back to required learning</a>
+      <button class="primary" type="button" (click)="submitModule()">
+        {{ submitted ? 'Module submitted' : 'Submit module' }}
+      </button>
     </div>
   </header>
 
@@ -22,7 +25,7 @@
     </div>
 
     @if (status) {
-      <p class="empty">{{ status }}</p>
+      <p class="status">{{ status }}</p>
     } @else {
       @if (questions.length) {
         <div class="question-list">

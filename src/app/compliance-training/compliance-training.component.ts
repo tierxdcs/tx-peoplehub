@@ -11,6 +11,7 @@ import { RouterLink } from '@angular/router';
 export class ComplianceTrainingComponent {
   private readonly assignmentsKey = 'tx-peoplehub-assigned-training';
   private readonly adminKey = 'tx-peoplehub-admin-draft';
+  private readonly statusKey = 'tx-peoplehub-training-status';
   trainings: { title: string; status: string; due: string }[] = [];
   completed = [
     { title: 'Workplace conduct', completed: 'Dec 12' },
@@ -33,6 +34,7 @@ export class ComplianceTrainingComponent {
     }
 
     this.loadAssignments(department);
+    this.applyCompletionStatus();
   }
 
   loadAssignments(department: string) {
@@ -64,6 +66,25 @@ export class ComplianceTrainingComponent {
       }
     } catch {
       localStorage.removeItem(this.assignmentsKey);
+    }
+  }
+
+  applyCompletionStatus() {
+    const stored = localStorage.getItem(this.statusKey);
+    if (!stored || !this.trainings.length) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored) as Record<string, { completed: boolean }>;
+      if (!parsed || typeof parsed !== 'object') {
+        return;
+      }
+      this.trainings = this.trainings.map((training) => ({
+        ...training,
+        status: parsed[training.title]?.completed ? 'Completed' : training.status
+      }));
+    } catch {
+      localStorage.removeItem(this.statusKey);
     }
   }
 }

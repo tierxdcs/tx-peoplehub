@@ -12,10 +12,12 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 export class TrainingModuleComponent {
   private readonly assignmentsKey = 'tx-peoplehub-assigned-training';
   private readonly responsesKey = 'tx-peoplehub-training-responses';
+  private readonly statusKey = 'tx-peoplehub-training-status';
   moduleTitle = '';
   moduleDue = '';
   questions: { text: string; type: string }[] = [];
   status = '';
+  submitted = false;
   responses: Record<string, Record<number, string | string[]>> = {};
   readonly options = ['Option A', 'Option B', 'Option C'];
   readonly trueFalseOptions = ['True', 'False'];
@@ -32,6 +34,7 @@ export class TrainingModuleComponent {
 
     this.loadAssignments();
     this.loadResponses();
+    this.loadStatus();
   }
 
   loadAssignments() {
@@ -58,6 +61,21 @@ export class TrainingModuleComponent {
     } catch {
       localStorage.removeItem(this.assignmentsKey);
       this.status = 'Training module not found.';
+    }
+  }
+
+  loadStatus() {
+    const stored = localStorage.getItem(this.statusKey);
+    if (!stored) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored) as Record<string, { completed: boolean }>;
+      if (parsed?.[this.moduleTitle]?.completed) {
+        this.submitted = true;
+      }
+    } catch {
+      localStorage.removeItem(this.statusKey);
     }
   }
 
@@ -109,4 +127,25 @@ export class TrainingModuleComponent {
     const current = this.responses[this.moduleTitle]?.[index];
     return Array.isArray(current) && current.includes(option);
   }
+
+  submitModule() {
+    if (!this.moduleTitle) {
+      return;
+    }
+    const stored = localStorage.getItem(this.statusKey);
+    let statusMap: Record<string, { completed: boolean; completedAt: string }>;
+    try {
+      statusMap = stored ? JSON.parse(stored) : {};
+    } catch {
+      statusMap = {};
+    }
+    statusMap[this.moduleTitle] = {
+      completed: true,
+      completedAt: new Date().toISOString()
+    };
+    localStorage.setItem(this.statusKey, JSON.stringify(statusMap));
+    this.submitted = true;
+    this.status = 'Module submitted.';
+  }
+
 }
