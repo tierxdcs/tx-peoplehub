@@ -36,6 +36,10 @@ export class HomeComponent {
       this.leaveError = 'Select start and end dates.';
       return;
     }
+    if (this.leaveForm.endDate < this.leaveForm.startDate) {
+      this.leaveError = 'End date must be after the start date.';
+      return;
+    }
 
     const format = (value: string) => {
       const date = new Date(value);
