@@ -24,7 +24,13 @@
             <div class="row">
               <div>
                 <strong>{{ training.title }}</strong>
-                <span>Due {{ training.due }}</span>
+                <span>
+                  @if (training.status === 'Completed' && training.completedAt) {
+                    Completed on {{ training.completedAt | date : 'mediumDate' }}
+                  } @else {
+                    Due {{ training.due }}
+                  }
+                </span>
               </div>
               <div class="row-actions">
                 <span class="status">{{ training.status }}</span>
