@@ -10,10 +10,13 @@ import { RouterLink } from '@angular/router';
   styleUrl: './assign-training.component.scss'
 })
 export class AssignTrainingComponent {
+  private readonly departmentsKey = 'tx-peoplehub-departments';
   private readonly storageKey = 'tx-peoplehub-assigned-training';
+  departments: { name: string; head: string }[] = [];
   form = {
     title: '',
     audience: 'All employees',
+    department: 'All departments',
     dueDate: '',
     questions: [
       { text: '', type: 'Multiple choice' }
@@ -23,6 +26,7 @@ export class AssignTrainingComponent {
   assignments: {
     title: string;
     audience: string;
+    department: string;
     dueDate: string;
     completed: number;
     total: number;
@@ -32,6 +36,24 @@ export class AssignTrainingComponent {
   expandedIndex: number | null = null;
 
   ngOnInit() {
+    const storedDepartments = localStorage.getItem(this.departmentsKey);
+    if (storedDepartments) {
+      try {
+        const parsed = JSON.parse(storedDepartments) as {
+          name: string;
+          head: string;
+        }[];
+        if (Array.isArray(parsed)) {
+          this.departments = parsed;
+          if (parsed.length && this.form.department === 'All departments') {
+            this.form.department = parsed[0].name;
+          }
+        }
+      } catch {
+        localStorage.removeItem(this.departmentsKey);
+      }
+    }
+
     const stored = localStorage.getItem(this.storageKey);
     if (!stored) {
       return;
@@ -40,6 +62,7 @@ export class AssignTrainingComponent {
       const parsed = JSON.parse(stored) as {
         title: string;
         audience: string;
+        department?: string;
         dueDate: string;
         completed: number;
         total: number;
@@ -49,6 +72,7 @@ export class AssignTrainingComponent {
       if (Array.isArray(parsed)) {
         this.assignments = parsed.map((item) => ({
           ...item,
+          department: item.department ?? 'All departments',
           questions: item.questions ?? [],
           participants: (item.participants ?? []).map((participant) => ({
             name: participant.name,
@@ -74,6 +98,7 @@ export class AssignTrainingComponent {
     const newAssignment = {
       title: this.form.title,
       audience: this.form.audience,
+      department: this.form.department,
       dueDate: this.form.dueDate,
       completed: 0,
       total: 12,
@@ -95,6 +120,7 @@ export class AssignTrainingComponent {
     this.form = {
       title: '',
       audience: 'All employees',
+      department: this.departments[0]?.name ?? 'All departments',
       dueDate: '',
       questions: [{ text: '', type: 'Multiple choice' }]
     };

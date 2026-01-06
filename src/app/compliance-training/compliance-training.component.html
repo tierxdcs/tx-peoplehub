@@ -18,17 +18,21 @@
         <h2>Training assignments</h2>
         <span class="pill">Active</span>
       </div>
-      <div class="list">
-        @for (training of trainings; track training.title) {
-          <div class="row">
-            <div>
-              <strong>{{ training.title }}</strong>
-              <span>Due {{ training.due }}</span>
+      @if (trainings.length) {
+        <div class="list">
+          @for (training of trainings; track training.title) {
+            <div class="row">
+              <div>
+                <strong>{{ training.title }}</strong>
+                <span>Due {{ training.due }}</span>
+              </div>
+              <span class="status">{{ training.status }}</span>
             </div>
-            <span class="status">{{ training.status }}</span>
-          </div>
-        }
-      </div>
+          }
+        </div>
+      } @else {
+        <p class="empty">No assigned training for your department yet.</p>
+      }
     </article>
 
     <article class="panel">

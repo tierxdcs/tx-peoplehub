@@ -33,6 +33,15 @@
         </select>
       </label>
       <label>
+        Department
+        <select [(ngModel)]="form.department" name="department">
+          <option>All departments</option>
+          @for (department of departments; track department.name) {
+            <option [value]="department.name">{{ department.name }}</option>
+          }
+        </select>
+      </label>
+      <label>
         Due date
         <input type="date" [(ngModel)]="form.dueDate" name="dueDate" />
       </label>
@@ -88,7 +97,10 @@
           <div class="assignment-row">
             <div>
               <strong>{{ assignment.title }}</strong>
-              <span>Audience: {{ assignment.audience }} · Due {{ assignment.dueDate }}</span>
+              <span>
+                Audience: {{ assignment.audience }} · Department: {{ assignment.department }} ·
+                Due {{ assignment.dueDate }}
+              </span>
             </div>
             <div class="progress-block">
               <span class="count">
