@@ -8,4 +8,10 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
-export class App {}
+export class App {
+  notificationsOpen = false;
+
+  toggleNotifications() {
+    this.notificationsOpen = !this.notificationsOpen;
+  }
+}

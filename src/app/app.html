@@ -13,9 +13,36 @@
       <a routerLink="/settings" routerLinkActive="active">Settings</a>
     </nav>
     <div class="actions">
-      <button class="ghost icon-button" type="button" aria-label="Notifications">
+      <button
+        class="ghost icon-button"
+        type="button"
+        aria-label="Notifications"
+        (click)="toggleNotifications()"
+      >
         <span aria-hidden="true">🔔</span>
       </button>
+      @if (notificationsOpen) {
+        <div class="notifications-panel" role="dialog" aria-label="Notifications">
+          <div class="notifications-header">
+            <strong>Alerts</strong>
+            <span>Today</span>
+          </div>
+          <div class="notifications-list">
+            <div class="notification-item">
+              <p>Training module due tomorrow.</p>
+              <span>Compliance & training</span>
+            </div>
+            <div class="notification-item">
+              <p>Reimbursement submitted for approval.</p>
+              <span>Finance</span>
+            </div>
+            <div class="notification-item">
+              <p>Leave request awaiting manager review.</p>
+              <span>People</span>
+            </div>
+          </div>
+        </div>
+      }
       <div class="avatar" aria-label="Account">AT</div>
     </div>
   </header>
