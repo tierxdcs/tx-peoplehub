@@ -132,7 +132,12 @@
         </label>
         <label>
           End date
-          <input type="date" [(ngModel)]="leaveForm.endDate" name="leaveEnd" />
+          <input
+            type="date"
+            [(ngModel)]="leaveForm.endDate"
+            name="leaveEnd"
+            [min]="leaveForm.startDate"
+          />
         </label>
         <label>
           Notes
