@@ -15,12 +15,16 @@
   <section class="directory-controls">
     <div class="search">
       <span>Search</span>
-      <input type="text" placeholder="Name, team, or role" />
+      <input
+        type="text"
+        placeholder="Name, team, or role"
+        [(ngModel)]="search"
+      />
     </div>
     <div class="filters">
       <label>
         Department
-        <select>
+        <select [(ngModel)]="selectedDepartment">
           <option>All departments</option>
           <option>Operations</option>
           <option>Facilities</option>
@@ -29,7 +33,7 @@
       </label>
       <label>
         Status
-        <select>
+        <select [(ngModel)]="selectedStatus">
           <option>Any status</option>
           <option>Active</option>
           <option>On leave</option>
@@ -39,7 +43,7 @@
   </section>
 
   <section class="directory-list">
-    @for (person of people; track person.id) {
+    @for (person of filteredPeople; track person.id) {
       <article class="person-card">
         <div>
           <strong>{{ person.name }}</strong>
