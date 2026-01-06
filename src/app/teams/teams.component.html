@@ -7,112 +7,85 @@
     </div>
     <div class="actions">
       <a class="ghost button-link" routerLink="/">Back to home</a>
-      <button class="primary" type="button">Create team</button>
+      <button class="primary" type="button" (click)="openCreateTeam()">Create team</button>
     </div>
   </header>
 
   <section class="teams-grid">
-    <article class="panel">
-      <div class="panel-header">
-        <h2>Operations</h2>
-        <span class="pill">312 people</span>
-      </div>
-      <p>Network ops, NOC, and response teams across TierX sites.</p>
-      <div class="team-meta">
-        <div>
-          <span class="label">Manager</span>
-          <span class="value">Nithin Gangadhar</span>
+    @for (team of teams; track team.name) {
+      <article class="panel">
+        <div class="panel-header">
+          <h2>{{ team.name }}</h2>
+          <span class="pill" [class.soft]="team.people < 100"
+            >{{ team.people }} people</span
+          >
         </div>
-        <div>
-          <span class="label">Coverage</span>
-          <span class="value">24/7</span>
+        <p>{{ team.summary }}</p>
+        <div class="team-meta">
+          <div>
+            <span class="label">Manager</span>
+            <span class="value">{{ team.head }}</span>
+          </div>
+          <div>
+            <span class="label">Coverage</span>
+            <span class="value">{{ team.coverage }}</span>
+          </div>
+          <div>
+            <span class="label">Sites</span>
+            <span class="value">{{ team.sites }}</span>
+          </div>
         </div>
-        <div>
-          <span class="label">Sites</span>
-          <span class="value">Austin, Dallas, Phoenix</span>
-        </div>
-      </div>
-      <button class="ghost full" type="button" (click)="openRoster('Operations')"
-        >View roster</button
-      >
-    </article>
-
-    <article class="panel">
-      <div class="panel-header">
-        <h2>Facilities</h2>
-        <span class="pill soft">128 people</span>
-      </div>
-      <p>Critical infrastructure, maintenance, and uptime planning.</p>
-      <div class="team-meta">
-        <div>
-          <span class="label">Manager</span>
-          <span class="value">Sofia Nguyen</span>
-        </div>
-        <div>
-          <span class="label">Coverage</span>
-          <span class="value">Regional</span>
-        </div>
-        <div>
-          <span class="label">Sites</span>
-          <span class="value">Austin, Phoenix</span>
-        </div>
-      </div>
-      <button class="ghost full" type="button" (click)="openRoster('Facilities')"
-        >View roster</button
-      >
-    </article>
-
-    <article class="panel">
-      <div class="panel-header">
-        <h2>Security</h2>
-        <span class="pill">74 people</span>
-      </div>
-      <p>Site security, access control, and risk monitoring.</p>
-      <div class="team-meta">
-        <div>
-          <span class="label">Manager</span>
-          <span class="value">Andre Lewis</span>
-        </div>
-        <div>
-          <span class="label">Coverage</span>
-          <span class="value">24/7</span>
-        </div>
-        <div>
-          <span class="label">Sites</span>
-          <span class="value">Dallas, Austin</span>
-        </div>
-      </div>
-      <button class="ghost full" type="button" (click)="openRoster('Security')"
-        >View roster</button
-      >
-    </article>
-
-    <article class="panel">
-      <div class="panel-header">
-        <h2>HR & People Ops</h2>
-        <span class="pill soft">32 people</span>
-      </div>
-      <p>Workforce planning, talent programs, and compliance.</p>
-      <div class="team-meta">
-        <div>
-          <span class="label">Manager</span>
-          <span class="value">Chloe Bishop</span>
-        </div>
-        <div>
-          <span class="label">Coverage</span>
-          <span class="value">Business hours</span>
-        </div>
-        <div>
-          <span class="label">Sites</span>
-          <span class="value">Austin</span>
-        </div>
-      </div>
-      <button class="ghost full" type="button" (click)="openRoster('HR & People Ops')"
-        >View roster</button
-      >
-    </article>
+        <button class="ghost full" type="button" (click)="openRoster(team.name)"
+          >View roster</button
+        >
+      </article>
+    }
   </section>
 </main>
+
+@if (createOpen) {
+  <div class="modal-backdrop" (click)="closeCreateTeam()"></div>
+  <div class="modal large" role="dialog" aria-modal="true">
+    <header>
+      <div>
+        <p class="eyebrow">Teams</p>
+        <h3>Create team</h3>
+        <p class="subtitle">Add a new department and ownership details.</p>
+      </div>
+      <button class="ghost" type="button" (click)="closeCreateTeam()">Close</button>
+    </header>
+    <form class="form-grid">
+      <label>
+        Team name
+        <input type="text" [(ngModel)]="form.name" name="team-name" />
+      </label>
+      <label>
+        Team head
+        <input type="text" [(ngModel)]="form.head" name="team-head" />
+      </label>
+      <label class="full">
+        Summary
+        <textarea [(ngModel)]="form.summary" name="team-summary" rows="2"></textarea>
+      </label>
+      <label>
+        People count
+        <input type="number" [(ngModel)]="form.people" name="team-people" min="0" />
+      </label>
+      <label>
+        Coverage
+        <input type="text" [(ngModel)]="form.coverage" name="team-coverage" />
+      </label>
+      <label class="full">
+        Sites
+        <input type="text" [(ngModel)]="form.sites" name="team-sites" />
+      </label>
+    </form>
+    <div class="modal-actions">
+      <button class="ghost" type="button" (click)="closeCreateTeam()">Cancel</button>
+      <button class="primary" type="button" (click)="createTeam()">Save team</button>
+    </div>
+  </div>
+}
 
 @if (selectedTeam) {
   <div class="modal-backdrop" (click)="closeRoster()"></div>
@@ -126,14 +99,18 @@
       <button class="ghost" type="button" (click)="closeRoster()">Close</button>
     </header>
     <div class="modal-body">
-      @for (member of selectedTeam.roster; track member.name) {
-        <div class="member-row">
-          <div>
-            <strong>{{ member.name }}</strong>
-            <span>{{ member.role }}</span>
+      @if (selectedTeam.roster.length) {
+        @for (member of selectedTeam.roster; track member.name) {
+          <div class="member-row">
+            <div>
+              <strong>{{ member.name }}</strong>
+              <span>{{ member.role }}</span>
+            </div>
+            <span class="pill soft">{{ member.location }}</span>
           </div>
-          <span class="pill soft">{{ member.location }}</span>
-        </div>
+        }
+      } @else {
+        <p class="empty">No team members added yet.</p>
       }
     </div>
   </div>
