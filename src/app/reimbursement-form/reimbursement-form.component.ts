@@ -35,8 +35,10 @@ export class ReimbursementFormComponent {
     const newClaim = {
       title: this.form.title,
       amount: formattedAmount,
+      category: this.form.category,
       status: 'Pending',
-      submitted
+      submitted,
+      employee: 'Current user'
     };
     const stored = localStorage.getItem(this.storageKey);
     const existing = stored ? (JSON.parse(stored) as typeof newClaim[]) : [];
