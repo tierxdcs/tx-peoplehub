@@ -84,7 +84,7 @@
     </div>
     @if (assignments.length) {
       <div class="assignment-list">
-        @for (assignment of assignments; track assignment.title) {
+        @for (assignment of assignments; track assignment.title; let i = $index) {
           <div class="assignment-row">
             <div>
               <strong>{{ assignment.title }}</strong>
@@ -100,8 +100,56 @@
                   [style.width.%]="(assignment.completed / assignment.total) * 100"
                 ></div>
               </div>
+              <button class="ghost small" type="button" (click)="toggleAssignment(i)">
+                {{ expandedIndex === i ? 'Hide questions' : 'View questions' }}
+              </button>
             </div>
           </div>
+          @if (expandedIndex === i) {
+            <div class="assignment-questions">
+              <div class="questions-header">
+                <h3>Questions</h3>
+                <button class="ghost" type="button" (click)="addAssignmentQuestion(i)">
+                  Add question
+                </button>
+              </div>
+              <div class="question-list">
+                @for (question of assignment.questions; track $index; let qi = $index) {
+                  <div class="question-row">
+                    <label>
+                      Question
+                      <input
+                        type="text"
+                        [(ngModel)]="question.text"
+                        name="assigned-question-{{ i }}-{{ qi }}"
+                        (ngModelChange)="saveAssignments()"
+                      />
+                    </label>
+                    <label>
+                      Answer type
+                      <select
+                        [(ngModel)]="question.type"
+                        name="assigned-question-type-{{ i }}-{{ qi }}"
+                        (ngModelChange)="saveAssignments()"
+                      >
+                        <option>Multiple choice</option>
+                        <option>Single choice</option>
+                        <option>True/False</option>
+                        <option>Short answer</option>
+                      </select>
+                    </label>
+                    <button
+                      class="ghost small"
+                      type="button"
+                      (click)="removeAssignmentQuestion(i, qi)"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                }
+              </div>
+            </div>
+          }
         }
       </div>
     } @else {

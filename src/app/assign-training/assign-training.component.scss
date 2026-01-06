@@ -191,6 +191,14 @@ textarea {
   font-size: 0.85rem;
 }
 
+.assignment-questions {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
+  display: grid;
+  gap: 12px;
+}
+
 .questions {
   display: grid;
   gap: 12px;
