@@ -1,0 +1,86 @@
+<main class="login-shell">
+  <div class="login-ambient">
+    <div class="orb orb-one"></div>
+    <div class="orb orb-two"></div>
+    <div class="grid"></div>
+  </div>
+
+  <section class="login-card">
+    <header class="login-header">
+      <p class="eyebrow">TierX DCS · Secure access</p>
+      <h1>Welcome back to tx-peoplehub</h1>
+      <p class="subtitle">Sign in to manage people, teams, and workforce operations.</p>
+    </header>
+
+    <div class="sso-panel">
+      <button class="ghost" type="button">Continue with SSO</button>
+      <span>or use your TierX credentials</span>
+    </div>
+
+    <form class="login-form">
+      <label>
+        Work email
+        <input
+          type="email"
+          placeholder="name@tierx.com"
+          [(ngModel)]="credentials.email"
+          name="email"
+        />
+      </label>
+      <label>
+        Password
+        <input
+          type="password"
+          placeholder="Enter your password"
+          [(ngModel)]="credentials.password"
+          name="password"
+        />
+      </label>
+      <div class="form-meta">
+        <label class="checkbox">
+          <input type="checkbox" [(ngModel)]="credentials.remember" name="remember" />
+          Remember this device
+        </label>
+        <a class="link" href="#">Forgot password?</a>
+      </div>
+      <button class="primary" type="button">Sign in</button>
+    </form>
+
+    <footer class="login-footer">
+      <span>Need access? </span>
+      <a class="link" href="#">Contact IT support</a>
+      <span> · </span>
+      <a class="link" routerLink="/">Back to home</a>
+    </footer>
+  </section>
+
+  <aside class="login-info">
+    <div class="info-card">
+      <h2>Enterprise-ready control center</h2>
+      <p>
+        Consolidate onboarding, compliance, training, and workforce insights in a single
+        operational dashboard built for TierX teams.
+      </p>
+      <div class="highlights">
+        <div>
+          <strong>99.9% uptime</strong>
+          <span>Operational visibility</span>
+        </div>
+        <div>
+          <strong>Zero-trust ready</strong>
+          <span>Security-first workflows</span>
+        </div>
+        <div>
+          <strong>Real-time alerts</strong>
+          <span>Never miss approvals</span>
+        </div>
+      </div>
+    </div>
+    <div class="trust-strip">
+      <span>ISO 27001</span>
+      <span>SOC 2</span>
+      <span>GDPR</span>
+      <span>HIPAA</span>
+    </div>
+  </aside>
+</main>

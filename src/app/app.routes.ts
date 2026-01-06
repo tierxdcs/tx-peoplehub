@@ -14,6 +14,7 @@ import { ReimbursementFormComponent } from './reimbursement-form/reimbursement-f
 import { ComplianceTrainingComponent } from './compliance-training/compliance-training.component';
 import { AssignTrainingComponent } from './assign-training/assign-training.component';
 import { TrainingModuleComponent } from './training-module/training-module.component';
+import { LoginComponent } from './login/login.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -27,6 +28,7 @@ export const routes: Routes = [
   { path: 'compliance-training', component: ComplianceTrainingComponent },
   { path: 'compliance-training/:title', component: TrainingModuleComponent },
   { path: 'admin/assign-training', component: AssignTrainingComponent },
+  { path: 'login', component: LoginComponent },
   { path: 'people/:id', component: PeopleProfileComponent },
   { path: 'people/:id/scorecard', component: ScorecardComponent },
   { path: 'admin', component: AdminComponent },
