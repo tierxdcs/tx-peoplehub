@@ -1,0 +1,64 @@
+<main class="performance-shell">
+  <header class="performance-topbar">
+    <div>
+      <p class="eyebrow">Performance</p>
+      <h1>Reviews & goals</h1>
+      <p class="subtitle">
+        Manage review cycles, goals, and feedback in one place.
+      </p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" routerLink="/">Back to home</a>
+      <button class="primary" type="button">Start review cycle</button>
+    </div>
+  </header>
+
+  <section class="performance-grid">
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Active reviews</h2>
+        <span class="pill">Q4 2025</span>
+      </div>
+      <div class="review-list">
+        @for (review of reviews; track review.name) {
+          <div class="review-row">
+            <div>
+              <strong>{{ review.name }}</strong>
+              <span>{{ review.cycle }}</span>
+            </div>
+            <div class="meta">
+              <span class="status">{{ review.status }}</span>
+              <span>{{ review.due }}</span>
+            </div>
+          </div>
+        }
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
+        <h2>Goal progress</h2>
+        <span class="pill soft">Teams</span>
+      </div>
+      <div class="goal-row">
+        <div>
+          <strong>Operations readiness</strong>
+          <span>76% complete</span>
+        </div>
+        <div class="progress">
+          <div class="bar" style="width: 76%"></div>
+        </div>
+      </div>
+      <div class="goal-row">
+        <div>
+          <strong>Compliance training</strong>
+          <span>92% complete</span>
+        </div>
+        <div class="progress">
+          <div class="bar" style="width: 92%"></div>
+        </div>
+      </div>
+      <button class="ghost full" type="button">View goal details</button>
+    </article>
+  </section>
+</main>
