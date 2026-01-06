@@ -42,9 +42,13 @@ export class AssignTrainingComponent {
         dueDate: string;
         completed: number;
         total: number;
+        questions?: { text: string; type: string }[];
       }[];
       if (Array.isArray(parsed)) {
-        this.assignments = parsed;
+        this.assignments = parsed.map((item) => ({
+          ...item,
+          questions: item.questions ?? []
+        }));
       }
     } catch {
       localStorage.removeItem(this.storageKey);
