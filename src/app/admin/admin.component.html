@@ -269,9 +269,9 @@
             (change)="onOfferLetterSelected($event)"
           />
         </label>
-        <span class="file-name" *ngIf="adminData.offerLetterName"
-          >Uploaded: {{ adminData.offerLetterName }}</span
-        >
+        @if (adminData.offerLetterName) {
+          <span class="file-name">Uploaded: {{ adminData.offerLetterName }}</span>
+        }
       </div>
     </article>
 
@@ -404,11 +404,11 @@
             (change)="onFileSelected($event)"
           />
         </label>
-        <span
-          class="file-name"
-          *ngIf="adminData.complianceDocumentName"
-          >Last uploaded: {{ adminData.complianceDocumentName }}</span
-        >
+        @if (adminData.complianceDocumentName) {
+          <span class="file-name"
+            >Last uploaded: {{ adminData.complianceDocumentName }}</span
+          >
+        }
         <label>
           Next audit date
           <input
