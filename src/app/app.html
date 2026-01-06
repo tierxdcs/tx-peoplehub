@@ -22,7 +22,6 @@
         >
           <span aria-hidden="true">🔔</span>
         </button>
-        <button class="ghost" type="button" (click)="logout()">Logout</button>
         @if (notificationsOpen) {
           <div class="notifications-panel" role="dialog" aria-label="Notifications">
             <div class="notifications-header">
@@ -45,7 +44,21 @@
             </div>
           </div>
         }
-        <div class="avatar" aria-label="Account">AT</div>
+        <button class="avatar" type="button" aria-label="Account" (click)="toggleAvatarMenu()">
+          AT
+        </button>
+        @if (avatarOpen) {
+          <div class="account-panel" role="dialog" aria-label="Account options">
+            <div class="account-header">
+              <strong>Alex Taylor</strong>
+              <span>HR Operations</span>
+            </div>
+            <div class="account-actions">
+              <button class="ghost" type="button">My profile</button>
+              <button class="ghost" type="button" (click)="logout()">Logout</button>
+            </div>
+          </div>
+        }
       </div>
     </header>
   }
