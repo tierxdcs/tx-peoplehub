@@ -134,6 +134,14 @@ textarea {
   font-weight: 600;
 }
 
+.approver-note {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--ink-600);
+  font-size: 0.85rem;
+}
+
 @media (max-width: 1100px) {
   .reimburse-form-topbar {
     flex-direction: column;
