@@ -59,7 +59,10 @@
                 <strong>{{ item.title }}</strong>
                 <span>Completed on {{ item.completedAt | date : 'mediumDate' }}</span>
               </div>
-              <span class="status">Done</span>
+              <div class="row-actions">
+                <span class="status">Done</span>
+                <span class="ghost-placeholder">Start</span>
+              </div>
             </div>
           }
         </div>

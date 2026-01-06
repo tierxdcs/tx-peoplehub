@@ -144,6 +144,15 @@ button:hover,
   gap: 10px;
 }
 
+.ghost-placeholder {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  font-size: 0.75rem;
+  color: transparent;
+  user-select: none;
+}
+
 .status {
   padding: 4px 10px;
   border-radius: 999px;
