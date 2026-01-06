@@ -140,6 +140,22 @@
         </label>
       </form>
       <button class="primary full" type="button">Submit request</button>
+      <div class="leave-requests">
+        <h3>Pending approvals</h3>
+        @if (pendingRequests.length) {
+          @for (request of pendingRequests; track request.type + request.range) {
+            <div class="request-row">
+              <div>
+                <strong>{{ request.type }}</strong>
+                <span>{{ request.range }}</span>
+              </div>
+              <span class="status">{{ request.status }}</span>
+            </div>
+          }
+        } @else {
+          <p class="empty">No pending requests.</p>
+        }
+      </div>
     </div>
   </section>
 </main>
