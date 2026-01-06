@@ -20,7 +20,7 @@
       </div>
       @if (trainings.length) {
         <div class="list">
-          @for (training of trainings; track training.title; let i = $index) {
+          @for (training of trainings; track training.title) {
             <div class="row">
               <div>
                 <strong>{{ training.title }}</strong>
@@ -28,81 +28,11 @@
               </div>
               <div class="row-actions">
                 <span class="status">{{ training.status }}</span>
-                <button class="ghost small" type="button" (click)="toggleModule(i)">
-                  {{ expandedIndex === i ? 'Hide questions' : 'Start' }}
-                </button>
+                <a class="ghost small button-link" [routerLink]="['/compliance-training', training.title]">
+                  Start
+                </a>
               </div>
             </div>
-            @if (expandedIndex === i) {
-              <div class="module-detail">
-                <div class="module-header">
-                  <h3>Answer the questions</h3>
-                  <span class="meta">Responses autosave.</span>
-                </div>
-                @if (training.questions.length) {
-                  <div class="question-list">
-                    @for (question of training.questions; track $index; let qi = $index) {
-                      <div class="question-card">
-                        <p class="question-text">{{ question.text }}</p>
-                        @if (question.type === 'Multiple choice') {
-                          <div class="option-grid">
-                            @for (option of options; track option) {
-                              <label class="option-row">
-                                <input
-                                  type="checkbox"
-                                  [checked]="isMultiSelected(training.title, qi, option)"
-                                  (change)="toggleMultiResponse(training.title, qi, option)"
-                                />
-                                <span>{{ option }}</span>
-                              </label>
-                            }
-                          </div>
-                        } @else if (question.type === 'Single choice') {
-                          <div class="option-grid">
-                            @for (option of options; track option) {
-                              <label class="option-row">
-                                <input
-                                  type="radio"
-                                  [name]="'single-' + i + '-' + qi"
-                                  [value]="option"
-                                  [ngModel]="getSingleResponse(training.title, qi)"
-                                  (ngModelChange)="setResponse(training.title, qi, $event)"
-                                />
-                                <span>{{ option }}</span>
-                              </label>
-                            }
-                          </div>
-                        } @else if (question.type === 'True/False') {
-                          <div class="option-grid">
-                            @for (option of trueFalseOptions; track option) {
-                              <label class="option-row">
-                                <input
-                                  type="radio"
-                                  [name]="'tf-' + i + '-' + qi"
-                                  [value]="option"
-                                  [ngModel]="getSingleResponse(training.title, qi)"
-                                  (ngModelChange)="setResponse(training.title, qi, $event)"
-                                />
-                                <span>{{ option }}</span>
-                              </label>
-                            }
-                          </div>
-                        } @else {
-                          <textarea
-                            rows="3"
-                            placeholder="Type your answer"
-                            [ngModel]="getSingleResponse(training.title, qi)"
-                            (ngModelChange)="setResponse(training.title, qi, $event)"
-                          ></textarea>
-                        }
-                      </div>
-                    }
-                  </div>
-                } @else {
-                  <p class="empty">No questions added to this module yet.</p>
-                }
-              </div>
-            }
           }
         </div>
       } @else {
