@@ -9,6 +9,7 @@ import { RouterLink } from '@angular/router';
   styleUrl: './reimbursement.component.scss'
 })
 export class ReimbursementComponent {
+  private readonly storageKey = 'tx-peoplehub-reimbursements';
   claims = [
     {
       title: 'Home office equipment',
@@ -29,4 +30,19 @@ export class ReimbursementComponent {
       submitted: 'Jan 4'
     }
   ];
+
+  ngOnInit() {
+    const stored = localStorage.getItem(this.storageKey);
+    if (!stored) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored) as typeof this.claims;
+      if (Array.isArray(parsed) && parsed.length) {
+        this.claims = [...parsed, ...this.claims];
+      }
+    } catch {
+      localStorage.removeItem(this.storageKey);
+    }
+  }
 }
