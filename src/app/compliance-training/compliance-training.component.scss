@@ -137,6 +137,12 @@ button:hover,
   font-size: 0.85rem;
 }
 
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .status {
   padding: 4px 10px;
   border-radius: 999px;
@@ -145,6 +151,64 @@ button:hover,
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.module-detail {
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.04);
+  display: grid;
+  gap: 12px;
+}
+
+.module-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.question-list {
+  display: grid;
+  gap: 12px;
+}
+
+.question-card {
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  display: grid;
+  gap: 10px;
+}
+
+.question-text {
+  margin: 0;
+  color: var(--ink-800);
+  font-weight: 600;
+}
+
+.option-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.option-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--ink-600);
+}
+
+.small {
+  padding: 6px 12px;
+  font-size: 0.75rem;
+}
+
+.meta {
+  font-size: 0.8rem;
+  color: var(--ink-500);
 }
 
 .empty {
