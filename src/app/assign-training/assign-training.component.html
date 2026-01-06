@@ -76,4 +76,36 @@
       <p class="status">{{ status }}</p>
     }
   </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2>Assigned modules</h2>
+      <span class="pill soft">Progress</span>
+    </div>
+    @if (assignments.length) {
+      <div class="assignment-list">
+        @for (assignment of assignments; track assignment.title) {
+          <div class="assignment-row">
+            <div>
+              <strong>{{ assignment.title }}</strong>
+              <span>Audience: {{ assignment.audience }} · Due {{ assignment.dueDate }}</span>
+            </div>
+            <div class="progress-block">
+              <span class="count">
+                {{ assignment.completed }}/{{ assignment.total }} completed
+              </span>
+              <div class="progress">
+                <div
+                  class="bar"
+                  [style.width.%]="(assignment.completed / assignment.total) * 100"
+                ></div>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    } @else {
+      <p class="empty">No training modules assigned yet.</p>
+    }
+  </section>
 </main>
