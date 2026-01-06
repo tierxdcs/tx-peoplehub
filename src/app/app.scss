@@ -186,6 +186,10 @@ button:hover {
   padding-top: 96px;
 }
 
+.app-content.no-topbar {
+  padding-top: 0;
+}
+
 .app-footer {
   text-align: center;
   padding: 24px 16px 32px;
