@@ -33,6 +33,30 @@
 
     <article class="panel">
       <div class="panel-header">
+        <h2>Assigned modules</h2>
+        <span class="pill soft">Progress</span>
+      </div>
+      <div class="list">
+        @if (assignedModules.length) {
+          @for (module of assignedModules; track module.title) {
+            <div class="row">
+              <div>
+                <strong>{{ module.title }}</strong>
+                <span>Due {{ module.dueDate }} · {{ module.audience }}</span>
+              </div>
+              <div class="progress">
+                <div class="bar" [style.width.%]="module.progress"></div>
+              </div>
+            </div>
+          }
+        } @else {
+          <p class="empty">No assigned modules yet.</p>
+        }
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
         <h2>Completed training</h2>
         <span class="pill soft">Last 90 days</span>
       </div>
