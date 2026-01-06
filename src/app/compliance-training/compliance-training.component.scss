@@ -147,25 +147,6 @@ button:hover,
   letter-spacing: 0.08em;
 }
 
-.progress {
-  width: 140px;
-  height: 8px;
-  background: rgba(148, 163, 184, 0.2);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.progress .bar {
-  height: 100%;
-  background: linear-gradient(120deg, var(--brand-blue), var(--brand-green));
-}
-
-.empty {
-  margin: 0;
-  color: var(--ink-500);
-  font-size: 0.85rem;
-}
-
 @media (max-width: 1100px) {
   .compliance-topbar {
     flex-direction: column;

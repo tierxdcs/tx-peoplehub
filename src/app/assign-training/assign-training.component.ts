@@ -10,7 +10,6 @@ import { RouterLink } from '@angular/router';
   styleUrl: './assign-training.component.scss'
 })
 export class AssignTrainingComponent {
-  private readonly storageKey = 'tx-peoplehub-assigned-training';
   form = {
     title: '',
     audience: 'All employees',
@@ -31,24 +30,6 @@ export class AssignTrainingComponent {
       this.status = 'Add at least one training question.';
       return;
     }
-    const stored = localStorage.getItem(this.storageKey);
-    const existing = stored ? (JSON.parse(stored) as {
-      title: string;
-      audience: string;
-      dueDate: string;
-      progress: number;
-    }[]) : [];
-    const newAssignment = {
-      title: this.form.title,
-      audience: this.form.audience,
-      dueDate: this.form.dueDate,
-      progress: 0
-    };
-    localStorage.setItem(
-      this.storageKey,
-      JSON.stringify([newAssignment, ...existing])
-    );
-
     this.status = 'Training assigned.';
     this.form = {
       title: '',
