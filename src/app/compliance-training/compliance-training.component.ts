@@ -1,10 +1,11 @@
 import { Component } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-compliance-training',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, DatePipe],
   templateUrl: './compliance-training.component.html',
   styleUrl: './compliance-training.component.scss'
 })
@@ -12,7 +13,12 @@ export class ComplianceTrainingComponent {
   private readonly assignmentsKey = 'tx-peoplehub-assigned-training';
   private readonly adminKey = 'tx-peoplehub-admin-draft';
   private readonly statusKey = 'tx-peoplehub-training-status';
-  trainings: { title: string; status: string; due: string }[] = [];
+  trainings: {
+    title: string;
+    status: string;
+    due: string;
+    completedAt?: string;
+  }[] = [];
   completed = [
     { title: 'Workplace conduct', completed: 'Dec 12' },
     { title: 'Information security', completed: 'Nov 28' },
@@ -75,13 +81,17 @@ export class ComplianceTrainingComponent {
       return;
     }
     try {
-      const parsed = JSON.parse(stored) as Record<string, { completed: boolean }>;
+      const parsed = JSON.parse(stored) as Record<
+        string,
+        { completed: boolean; completedAt?: string }
+      >;
       if (!parsed || typeof parsed !== 'object') {
         return;
       }
       this.trainings = this.trainings.map((training) => ({
         ...training,
-        status: parsed[training.title]?.completed ? 'Completed' : training.status
+        status: parsed[training.title]?.completed ? 'Completed' : training.status,
+        completedAt: parsed[training.title]?.completedAt
       }));
     } catch {
       localStorage.removeItem(this.statusKey);
