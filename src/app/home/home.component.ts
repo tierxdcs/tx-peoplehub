@@ -44,6 +44,17 @@ export class HomeComponent {
   ngOnInit() {
     const raw = localStorage.getItem('tx-peoplehub-admin-draft');
     if (!raw) {
+      const storedRequests = localStorage.getItem('tx-peoplehub-leave-requests');
+      if (storedRequests) {
+        try {
+          const parsed = JSON.parse(storedRequests) as typeof this.pendingRequests;
+          if (Array.isArray(parsed)) {
+            this.pendingRequests = parsed;
+          }
+        } catch {
+          localStorage.removeItem('tx-peoplehub-leave-requests');
+        }
+      }
       return;
     }
     try {
@@ -66,6 +77,19 @@ export class HomeComponent {
       }
     } catch {
       localStorage.removeItem(this.ideasKey);
+    }
+
+    const storedRequests = localStorage.getItem('tx-peoplehub-leave-requests');
+    if (!storedRequests) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(storedRequests) as typeof this.pendingRequests;
+      if (Array.isArray(parsed)) {
+        this.pendingRequests = parsed;
+      }
+    } catch {
+      localStorage.removeItem('tx-peoplehub-leave-requests');
     }
   }
 
@@ -141,6 +165,10 @@ export class HomeComponent {
       },
       ...this.pendingRequests
     ];
+    localStorage.setItem(
+      'tx-peoplehub-leave-requests',
+      JSON.stringify(this.pendingRequests)
+    );
 
     this.leaveError = '';
     this.leaveForm = { type: 'PTO', startDate: '', endDate: '', notes: '' };
@@ -154,5 +182,9 @@ export class HomeComponent {
       return;
     }
     this.pendingRequests = this.pendingRequests.filter((_, i) => i !== index);
+    localStorage.setItem(
+      'tx-peoplehub-leave-requests',
+      JSON.stringify(this.pendingRequests)
+    );
   }
 }
