@@ -41,6 +41,9 @@
         Notes
         <textarea rows="4" [(ngModel)]="form.notes" name="notes"></textarea>
       </label>
+      <div class="full approver-note">
+        Routed to approver: Ravi Kulal (CFO)
+      </div>
     </form>
     <button class="primary" type="button" (click)="submit()">Submit reimbursement</button>
     @if (statusMessage) {
