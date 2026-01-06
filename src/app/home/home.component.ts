@@ -62,4 +62,8 @@ export class HomeComponent {
     this.leaveError = '';
     this.leaveForm = { type: 'PTO', startDate: '', endDate: '', notes: '' };
   }
+
+  cancelRequest(index: number) {
+    this.pendingRequests = this.pendingRequests.filter((_, i) => i !== index);
+  }
 }
