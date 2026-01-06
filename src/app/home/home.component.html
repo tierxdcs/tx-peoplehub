@@ -266,5 +266,23 @@
       <button class="ghost" type="button" (click)="closeIdeas()">Cancel</button>
       <button class="primary" type="button" (click)="submitIdea()">Send idea</button>
     </div>
+    <div class="ideas-history">
+      <h4>Submitted ideas</h4>
+      @if (ideaHistory.length) {
+        <div class="ideas-list">
+          @for (idea of ideaHistory; track idea.title + idea.submittedAt) {
+            <div class="idea-row">
+              <div>
+                <strong>{{ idea.title }}</strong>
+                <span>{{ idea.type }} · {{ idea.manager }}</span>
+              </div>
+              <span class="tag">{{ idea.submittedAt | date : 'mediumDate' }}</span>
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="empty">No ideas submitted yet.</p>
+      }
+    </div>
   </div>
 }
