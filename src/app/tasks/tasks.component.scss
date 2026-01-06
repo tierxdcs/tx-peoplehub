@@ -6,11 +6,11 @@
 }
 
 .tasks-topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 20px 24px;
+  gap: 16px;
+  padding: 16px 24px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(148, 163, 184, 0.22);
@@ -26,9 +26,17 @@
 }
 
 .tasks-topbar h1 {
-  margin: 8px 0 8px;
+  margin: 6px 0 6px;
   font-family: var(--font-display);
   font-size: clamp(2rem, 1.8rem + 1vw, 2.6rem);
+}
+
+.tasks-topbar .eyebrow {
+  margin-bottom: 4px;
+}
+
+.tasks-topbar .subtitle {
+  margin-top: 4px;
 }
 
 .subtitle {
