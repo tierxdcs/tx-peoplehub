@@ -35,6 +35,8 @@ export class AdminComponent {
     compensationEffectiveDate: '',
     offerLetterName: '',
     offerLetterData: '',
+    compBand: '',
+    compPositioning: 'Mid-senior',
     annualPto: '',
     sickLeave: '',
     floatingHolidays: '',
