@@ -8,6 +8,7 @@ import { SettingsComponent } from './settings/settings.component';
 import { PeopleDirectoryComponent } from './people-directory/people-directory.component';
 import { TasksComponent } from './tasks/tasks.component';
 import { FinancialsComponent } from './financials/financials.component';
+import { PerformanceComponent } from './performance/performance.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -15,6 +16,7 @@ export const routes: Routes = [
   { path: 'people', component: PeopleDirectoryComponent },
   { path: 'financials', component: FinancialsComponent },
   { path: 'tasks', component: TasksComponent },
+  { path: 'performance', component: PerformanceComponent },
   { path: 'people/:id', component: PeopleProfileComponent },
   { path: 'people/:id/scorecard', component: ScorecardComponent },
   { path: 'admin', component: AdminComponent },
