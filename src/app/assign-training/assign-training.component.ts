@@ -26,7 +26,9 @@ export class AssignTrainingComponent {
     dueDate: string;
     completed: number;
     total: number;
+    questions: { text: string; type: string }[];
   }[] = [];
+  expandedIndex: number | null = null;
 
   ngOnInit() {
     const stored = localStorage.getItem(this.storageKey);
@@ -64,10 +66,14 @@ export class AssignTrainingComponent {
       audience: this.form.audience,
       dueDate: this.form.dueDate,
       completed: 0,
-      total: 12
+      total: 12,
+      questions: this.form.questions.map((question) => ({
+        text: question.text.trim(),
+        type: question.type
+      }))
     };
     this.assignments = [newAssignment, ...this.assignments];
-    localStorage.setItem(this.storageKey, JSON.stringify(this.assignments));
+    this.saveAssignments();
 
     this.status = 'Training assigned.';
     this.form = {
@@ -87,5 +93,34 @@ export class AssignTrainingComponent {
 
   removeQuestion(index: number) {
     this.form.questions = this.form.questions.filter((_, i) => i !== index);
+  }
+
+  toggleAssignment(index: number) {
+    this.expandedIndex = this.expandedIndex === index ? null : index;
+  }
+
+  addAssignmentQuestion(index: number) {
+    const assignment = this.assignments[index];
+    if (!assignment) {
+      return;
+    }
+    assignment.questions = [
+      ...assignment.questions,
+      { text: '', type: 'Multiple choice' }
+    ];
+    this.saveAssignments();
+  }
+
+  removeAssignmentQuestion(assignmentIndex: number, questionIndex: number) {
+    const assignment = this.assignments[assignmentIndex];
+    if (!assignment) {
+      return;
+    }
+    assignment.questions = assignment.questions.filter((_, i) => i !== questionIndex);
+    this.saveAssignments();
+  }
+
+  saveAssignments() {
+    localStorage.setItem(this.storageKey, JSON.stringify(this.assignments));
   }
 }
