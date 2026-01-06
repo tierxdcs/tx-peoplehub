@@ -153,13 +153,22 @@
       <div class="leave-requests">
         <h3>Pending approvals</h3>
         @if (pendingRequests.length) {
-          @for (request of pendingRequests; track request.type + request.range) {
+          @for (request of pendingRequests; track request.type + request.range; let i = $index) {
             <div class="request-row">
               <div>
                 <strong>{{ request.type }}</strong>
                 <span>{{ request.range }}</span>
               </div>
-              <span class="status">{{ request.status }}</span>
+              <div class="request-actions">
+                <span class="status">{{ request.status }}</span>
+                <button
+                  class="ghost small"
+                  type="button"
+                  (click)="cancelRequest(i)"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           }
         } @else {
