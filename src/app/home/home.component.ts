@@ -11,6 +11,9 @@ import { RouterLink } from '@angular/router';
 })
 export class HomeComponent {
   isBalanceOpen = false;
+  isIdeasOpen = false;
+  ideaStatus = '';
+  managerName = 'Direct Manager';
   pendingRequests = [
     { type: 'PTO', range: 'Feb 12 - Feb 14', status: 'Pending' },
     { type: 'Sick', range: 'Jan 22', status: 'Pending' }
@@ -21,7 +24,28 @@ export class HomeComponent {
     endDate: '',
     notes: ''
   };
+  ideaForm = {
+    title: '',
+    type: 'Product',
+    summary: '',
+    manager: ''
+  };
   leaveError = '';
+
+  ngOnInit() {
+    const raw = localStorage.getItem('tx-peoplehub-admin-draft');
+    if (!raw) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as { manager?: string };
+      if (parsed.manager) {
+        this.managerName = parsed.manager;
+      }
+    } catch {
+      localStorage.removeItem('tx-peoplehub-admin-draft');
+    }
+  }
 
   openBalances() {
     this.isBalanceOpen = true;
@@ -29,6 +53,30 @@ export class HomeComponent {
 
   closeBalances() {
     this.isBalanceOpen = false;
+  }
+
+  openIdeas() {
+    this.isIdeasOpen = true;
+    this.ideaForm.manager = this.managerName;
+  }
+
+  closeIdeas() {
+    this.isIdeasOpen = false;
+    this.ideaStatus = '';
+  }
+
+  submitIdea() {
+    if (!this.ideaForm.title || !this.ideaForm.summary) {
+      this.ideaStatus = 'Add a title and summary before submitting.';
+      return;
+    }
+    this.ideaStatus = `Idea sent to ${this.managerName}.`;
+    this.ideaForm = {
+      title: '',
+      type: 'Product',
+      summary: '',
+      manager: this.managerName
+    };
   }
 
   submitLeave() {
