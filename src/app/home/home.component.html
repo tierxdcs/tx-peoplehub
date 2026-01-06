@@ -98,6 +98,11 @@
           <p>Keep audits, training, and certifications current.</p>
           <span class="tag">96% coverage</span>
         </article>
+        <article class="module-card" (click)="openIdeas()">
+          <h3>Ideas</h3>
+          <p>Share product or process improvements with your manager.</p>
+          <span class="tag">Submit suggestion</span>
+        </article>
       </div>
     </div>
 
@@ -213,6 +218,53 @@
         </div>
         <span class="value">3 days</span>
       </div>
+    </div>
+  </div>
+}
+
+@if (isIdeasOpen) {
+  <div class="modal-backdrop" (click)="closeIdeas()"></div>
+  <div class="modal" role="dialog" aria-modal="true">
+    <header>
+      <div>
+        <p class="eyebrow">Ideas</p>
+        <h3>Share your suggestion</h3>
+        <p class="subtitle">This will be sent directly to {{ managerName }}.</p>
+      </div>
+      <button class="ghost" type="button" (click)="closeIdeas()">
+        Close
+      </button>
+    </header>
+    <form class="idea-form">
+      <label>
+        Idea title
+        <input type="text" [(ngModel)]="ideaForm.title" name="ideaTitle" />
+      </label>
+      <label>
+        Focus area
+        <select [(ngModel)]="ideaForm.type" name="ideaType">
+          <option>Product</option>
+          <option>Process</option>
+          <option>Employee experience</option>
+          <option>Customer impact</option>
+        </select>
+      </label>
+      <label class="full">
+        Summary
+        <textarea
+          rows="4"
+          [(ngModel)]="ideaForm.summary"
+          name="ideaSummary"
+          placeholder="Describe the idea, impact, and any supporting context."
+        ></textarea>
+      </label>
+    </form>
+    @if (ideaStatus) {
+      <p class="idea-status">{{ ideaStatus }}</p>
+    }
+    <div class="modal-actions">
+      <button class="ghost" type="button" (click)="closeIdeas()">Cancel</button>
+      <button class="primary" type="button" (click)="submitIdea()">Send idea</button>
     </div>
   </div>
 }
