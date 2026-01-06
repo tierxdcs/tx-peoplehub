@@ -79,6 +79,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  position: relative;
 }
 
 .button-link,
@@ -117,6 +118,57 @@ button:hover {
   height: 40px;
   padding: 0;
   font-size: 1.1rem;
+}
+
+.notifications-panel {
+  position: absolute;
+  top: 52px;
+  right: 0;
+  width: 300px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  z-index: 30;
+}
+
+.notifications-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: var(--ink-600);
+}
+
+.notifications-list {
+  display: grid;
+  gap: 10px;
+}
+
+.notification-item {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
+  display: grid;
+  gap: 6px;
+}
+
+.notification-item p {
+  margin: 0;
+  color: var(--ink-800);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.notification-item span {
+  font-size: 0.75rem;
+  color: var(--ink-500);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .avatar {
