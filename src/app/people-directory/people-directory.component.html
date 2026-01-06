@@ -1,0 +1,60 @@
+<main class="directory-shell">
+  <header class="directory-topbar">
+    <div>
+      <p class="eyebrow">People directory</p>
+      <h1>Find employees fast</h1>
+      <p class="subtitle">
+        Search active employees, view roles, and jump to profiles.
+      </p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" routerLink="/">Back to home</a>
+      <button class="primary" type="button">Invite employee</button>
+    </div>
+  </header>
+
+  <section class="directory-controls">
+    <div class="search">
+      <span>Search</span>
+      <input type="text" placeholder="Name, team, or role" />
+    </div>
+    <div class="filters">
+      <label>
+        Department
+        <select>
+          <option>All departments</option>
+          <option>Operations</option>
+          <option>Facilities</option>
+          <option>Security</option>
+        </select>
+      </label>
+      <label>
+        Status
+        <select>
+          <option>Any status</option>
+          <option>Active</option>
+          <option>On leave</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <section class="directory-list">
+    @for (person of people; track person.id) {
+      <article class="person-card">
+        <div>
+          <strong>{{ person.name }}</strong>
+          <p>{{ person.role }}</p>
+        </div>
+        <div class="meta">
+          <span>{{ person.department }}</span>
+          <span>{{ person.location }}</span>
+          <span class="status">{{ person.status }}</span>
+        </div>
+        <a class="ghost button-link" [routerLink]="['/people', person.id]"
+          >View profile</a
+        >
+      </article>
+    }
+  </section>
+</main>

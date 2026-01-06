@@ -5,10 +5,12 @@ import { AdminComponent } from './admin/admin.component';
 import { ScorecardComponent } from './scorecard/scorecard.component';
 import { TeamsComponent } from './teams/teams.component';
 import { SettingsComponent } from './settings/settings.component';
+import { PeopleDirectoryComponent } from './people-directory/people-directory.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
   { path: 'teams', component: TeamsComponent },
+  { path: 'people', component: PeopleDirectoryComponent },
   { path: 'people/:id', component: PeopleProfileComponent },
   { path: 'people/:id/scorecard', component: ScorecardComponent },
   { path: 'admin', component: AdminComponent },
