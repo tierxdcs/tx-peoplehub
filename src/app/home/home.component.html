@@ -117,7 +117,7 @@
       <form class="leave-form">
         <label>
           Leave type
-          <select name="leaveType" [(ngModel)]="leaveForm.type">
+          <select>
             <option>PTO</option>
             <option>Sick</option>
             <option>Personal</option>
@@ -126,38 +126,18 @@
         </label>
         <label>
           Start date
-          <input
-            type="date"
-            name="leaveStartDate"
-            [(ngModel)]="leaveForm.startDate"
-          />
+          <input type="date" />
         </label>
         <label>
           End date
-          <input
-            type="date"
-            name="leaveEndDate"
-            [(ngModel)]="leaveForm.endDate"
-          />
+          <input type="date" />
         </label>
         <label>
           Notes
-          <textarea
-            rows="3"
-            name="leaveNotes"
-            placeholder="Add context for your manager"
-            [(ngModel)]="leaveForm.notes"
-          ></textarea>
+          <textarea rows="3" placeholder="Add context for your manager"></textarea>
         </label>
       </form>
-      <div class="leave-actions">
-        <button class="primary full" type="button" (click)="submitLeave()">
-          Submit request
-        </button>
-        @if (leaveStatus) {
-          <p class="leave-status">{{ leaveStatus }}</p>
-        }
-      </div>
+      <button class="primary full" type="button">Submit request</button>
     </div>
   </section>
 </main>
