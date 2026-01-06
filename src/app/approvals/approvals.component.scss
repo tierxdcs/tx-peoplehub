@@ -1,0 +1,240 @@
+.approvals-shell {
+  min-height: 100vh;
+  padding: 32px 48px 64px;
+  display: grid;
+  gap: 28px;
+}
+
+.approvals-topbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: var(--shadow-soft);
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-500);
+}
+
+.approvals-topbar h1 {
+  margin: 8px 0 8px;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 1.8rem + 1vw, 2.6rem);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--ink-600);
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+button,
+.button-link {
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  padding: 10px 16px;
+  border-radius: 999px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button:hover,
+.button-link:hover {
+  transform: translateY(-1px);
+}
+
+.primary {
+  background: linear-gradient(120deg, var(--brand-blue), var(--brand-green));
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(11, 100, 184, 0.25);
+}
+
+.ghost {
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--ink-700);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.panel {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 20px;
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 16px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-family: var(--font-display);
+}
+
+.pill {
+  background: rgba(11, 100, 184, 0.12);
+  color: var(--brand-blue);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.request-list {
+  display: grid;
+  gap: 12px;
+}
+
+.request-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid transparent;
+  text-align: left;
+}
+
+.request-row:hover {
+  border-color: rgba(11, 100, 184, 0.3);
+}
+
+.request-row span {
+  color: var(--ink-500);
+  font-size: 0.85rem;
+}
+
+.status-pill {
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--ink-600);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 10;
+}
+
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  box-shadow: var(--shadow-soft);
+  padding: 20px;
+  width: min(560px, calc(100% - 32px));
+  z-index: 11;
+  display: grid;
+  gap: 16px;
+}
+
+.modal header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal h3 {
+  margin: 6px 0 0;
+  font-family: var(--font-display);
+}
+
+.modal-body {
+  display: grid;
+  gap: 12px;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.detail-row span {
+  color: var(--ink-500);
+  font-size: 0.85rem;
+}
+
+.notes label {
+  display: grid;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--ink-600);
+}
+
+.notes textarea {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  padding: 10px 12px;
+  font: inherit;
+  background: #fff;
+  color: var(--ink-900);
+  resize: vertical;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 1100px) {
+  .approvals-topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .approvals-shell {
+    padding: 24px;
+  }
+
+  .request-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
