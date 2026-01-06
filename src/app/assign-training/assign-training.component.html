@@ -148,6 +148,33 @@
                   </div>
                 }
               </div>
+              <div class="participant-panel">
+                <div class="participant-header">
+                  <h3>Completion status</h3>
+                  <span class="meta">
+                    {{ countStatus(assignment, 'Completed') }} completed ·
+                    {{ countStatus(assignment, 'Pending') }} pending
+                  </span>
+                </div>
+                @if (assignment.participants.length) {
+                  <div class="participant-grid">
+                    @for (person of assignment.participants; track person.name) {
+                      <div class="participant-card">
+                        <span>{{ person.name }}</span>
+                        <span
+                          class="status-tag"
+                          [class.completed]="person.status === 'Completed'"
+                          [class.pending]="person.status === 'Pending'"
+                        >
+                          {{ person.status }}
+                        </span>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <p class="empty">No participants assigned yet.</p>
+                }
+              </div>
             </div>
           }
         }

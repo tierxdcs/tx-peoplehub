@@ -27,6 +27,7 @@ export class AssignTrainingComponent {
     completed: number;
     total: number;
     questions: { text: string; type: string }[];
+    participants: { name: string; status: 'Completed' | 'Pending' }[];
   }[] = [];
   expandedIndex: number | null = null;
 
@@ -43,11 +44,13 @@ export class AssignTrainingComponent {
         completed: number;
         total: number;
         questions?: { text: string; type: string }[];
+        participants?: { name: string; status: 'Completed' | 'Pending' }[];
       }[];
       if (Array.isArray(parsed)) {
         this.assignments = parsed.map((item) => ({
           ...item,
-          questions: item.questions ?? []
+          questions: item.questions ?? [],
+          participants: item.participants ?? []
         }));
       }
     } catch {
@@ -74,7 +77,13 @@ export class AssignTrainingComponent {
       questions: this.form.questions.map((question) => ({
         text: question.text.trim(),
         type: question.type
-      }))
+      })),
+      participants: [
+        { name: 'Nithin Gangadhar', status: 'Completed' },
+        { name: 'Jessie Moore', status: 'Pending' },
+        { name: 'Iman Shah', status: 'Pending' },
+        { name: 'Ravi Patel', status: 'Completed' }
+      ]
     };
     this.assignments = [newAssignment, ...this.assignments];
     this.saveAssignments();
@@ -132,5 +141,15 @@ export class AssignTrainingComponent {
 
   saveAssignments() {
     localStorage.setItem(this.storageKey, JSON.stringify(this.assignments));
+  }
+
+  countStatus(
+    assignment: {
+      participants: { name: string; status: 'Completed' | 'Pending' }[];
+    },
+    status: 'Completed' | 'Pending'
+  ) {
+    return assignment.participants.filter((participant) => participant.status === status)
+      .length;
   }
 }
