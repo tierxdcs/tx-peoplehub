@@ -7,7 +7,7 @@
     </div>
     <div class="actions">
       <a class="ghost button-link" routerLink="/compliance-training">Back to required learning</a>
-      <button class="primary" type="button" (click)="submitModule()">
+      <button class="primary" type="button" (click)="submitModule()" [disabled]="submitted">
         {{ submitted ? 'Module submitted' : 'Submit module' }}
       </button>
     </div>
@@ -40,6 +40,7 @@
                         type="checkbox"
                         [checked]="isMultiSelected(qi, option)"
                         (change)="toggleMultiResponse(qi, option)"
+                        [disabled]="submitted"
                       />
                       <span>{{ option }}</span>
                     </label>
@@ -55,6 +56,7 @@
                         [value]="option"
                         [ngModel]="getSingleResponse(qi)"
                         (ngModelChange)="setResponse(qi, $event)"
+                        [disabled]="submitted"
                       />
                       <span>{{ option }}</span>
                     </label>
@@ -70,6 +72,7 @@
                         [value]="option"
                         [ngModel]="getSingleResponse(qi)"
                         (ngModelChange)="setResponse(qi, $event)"
+                        [disabled]="submitted"
                       />
                       <span>{{ option }}</span>
                     </label>
@@ -81,6 +84,7 @@
                   placeholder="Type your answer"
                   [ngModel]="getSingleResponse(qi)"
                   (ngModelChange)="setResponse(qi, $event)"
+                  [disabled]="submitted"
                 ></textarea>
               }
             </div>

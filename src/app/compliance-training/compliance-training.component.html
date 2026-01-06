@@ -51,17 +51,21 @@
         <h2>Completed training</h2>
         <span class="pill soft">Last 90 days</span>
       </div>
-      <div class="list">
-        @for (item of completed; track item.title) {
-          <div class="row">
-            <div>
-              <strong>{{ item.title }}</strong>
-              <span>Completed {{ item.completed }}</span>
+      @if (completedTrainings.length) {
+        <div class="list">
+          @for (item of completedTrainings; track item.title) {
+            <div class="row">
+              <div>
+                <strong>{{ item.title }}</strong>
+                <span>Completed on {{ item.completedAt | date : 'mediumDate' }}</span>
+              </div>
+              <span class="status">Done</span>
             </div>
-            <span class="status">Done</span>
-          </div>
-        }
-      </div>
+          }
+        </div>
+      } @else {
+        <p class="empty">No completed training yet.</p>
+      }
     </article>
 
   </section>

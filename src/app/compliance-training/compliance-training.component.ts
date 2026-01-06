@@ -19,11 +19,7 @@ export class ComplianceTrainingComponent {
     due: string;
     completedAt?: string;
   }[] = [];
-  completed = [
-    { title: 'Workplace conduct', completed: 'Dec 12' },
-    { title: 'Information security', completed: 'Nov 28' },
-    { title: 'Equipment handling', completed: 'Oct 6' }
-  ];
+  completedTrainings: { title: string; completedAt: string }[] = [];
 
   ngOnInit() {
     const adminRaw = localStorage.getItem(this.adminKey);
@@ -41,6 +37,7 @@ export class ComplianceTrainingComponent {
 
     this.loadAssignments(department);
     this.applyCompletionStatus();
+    this.splitCompleted();
   }
 
   loadAssignments(department: string) {
@@ -96,5 +93,15 @@ export class ComplianceTrainingComponent {
     } catch {
       localStorage.removeItem(this.statusKey);
     }
+  }
+
+  splitCompleted() {
+    this.completedTrainings = this.trainings
+      .filter((training) => training.status === 'Completed' && training.completedAt)
+      .map((training) => ({
+        title: training.title,
+        completedAt: training.completedAt as string
+      }));
+    this.trainings = this.trainings.filter((training) => training.status !== 'Completed');
   }
 }
