@@ -21,6 +21,9 @@
           (click)="toggleNotifications()"
         >
           <span aria-hidden="true">🔔</span>
+          @if (notifications.length) {
+            <span class="notification-badge">{{ notifications.length }}</span>
+          }
         </button>
         @if (notificationsOpen) {
           <div class="notifications-panel" role="dialog" aria-label="Notifications">
