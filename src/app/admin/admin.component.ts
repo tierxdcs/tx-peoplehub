@@ -77,7 +77,11 @@ export class AdminComponent {
     checklistOffer: false,
     checklistEquipment: false,
     checklistBadges: false,
-    checklistOrientation: false
+    checklistOrientation: false,
+    checklistOfferOwner: '',
+    checklistEquipmentOwner: '',
+    checklistBadgesOwner: '',
+    checklistOrientationOwner: ''
   };
 
   ngOnInit() {
@@ -143,6 +147,16 @@ export class AdminComponent {
       }
     };
     reader.readAsDataURL(file);
+  }
+
+  get managerOptions() {
+    const options = this.users
+      .filter((user) => user.role === 'Manager' || user.role === 'Admin' || user.role === 'Superadmin')
+      .map((user) => user.fullName);
+    const fallback = [this.adminData.manager, this.adminData.managerLevel2, this.adminData.managerLevel3]
+      .filter((name) => !!name)
+      .map((name) => name as string);
+    return Array.from(new Set([...options, ...fallback]));
   }
 
   loadUsers() {

@@ -197,6 +197,17 @@ select:focus {
   border-radius: 12px;
 }
 
+.checklist-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  gap: 12px;
+  align-items: center;
+}
+
+.checklist-row select {
+  width: 100%;
+}
+
 .full {
   width: 100%;
 }
@@ -352,6 +363,10 @@ select:focus {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .checklist-row {
     grid-template-columns: 1fr;
   }
 }
