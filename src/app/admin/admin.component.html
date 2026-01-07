@@ -546,42 +546,90 @@
         <span class="pill soft">Workflow</span>
       </div>
       <div class="checklist">
-        <label>
-          <input
-            type="checkbox"
-            name="checklistOffer"
+        <div class="checklist-row">
+          <label>
+            <input
+              type="checkbox"
+              name="checklistOffer"
+              required
+              [(ngModel)]="adminData.checklistOffer"
+            />
+            Offer letter signed
+          </label>
+          <select
+            name="checklistOfferOwner"
             required
-            [(ngModel)]="adminData.checklistOffer"
-          />
-          Offer letter signed
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            name="checklistEquipment"
+            [(ngModel)]="adminData.checklistOfferOwner"
+          >
+            <option value="" disabled>Select manager</option>
+            @for (manager of managerOptions; track manager) {
+              <option [value]="manager">{{ manager }}</option>
+            }
+          </select>
+        </div>
+        <div class="checklist-row">
+          <label>
+            <input
+              type="checkbox"
+              name="checklistEquipment"
+              required
+              [(ngModel)]="adminData.checklistEquipment"
+            />
+            Equipment provisioned
+          </label>
+          <select
+            name="checklistEquipmentOwner"
             required
-            [(ngModel)]="adminData.checklistEquipment"
-          />
-          Equipment provisioned
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            name="checklistBadges"
+            [(ngModel)]="adminData.checklistEquipmentOwner"
+          >
+            <option value="" disabled>Select manager</option>
+            @for (manager of managerOptions; track manager) {
+              <option [value]="manager">{{ manager }}</option>
+            }
+          </select>
+        </div>
+        <div class="checklist-row">
+          <label>
+            <input
+              type="checkbox"
+              name="checklistBadges"
+              required
+              [(ngModel)]="adminData.checklistBadges"
+            />
+            Access badges issued
+          </label>
+          <select
+            name="checklistBadgesOwner"
             required
-            [(ngModel)]="adminData.checklistBadges"
-          />
-          Access badges issued
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            name="checklistOrientation"
+            [(ngModel)]="adminData.checklistBadgesOwner"
+          >
+            <option value="" disabled>Select manager</option>
+            @for (manager of managerOptions; track manager) {
+              <option [value]="manager">{{ manager }}</option>
+            }
+          </select>
+        </div>
+        <div class="checklist-row">
+          <label>
+            <input
+              type="checkbox"
+              name="checklistOrientation"
+              required
+              [(ngModel)]="adminData.checklistOrientation"
+            />
+            Orientation scheduled
+          </label>
+          <select
+            name="checklistOrientationOwner"
             required
-            [(ngModel)]="adminData.checklistOrientation"
-          />
-          Orientation scheduled
-        </label>
+            [(ngModel)]="adminData.checklistOrientationOwner"
+          >
+            <option value="" disabled>Select manager</option>
+            @for (manager of managerOptions; track manager) {
+              <option [value]="manager">{{ manager }}</option>
+            }
+          </select>
+        </div>
       </div>
       <button class="ghost full" type="button">Assign tasks</button>
     </article>
