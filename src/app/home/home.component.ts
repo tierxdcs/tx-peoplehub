@@ -23,10 +23,7 @@ export class HomeComponent {
     manager: string;
     submittedAt: string;
   }[] = [];
-  pendingRequests = [
-    { type: 'PTO', range: 'Feb 12 - Feb 14', status: 'Pending' },
-    { type: 'Sick', range: 'Jan 22', status: 'Pending' }
-  ];
+  pendingRequests: { type: string; range: string; status: string }[] = [];
   leaveForm = {
     type: 'PTO',
     startDate: '',
@@ -90,7 +87,16 @@ export class HomeComponent {
     try {
       const parsed = JSON.parse(storedRequests) as typeof this.pendingRequests;
       if (Array.isArray(parsed)) {
-        this.pendingRequests = parsed;
+        const demoKeys = new Set(['PTO|Feb 12 - Feb 14', 'Sick|Jan 22']);
+        const isDemoOnly =
+          parsed.length > 0 &&
+          parsed.every((item) => demoKeys.has(`${item.type}|${item.range}`));
+        if (isDemoOnly) {
+          localStorage.removeItem('tx-peoplehub-leave-requests');
+          this.pendingRequests = [];
+        } else {
+          this.pendingRequests = parsed;
+        }
       }
     } catch {
       localStorage.removeItem('tx-peoplehub-leave-requests');

@@ -114,6 +114,7 @@ export class ApprovalsComponent {
         return [];
       }
       return parsed
+        .filter((request) => request.category && request.amount)
         .filter((request) => !request.status || request.status.toLowerCase().includes('pending'))
         .map((request, index) => ({
           id: `reimb-${index}`,
