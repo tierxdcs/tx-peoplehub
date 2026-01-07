@@ -83,9 +83,20 @@
         <h2>Reporting tree</h2>
       </div>
       <div class="tree">
-        <div class="tree-node manager">
-          <span class="label">Manager</span>
-          <strong>{{ profile.manager }}</strong>
+        <div class="tree-chain">
+          @if (profile.managerChain.length) {
+            @for (leader of profile.managerChain; track leader) {
+              <div class="tree-node manager">
+                <span class="label">@if ($index === 0) {Manager} @else if ($index === profile.managerChain.length - 1) {CEO} @else {Leader}</span>
+                <strong>{{ leader }}</strong>
+              </div>
+            }
+          } @else {
+            <div class="tree-node manager">
+              <span class="label">Manager</span>
+              <strong>{{ profile.manager }}</strong>
+            </div>
+          }
         </div>
         <div class="tree-node self">
           <span class="label">You</span>
