@@ -136,7 +136,7 @@ export class ApprovalsComponent {
         .map((request, index) => ({
           id: `leave-${index}`,
           title: `Leave request · ${request.type}`,
-          submittedBy: request.employee ?? 'Employee',
+          submittedBy: request.employee ?? '',
           summary: request.range,
           status: 'Pending manager approval',
           source: 'leave' as const,
@@ -202,7 +202,7 @@ export class ApprovalsComponent {
         .map((request, index) => ({
           id: `req-${index}`,
           title: `Resource requisition · ${request.title}`,
-          submittedBy: request.manager ?? 'Manager',
+          submittedBy: request.manager ?? '',
           summary: `${request.department} · ${request.headcount} headcount`,
           status: request.approval ?? 'Pending CFO & CEO approval',
           source: 'requisition' as const,

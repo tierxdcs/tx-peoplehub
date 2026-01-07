@@ -28,7 +28,12 @@
       <div>
         <p class="eyebrow">Approval detail</p>
         <h3>{{ selectedRequest.title }}</h3>
-        <p class="subtitle">{{ selectedRequest.submittedBy }} · {{ selectedRequest.summary }}</p>
+        <p class="subtitle">
+          @if (selectedRequest.submittedBy) {
+            {{ selectedRequest.submittedBy }} ·
+          }
+          {{ selectedRequest.summary }}
+        </p>
       </div>
       <button class="ghost" type="button" (click)="closeRequest()">Close</button>
     </header>
@@ -39,7 +44,13 @@
       </div>
       <div class="detail-row">
         <span>Requested by</span>
-        <strong>{{ selectedRequest.submittedBy }}</strong>
+        <strong>
+          @if (selectedRequest.submittedBy) {
+            {{ selectedRequest.submittedBy }}
+          } @else {
+            Not specified
+          }
+        </strong>
       </div>
       <div class="detail-row">
         <span>Details</span>
