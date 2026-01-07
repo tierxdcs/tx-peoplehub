@@ -7,6 +7,7 @@ type Profile = {
   location: string;
   team: string;
   manager: string;
+  managerChain: string[];
   status: string;
   tenure: string;
   photoUrl: string;
@@ -27,6 +28,7 @@ const PROFILES: Record<string, Profile> = {
     location: 'Austin, TX',
     team: 'Operations',
     manager: 'Chloe Bishop',
+    managerChain: ['Chloe Bishop', 'Ravi Kulal', 'Martin Kipping', 'CEO'],
     status: 'Active',
     tenure: '3y 8m',
     photoUrl: 'assets/people/nithin-gangadhar.svg',
@@ -116,6 +118,10 @@ export class PeopleProfileComponent {
         jobTitle?: string;
         location?: string;
         manager?: string;
+        managerLevel2?: string;
+        managerLevel3?: string;
+        managerLevel4?: string;
+        ceo?: string;
       };
       const certifications =
         parsed.certifications
@@ -131,6 +137,16 @@ export class PeopleProfileComponent {
             location: parsed.location ?? 'Unspecified'
           }
         ];
+      }
+      const chain = [
+        parsed.manager,
+        parsed.managerLevel2,
+        parsed.managerLevel3,
+        parsed.managerLevel4,
+        parsed.ceo
+      ].filter((value): value is string => Boolean(value));
+      if (chain.length) {
+        this.profile.managerChain = chain;
       }
     } catch {
       this.profile.certifications = [];
