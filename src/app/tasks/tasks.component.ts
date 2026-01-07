@@ -63,7 +63,12 @@ export class TasksComponent {
       return [];
     }
     try {
-      const parsed = JSON.parse(stored) as { type: string; range: string; status: string }[];
+      const parsed = JSON.parse(stored) as {
+        type: string;
+        range: string;
+        status: string;
+        employee?: string;
+      }[];
       if (!Array.isArray(parsed)) {
         return [];
       }

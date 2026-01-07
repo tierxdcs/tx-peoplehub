@@ -127,6 +127,7 @@ export class ApprovalsComponent {
         type: string;
         range: string;
         status: string;
+        employee?: string;
       }[];
       if (!Array.isArray(parsed)) {
         return [];
