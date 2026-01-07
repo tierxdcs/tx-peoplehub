@@ -17,6 +17,7 @@ import { TrainingModuleComponent } from './training-module/training-module.compo
 import { LoginComponent } from './login/login.component';
 import { WorkforcePlanningComponent } from './workforce-planning/workforce-planning.component';
 import { ApprovalsComponent } from './approvals/approvals.component';
+import { OrgStructureComponent } from './org-structure/org-structure.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -33,6 +34,7 @@ export const routes: Routes = [
   { path: 'login', component: LoginComponent },
   { path: 'workforce-planning', component: WorkforcePlanningComponent },
   { path: 'approvals', component: ApprovalsComponent },
+  { path: 'org-structure', component: OrgStructureComponent },
   { path: 'people/:id', component: PeopleProfileComponent },
   { path: 'people/:id/scorecard', component: ScorecardComponent },
   { path: 'admin', component: AdminComponent },
