@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "dist/tx-peoplehub",
+    "public": "dist/tx-peoplehub/browser",
     "ignore": [
       "firebase.json",
       "**/.*",
