@@ -15,6 +15,7 @@ export class HomeComponent {
   isIdeasOpen = false;
   ideaStatus = '';
   managerName = 'Direct Manager';
+  activeUserCount = 0;
   ideaHistory: {
     title: string;
     type: string;
@@ -41,8 +42,10 @@ export class HomeComponent {
   leaveError = '';
   private readonly ideasKey = 'tx-peoplehub-ideas';
   private readonly tasksKey = 'tx-peoplehub-tasks';
+  private readonly usersKey = 'tx-peoplehub-users';
 
   ngOnInit() {
+    this.loadActiveUsers();
     const raw = localStorage.getItem('tx-peoplehub-admin-draft');
     if (!raw) {
       const storedRequests = localStorage.getItem('tx-peoplehub-leave-requests');
@@ -91,6 +94,25 @@ export class HomeComponent {
       }
     } catch {
       localStorage.removeItem('tx-peoplehub-leave-requests');
+    }
+  }
+
+  loadActiveUsers() {
+    const stored = localStorage.getItem(this.usersKey);
+    if (!stored) {
+      this.activeUserCount = 0;
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored) as { status?: string }[];
+      if (Array.isArray(parsed)) {
+        this.activeUserCount = parsed.filter(
+          (user) => user.status === 'Active'
+        ).length;
+      }
+    } catch {
+      localStorage.removeItem(this.usersKey);
+      this.activeUserCount = 0;
     }
   }
 
