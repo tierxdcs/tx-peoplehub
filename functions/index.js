@@ -1,4 +1,5 @@
 const { onRequest } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -7,13 +8,20 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
 
+const PGHOST = defineSecret('PGHOST');
+const PGPORT = defineSecret('PGPORT');
+const PGUSER = defineSecret('PGUSER');
+const PGPASSWORD = defineSecret('PGPASSWORD');
+const PGDATABASE = defineSecret('PGDATABASE');
+const PGSSLMODE = defineSecret('PGSSLMODE');
+
 const pool = new Pool({
-  host: process.env.PGHOST,
-  port: Number(process.env.PGPORT || 5432),
-  user: process.env.PGUSER,
-  password: process.env.PGPASSWORD,
-  database: process.env.PGDATABASE,
-  ssl: process.env.PGSSLMODE === 'require' ? { rejectUnauthorized: false } : false
+  host: PGHOST.value(),
+  port: Number(PGPORT.value() || 5432),
+  user: PGUSER.value(),
+  password: PGPASSWORD.value(),
+  database: PGDATABASE.value(),
+  ssl: PGSSLMODE.value() === 'require' ? { rejectUnauthorized: false } : false
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -36,4 +44,10 @@ app.get('/api/info', async (_req, res) => {
   }
 });
 
-exports.api = onRequest({ cors: true }, app);
+exports.api = onRequest(
+  {
+    cors: true,
+    secrets: [PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE, PGSSLMODE]
+  },
+  app
+);
