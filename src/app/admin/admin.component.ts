@@ -293,5 +293,6 @@ export class AdminComponent {
     const existing = stored ? (JSON.parse(stored) as typeof payload) : [];
     localStorage.setItem(this.tasksKey, JSON.stringify([...payload, ...existing]));
     this.taskStatus = `Assigned ${payload.length} tasks.`;
+    window.dispatchEvent(new Event('storage'));
   }
 }
