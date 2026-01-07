@@ -238,7 +238,11 @@ export class AdminComponent {
       return;
     }
     this.editIndex = index;
-    this.editUser = { ...user, password: user.password ?? '' };
+    this.editUser = {
+      ...user,
+      password: user.password ?? '',
+      director: user.director ?? 'No'
+    };
   }
 
   closeEditUser() {
