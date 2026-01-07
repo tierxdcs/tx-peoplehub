@@ -25,6 +25,7 @@ export class AdminComponent {
     role: 'Employee' | 'Manager' | 'Admin' | 'Superadmin';
     status: 'Active' | 'Deactivated';
     password?: string;
+    director?: string;
   }[] = [];
   editIndex: number | null = null;
   editUser = {
@@ -33,7 +34,8 @@ export class AdminComponent {
     department: '',
     role: 'Employee' as 'Employee' | 'Manager' | 'Admin' | 'Superadmin',
     status: 'Active' as 'Active' | 'Deactivated',
-    password: ''
+    password: '',
+    director: 'No'
   };
   createPassword = '';
   adminData = {
@@ -197,7 +199,8 @@ export class AdminComponent {
       department: this.adminData.department,
       role: this.adminData.role as 'Employee' | 'Manager' | 'Admin' | 'Superadmin',
       status: 'Active' as const,
-      password: this.createPassword
+      password: this.createPassword,
+      director: this.adminData.director
     };
     this.users = [newUser, ...this.users];
     this.saveUsers();

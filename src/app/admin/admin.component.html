@@ -264,13 +264,13 @@
             <option>Separated</option>
           </select>
         </label>
-        <label>
-          Director
-          <select name="director" required [(ngModel)]="adminData.director">
-            <option>Yes</option>
-            <option>No</option>
-          </select>
-        </label>
+      <label>
+        Director
+        <select name="director" required [(ngModel)]="adminData.director">
+          <option>Yes</option>
+          <option>No</option>
+        </select>
+      </label>
         <label>
           Cost center
           <input
@@ -697,6 +697,13 @@
         <select [(ngModel)]="editUser.status" name="editStatus">
           <option>Active</option>
           <option>Deactivated</option>
+        </select>
+      </label>
+      <label>
+        Director
+        <select [(ngModel)]="editUser.director" name="editDirector">
+          <option>Yes</option>
+          <option>No</option>
         </select>
       </label>
       <label class="full">
