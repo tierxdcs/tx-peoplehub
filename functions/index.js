@@ -32,6 +32,7 @@ app.get('/api/info', async (_req, res) => {
 exports.api = onRequest(
   {
     cors: true,
+    invoker: 'public',
     secrets
   },
   app
