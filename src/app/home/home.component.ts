@@ -143,6 +143,12 @@ export class HomeComponent {
       this.leaveError = 'End date must be after the start date.';
       return;
     }
+    const confirmed = window.confirm(
+      'Submit this leave request for manager approval?'
+    );
+    if (!confirmed) {
+      return;
+    }
 
     const format = (value: string) => {
       const date = new Date(value);
