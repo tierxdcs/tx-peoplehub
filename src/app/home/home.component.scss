@@ -78,6 +78,36 @@
   display: flex;
   gap: 12px;
   margin: 20px 0 24px;
+  align-items: center;
+}
+
+.hero-actions button {
+  border: 1px solid transparent;
+  font: inherit;
+  cursor: pointer;
+  padding: 12px 18px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.hero-actions button:hover {
+  transform: translateY(-1px);
+}
+
+.hero-actions .primary {
+  background: linear-gradient(120deg, var(--brand-blue), var(--brand-green));
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(11, 100, 184, 0.25);
+}
+
+.hero-actions .ghost {
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--ink-700);
+  border-color: rgba(148, 163, 184, 0.28);
 }
 
 .hero-stats {
