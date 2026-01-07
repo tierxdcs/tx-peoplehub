@@ -149,6 +149,7 @@
                 <select
                   [ngModel]="user.role"
                   name="user-role-{{ i }}"
+                  [ngModelOptions]="{ standalone: true }"
                   (ngModelChange)="updateUserRole(i, $event)"
                 >
                   <option>Employee</option>
