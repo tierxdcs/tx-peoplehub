@@ -40,6 +40,7 @@ export class HomeComponent {
   };
   leaveError = '';
   private readonly ideasKey = 'tx-peoplehub-ideas';
+  private readonly tasksKey = 'tx-peoplehub-tasks';
 
   ngOnInit() {
     const raw = localStorage.getItem('tx-peoplehub-admin-draft');
@@ -125,6 +126,16 @@ export class HomeComponent {
     };
     this.ideaHistory = [idea, ...this.ideaHistory];
     localStorage.setItem(this.ideasKey, JSON.stringify(this.ideaHistory));
+    const task = {
+      title: `Idea review: ${idea.title}`,
+      owner: this.managerName,
+      due: 'This week',
+      source: 'ideas'
+    };
+    const storedTasks = localStorage.getItem(this.tasksKey);
+    const existingTasks = storedTasks ? (JSON.parse(storedTasks) as typeof task[]) : [];
+    localStorage.setItem(this.tasksKey, JSON.stringify([task, ...existingTasks]));
+    window.dispatchEvent(new Event('storage'));
     this.ideaStatus = `Idea sent to ${this.managerName}.`;
     this.ideaForm = {
       title: '',
