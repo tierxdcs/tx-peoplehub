@@ -206,7 +206,7 @@ export class ApprovalsComponent {
           title: `Resource requisition · ${request.title}`,
           submittedBy: directorNames.length ? directorNames.join(', ') : '',
           summary: `${request.department} · ${request.headcount} headcount`,
-          status: request.approval ?? 'Pending CFO & CEO approval',
+          status: request.approval ?? 'Pending Board Directors approval',
           source: 'requisition' as const,
           sourceIndex: index
         }));
