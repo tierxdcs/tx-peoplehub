@@ -1,10 +1,11 @@
 import { Component } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-approvals',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, FormsModule],
   templateUrl: './approvals.component.html',
   styleUrl: './approvals.component.scss'
 })
@@ -18,6 +19,8 @@ export class ApprovalsComponent {
     source: 'leave' | 'reimbursement' | 'requisition';
   }[] = [];
   selectedRequest: (typeof this.requests)[number] | null = null;
+  decisionNote = '';
+  noteError = '';
 
   ngOnInit() {
     this.requests = [
@@ -29,14 +32,22 @@ export class ApprovalsComponent {
 
   openRequest(request: (typeof this.requests)[number]) {
     this.selectedRequest = request;
+    this.decisionNote = '';
+    this.noteError = '';
   }
 
   closeRequest() {
     this.selectedRequest = null;
+    this.decisionNote = '';
+    this.noteError = '';
   }
 
   approveRequest() {
     if (!this.selectedRequest) {
+      return;
+    }
+    if (!this.decisionNote.trim()) {
+      this.noteError = 'Add a note before approving.';
       return;
     }
     this.selectedRequest = {
@@ -47,6 +58,10 @@ export class ApprovalsComponent {
 
   rejectRequest() {
     if (!this.selectedRequest) {
+      return;
+    }
+    if (!this.decisionNote.trim()) {
+      this.noteError = 'Add a note before rejecting.';
       return;
     }
     this.selectedRequest = {

@@ -215,6 +215,12 @@ button:hover,
   resize: vertical;
 }
 
+.note-error {
+  margin: 6px 0 0;
+  color: #dc2626;
+  font-size: 0.85rem;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;

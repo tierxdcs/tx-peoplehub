@@ -56,8 +56,16 @@
       <div class="notes">
         <label>
           Reviewer notes
-          <textarea rows="3" placeholder="Add any decision context"></textarea>
+          <textarea
+            rows="3"
+            placeholder="Add any decision context"
+            [(ngModel)]="decisionNote"
+            name="decisionNote"
+          ></textarea>
         </label>
+        @if (noteError) {
+          <p class="note-error">{{ noteError }}</p>
+        }
       </div>
     </div>
     <div class="modal-actions">
