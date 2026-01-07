@@ -177,6 +177,7 @@ export class AssignTrainingComponent {
 
   saveAssignments() {
     localStorage.setItem(this.storageKey, JSON.stringify(this.assignments));
+    window.dispatchEvent(new Event('storage'));
   }
 
   onQuestionTypeChange(question: { type: string; options: string[] }, save = false) {
