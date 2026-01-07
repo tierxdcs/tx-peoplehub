@@ -198,12 +198,13 @@ export class ApprovalsComponent {
       if (!Array.isArray(parsed)) {
         return [];
       }
+      const directorNames = this.loadDirectors();
       return parsed
         .filter((request) => request.approval?.toLowerCase().includes('pending'))
         .map((request, index) => ({
           id: `req-${index}`,
           title: `Resource requisition · ${request.title}`,
-          submittedBy: request.manager ?? '',
+          submittedBy: directorNames.length ? directorNames.join(', ') : '',
           summary: `${request.department} · ${request.headcount} headcount`,
           status: request.approval ?? 'Pending CFO & CEO approval',
           source: 'requisition' as const,
@@ -211,6 +212,25 @@ export class ApprovalsComponent {
         }));
     } catch {
       localStorage.removeItem('tx-peoplehub-workforce-requests');
+      return [];
+    }
+  }
+
+  loadDirectors() {
+    const stored = localStorage.getItem('tx-peoplehub-users');
+    if (!stored) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(stored) as { fullName: string; director?: string }[];
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      return parsed
+        .filter((user) => user.director === 'Yes')
+        .map((user) => user.fullName);
+    } catch {
+      localStorage.removeItem('tx-peoplehub-users');
       return [];
     }
   }
