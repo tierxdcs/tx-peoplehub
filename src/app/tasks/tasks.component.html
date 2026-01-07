@@ -11,6 +11,10 @@
   </header>
 
   <section class="tasks-list">
+    <div class="section-header">
+      <h2>Pending approvals</h2>
+      <span class="pill">{{ approvals.length }} open</span>
+    </div>
     @if (approvals.length) {
       @for (task of approvals; track task.id) {
         <button
@@ -28,6 +32,26 @@
       }
     } @else {
       <p class="empty">No approvals awaiting review.</p>
+    }
+  </section>
+
+  <section class="tasks-list">
+    <div class="section-header">
+      <h2>Completed approvals</h2>
+      <span class="pill soft">{{ completed.length }} done</span>
+    </div>
+    @if (completed.length) {
+      @for (task of completed; track task.id) {
+        <div class="task-card done">
+          <div>
+            <strong>{{ task.title }}</strong>
+            <span>{{ task.owner }}</span>
+          </div>
+          <span class="pill">{{ task.status }}</span>
+        </div>
+      }
+    } @else {
+      <p class="empty">No completed approvals yet.</p>
     }
   </section>
 </main>

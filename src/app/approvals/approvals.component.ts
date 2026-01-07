@@ -20,11 +20,19 @@ export class ApprovalsComponent {
     source: 'task' | 'leave' | 'reimbursement' | 'requisition';
     sourceIndex?: number;
   }[] = [];
+  completed: {
+    id: string;
+    title: string;
+    submittedBy: string;
+    summary: string;
+    status: string;
+  }[] = [];
   selectedRequest: (typeof this.requests)[number] | null = null;
   decisionNote = '';
   noteError = '';
 
   ngOnInit() {
+    this.completed = this.loadCompleted();
     this.requests = [
       ...this.loadUserTasks(),
       ...this.loadLeaveRequests(),
@@ -61,6 +69,8 @@ export class ApprovalsComponent {
       return;
     }
     const decision = { ...this.selectedRequest, status: 'Approved' };
+    this.completed = [decision, ...this.completed];
+    this.saveCompleted();
     this.persistDecision(decision);
     this.requests = this.requests.filter((item) => item.id !== decision.id);
     this.closeRequest();
@@ -75,6 +85,8 @@ export class ApprovalsComponent {
       return;
     }
     const decision = { ...this.selectedRequest, status: 'Rejected' };
+    this.completed = [decision, ...this.completed];
+    this.saveCompleted();
     this.persistDecision(decision);
     this.requests = this.requests.filter((item) => item.id !== decision.id);
     this.closeRequest();
@@ -282,5 +294,26 @@ export class ApprovalsComponent {
         localStorage.removeItem('tx-peoplehub-workforce-requests');
       }
     }
+  }
+
+  loadCompleted() {
+    const stored = localStorage.getItem('tx-peoplehub-approvals-completed');
+    if (!stored) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(stored) as typeof this.completed;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      localStorage.removeItem('tx-peoplehub-approvals-completed');
+      return [];
+    }
+  }
+
+  saveCompleted() {
+    localStorage.setItem(
+      'tx-peoplehub-approvals-completed',
+      JSON.stringify(this.completed)
+    );
   }
 }

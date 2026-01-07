@@ -81,6 +81,19 @@ button:hover,
   gap: 12px;
 }
 
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-family: var(--font-display);
+}
+
 .task-card {
   display: flex;
   align-items: center;
@@ -93,6 +106,11 @@ button:hover,
   box-shadow: var(--shadow-soft);
   text-align: left;
   width: 100%;
+}
+
+.task-card.done {
+  opacity: 0.8;
+  cursor: default;
 }
 
 .task-card span {
