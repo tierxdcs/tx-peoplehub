@@ -10,11 +10,7 @@ import { RouterLink } from '@angular/router';
 })
 export class TasksComponent {
   private readonly tasksKey = 'tx-peoplehub-tasks';
-  tasks = [
-    { title: 'Approve 6 time-off requests', owner: 'People Ops', due: 'Today' },
-    { title: 'Finalize Dallas hiring plan', owner: 'Talent', due: 'Tomorrow' },
-    { title: 'Review onboarding checklist', owner: 'HR', due: 'This week' }
-  ];
+  tasks: { title: string; owner: string; due: string }[] = [];
 
   ngOnInit() {
     const stored = localStorage.getItem(this.tasksKey);
