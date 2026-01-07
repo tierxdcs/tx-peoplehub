@@ -14,14 +14,39 @@ export class TasksComponent {
     title: string;
     owner: string;
     due: string;
+    source: 'task' | 'leave' | 'reimbursement' | 'requisition';
   }[] = [];
 
   ngOnInit() {
     this.approvals = [
+      ...this.loadUserTasks(),
       ...this.loadLeaveRequests(),
       ...this.loadReimbursements(),
       ...this.loadRequisitions()
     ];
+  }
+
+  loadUserTasks() {
+    const stored = localStorage.getItem('tx-peoplehub-tasks');
+    if (!stored) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(stored) as { id?: string; title: string; owner: string; due: string }[];
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      return parsed.map((task, index) => ({
+        id: task.id ?? `task-${index}`,
+        title: task.title,
+        owner: task.owner,
+        due: task.due,
+        source: 'task' as const
+      }));
+    } catch {
+      localStorage.removeItem('tx-peoplehub-tasks');
+      return [];
+    }
   }
 
   loadLeaveRequests() {
@@ -40,7 +65,8 @@ export class TasksComponent {
           id: `leave-${index}`,
           title: `Leave request · ${request.type}`,
           owner: 'Employee',
-          due: request.range
+          due: request.range,
+          source: 'leave' as const
         }));
     } catch {
       localStorage.removeItem('tx-peoplehub-leave-requests');
@@ -70,7 +96,8 @@ export class TasksComponent {
           id: `reimb-${index}`,
           title: `Reimbursement · ${request.category}`,
           owner: request.employee ?? 'Employee',
-          due: `₹${request.amount ?? '0'}`
+          due: `₹${request.amount ?? '0'}`,
+          source: 'reimbursement' as const
         }));
     } catch {
       localStorage.removeItem('tx-peoplehub-reimbursements');
@@ -99,7 +126,8 @@ export class TasksComponent {
           id: `req-${index}`,
           title: `Resource requisition · ${request.title}`,
           owner: request.department ?? 'Department',
-          due: `${request.headcount} headcount`
+          due: `${request.headcount} headcount`,
+          source: 'requisition' as const
         }));
     } catch {
       localStorage.removeItem('tx-peoplehub-workforce-requests');

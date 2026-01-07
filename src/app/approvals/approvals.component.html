@@ -12,20 +12,12 @@
 
   <section class="panel">
     <div class="panel-header">
-      <h2>Requests awaiting review</h2>
+      <h2>Approval details</h2>
       <span class="pill">{{ requests.length }} open</span>
     </div>
-    <div class="request-list">
-      @for (request of requests; track request.id) {
-        <button class="request-row" type="button" (click)="openRequest(request)">
-          <div>
-            <strong>{{ request.title }}</strong>
-            <span>{{ request.submittedBy }} · {{ request.summary }}</span>
-          </div>
-          <span class="status-pill">{{ request.status }}</span>
-        </button>
-      }
-    </div>
+    <p class="empty">
+      Open a task from the Open tasks list to review and approve it.
+    </p>
   </section>
 </main>
 
