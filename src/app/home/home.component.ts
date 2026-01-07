@@ -23,7 +23,7 @@ export class HomeComponent {
     manager: string;
     submittedAt: string;
   }[] = [];
-  pendingRequests: { type: string; range: string; status: string }[] = [];
+  pendingRequests: { type: string; range: string; status: string; employee?: string }[] = [];
   leaveForm = {
     type: 'PTO',
     startDate: '',
@@ -206,7 +206,8 @@ export class HomeComponent {
       {
         type: this.leaveForm.type,
         range,
-        status: 'Pending'
+        status: 'Pending',
+        employee: this.adminDataName()
       },
       ...this.pendingRequests
     ];
@@ -231,5 +232,18 @@ export class HomeComponent {
       'tx-peoplehub-leave-requests',
       JSON.stringify(this.pendingRequests)
     );
+  }
+
+  adminDataName() {
+    const raw = localStorage.getItem('tx-peoplehub-admin-draft');
+    if (!raw) {
+      return 'Employee';
+    }
+    try {
+      const parsed = JSON.parse(raw) as { fullName?: string };
+      return parsed.fullName || 'Employee';
+    } catch {
+      return 'Employee';
+    }
   }
 }

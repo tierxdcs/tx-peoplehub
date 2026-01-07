@@ -124,7 +124,7 @@ export class ApprovalsComponent {
         .map((request, index) => ({
           id: `leave-${index}`,
           title: `Leave request · ${request.type}`,
-          submittedBy: 'Employee',
+          submittedBy: request.employee ?? 'Employee',
           summary: request.range,
           status: 'Pending manager approval',
           source: 'leave' as const,
