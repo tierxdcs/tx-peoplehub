@@ -11,14 +11,23 @@
   </header>
 
   <section class="tasks-list">
-    @for (task of tasks; track task.title) {
-      <button class="task-card" type="button" routerLink="/approvals">
-        <div>
-          <strong>{{ task.title }}</strong>
-          <span>{{ task.owner }}</span>
-        </div>
-        <span class="pill">{{ task.due }}</span>
-      </button>
+    @if (approvals.length) {
+      @for (task of approvals; track task.id) {
+        <button
+          class="task-card"
+          type="button"
+          [routerLink]="['/approvals']"
+          [queryParams]="{ open: task.id }"
+        >
+          <div>
+            <strong>{{ task.title }}</strong>
+            <span>{{ task.owner }}</span>
+          </div>
+          <span class="pill">{{ task.due }}</span>
+        </button>
+      }
+    } @else {
+      <p class="empty">No approvals awaiting review.</p>
     }
   </section>
 </main>

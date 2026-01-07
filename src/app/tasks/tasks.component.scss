@@ -111,6 +111,12 @@ button:hover,
   letter-spacing: 0.08em;
 }
 
+.empty {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 0.85rem;
+}
+
 @media (max-width: 1100px) {
   .tasks-topbar {
     flex-direction: column;

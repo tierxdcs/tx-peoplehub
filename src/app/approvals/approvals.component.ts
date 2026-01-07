@@ -1,6 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-approvals',
@@ -10,6 +10,7 @@ import { RouterLink } from '@angular/router';
   styleUrl: './approvals.component.scss'
 })
 export class ApprovalsComponent {
+  private readonly route = inject(ActivatedRoute);
   requests: {
     id: string;
     title: string;
@@ -28,6 +29,13 @@ export class ApprovalsComponent {
       ...this.loadReimbursements(),
       ...this.loadRequisitions()
     ];
+    const openId = this.route.snapshot.queryParamMap.get('open');
+    if (openId) {
+      const match = this.requests.find((request) => request.id === openId);
+      if (match) {
+        this.openRequest(match);
+      }
+    }
   }
 
   openRequest(request: (typeof this.requests)[number]) {
