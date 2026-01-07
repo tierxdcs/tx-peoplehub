@@ -173,13 +173,29 @@
 }
 
 .spotlight h3 {
-  margin: 6px 0 2px;
+  margin: 0 0 4px;
   font-size: 1.25rem;
 }
 
 .spotlight p {
-  margin: 0 0 16px;
+  margin: 0 0 8px;
   color: var(--ink-500);
+}
+
+.spotlight-person {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.spotlight-person img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(11, 98, 179, 0.2);
 }
 
 .progress {
