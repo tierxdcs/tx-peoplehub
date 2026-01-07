@@ -52,7 +52,7 @@ export class AdminComponent {
     role: 'Employee',
     employmentType: 'Full-time',
     status: 'Active',
-    schedule: 'Day shift',
+    director: 'No',
     costCenter: '',
     baseSalary: '',
     paySchedule: 'Bi-weekly',
