@@ -1,0 +1,61 @@
+<main class="org-shell">
+  <header class="org-topbar">
+    <div>
+      <p class="eyebrow">Organization</p>
+      <h1>Organization structure</h1>
+      <p class="subtitle">Map teams, leadership, and reporting lines across TierX.</p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" routerLink="/">Back to home</a>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2>Enterprise hierarchy</h2>
+      <span class="pill">Core divisions</span>
+    </div>
+    <div class="org-grid">
+      @for (division of divisions; track division.name) {
+        <article class="org-card">
+          <div class="org-card-header">
+            <div>
+              <h3>{{ division.name }}</h3>
+              <p>Leader: {{ division.leader }}</p>
+            </div>
+            <span class="pill soft">{{ division.headcount }} people</span>
+          </div>
+          <div class="org-teams">
+            @for (team of division.teams; track team) {
+              <span class="chip">{{ team }}</span>
+            }
+          </div>
+        </article>
+      }
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2>Reporting focus</h2>
+      <span class="pill">Leadership</span>
+    </div>
+    <div class="reporting-grid">
+      <div class="reporting-card">
+        <h3>CEO</h3>
+        <p>Executive leadership and strategic planning.</p>
+        <span class="tag">Enterprise governance</span>
+      </div>
+      <div class="reporting-card">
+        <h3>CFO</h3>
+        <p>Budget approvals, workforce planning, and financial control.</p>
+        <span class="tag">Capital oversight</span>
+      </div>
+      <div class="reporting-card">
+        <h3>COO</h3>
+        <p>Operations execution, coverage, and customer uptime.</p>
+        <span class="tag">Operational excellence</span>
+      </div>
+    </div>
+  </section>
+</main>
