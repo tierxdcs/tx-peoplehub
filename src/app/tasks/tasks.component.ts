@@ -72,7 +72,7 @@ export class TasksComponent {
         .map((request, index) => ({
           id: `leave-${index}`,
           title: `Leave request · ${request.type}`,
-          owner: 'Employee',
+          owner: request.employee ?? '',
           due: request.range,
           source: 'leave' as const
         }));
@@ -103,7 +103,7 @@ export class TasksComponent {
         .map((request, index) => ({
           id: `reimb-${index}`,
           title: `Reimbursement · ${request.category}`,
-          owner: request.employee ?? 'Employee',
+          owner: request.employee ?? '',
           due: `₹${request.amount ?? '0'}`,
           source: 'reimbursement' as const
         }));
@@ -133,7 +133,7 @@ export class TasksComponent {
         .map((request, index) => ({
           id: `req-${index}`,
           title: `Resource requisition · ${request.title}`,
-          owner: request.department ?? 'Department',
+          owner: request.department ?? '',
           due: `${request.headcount} headcount`,
           source: 'requisition' as const
         }));

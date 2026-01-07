@@ -25,7 +25,9 @@
         >
           <div>
             <strong>{{ task.title }}</strong>
-            <span>{{ task.owner }}</span>
+            @if (task.owner) {
+              <span>{{ task.owner }}</span>
+            }
           </div>
           <span class="pill">{{ task.due }}</span>
         </button>
@@ -45,7 +47,9 @@
         <div class="task-card done">
           <div>
             <strong>{{ task.title }}</strong>
-            <span>{{ task.owner }}</span>
+            @if (task.owner) {
+              <span>{{ task.owner }}</span>
+            }
           </div>
           <span class="pill">{{ task.status }}</span>
         </div>
