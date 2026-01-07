@@ -256,6 +256,12 @@ select:focus {
   justify-content: flex-end;
 }
 
+.user-actions select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: rgba(148, 163, 184, 0.12);
+}
+
 .password-pill {
   padding: 4px 10px;
   border-radius: 999px;

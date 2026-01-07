@@ -151,6 +151,7 @@
                   name="user-role-{{ i }}"
                   [ngModelOptions]="{ standalone: true }"
                   (ngModelChange)="updateUserRole(i, $event)"
+                  disabled
                 >
                   <option>Employee</option>
                   <option>Manager</option>
