@@ -94,6 +94,80 @@
             [(ngModel)]="adminData.startDate"
           />
         </label>
+        <label>
+          Role
+          <select name="role" required [(ngModel)]="adminData.role">
+            <option>Employee</option>
+            <option>Manager</option>
+            <option>Admin</option>
+            <option>Superadmin</option>
+          </select>
+        </label>
+      </div>
+    </article>
+
+    <article class="panel full-span">
+      <div class="panel-header">
+        <h2>User management</h2>
+        <span class="pill soft">Access</span>
+      </div>
+      <div class="user-create">
+        <div>
+          <strong>{{ adminData.fullName || 'Employee profile' }}</strong>
+          <span>{{ adminData.email || 'Add a profile to create a user' }}</span>
+        </div>
+        <div class="user-create-actions">
+          <select [(ngModel)]="adminData.role" name="createRole">
+            <option>Employee</option>
+            <option>Manager</option>
+            <option>Admin</option>
+            <option>Superadmin</option>
+          </select>
+          <button class="primary" type="button" (click)="createUserFromProfile()">
+            Create user
+          </button>
+        </div>
+      </div>
+      @if (userStatus) {
+        <p class="user-status">{{ userStatus }}</p>
+      }
+      <div class="user-list">
+        @if (users.length) {
+          @for (user of users; track user.email; let i = $index) {
+            <div class="user-row">
+              <div>
+                <strong>{{ user.fullName }}</strong>
+                <span>{{ user.email }} · {{ user.department }}</span>
+              </div>
+              <div class="user-actions">
+                <select
+                  [ngModel]="user.role"
+                  name="user-role-{{ i }}"
+                  (ngModelChange)="updateUserRole(i, $event)"
+                >
+                  <option>Employee</option>
+                  <option>Manager</option>
+                  <option>Admin</option>
+                  <option>Superadmin</option>
+                </select>
+                <span class="status-pill" [class.off]="user.status === 'Deactivated'">
+                  {{ user.status }}
+                </span>
+                <button class="ghost small" type="button" (click)="openEditUser(i)">
+                  Edit
+                </button>
+                <button class="ghost small" type="button" (click)="resetPassword(i)">
+                  Reset password
+                </button>
+                <button class="ghost small" type="button" (click)="deactivateUser(i)">
+                  Deactivate
+                </button>
+              </div>
+            </div>
+          }
+        } @else {
+          <p class="empty">No users created yet.</p>
+        }
       </div>
     </article>
 
@@ -509,3 +583,50 @@
     </section>
   </form>
 </main>
+
+@if (editIndex !== null) {
+  <div class="modal-backdrop" (click)="closeEditUser()"></div>
+  <div class="modal" role="dialog" aria-modal="true">
+    <header>
+      <div>
+        <p class="eyebrow">User management</p>
+        <h3>Edit user</h3>
+      </div>
+      <button class="ghost" type="button" (click)="closeEditUser()">Close</button>
+    </header>
+    <div class="modal-body form-grid">
+      <label>
+        Full name
+        <input type="text" [(ngModel)]="editUser.fullName" name="editFullName" />
+      </label>
+      <label>
+        Email
+        <input type="email" [(ngModel)]="editUser.email" name="editEmail" />
+      </label>
+      <label>
+        Department
+        <input type="text" [(ngModel)]="editUser.department" name="editDepartment" />
+      </label>
+      <label>
+        Role
+        <select [(ngModel)]="editUser.role" name="editRole">
+          <option>Employee</option>
+          <option>Manager</option>
+          <option>Admin</option>
+          <option>Superadmin</option>
+        </select>
+      </label>
+      <label>
+        Status
+        <select [(ngModel)]="editUser.status" name="editStatus">
+          <option>Active</option>
+          <option>Deactivated</option>
+        </select>
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost" type="button" (click)="closeEditUser()">Cancel</button>
+      <button class="primary" type="button" (click)="saveEditUser()">Save user</button>
+    </div>
+  </div>
+}
