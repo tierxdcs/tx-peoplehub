@@ -78,28 +78,6 @@
   </section>
 
   <section class="profile-grid">
-    <article class="panel">
-      <div class="panel-header">
-        <h2>Direct reports</h2>
-        <button class="ghost" type="button" (click)="openTeamModal()"
-          >View team</button
-        >
-      </div>
-      @if (directReports.length) {
-        @for (member of directReports; track member.name) {
-          <div class="report">
-            <div>
-              <strong>{{ member.name }}</strong>
-              <span>{{ member.role }}</span>
-            </div>
-            <span class="tag">{{ member.location }}</span>
-          </div>
-        }
-      } @else {
-        <p class="empty">No direct reports on file.</p>
-      }
-    </article>
-
     <article class="panel reporting-tree">
       <div class="panel-header">
         <h2>Reporting tree</h2>
