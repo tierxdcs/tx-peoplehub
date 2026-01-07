@@ -225,7 +225,7 @@ export class AdminComponent {
       return;
     }
     this.editIndex = index;
-    this.editUser = { ...user };
+    this.editUser = { ...user, password: user.password ?? '' };
   }
 
   closeEditUser() {
