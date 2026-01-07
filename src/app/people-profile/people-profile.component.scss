@@ -312,6 +312,61 @@ button:hover,
   letter-spacing: 0.08em;
 }
 
+.reporting-tree .tree {
+  display: grid;
+  gap: 14px;
+}
+
+.tree-node {
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(15, 23, 42, 0.04);
+  display: grid;
+  gap: 4px;
+}
+
+.tree-node .label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-500);
+}
+
+.tree-node strong {
+  font-size: 1rem;
+  color: var(--ink-900);
+}
+
+.tree-node .role {
+  font-size: 0.85rem;
+  color: var(--ink-500);
+}
+
+.tree-children {
+  display: grid;
+  gap: 10px;
+}
+
+.child-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.child-node {
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  display: grid;
+  gap: 4px;
+}
+
+.child-node span {
+  font-size: 0.8rem;
+  color: var(--ink-500);
+}
+
 .activity {
   display: grid;
   grid-template-columns: 80px minmax(0, 1fr);

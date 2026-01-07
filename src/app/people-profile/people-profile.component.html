@@ -100,6 +100,38 @@
       }
     </article>
 
+    <article class="panel reporting-tree">
+      <div class="panel-header">
+        <h2>Reporting tree</h2>
+      </div>
+      <div class="tree">
+        <div class="tree-node manager">
+          <span class="label">Manager</span>
+          <strong>{{ profile.manager }}</strong>
+        </div>
+        <div class="tree-node self">
+          <span class="label">You</span>
+          <strong>{{ profile.name }}</strong>
+          <span class="role">{{ profile.title }}</span>
+        </div>
+        <div class="tree-children">
+          <span class="label">Direct reports</span>
+          @if (directReports.length) {
+            <div class="child-grid">
+              @for (member of directReports; track member.name) {
+                <div class="child-node">
+                  <strong>{{ member.name }}</strong>
+                  <span>{{ member.role }}</span>
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="empty">No direct reports on file.</p>
+          }
+        </div>
+      </div>
+    </article>
+
     <article class="panel">
       <div class="panel-header">
         <h2>Recent activity</h2>
