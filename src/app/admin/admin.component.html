@@ -158,17 +158,11 @@
                   <option>Admin</option>
                   <option>Superadmin</option>
                 </select>
-                @if (user.password) {
-                  <span class="password-pill">Password set</span>
-                }
                 <span class="status-pill" [class.off]="user.status === 'Deactivated'">
                   {{ user.status }}
                 </span>
                 <button class="ghost small" type="button" (click)="openEditUser(i)">
                   Edit
-                </button>
-                <button class="ghost small" type="button" (click)="resetPassword(i)">
-                  Reset password
                 </button>
                 <button class="ghost small" type="button" (click)="deactivateUser(i)">
                   Deactivate

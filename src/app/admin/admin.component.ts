@@ -211,14 +211,6 @@ export class AdminComponent {
     this.userStatus = 'User deactivated.';
   }
 
-  resetPassword(index: number) {
-    const user = this.users[index];
-    if (!user) {
-      return;
-    }
-    this.userStatus = `Password reset link sent to ${user.email}.`;
-  }
-
   openEditUser(index: number) {
     const user = this.users[index];
     if (!user) {
