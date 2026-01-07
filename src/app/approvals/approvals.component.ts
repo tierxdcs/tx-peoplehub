@@ -17,7 +17,8 @@ export class ApprovalsComponent {
     submittedBy: string;
     summary: string;
     status: string;
-    source: 'leave' | 'reimbursement' | 'requisition';
+    source: 'task' | 'leave' | 'reimbursement' | 'requisition';
+    sourceIndex?: number;
   }[] = [];
   selectedRequest: (typeof this.requests)[number] | null = null;
   decisionNote = '';
@@ -25,6 +26,7 @@ export class ApprovalsComponent {
 
   ngOnInit() {
     this.requests = [
+      ...this.loadUserTasks(),
       ...this.loadLeaveRequests(),
       ...this.loadReimbursements(),
       ...this.loadRequisitions()
@@ -59,6 +61,7 @@ export class ApprovalsComponent {
       return;
     }
     const decision = { ...this.selectedRequest, status: 'Approved' };
+    this.persistDecision(decision);
     this.requests = this.requests.filter((item) => item.id !== decision.id);
     this.closeRequest();
   }
@@ -72,8 +75,34 @@ export class ApprovalsComponent {
       return;
     }
     const decision = { ...this.selectedRequest, status: 'Rejected' };
+    this.persistDecision(decision);
     this.requests = this.requests.filter((item) => item.id !== decision.id);
     this.closeRequest();
+  }
+
+  loadUserTasks() {
+    const stored = localStorage.getItem('tx-peoplehub-tasks');
+    if (!stored) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(stored) as { id?: string; title: string; owner: string; due: string }[];
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      return parsed.map((task, index) => ({
+        id: task.id ?? `task-${index}`,
+        title: task.title,
+        submittedBy: task.owner,
+        summary: task.due,
+        status: 'Pending',
+        source: 'task' as const,
+        sourceIndex: index
+      }));
+    } catch {
+      localStorage.removeItem('tx-peoplehub-tasks');
+      return [];
+    }
   }
 
   loadLeaveRequests() {
@@ -98,7 +127,8 @@ export class ApprovalsComponent {
           submittedBy: 'Employee',
           summary: request.range,
           status: 'Pending manager approval',
-          source: 'leave' as const
+          source: 'leave' as const,
+          sourceIndex: index
         }));
     } catch {
       localStorage.removeItem('tx-peoplehub-leave-requests');
@@ -130,7 +160,8 @@ export class ApprovalsComponent {
           submittedBy: request.employee ?? 'Employee',
           summary: `₹${request.amount ?? '0'}`,
           status: 'Pending CFO approval',
-          source: 'reimbursement' as const
+          source: 'reimbursement' as const,
+          sourceIndex: index
         }));
     } catch {
       localStorage.removeItem('tx-peoplehub-reimbursements');
@@ -162,11 +193,94 @@ export class ApprovalsComponent {
           submittedBy: request.manager ?? 'Manager',
           summary: `${request.department} · ${request.headcount} headcount`,
           status: request.approval ?? 'Pending CFO & CEO approval',
-          source: 'requisition' as const
+          source: 'requisition' as const,
+          sourceIndex: index
         }));
     } catch {
       localStorage.removeItem('tx-peoplehub-workforce-requests');
       return [];
+    }
+  }
+
+  persistDecision(decision: {
+    source: 'task' | 'leave' | 'reimbursement' | 'requisition';
+    sourceIndex?: number;
+    status: string;
+  }) {
+    if (decision.source === 'task') {
+      const stored = localStorage.getItem('tx-peoplehub-tasks');
+      if (!stored) {
+        return;
+      }
+      try {
+        const parsed = JSON.parse(stored) as { id?: string }[];
+        if (Array.isArray(parsed)) {
+          const next = parsed.filter((_, index) => index !== decision.sourceIndex);
+          localStorage.setItem('tx-peoplehub-tasks', JSON.stringify(next));
+        }
+      } catch {
+        localStorage.removeItem('tx-peoplehub-tasks');
+      }
+      return;
+    }
+
+    if (decision.source === 'leave') {
+      const stored = localStorage.getItem('tx-peoplehub-leave-requests');
+      if (!stored) {
+        return;
+      }
+      try {
+        const parsed = JSON.parse(stored) as { status?: string }[];
+        if (Array.isArray(parsed) && decision.sourceIndex !== undefined) {
+          parsed[decision.sourceIndex] = {
+            ...parsed[decision.sourceIndex],
+            status: decision.status
+          };
+          localStorage.setItem('tx-peoplehub-leave-requests', JSON.stringify(parsed));
+        }
+      } catch {
+        localStorage.removeItem('tx-peoplehub-leave-requests');
+      }
+      return;
+    }
+
+    if (decision.source === 'reimbursement') {
+      const stored = localStorage.getItem('tx-peoplehub-reimbursements');
+      if (!stored) {
+        return;
+      }
+      try {
+        const parsed = JSON.parse(stored) as { status?: string }[];
+        if (Array.isArray(parsed) && decision.sourceIndex !== undefined) {
+          parsed[decision.sourceIndex] = {
+            ...parsed[decision.sourceIndex],
+            status: decision.status
+          };
+          localStorage.setItem('tx-peoplehub-reimbursements', JSON.stringify(parsed));
+        }
+      } catch {
+        localStorage.removeItem('tx-peoplehub-reimbursements');
+      }
+      return;
+    }
+
+    if (decision.source === 'requisition') {
+      const stored = localStorage.getItem('tx-peoplehub-workforce-requests');
+      if (!stored) {
+        return;
+      }
+      try {
+        const parsed = JSON.parse(stored) as { approval?: string }[];
+        if (Array.isArray(parsed) && decision.sourceIndex !== undefined) {
+          parsed[decision.sourceIndex] = {
+            ...parsed[decision.sourceIndex],
+            approval: decision.status
+          };
+          localStorage.setItem('tx-peoplehub-workforce-requests', JSON.stringify(parsed));
+        }
+      } catch {
+        localStorage.removeItem('tx-peoplehub-workforce-requests');
+      }
     }
   }
 }
