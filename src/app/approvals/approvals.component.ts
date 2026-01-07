@@ -54,6 +54,7 @@ export class ApprovalsComponent {
       ...this.selectedRequest,
       status: 'Approved'
     };
+    this.closeRequest();
   }
 
   rejectRequest() {
@@ -68,6 +69,7 @@ export class ApprovalsComponent {
       ...this.selectedRequest,
       status: 'Rejected'
     };
+    this.closeRequest();
   }
 
   loadLeaveRequests() {
