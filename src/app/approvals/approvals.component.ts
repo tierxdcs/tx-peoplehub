@@ -50,10 +50,8 @@ export class ApprovalsComponent {
       this.noteError = 'Add a note before approving.';
       return;
     }
-    this.selectedRequest = {
-      ...this.selectedRequest,
-      status: 'Approved'
-    };
+    const decision = { ...this.selectedRequest, status: 'Approved' };
+    this.requests = this.requests.filter((item) => item.id !== decision.id);
     this.closeRequest();
   }
 
@@ -65,10 +63,8 @@ export class ApprovalsComponent {
       this.noteError = 'Add a note before rejecting.';
       return;
     }
-    this.selectedRequest = {
-      ...this.selectedRequest,
-      status: 'Rejected'
-    };
+    const decision = { ...this.selectedRequest, status: 'Rejected' };
+    this.requests = this.requests.filter((item) => item.id !== decision.id);
     this.closeRequest();
   }
 
