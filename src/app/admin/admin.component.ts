@@ -78,10 +78,12 @@ export class AdminComponent {
     checklistEquipment: false,
     checklistBadges: false,
     checklistOrientation: false,
+    checklistBusinessCard: false,
     checklistOfferOwner: '',
     checklistEquipmentOwner: '',
     checklistBadgesOwner: '',
-    checklistOrientationOwner: ''
+    checklistOrientationOwner: '',
+    checklistBusinessCardOwner: ''
   };
 
   ngOnInit() {
