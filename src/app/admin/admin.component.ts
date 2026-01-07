@@ -13,9 +13,11 @@ export class AdminComponent {
   private readonly storageKey = 'tx-peoplehub-admin-draft';
   private readonly departmentsKey = 'tx-peoplehub-departments';
   private readonly usersKey = 'tx-peoplehub-users';
+  private readonly tasksKey = 'tx-peoplehub-tasks';
   saved = false;
   departments: { name: string; head: string }[] = [];
   userStatus = '';
+  taskStatus = '';
   users: {
     fullName: string;
     email: string;
@@ -248,5 +250,48 @@ export class AdminComponent {
     this.saveUsers();
     this.userStatus = 'User updated.';
     this.closeEditUser();
+  }
+
+  assignTasks() {
+    const tasks = [
+      {
+        key: 'Offer letter signed',
+        owner: this.adminData.checklistOfferOwner
+      },
+      {
+        key: 'Equipment provisioned',
+        owner: this.adminData.checklistEquipmentOwner
+      },
+      {
+        key: 'Access badges issued',
+        owner: this.adminData.checklistBadgesOwner
+      },
+      {
+        key: 'Orientation scheduled',
+        owner: this.adminData.checklistOrientationOwner
+      },
+      {
+        key: 'Provide business card',
+        owner: this.adminData.checklistBusinessCardOwner
+      }
+    ];
+    const payload = tasks
+      .filter((task) => task.owner)
+      .map((task) => ({
+        title: `Onboarding: ${task.key}`,
+        owner: task.owner as string,
+        due: 'This week',
+        source: 'onboarding'
+      }));
+
+    if (!payload.length) {
+      this.taskStatus = 'Select managers before assigning tasks.';
+      return;
+    }
+
+    const stored = localStorage.getItem(this.tasksKey);
+    const existing = stored ? (JSON.parse(stored) as typeof payload) : [];
+    localStorage.setItem(this.tasksKey, JSON.stringify([...payload, ...existing]));
+    this.taskStatus = `Assigned ${payload.length} tasks.`;
   }
 }
