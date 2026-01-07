@@ -11,28 +11,34 @@ import { RouterLink } from '@angular/router';
 export class OrgStructureComponent {
   divisions = [
     {
-      name: 'Operations',
+      name: 'Sales & Marketing',
+      leader: 'Ravi Kumar E',
+      headcount: 148,
+      teams: ['Enterprise Sales', 'Channel Partners', 'Brand & Growth']
+    },
+    {
+      name: 'Finance & Operations',
+      leader: 'Ravi Kulal',
+      headcount: 96,
+      teams: ['Finance', 'Procurement', 'Operations Excellence']
+    },
+    {
+      name: 'Product Development & Technology',
       leader: 'Nithin Gangadhar',
-      headcount: 312,
-      teams: ['Network Ops', 'Site Reliability', 'Capacity Planning']
+      headcount: 182,
+      teams: ['Platform Engineering', 'Product Management', 'Data Systems']
     },
     {
-      name: 'Facilities',
-      leader: 'Sofia Nguyen',
-      headcount: 128,
-      teams: ['Critical Infra', 'Maintenance', 'Energy Optimization']
+      name: 'Supply Chain Management',
+      leader: 'Krishna Achar',
+      headcount: 64,
+      teams: ['Vendor Management', 'Logistics', 'Inventory Planning']
     },
     {
-      name: 'Security',
-      leader: 'Andre Lewis',
-      headcount: 74,
-      teams: ['Physical Security', 'Access Control', 'Risk Monitoring']
-    },
-    {
-      name: 'HR & People Ops',
-      leader: 'Chloe Bishop',
-      headcount: 32,
-      teams: ['Talent', 'Total Rewards', 'Employee Experience']
+      name: 'Global Competency Center',
+      leader: 'Martin Kipping',
+      headcount: 86,
+      teams: ['Center of Excellence', 'Process Automation', 'Analytics Enablement']
     }
   ];
 }
