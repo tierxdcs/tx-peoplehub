@@ -630,6 +630,27 @@
             }
           </select>
         </div>
+        <div class="checklist-row">
+          <label>
+            <input
+              type="checkbox"
+              name="checklistBusinessCard"
+              required
+              [(ngModel)]="adminData.checklistBusinessCard"
+            />
+            Provide business card
+          </label>
+          <select
+            name="checklistBusinessCardOwner"
+            required
+            [(ngModel)]="adminData.checklistBusinessCardOwner"
+          >
+            <option value="" disabled>Select manager</option>
+            @for (manager of managerOptions; track manager) {
+              <option [value]="manager">{{ manager }}</option>
+            }
+          </select>
+        </div>
       </div>
       <button class="ghost full" type="button">Assign tasks</button>
     </article>
