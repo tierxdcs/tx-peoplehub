@@ -652,7 +652,10 @@
           </select>
         </div>
       </div>
-      <button class="ghost full" type="button">Assign tasks</button>
+      <button class="ghost full" type="button" (click)="assignTasks()">Assign tasks</button>
+      @if (taskStatus) {
+        <p class="user-status">{{ taskStatus }}</p>
+      }
     </article>
     </section>
   </form>
