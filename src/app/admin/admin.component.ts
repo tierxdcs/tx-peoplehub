@@ -12,8 +12,25 @@ import { RouterLink } from '@angular/router';
 export class AdminComponent {
   private readonly storageKey = 'tx-peoplehub-admin-draft';
   private readonly departmentsKey = 'tx-peoplehub-departments';
+  private readonly usersKey = 'tx-peoplehub-users';
   saved = false;
   departments: { name: string; head: string }[] = [];
+  userStatus = '';
+  users: {
+    fullName: string;
+    email: string;
+    department: string;
+    role: 'Employee' | 'Manager' | 'Admin' | 'Superadmin';
+    status: 'Active' | 'Deactivated';
+  }[] = [];
+  editIndex: number | null = null;
+  editUser = {
+    fullName: '',
+    email: '',
+    department: '',
+    role: 'Employee' as 'Employee' | 'Manager' | 'Admin' | 'Superadmin',
+    status: 'Active' as 'Active' | 'Deactivated'
+  };
   adminData = {
     fullName: '',
     employeeId: '',
@@ -27,6 +44,7 @@ export class AdminComponent {
     managerLevel3: '',
     managerLevel4: '',
     ceo: '',
+    role: 'Employee',
     employmentType: 'Full-time',
     status: 'Active',
     schedule: 'Day shift',
@@ -77,6 +95,7 @@ export class AdminComponent {
 
     const raw = localStorage.getItem(this.storageKey);
     if (!raw) {
+      this.loadUsers();
       return;
     }
     try {
@@ -84,6 +103,8 @@ export class AdminComponent {
     } catch {
       localStorage.removeItem(this.storageKey);
     }
+
+    this.loadUsers();
   }
 
   save(event: Event) {
@@ -119,5 +140,96 @@ export class AdminComponent {
       }
     };
     reader.readAsDataURL(file);
+  }
+
+  loadUsers() {
+    const stored = localStorage.getItem(this.usersKey);
+    if (!stored) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored) as typeof this.users;
+      if (Array.isArray(parsed)) {
+        this.users = parsed;
+      }
+    } catch {
+      localStorage.removeItem(this.usersKey);
+    }
+  }
+
+  saveUsers() {
+    localStorage.setItem(this.usersKey, JSON.stringify(this.users));
+  }
+
+  createUserFromProfile() {
+    if (!this.adminData.fullName || !this.adminData.email) {
+      this.userStatus = 'Complete the employee profile before creating a user.';
+      return;
+    }
+    const newUser = {
+      fullName: this.adminData.fullName.trim(),
+      email: this.adminData.email.trim(),
+      department: this.adminData.department,
+      role: this.adminData.role as 'Employee' | 'Manager' | 'Admin' | 'Superadmin',
+      status: 'Active' as const
+    };
+    this.users = [newUser, ...this.users];
+    this.saveUsers();
+    this.userStatus = 'User created.';
+  }
+
+  updateUserRole(index: number, role: 'Employee' | 'Manager' | 'Admin' | 'Superadmin') {
+    const user = this.users[index];
+    if (!user) {
+      return;
+    }
+    user.role = role;
+    this.saveUsers();
+    this.userStatus = 'Role updated.';
+  }
+
+  deactivateUser(index: number) {
+    const user = this.users[index];
+    if (!user) {
+      return;
+    }
+    const confirmed = window.confirm(`Deactivate ${user.fullName}?`);
+    if (!confirmed) {
+      return;
+    }
+    user.status = 'Deactivated';
+    this.saveUsers();
+    this.userStatus = 'User deactivated.';
+  }
+
+  resetPassword(index: number) {
+    const user = this.users[index];
+    if (!user) {
+      return;
+    }
+    this.userStatus = `Password reset link sent to ${user.email}.`;
+  }
+
+  openEditUser(index: number) {
+    const user = this.users[index];
+    if (!user) {
+      return;
+    }
+    this.editIndex = index;
+    this.editUser = { ...user };
+  }
+
+  closeEditUser() {
+    this.editIndex = null;
+  }
+
+  saveEditUser() {
+    if (this.editIndex === null) {
+      return;
+    }
+    this.users[this.editIndex] = { ...this.editUser };
+    this.saveUsers();
+    this.userStatus = 'User updated.';
+    this.closeEditUser();
   }
 }
