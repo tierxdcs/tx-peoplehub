@@ -22,6 +22,7 @@ export class AdminComponent {
     department: string;
     role: 'Employee' | 'Manager' | 'Admin' | 'Superadmin';
     status: 'Active' | 'Deactivated';
+    password?: string;
   }[] = [];
   editIndex: number | null = null;
   editUser = {
@@ -29,8 +30,10 @@ export class AdminComponent {
     email: '',
     department: '',
     role: 'Employee' as 'Employee' | 'Manager' | 'Admin' | 'Superadmin',
-    status: 'Active' as 'Active' | 'Deactivated'
+    status: 'Active' as 'Active' | 'Deactivated',
+    password: ''
   };
+  createPassword = '';
   adminData = {
     fullName: '',
     employeeId: '',
@@ -166,16 +169,22 @@ export class AdminComponent {
       this.userStatus = 'Complete the employee profile before creating a user.';
       return;
     }
+    if (!this.createPassword) {
+      this.userStatus = 'Set a temporary password before creating the user.';
+      return;
+    }
     const newUser = {
       fullName: this.adminData.fullName.trim(),
       email: this.adminData.email.trim(),
       department: this.adminData.department,
       role: this.adminData.role as 'Employee' | 'Manager' | 'Admin' | 'Superadmin',
-      status: 'Active' as const
+      status: 'Active' as const,
+      password: this.createPassword
     };
     this.users = [newUser, ...this.users];
     this.saveUsers();
     this.userStatus = 'User created.';
+    this.createPassword = '';
   }
 
   updateUserRole(index: number, role: 'Employee' | 'Manager' | 'Admin' | 'Superadmin') {

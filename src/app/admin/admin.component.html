@@ -123,6 +123,12 @@
             <option>Admin</option>
             <option>Superadmin</option>
           </select>
+          <input
+            type="password"
+            placeholder="Temporary password"
+            [(ngModel)]="createPassword"
+            name="createPassword"
+          />
           <button class="primary" type="button" (click)="createUserFromProfile()">
             Create user
           </button>
@@ -150,6 +156,9 @@
                   <option>Admin</option>
                   <option>Superadmin</option>
                 </select>
+                @if (user.password) {
+                  <span class="password-pill">Password set</span>
+                }
                 <span class="status-pill" [class.off]="user.status === 'Deactivated'">
                   {{ user.status }}
                 </span>
@@ -622,6 +631,15 @@
           <option>Active</option>
           <option>Deactivated</option>
         </select>
+      </label>
+      <label class="full">
+        Temporary password
+        <input
+          type="password"
+          [(ngModel)]="editUser.password"
+          name="editPassword"
+          placeholder="Set a new password"
+        />
       </label>
     </div>
     <div class="modal-actions">
