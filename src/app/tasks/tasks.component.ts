@@ -16,6 +16,13 @@ export class TasksComponent {
     due: string;
     source: 'task' | 'leave' | 'reimbursement' | 'requisition';
   }[] = [];
+  completed: {
+    id: string;
+    title: string;
+    owner: string;
+    due: string;
+    status: string;
+  }[] = [];
 
   ngOnInit() {
     this.approvals = [
@@ -24,6 +31,7 @@ export class TasksComponent {
       ...this.loadReimbursements(),
       ...this.loadRequisitions()
     ];
+    this.completed = this.loadCompleted();
   }
 
   loadUserTasks() {
@@ -131,6 +139,34 @@ export class TasksComponent {
         }));
     } catch {
       localStorage.removeItem('tx-peoplehub-workforce-requests');
+      return [];
+    }
+  }
+
+  loadCompleted() {
+    const stored = localStorage.getItem('tx-peoplehub-approvals-completed');
+    if (!stored) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(stored) as {
+        id: string;
+        title: string;
+        submittedBy?: string;
+        summary?: string;
+        status: string;
+      }[];
+      return Array.isArray(parsed)
+        ? parsed.map((item) => ({
+            id: item.id,
+            title: item.title,
+            owner: item.submittedBy ?? 'Employee',
+            due: item.summary ?? '',
+            status: item.status
+          }))
+        : [];
+    } catch {
+      localStorage.removeItem('tx-peoplehub-approvals-completed');
       return [];
     }
   }
