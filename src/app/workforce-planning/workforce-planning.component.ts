@@ -89,7 +89,7 @@ export class WorkforcePlanningComponent {
       budgetImpact: this.form.budgetImpact.trim(),
       costCenter: this.form.costCenter.trim(),
       manager: this.form.manager || 'Direct Manager',
-      approval: 'Pending CFO & CEO approval',
+      approval: 'Pending Board Directors approval',
       submittedAt: new Date().toISOString()
     };
     this.requests = [request, ...this.requests];
