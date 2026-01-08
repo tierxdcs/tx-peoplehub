@@ -196,7 +196,8 @@ export class AdminComponent {
       department: this.adminData.department,
       role: this.adminData.role as 'Employee' | 'Manager' | 'Admin' | 'Superadmin',
       status: 'Active' as const,
-      director: this.adminData.director
+      director: this.adminData.director,
+      password: this.createPassword
     };
     try {
       const saved = await firstValueFrom(this.api.createUser(newUser));

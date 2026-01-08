@@ -8,9 +8,13 @@ CREATE TABLE IF NOT EXISTS tx_users (
   role TEXT NOT NULL,
   status TEXT NOT NULL,
   director TEXT DEFAULT 'No',
+  password TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE tx_users
+  ADD COLUMN IF NOT EXISTS password TEXT;
 
 CREATE TABLE IF NOT EXISTS tx_departments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

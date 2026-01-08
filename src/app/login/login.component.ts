@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService } from '../services/api.service';
 
 @Component({
   selector: 'app-login',
@@ -17,15 +19,30 @@ export class LoginComponent {
   };
   errorMessage = '';
 
-  constructor(private readonly router: Router) {}
+  constructor(private readonly router: Router, private readonly api: ApiService) {}
 
-  signIn() {
+  async signIn() {
     const email = this.credentials.email.trim().toLowerCase();
     const password = this.credentials.password;
     const isMasterLogin = email === 'hradmin@tierxdcs.com' && password === 'Tierx@009';
     if (!isMasterLogin) {
-      this.errorMessage = 'Invalid credentials. Please try again.';
-      return;
+      try {
+        const user = await firstValueFrom(this.api.login({ email, password }));
+        this.errorMessage = '';
+        localStorage.setItem(
+          'tx-peoplehub-session',
+          JSON.stringify({
+            email: user.email,
+            role: user.role,
+            name: user.fullName
+          })
+        );
+        this.router.navigateByUrl('/');
+        return;
+      } catch {
+        this.errorMessage = 'Invalid credentials. Please try again.';
+        return;
+      }
     }
     this.errorMessage = '';
     localStorage.setItem(

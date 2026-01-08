@@ -33,7 +33,9 @@ app.get('/api/info', async (_req, res) => {
 app.get('/api/users', async (_req, res) => {
   try {
     const result = await getPoolInstance().query(
-      'SELECT * FROM tx_users ORDER BY created_at DESC'
+      `SELECT id, full_name, email, department, role, status, director
+       FROM tx_users
+       ORDER BY created_at DESC`
     );
     res.json(result.rows);
   } catch (error) {
@@ -42,19 +44,20 @@ app.get('/api/users', async (_req, res) => {
 });
 
 app.post('/api/users', async (req, res) => {
-  const { fullName, email, department, role, status, director } = req.body;
+  const { fullName, email, department, role, status, director, password } = req.body;
   try {
     const result = await getPoolInstance().query(
-      `INSERT INTO tx_users (full_name, email, department, role, status, director)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO tx_users (full_name, email, department, role, status, director, password)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (email) DO UPDATE
        SET full_name = EXCLUDED.full_name,
            department = EXCLUDED.department,
            status = EXCLUDED.status,
            director = EXCLUDED.director,
+           password = COALESCE(EXCLUDED.password, tx_users.password),
            updated_at = NOW()
-       RETURNING *`,
-      [fullName, email, department, role, status, director]
+       RETURNING id, full_name, email, department, role, status, director`,
+      [fullName, email, department, role, status, director, password ?? null]
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -70,12 +73,56 @@ app.put('/api/users/:id', async (req, res) => {
       `UPDATE tx_users
        SET full_name = $1, email = $2, department = $3, status = $4, director = $5, updated_at = NOW()
        WHERE id = $6
-       RETURNING *`,
+       RETURNING id, full_name, email, department, role, status, director`,
       [fullName, email, department, status, director, id]
     );
     res.json(result.rows[0]);
   } catch (error) {
     res.status(500).json({ error: 'Unable to update user' });
+  }
+});
+
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body ?? {};
+  const normalizedEmail = String(email ?? '').trim().toLowerCase();
+  const inputPassword = String(password ?? '');
+  if (!normalizedEmail || !inputPassword) {
+    res.status(400).json({ error: 'Email and password required' });
+    return;
+  }
+  try {
+    const result = await getPoolInstance().query(
+      `SELECT id, full_name, email, role, department, director, status, password
+       FROM tx_users
+       WHERE LOWER(email) = $1
+       LIMIT 1`,
+      [normalizedEmail]
+    );
+    const user = result.rows[0];
+    if (!user || user.status !== 'Active') {
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+    const storedPassword = user.password ?? '';
+    if (!storedPassword) {
+      await getPoolInstance().query(
+        'UPDATE tx_users SET password = $1, updated_at = NOW() WHERE id = $2',
+        [inputPassword, user.id]
+      );
+    } else if (storedPassword !== inputPassword) {
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+    res.json({
+      id: user.id,
+      fullName: user.full_name,
+      email: user.email,
+      role: user.role,
+      department: user.department,
+      director: user.director
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to authenticate' });
   }
 });
 
