@@ -699,8 +699,13 @@
               <option [value]="manager">{{ manager }}</option>
             }
           </select>
-          <button class="ghost small" type="button" (click)="addChecklistItem()">
-            Add task
+          <button
+            class="ghost icon-button"
+            type="button"
+            aria-label="Add onboarding task"
+            (click)="addChecklistItem()"
+          >
+            +
           </button>
         </div>
       </div>

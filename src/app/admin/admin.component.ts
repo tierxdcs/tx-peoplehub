@@ -292,6 +292,14 @@ export class AdminComponent {
     }
   }
 
+  async persistProfile() {
+    try {
+      await firstValueFrom(this.api.saveEmployeeProfile(this.adminData as EmployeeProfile));
+    } catch {
+      return;
+    }
+  }
+
   async assignTasks() {
     const tasks = [
       {
@@ -353,9 +361,11 @@ export class AdminComponent {
       { title, owner, done: false }
     ];
     this.newChecklistItem = { title: '', owner: '' };
+    this.persistProfile();
   }
 
   removeChecklistItem(index: number) {
     this.adminData.checklistCustom = this.adminData.checklistCustom.filter((_, i) => i !== index);
+    this.persistProfile();
   }
 }
