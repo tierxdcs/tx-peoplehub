@@ -16,6 +16,7 @@ export class SettingsComponent {
   departments: DepartmentRecord[] = [];
   teamForm = { name: '', head: '', summary: '' };
   teamStatus = '';
+  teams: TeamRecord[] = [];
 
   constructor(private readonly api: ApiService) {}
 
@@ -25,6 +26,7 @@ export class SettingsComponent {
     } catch {
       this.departments = [];
     }
+    await this.loadTeams();
   }
 
   addDepartment() {
@@ -57,6 +59,14 @@ export class SettingsComponent {
       });
   }
 
+  async loadTeams() {
+    try {
+      this.teams = await firstValueFrom(this.api.getTeams());
+    } catch {
+      this.teams = [];
+    }
+  }
+
   createTeam() {
     const name = this.teamForm.name.trim();
     const head = this.teamForm.head.trim();
@@ -74,9 +84,10 @@ export class SettingsComponent {
       sites: 'Austin'
     };
     firstValueFrom(this.api.createTeam(payload))
-      .then((_saved: TeamRecord) => {
+      .then((saved: TeamRecord) => {
         this.teamStatus = 'Team created.';
         this.teamForm = { name: '', head: '', summary: '' };
+        this.teams = [saved, ...this.teams];
       })
       .catch(() => {
         this.teamStatus = 'Unable to create team.';

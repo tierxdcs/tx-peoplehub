@@ -111,6 +111,19 @@
       @if (teamStatus) {
         <p class="status">{{ teamStatus }}</p>
       }
+      @if (teams.length) {
+        <div class="team-list">
+          @for (team of teams; track team.id) {
+            <div class="team-row">
+              <div>
+                <strong>{{ team.name }}</strong>
+                <span>{{ team.head }}</span>
+              </div>
+              <span class="pill">{{ team.peopleCount }} people</span>
+            </div>
+          }
+        </div>
+      }
     </article>
 
     <article class="panel">
