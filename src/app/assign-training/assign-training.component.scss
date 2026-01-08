@@ -321,6 +321,11 @@ textarea {
   gap: 8px;
   font-size: 0.85rem;
   color: var(--ink-700);
+  width: 100%;
+}
+
+.option-check input[type='text'] {
+  flex: 1;
 }
 
 .option-row {
