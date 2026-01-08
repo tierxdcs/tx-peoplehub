@@ -84,6 +84,12 @@ button:hover,
   gap: 20px;
 }
 
+.form-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
 .save-banner {
   opacity: 0;
   transform: translateY(-6px);
