@@ -85,6 +85,36 @@
 
     <article class="panel">
       <div class="panel-header">
+        <h2>Create team</h2>
+        <span class="pill soft">Teams</span>
+      </div>
+      <div class="form-grid">
+        <label>
+          Team name
+          <input type="text" [(ngModel)]="teamForm.name" name="teamFormName" required />
+        </label>
+        <label>
+          Team leader
+          <input type="text" [(ngModel)]="teamForm.head" name="teamFormHead" required />
+        </label>
+        <label class="full">
+          Summary
+          <textarea
+            rows="3"
+            [(ngModel)]="teamForm.summary"
+            name="teamFormSummary"
+            placeholder="Describe the team's focus and scope."
+          ></textarea>
+        </label>
+      </div>
+      <button class="primary" type="button" (click)="createTeam()">Save team</button>
+      @if (teamStatus) {
+        <p class="status">{{ teamStatus }}</p>
+      }
+    </article>
+
+    <article class="panel">
+      <div class="panel-header">
         <h2>Integrations</h2>
         <span class="pill soft">Systems</span>
       </div>

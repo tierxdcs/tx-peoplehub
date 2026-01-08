@@ -7,7 +7,6 @@
     </div>
     <div class="actions">
       <a class="ghost button-link" routerLink="/">Back to home</a>
-      <button class="primary" type="button" (click)="openCreateTeam()">Create team</button>
     </div>
   </header>
 
@@ -42,50 +41,6 @@
     }
   </section>
 </main>
-
-@if (createOpen) {
-  <div class="modal-backdrop" (click)="closeCreateTeam()"></div>
-  <div class="modal large" role="dialog" aria-modal="true">
-    <header>
-      <div>
-        <p class="eyebrow">Teams</p>
-        <h3>Create team</h3>
-        <p class="subtitle">Add a new department and ownership details.</p>
-      </div>
-      <button class="ghost" type="button" (click)="closeCreateTeam()">Close</button>
-    </header>
-    <form class="form-grid">
-      <label>
-        Team name
-        <input type="text" [(ngModel)]="form.name" name="team-name" required />
-      </label>
-      <label>
-        Team head
-        <input type="text" [(ngModel)]="form.head" name="team-head" required />
-      </label>
-      <label class="full">
-        Summary
-        <textarea [(ngModel)]="form.summary" name="team-summary" rows="2"></textarea>
-      </label>
-      <label>
-        People count
-        <input type="number" [(ngModel)]="form.people" name="team-people" min="0" />
-      </label>
-      <label>
-        Coverage
-        <input type="text" [(ngModel)]="form.coverage" name="team-coverage" />
-      </label>
-      <label class="full">
-        Sites
-        <input type="text" [(ngModel)]="form.sites" name="team-sites" />
-      </label>
-    </form>
-    <div class="modal-actions">
-      <button class="ghost" type="button" (click)="closeCreateTeam()">Cancel</button>
-      <button class="primary" type="button" (click)="createTeam()">Save team</button>
-    </div>
-  </div>
-}
 
 @if (selectedTeam) {
   <div class="modal-backdrop" (click)="closeRoster()"></div>
