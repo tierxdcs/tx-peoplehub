@@ -86,13 +86,13 @@ export class TeamsComponent {
   }
 
   createTeam() {
-    if (!this.form.name || !this.form.head || !this.form.summary) {
+    if (!this.form.name || !this.form.head) {
       return;
     }
     const newTeam = {
       name: this.form.name.trim(),
       head: this.form.head.trim(),
-      summary: this.form.summary.trim(),
+      summary: this.form.summary.trim() || 'Summary not provided.',
       peopleCount: Number(this.form.people) || 0,
       coverage: this.form.coverage.trim() || 'Business hours',
       sites: this.form.sites.trim() || 'Austin'
