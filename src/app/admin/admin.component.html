@@ -613,6 +613,7 @@
               name="checklistCustomOwner-{{ $index }}"
               required
               [(ngModel)]="item.owner"
+              (ngModelChange)="persistProfile()"
             >
               <option value="" disabled>Select manager</option>
               @for (manager of managerOptions; track manager) {

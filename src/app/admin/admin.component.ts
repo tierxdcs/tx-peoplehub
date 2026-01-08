@@ -353,7 +353,7 @@ export class AdminComponent {
   addChecklistItem() {
     const title = this.newChecklistItem.title.trim();
     const owner = this.newChecklistItem.owner.trim();
-    if (!title || !owner) {
+    if (!title) {
       return;
     }
     this.adminData.checklistCustom = [
