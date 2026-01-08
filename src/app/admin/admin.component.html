@@ -137,7 +137,6 @@
             type="text"
             name="jobTitle"
             placeholder="Network Operations Manager"
-            required
             [(ngModel)]="adminData.jobTitle"
           />
         </label>
@@ -147,7 +146,6 @@
             type="text"
             name="manager"
             placeholder="Search by name"
-            required
             [(ngModel)]="adminData.manager"
           />
         </label>
@@ -157,7 +155,6 @@
             type="text"
             name="managerLevel2"
             placeholder="Skip-level manager"
-            required
             [(ngModel)]="adminData.managerLevel2"
           />
         </label>
@@ -167,7 +164,6 @@
             type="text"
             name="managerLevel3"
             placeholder="Division leader"
-            required
             [(ngModel)]="adminData.managerLevel3"
           />
         </label>
@@ -177,7 +173,6 @@
             type="text"
             name="managerLevel4"
             placeholder="Executive sponsor"
-            required
             [(ngModel)]="adminData.managerLevel4"
           />
         </label>
@@ -187,7 +182,6 @@
             type="text"
             name="ceo"
             placeholder="Chief Executive Officer"
-            required
             [(ngModel)]="adminData.ceo"
           />
         </label>
@@ -195,7 +189,6 @@
           Employment type
           <select
             name="employmentType"
-            required
             [(ngModel)]="adminData.employmentType"
           >
             <option>Full-time</option>
@@ -206,7 +199,7 @@
         </label>
         <label>
           Status
-          <select name="status" required [(ngModel)]="adminData.status">
+          <select name="status" [(ngModel)]="adminData.status">
             <option>Active</option>
             <option>On leave</option>
             <option>Pending</option>
@@ -215,7 +208,7 @@
         </label>
       <label>
         Director
-        <select name="director" required [(ngModel)]="adminData.director">
+        <select name="director" [(ngModel)]="adminData.director">
           <option>Yes</option>
           <option>No</option>
         </select>
