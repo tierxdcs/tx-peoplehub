@@ -172,7 +172,7 @@ app.post('/api/employee-profiles', async (req, res) => {
         floating_holidays, parental_leave, carryover_cap, policy_effective,
         certifications, background_check, safety_training, work_authorization,
         compliance_document_name, next_audit_date, checklist_offer, checklist_equipment,
-        checklist_badges, checklist_orientation, checklist_business_card,
+        checklist_badges, checklist_orientation, checklist_business_card, checklist_custom,
         checklist_offer_owner, checklist_equipment_owner, checklist_badges_owner,
         checklist_orientation_owner, checklist_business_card_owner, updated_at
       )
@@ -184,9 +184,9 @@ app.post('/api/employee-profiles', async (req, res) => {
         $25,$26,$27,$28,$29,
         $30,$31,$32,$33,
         $34,$35,$36,$37,
-        $38,$39,$40,$41,
-        $42,$43,$44,$45,$46,
-        $47,$48,$49,$50,$51,$52,NOW()
+        $38,$39,$40,$41,$42,
+        $43,$44,$45,$46,$47,
+        $48,$49,$50,$51,$52,$53,NOW()
       )
       ON CONFLICT (email) DO UPDATE SET
         full_name = EXCLUDED.full_name,
@@ -232,6 +232,7 @@ app.post('/api/employee-profiles', async (req, res) => {
         checklist_badges = EXCLUDED.checklist_badges,
         checklist_orientation = EXCLUDED.checklist_orientation,
         checklist_business_card = EXCLUDED.checklist_business_card,
+        checklist_custom = EXCLUDED.checklist_custom,
         checklist_offer_owner = EXCLUDED.checklist_offer_owner,
         checklist_equipment_owner = EXCLUDED.checklist_equipment_owner,
         checklist_badges_owner = EXCLUDED.checklist_badges_owner,
@@ -284,6 +285,7 @@ app.post('/api/employee-profiles', async (req, res) => {
         profile.checklistBadges,
         profile.checklistOrientation,
         profile.checklistBusinessCard,
+        profile.checklistCustom ?? [],
         profile.checklistOfferOwner,
         profile.checklistEquipmentOwner,
         profile.checklistBadgesOwner,
