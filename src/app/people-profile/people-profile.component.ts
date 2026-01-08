@@ -48,6 +48,7 @@ export class PeopleProfileComponent {
   private readonly route = inject(ActivatedRoute);
   readonly profileId = this.route.snapshot.paramMap.get('id') ?? 'current';
   profile = { ...EMPTY_PROFILE };
+  employeeProfile: EmployeeProfile | null = null;
   isTeamModalOpen = false;
   adminDirectReports: { name: string; role: string; location: string }[] = [];
   users: UserRecord[] = [];
@@ -84,6 +85,7 @@ export class PeopleProfileComponent {
       if (!profile) {
         return;
       }
+      this.employeeProfile = profile;
       this.profile = this.mapProfile(profile);
     } catch {
       this.profile = { ...EMPTY_PROFILE };
@@ -155,7 +157,7 @@ export class PeopleProfileComponent {
       managerChain,
       status: profile.status || '',
       tenure: profile.startDate || '',
-      photoUrl: this.profile.photoUrl,
+      photoUrl: profile.photoUrl || EMPTY_PROFILE.photoUrl,
       certifications,
       teamMembers: []
     };
@@ -169,9 +171,18 @@ export class PeopleProfileComponent {
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       if (typeof reader.result === 'string') {
         this.profile.photoUrl = reader.result;
+        if (!this.employeeProfile) {
+          return;
+        }
+        try {
+          const payload = { ...this.employeeProfile, photoUrl: reader.result };
+          this.employeeProfile = await firstValueFrom(this.api.saveEmployeeProfile(payload));
+        } catch {
+          // Keep local preview even if the save fails.
+        }
       }
     };
     reader.readAsDataURL(file);

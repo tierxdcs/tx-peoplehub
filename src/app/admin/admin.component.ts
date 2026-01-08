@@ -66,6 +66,7 @@ export class AdminComponent {
     backgroundCheck: 'Verified',
     safetyTraining: 'Completed',
     workAuthorization: 'Valid',
+    photoUrl: '',
     complianceDocumentName: '',
     nextAuditDate: '',
     checklistOffer: false,

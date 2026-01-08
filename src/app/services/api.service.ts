@@ -67,6 +67,7 @@ export type EmployeeProfile = {
   backgroundCheck: string;
   safetyTraining: string;
   workAuthorization: string;
+  photoUrl: string;
   complianceDocumentName: string;
   nextAuditDate: string;
   checklistOffer: boolean;
@@ -466,6 +467,7 @@ export class ApiService {
       backgroundCheck: row.background_check ?? '',
       safetyTraining: row.safety_training ?? '',
       workAuthorization: row.work_authorization ?? '',
+      photoUrl: row.photo_url ?? row.photoUrl ?? '',
       complianceDocumentName: row.compliance_document_name ?? '',
       nextAuditDate: row.next_audit_date ?? '',
       checklistOffer: row.checklist_offer ?? false,
