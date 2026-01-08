@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS tx_employee_profiles (
   background_check TEXT,
   safety_training TEXT,
   work_authorization TEXT,
+  photo_url TEXT,
   compliance_document_name TEXT,
   next_audit_date DATE,
   checklist_offer BOOLEAN DEFAULT FALSE,
@@ -90,6 +91,8 @@ ALTER TABLE tx_employee_profiles
   ADD COLUMN IF NOT EXISTS role TEXT;
 ALTER TABLE tx_employee_profiles
   ADD COLUMN IF NOT EXISTS checklist_custom JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE tx_employee_profiles
+  ADD COLUMN IF NOT EXISTS photo_url TEXT;
 
 CREATE TABLE IF NOT EXISTS tx_training_assignments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

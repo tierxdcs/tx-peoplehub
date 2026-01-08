@@ -180,7 +180,7 @@ app.post('/api/employee-profiles', async (req, res) => {
         equity_plan, benefits_tier, compensation_effective_date, offer_letter_name,
         offer_letter_data, comp_band, comp_positioning, annual_pto, sick_leave,
         floating_holidays, parental_leave, carryover_cap, policy_effective,
-        certifications, background_check, safety_training, work_authorization,
+        certifications, background_check, safety_training, work_authorization, photo_url,
         compliance_document_name, next_audit_date, checklist_offer, checklist_equipment,
         checklist_badges, checklist_orientation, checklist_business_card, checklist_custom,
         checklist_offer_owner, checklist_equipment_owner, checklist_badges_owner,
@@ -193,10 +193,10 @@ app.post('/api/employee-profiles', async (req, res) => {
         $21,$22,$23,$24,
         $25,$26,$27,$28,$29,
         $30,$31,$32,$33,
-        $34,$35,$36,$37,
-        $38,$39,$40,$41,$42,
-        $43,$44,$45,$46,$47,
-        $48,$49,$50,$51,$52,$53,NOW()
+        $34,$35,$36,$37,$38,
+        $39,$40,$41,$42,$43,
+        $44,$45,$46,$47,$48,
+        $49,$50,$51,NOW()
       )
       ON CONFLICT (email) DO UPDATE SET
         full_name = EXCLUDED.full_name,
@@ -235,6 +235,7 @@ app.post('/api/employee-profiles', async (req, res) => {
         background_check = EXCLUDED.background_check,
         safety_training = EXCLUDED.safety_training,
         work_authorization = EXCLUDED.work_authorization,
+        photo_url = EXCLUDED.photo_url,
         compliance_document_name = EXCLUDED.compliance_document_name,
         next_audit_date = EXCLUDED.next_audit_date,
         checklist_offer = EXCLUDED.checklist_offer,
@@ -288,6 +289,7 @@ app.post('/api/employee-profiles', async (req, res) => {
         profile.backgroundCheck,
         profile.safetyTraining,
         profile.workAuthorization,
+        profile.photoUrl,
         profile.complianceDocumentName,
         profile.nextAuditDate,
         profile.checklistOffer,
