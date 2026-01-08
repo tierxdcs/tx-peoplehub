@@ -116,7 +116,9 @@ export class AdminComponent {
             email: this.adminData.email.trim(),
             department: this.adminData.department,
             role: this.adminData.role as 'Employee' | 'Manager' | 'Admin' | 'Superadmin',
-            status: this.adminData.status === 'Active' ? 'Active' : 'Deactivated',
+            status: (this.adminData.status === 'Active' ? 'Active' : 'Deactivated') as
+              | 'Active'
+              | 'Deactivated',
             director: this.adminData.director,
             password: this.createPassword || undefined
           };
