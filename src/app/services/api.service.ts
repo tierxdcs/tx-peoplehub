@@ -16,6 +16,19 @@ export type UserRecord = {
   director: string;
 };
 
+export type LoginResponse = {
+  id: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  department: string;
+  director: string;
+};
+
+export type CreateUserPayload = Omit<UserRecord, 'id'> & {
+  password?: string;
+};
+
 export type DepartmentRecord = { id: string; name: string; head: string };
 
 export type TeamRecord = {
@@ -192,8 +205,14 @@ export class ApiService {
     );
   }
 
-  createUser(payload: Omit<UserRecord, 'id'>): Observable<UserRecord> {
+  createUser(payload: CreateUserPayload): Observable<UserRecord> {
     return this.http.post<UserRecord>(`${this.baseUrl}/users`, payload).pipe(
+      map((row) => this.mapUser(row))
+    );
+  }
+
+  login(payload: { email: string; password: string }): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>(`${this.baseUrl}/login`, payload).pipe(
       map((row) => this.mapUser(row))
     );
   }
