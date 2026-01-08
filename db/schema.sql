@@ -109,8 +109,15 @@ CREATE TABLE IF NOT EXISTS tx_training_responses (
   assignment_id UUID REFERENCES tx_training_assignments(id) ON DELETE CASCADE,
   employee TEXT,
   responses JSONB DEFAULT '{}'::jsonb,
+  score NUMERIC,
+  passed BOOLEAN DEFAULT FALSE,
   submitted_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE tx_training_responses
+  ADD COLUMN IF NOT EXISTS score NUMERIC;
+ALTER TABLE tx_training_responses
+  ADD COLUMN IF NOT EXISTS passed BOOLEAN DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS tx_ideas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

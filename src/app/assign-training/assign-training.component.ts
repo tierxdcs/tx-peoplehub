@@ -20,7 +20,12 @@ export class AssignTrainingComponent {
     department: 'All departments',
     dueDate: '',
     questions: [
-      { text: '', type: 'Multiple choice', options: ['Option A', 'Option B', 'Option C'] }
+      {
+        text: '',
+        type: 'Multiple choice',
+        options: ['Option A', 'Option B', 'Option C'],
+        correctAnswer: 'Option A'
+      }
     ]
   };
   status = '';
@@ -61,7 +66,8 @@ export class AssignTrainingComponent {
         questions: (item.questions ?? []).map((question) => ({
           text: question.text,
           type: question.type,
-          options: this.normalizeOptions(question.type, question.options)
+          options: this.normalizeOptions(question.type, question.options),
+          correctAnswer: question.correctAnswer
         })),
         participants: (item.participants ?? []).map((participant) => ({
           name: participant.name,
@@ -103,7 +109,8 @@ export class AssignTrainingComponent {
       questions: this.form.questions.map((question) => ({
         text: question.text.trim(),
         type: question.type,
-        options: this.normalizeOptions(question.type, question.options)
+        options: this.normalizeOptions(question.type, question.options),
+        correctAnswer: this.normalizeCorrectAnswer(question)
       })),
       participants
     };
@@ -111,15 +118,20 @@ export class AssignTrainingComponent {
       const saved = await firstValueFrom(this.api.createTrainingAssignment(newAssignment));
       this.assignments = [saved, ...this.assignments];
       this.status = 'Training assigned.';
-      this.form = {
-        title: '',
-        audience: 'All employees',
-        department: this.departments[0]?.name ?? 'All departments',
-        dueDate: '',
-        questions: [
-          { text: '', type: 'Multiple choice', options: ['Option A', 'Option B', 'Option C'] }
-        ]
-      };
+    this.form = {
+      title: '',
+      audience: 'All employees',
+      department: this.departments[0]?.name ?? 'All departments',
+      dueDate: '',
+      questions: [
+        {
+          text: '',
+          type: 'Multiple choice',
+          options: ['Option A', 'Option B', 'Option C'],
+          correctAnswer: 'Option A'
+        }
+      ]
+    };
     } catch {
       this.status = 'Unable to assign training.';
     }
@@ -128,7 +140,12 @@ export class AssignTrainingComponent {
   addQuestion() {
     this.form.questions = [
       ...this.form.questions,
-      { text: '', type: 'Multiple choice', options: ['Option A', 'Option B', 'Option C'] }
+      {
+        text: '',
+        type: 'Multiple choice',
+        options: ['Option A', 'Option B', 'Option C'],
+        correctAnswer: 'Option A'
+      }
     ];
   }
 
@@ -147,7 +164,12 @@ export class AssignTrainingComponent {
     }
     assignment.questions = [
       ...assignment.questions,
-      { text: '', type: 'Multiple choice', options: ['Option A', 'Option B', 'Option C'] }
+      {
+        text: '',
+        type: 'Multiple choice',
+        options: ['Option A', 'Option B', 'Option C'],
+        correctAnswer: 'Option A'
+      }
     ];
     this.saveAssignment(index);
   }
@@ -185,10 +207,11 @@ export class AssignTrainingComponent {
   }
 
   onQuestionTypeChange(
-    question: { text: string; type: string; options?: string[] },
+    question: { text: string; type: string; options?: string[]; correctAnswer?: string },
     save = false
   ) {
     question.options = this.normalizeOptions(question.type, question.options);
+    question.correctAnswer = this.normalizeCorrectAnswer(question);
     if (save) {
       const index = this.assignments.findIndex((assignment) =>
         assignment.questions.includes(question)
@@ -199,8 +222,12 @@ export class AssignTrainingComponent {
     }
   }
 
-  addOption(question: { text: string; type: string; options?: string[] }, save = false) {
+  addOption(
+    question: { text: string; type: string; options?: string[]; correctAnswer?: string },
+    save = false
+  ) {
     question.options = [...(question.options ?? []), ''];
+    question.correctAnswer = this.normalizeCorrectAnswer(question);
     if (save) {
       const index = this.assignments.findIndex((assignment) =>
         assignment.questions.includes(question)
@@ -211,8 +238,13 @@ export class AssignTrainingComponent {
     }
   }
 
-  removeOption(question: { text: string; type: string; options?: string[] }, index: number, save = false) {
+  removeOption(
+    question: { text: string; type: string; options?: string[]; correctAnswer?: string },
+    index: number,
+    save = false
+  ) {
     question.options = (question.options ?? []).filter((_, i) => i !== index);
+    question.correctAnswer = this.normalizeCorrectAnswer(question);
     if (save) {
       const assignmentIndex = this.assignments.findIndex((assignment) =>
         assignment.questions.includes(question)
@@ -224,12 +256,13 @@ export class AssignTrainingComponent {
   }
 
   updateOption(
-    question: { text: string; type: string; options?: string[] },
+    question: { text: string; type: string; options?: string[]; correctAnswer?: string },
     index: number,
     value: string,
     save = false
   ) {
     question.options = (question.options ?? []).map((option, i) => (i === index ? value : option));
+    question.correctAnswer = this.normalizeCorrectAnswer(question);
     if (save) {
       const assignmentIndex = this.assignments.findIndex((assignment) =>
         assignment.questions.includes(question)
@@ -248,6 +281,24 @@ export class AssignTrainingComponent {
       return ['True', 'False'];
     }
     return options?.length ? options : ['Option A', 'Option B', 'Option C'];
+  }
+
+  normalizeCorrectAnswer(question: {
+    type: string;
+    options?: string[];
+    correctAnswer?: string;
+  }) {
+    if (question.type === 'Short answer') {
+      return question.correctAnswer ?? '';
+    }
+    const options = this.normalizeOptions(question.type, question.options);
+    if (!options.length) {
+      return '';
+    }
+    if (question.correctAnswer && options.includes(question.correctAnswer)) {
+      return question.correctAnswer;
+    }
+    return options[0];
   }
 
   countStatus(

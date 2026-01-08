@@ -57,7 +57,9 @@ export class ComplianceTrainingComponent {
       return;
     }
     const responseMap = responses.reduce<Record<string, TrainingResponse>>((acc, response) => {
-      acc[response.assignmentId] = response;
+      if (response.passed) {
+        acc[response.assignmentId] = response;
+      }
       return acc;
     }, {});
     this.trainings = this.trainings.map((training) => {
