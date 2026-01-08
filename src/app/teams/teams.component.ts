@@ -19,15 +19,6 @@ export class TeamsComponent {
     }
   > = [];
   users: UserRecord[] = [];
-  createOpen = false;
-  form = {
-    name: '',
-    head: '',
-    summary: '',
-    people: 0,
-    coverage: '',
-    sites: ''
-  };
   selectedTeam: (typeof this.teams)[number] | null = null;
 
   constructor(private readonly api: ApiService) {}
@@ -77,48 +68,5 @@ export class TeamsComponent {
     this.selectedTeam = null;
   }
 
-  openCreateTeam() {
-    this.createOpen = true;
-  }
-
-  closeCreateTeam() {
-    this.createOpen = false;
-  }
-
-  createTeam() {
-    if (!this.form.name || !this.form.head) {
-      return;
-    }
-    const newTeam = {
-      name: this.form.name.trim(),
-      head: this.form.head.trim(),
-      summary: this.form.summary.trim() || 'Summary not provided.',
-      peopleCount: Number(this.form.people) || 0,
-      coverage: this.form.coverage.trim() || 'Business hours',
-      sites: this.form.sites.trim() || 'Austin'
-    };
-    firstValueFrom(this.api.createTeam(newTeam))
-      .then((saved) => {
-        this.teams = [
-          {
-            ...saved,
-            people: saved.peopleCount,
-            roster: []
-          },
-          ...this.teams
-        ];
-        this.form = {
-          name: '',
-          head: '',
-          summary: '',
-          people: 0,
-          coverage: '',
-          sites: ''
-        };
-        this.createOpen = false;
-      })
-      .catch(() => {
-        return;
-      });
-  }
+  // Team creation moved to Settings.
 }

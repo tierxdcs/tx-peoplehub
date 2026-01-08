@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { ApiService, DepartmentRecord } from '../services/api.service';
+import { ApiService, DepartmentRecord, TeamRecord } from '../services/api.service';
 
 @Component({
   selector: 'app-settings',
@@ -14,6 +14,8 @@ import { ApiService, DepartmentRecord } from '../services/api.service';
 export class SettingsComponent {
   newDepartment = { name: '', head: '' };
   departments: DepartmentRecord[] = [];
+  teamForm = { name: '', head: '', summary: '' };
+  teamStatus = '';
 
   constructor(private readonly api: ApiService) {}
 
@@ -52,6 +54,32 @@ export class SettingsComponent {
       })
       .catch(() => {
         return;
+      });
+  }
+
+  createTeam() {
+    const name = this.teamForm.name.trim();
+    const head = this.teamForm.head.trim();
+    const summary = this.teamForm.summary.trim();
+    if (!name || !head) {
+      this.teamStatus = 'Team name and team leader are required.';
+      return;
+    }
+    const payload = {
+      name,
+      head,
+      summary,
+      peopleCount: 0,
+      coverage: 'Business hours',
+      sites: 'Austin'
+    };
+    firstValueFrom(this.api.createTeam(payload))
+      .then((_saved: TeamRecord) => {
+        this.teamStatus = 'Team created.';
+        this.teamForm = { name: '', head: '', summary: '' };
+      })
+      .catch(() => {
+        this.teamStatus = 'Unable to create team.';
       });
   }
 }
