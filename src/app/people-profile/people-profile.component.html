@@ -58,11 +58,13 @@
         <span class="pill">Q4 cycle</span>
       </div>
       <div class="score">
-        <span class="value">4.8</span>
+        <span class="value">
+          {{ profile.engagementScore === null ? 'N/A' : profile.engagementScore + '%' }}
+        </span>
         <span class="label">Engagement score</span>
       </div>
       <div class="progress">
-        <div class="bar" style="width: 86%"></div>
+        <div class="bar" [style.width.%]="profile.engagementProgress"></div>
       </div>
       <div class="stat-grid">
         <div>

@@ -69,6 +69,10 @@ CREATE TABLE IF NOT EXISTS tx_employee_profiles (
   background_check TEXT,
   safety_training TEXT,
   work_authorization TEXT,
+  survey_score NUMERIC,
+  checkins_score NUMERIC,
+  participation_score NUMERIC,
+  risk_adjusted_score NUMERIC,
   photo_url TEXT,
   compliance_document_name TEXT,
   next_audit_date DATE,
@@ -93,6 +97,14 @@ ALTER TABLE tx_employee_profiles
   ADD COLUMN IF NOT EXISTS checklist_custom JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE tx_employee_profiles
   ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE tx_employee_profiles
+  ADD COLUMN IF NOT EXISTS survey_score NUMERIC;
+ALTER TABLE tx_employee_profiles
+  ADD COLUMN IF NOT EXISTS checkins_score NUMERIC;
+ALTER TABLE tx_employee_profiles
+  ADD COLUMN IF NOT EXISTS participation_score NUMERIC;
+ALTER TABLE tx_employee_profiles
+  ADD COLUMN IF NOT EXISTS risk_adjusted_score NUMERIC;
 
 CREATE TABLE IF NOT EXISTS tx_training_assignments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
