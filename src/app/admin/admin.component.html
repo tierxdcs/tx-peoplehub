@@ -17,7 +17,7 @@
     </header>
 
     <div class="save-banner" [class.show]="saved" role="status">
-      Changes saved to draft.
+      {{ savedMessage || 'Changes saved to draft.' }}
     </div>
 
     <section class="admin-grid">
