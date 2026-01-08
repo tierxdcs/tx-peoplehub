@@ -321,78 +321,6 @@
   color: var(--ink-600);
 }
 
-.insights .metric-list {
-  display: grid;
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-.metric-list article {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.04);
-}
-
-.metric-list strong {
-  font-size: 1.15rem;
-}
-
-.delta {
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.delta.positive {
-  background: rgba(52, 178, 77, 0.15);
-  color: var(--brand-green);
-}
-
-.delta.negative {
-  background: rgba(239, 68, 68, 0.12);
-  color: #dc2626;
-}
-
-.delta.neutral {
-  background: rgba(148, 163, 184, 0.2);
-  color: var(--ink-600);
-}
-
-.timeline {
-  display: grid;
-  gap: 16px;
-  margin-bottom: 18px;
-}
-
-.timeline > div {
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-}
-
-.time {
-  font-size: 0.8rem;
-  color: var(--ink-500);
-  padding-top: 4px;
-}
-
-.timeline h4 {
-  margin: 0 0 4px;
-  font-size: 0.98rem;
-}
-
-.timeline p {
-  margin: 0;
-  color: var(--ink-600);
-  font-size: 0.9rem;
-}
 
 .full {
   width: 100%;
@@ -463,13 +391,22 @@
   color: var(--ink-900);
 }
 
-.leave-form {
+.leave-form,
+.idea-form {
   display: grid;
   gap: 12px;
+}
+
+.leave-form {
   margin-bottom: 16px;
 }
 
-.leave-form label {
+.idea-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.leave-form label,
+.idea-form label {
   display: grid;
   gap: 8px;
   font-size: 0.85rem;
@@ -478,32 +415,7 @@
 
 .leave-form input,
 .leave-form select,
-.leave-form textarea {
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  padding: 10px 12px;
-  font: inherit;
-  background: #fff;
-  color: var(--ink-900);
-}
-
-.leave-form textarea {
-  resize: vertical;
-}
-
-.idea-form {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.idea-form label {
-  display: grid;
-  gap: 8px;
-  font-size: 0.85rem;
-  color: var(--ink-600);
-}
-
+.leave-form textarea,
 .idea-form input,
 .idea-form select,
 .idea-form textarea {
@@ -515,6 +427,7 @@
   color: var(--ink-900);
 }
 
+.leave-form textarea,
 .idea-form textarea {
   resize: vertical;
 }
