@@ -15,14 +15,21 @@ export class App {
   showChrome = true;
   avatarOpen = false;
   notifications: { message: string; category: string }[] = [];
+  session = {
+    name: 'Alex Taylor',
+    role: 'HR Operations',
+    email: 'hr@tierx.com'
+  };
 
   constructor(private readonly router: Router, private readonly api: ApiService) {}
 
   ngOnInit() {
+    this.loadSession();
     this.loadNotifications();
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
         this.showChrome = !event.urlAfterRedirects.startsWith('/login');
+        this.loadSession();
         this.loadNotifications();
       }
     });
@@ -38,6 +45,7 @@ export class App {
   logout() {
     this.notificationsOpen = false;
     this.avatarOpen = false;
+    localStorage.removeItem('tx-peoplehub-session');
     this.router.navigateByUrl('/login');
   }
 
@@ -79,5 +87,34 @@ export class App {
         this.notifications = [];
       }
     });
+  }
+
+  loadSession() {
+    const raw = localStorage.getItem('tx-peoplehub-session');
+    if (!raw) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as { name?: string; role?: string; email?: string };
+      this.session = {
+        name: parsed.name?.trim() || this.session.name,
+        role: parsed.role?.trim() || this.session.role,
+        email: parsed.email?.trim() || this.session.email
+      };
+    } catch {
+      // Keep defaults if session data is malformed.
+    }
+  }
+
+  get avatarInitials() {
+    const tokens = this.session.name.split(' ').filter(Boolean);
+    if (!tokens.length) {
+      return 'TX';
+    }
+    const initials = tokens
+      .slice(0, 2)
+      .map((token) => token[0]?.toUpperCase() ?? '')
+      .join('');
+    return initials || 'TX';
   }
 }
