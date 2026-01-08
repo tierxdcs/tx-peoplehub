@@ -78,12 +78,29 @@
                   <option>Short answer</option>
                 </select>
               </label>
-              @if (question.type !== 'Short answer') {
+              @if (question.type === 'Multiple choice') {
+                <label>
+                  Correct answers
+                  <div class="options-grid">
+                    @for (option of question.options; track $index) {
+                      <label class="option-check">
+                        <input
+                          type="checkbox"
+                          [checked]="question.correctAnswers?.includes(option)"
+                          (change)="toggleCorrectAnswer(question, option)"
+                        />
+                        {{ option }}
+                      </label>
+                    }
+                  </div>
+                </label>
+              } @else if (question.type !== 'Short answer') {
                 <label>
                   Correct answer
                   <select
-                    [(ngModel)]="question.correctAnswer"
+                    [ngModel]="getSingleCorrectAnswer(question)"
                     name="question-correct-{{ i }}"
+                    (ngModelChange)="setSingleCorrectAnswer(question, $event)"
                   >
                     @for (option of question.options; track $index) {
                       <option [value]="option">{{ option }}</option>
@@ -95,9 +112,10 @@
                   Correct answer
                   <input
                     type="text"
-                    [(ngModel)]="question.correctAnswer"
+                    [ngModel]="getSingleCorrectAnswer(question)"
                     name="question-correct-text-{{ i }}"
                     placeholder="Expected answer"
+                    (ngModelChange)="setSingleCorrectAnswer(question, $event)"
                   />
                 </label>
               }
@@ -208,13 +226,29 @@
                         <option>Short answer</option>
                       </select>
                     </label>
-                    @if (question.type !== 'Short answer') {
+                    @if (question.type === 'Multiple choice') {
+                      <label>
+                        Correct answers
+                        <div class="options-grid">
+                          @for (option of question.options; track $index) {
+                            <label class="option-check">
+                              <input
+                                type="checkbox"
+                                [checked]="question.correctAnswers?.includes(option)"
+                                (change)="toggleCorrectAnswer(question, option, i)"
+                              />
+                              {{ option }}
+                            </label>
+                          }
+                        </div>
+                      </label>
+                    } @else if (question.type !== 'Short answer') {
                       <label>
                         Correct answer
                         <select
-                          [(ngModel)]="question.correctAnswer"
+                          [ngModel]="getSingleCorrectAnswer(question)"
                           name="assigned-question-correct-{{ i }}-{{ qi }}"
-                          (ngModelChange)="saveAssignment(i)"
+                          (ngModelChange)="setSingleCorrectAnswer(question, $event, i)"
                         >
                           @for (option of question.options; track $index) {
                             <option [value]="option">{{ option }}</option>
@@ -226,10 +260,10 @@
                         Correct answer
                         <input
                           type="text"
-                          [(ngModel)]="question.correctAnswer"
+                          [ngModel]="getSingleCorrectAnswer(question)"
                           name="assigned-question-correct-text-{{ i }}-{{ qi }}"
                           placeholder="Expected answer"
-                          (ngModelChange)="saveAssignment(i)"
+                          (ngModelChange)="setSingleCorrectAnswer(question, $event, i)"
                         />
                       </label>
                     }

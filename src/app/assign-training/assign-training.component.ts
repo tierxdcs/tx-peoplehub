@@ -24,7 +24,7 @@ export class AssignTrainingComponent {
         text: '',
         type: 'Multiple choice',
         options: ['Option A', 'Option B', 'Option C'],
-        correctAnswer: 'Option A'
+        correctAnswers: ['Option A']
       }
     ]
   };
@@ -67,7 +67,7 @@ export class AssignTrainingComponent {
           text: question.text,
           type: question.type,
           options: this.normalizeOptions(question.type, question.options),
-          correctAnswer: question.correctAnswer
+          correctAnswers: this.normalizeCorrectAnswers(question)
         })),
         participants: (item.participants ?? []).map((participant) => ({
           name: participant.name,
@@ -110,7 +110,7 @@ export class AssignTrainingComponent {
         text: question.text.trim(),
         type: question.type,
         options: this.normalizeOptions(question.type, question.options),
-        correctAnswer: this.normalizeCorrectAnswer(question)
+        correctAnswers: this.normalizeCorrectAnswers(question)
       })),
       participants
     };
@@ -128,7 +128,7 @@ export class AssignTrainingComponent {
           text: '',
           type: 'Multiple choice',
           options: ['Option A', 'Option B', 'Option C'],
-          correctAnswer: 'Option A'
+          correctAnswers: ['Option A']
         }
       ]
     };
@@ -144,7 +144,7 @@ export class AssignTrainingComponent {
         text: '',
         type: 'Multiple choice',
         options: ['Option A', 'Option B', 'Option C'],
-        correctAnswer: 'Option A'
+        correctAnswers: ['Option A']
       }
     ];
   }
@@ -168,7 +168,7 @@ export class AssignTrainingComponent {
         text: '',
         type: 'Multiple choice',
         options: ['Option A', 'Option B', 'Option C'],
-        correctAnswer: 'Option A'
+        correctAnswers: ['Option A']
       }
     ];
     this.saveAssignment(index);
@@ -207,11 +207,11 @@ export class AssignTrainingComponent {
   }
 
   onQuestionTypeChange(
-    question: { text: string; type: string; options?: string[]; correctAnswer?: string },
+    question: { text: string; type: string; options?: string[]; correctAnswers?: string[]; correctAnswer?: string },
     save = false
   ) {
     question.options = this.normalizeOptions(question.type, question.options);
-    question.correctAnswer = this.normalizeCorrectAnswer(question);
+    question.correctAnswers = this.normalizeCorrectAnswers(question);
     if (save) {
       const index = this.assignments.findIndex((assignment) =>
         assignment.questions.includes(question)
@@ -223,11 +223,11 @@ export class AssignTrainingComponent {
   }
 
   addOption(
-    question: { text: string; type: string; options?: string[]; correctAnswer?: string },
+    question: { text: string; type: string; options?: string[]; correctAnswers?: string[]; correctAnswer?: string },
     save = false
   ) {
     question.options = [...(question.options ?? []), ''];
-    question.correctAnswer = this.normalizeCorrectAnswer(question);
+    question.correctAnswers = this.normalizeCorrectAnswers(question);
     if (save) {
       const index = this.assignments.findIndex((assignment) =>
         assignment.questions.includes(question)
@@ -239,12 +239,12 @@ export class AssignTrainingComponent {
   }
 
   removeOption(
-    question: { text: string; type: string; options?: string[]; correctAnswer?: string },
+    question: { text: string; type: string; options?: string[]; correctAnswers?: string[]; correctAnswer?: string },
     index: number,
     save = false
   ) {
     question.options = (question.options ?? []).filter((_, i) => i !== index);
-    question.correctAnswer = this.normalizeCorrectAnswer(question);
+    question.correctAnswers = this.normalizeCorrectAnswers(question);
     if (save) {
       const assignmentIndex = this.assignments.findIndex((assignment) =>
         assignment.questions.includes(question)
@@ -256,13 +256,13 @@ export class AssignTrainingComponent {
   }
 
   updateOption(
-    question: { text: string; type: string; options?: string[]; correctAnswer?: string },
+    question: { text: string; type: string; options?: string[]; correctAnswers?: string[]; correctAnswer?: string },
     index: number,
     value: string,
     save = false
   ) {
     question.options = (question.options ?? []).map((option, i) => (i === index ? value : option));
-    question.correctAnswer = this.normalizeCorrectAnswer(question);
+    question.correctAnswers = this.normalizeCorrectAnswers(question);
     if (save) {
       const assignmentIndex = this.assignments.findIndex((assignment) =>
         assignment.questions.includes(question)
@@ -283,22 +283,66 @@ export class AssignTrainingComponent {
     return options?.length ? options : ['Option A', 'Option B', 'Option C'];
   }
 
-  normalizeCorrectAnswer(question: {
+  normalizeCorrectAnswers(question: {
     type: string;
     options?: string[];
+    correctAnswers?: string[];
     correctAnswer?: string;
   }) {
     if (question.type === 'Short answer') {
-      return question.correctAnswer ?? '';
+      if (question.correctAnswers?.length) {
+        return question.correctAnswers;
+      }
+      if (question.correctAnswer) {
+        return [question.correctAnswer];
+      }
+      return [''];
     }
     const options = this.normalizeOptions(question.type, question.options);
     if (!options.length) {
-      return '';
+      return [];
     }
-    if (question.correctAnswer && options.includes(question.correctAnswer)) {
-      return question.correctAnswer;
+    const existing =
+      question.correctAnswers ??
+      (question.correctAnswer ? [question.correctAnswer] : []);
+    const filtered = existing.filter((value) => options.includes(value));
+    if (filtered.length) {
+      return filtered;
     }
-    return options[0];
+    return [options[0]];
+  }
+
+  getSingleCorrectAnswer(question: { correctAnswers?: string[] }) {
+    return question.correctAnswers?.[0] ?? '';
+  }
+
+  setSingleCorrectAnswer(
+    question: { correctAnswers?: string[] },
+    value: string,
+    assignmentIndex?: number
+  ) {
+    question.correctAnswers = [value];
+    if (assignmentIndex !== undefined) {
+      this.saveAssignment(assignmentIndex);
+    }
+  }
+
+  toggleCorrectAnswer(
+    question: { type: string; correctAnswers?: string[] },
+    option: string,
+    assignmentIndex?: number
+  ) {
+    const current = question.correctAnswers ?? [];
+    const exists = current.includes(option);
+    question.correctAnswers = exists
+      ? current.filter((value) => value !== option)
+      : [...current, option];
+    if (!question.correctAnswers.length) {
+      question.correctAnswers = [option];
+    }
+    if (assignmentIndex !== undefined) {
+      this.saveAssignment(assignmentIndex);
+    }
   }
 
   countStatus(

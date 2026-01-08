@@ -177,7 +177,7 @@ export class TrainingModuleComponent {
 
   calculateScore(assignment: TrainingAssignment) {
     const responses = this.responses[this.moduleTitle] ?? {};
-    const gradable = assignment.questions.filter((question) => question.correctAnswer !== undefined);
+    const gradable = assignment.questions.filter((question) => question.correctAnswers !== undefined);
     if (!gradable.length) {
       return { score: 0, passed: false };
     }
@@ -186,17 +186,29 @@ export class TrainingModuleComponent {
       if (answer === undefined || answer === null) {
         return count;
       }
-      if (Array.isArray(answer)) {
-        return count + (answer.includes(question.correctAnswer ?? '') ? 1 : 0);
+      const expected = (question.correctAnswers ?? []).filter(Boolean);
+      if (question.type === 'Multiple choice') {
+        const selected = Array.isArray(answer) ? answer : [answer as string];
+        const normalizedSelected = selected.map((value) => value.toString());
+        return count + (this.sameSet(normalizedSelected, expected) ? 1 : 0);
       }
       if (question.type === 'Short answer') {
-        const expected = (question.correctAnswer ?? '').trim().toLowerCase();
-        return count + (answer.toString().trim().toLowerCase() === expected ? 1 : 0);
+        const expectedText = (expected[0] ?? '').trim().toLowerCase();
+        return count + (answer.toString().trim().toLowerCase() === expectedText ? 1 : 0);
       }
-      return count + (answer === question.correctAnswer ? 1 : 0);
+      const expectedValue = expected[0] ?? '';
+      return count + (answer === expectedValue ? 1 : 0);
     }, 0);
     const score = Math.round((correctCount / gradable.length) * 100);
     return { score, passed: score >= this.minScore };
+  }
+
+  sameSet(a: string[], b: string[]) {
+    if (a.length !== b.length) {
+      return false;
+    }
+    const setA = new Set(a);
+    return b.every((value) => setA.has(value));
   }
 
 }
