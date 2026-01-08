@@ -90,7 +90,7 @@ export type TrainingAssignment = {
   dueDate: string;
   completed: number;
   total: number;
-  questions: { text: string; type: string; options?: string[]; correctAnswer?: string }[];
+  questions: { text: string; type: string; options?: string[]; correctAnswers?: string[] }[];
   participants: { name: string; status: TrainingParticipantStatus }[];
 };
 
