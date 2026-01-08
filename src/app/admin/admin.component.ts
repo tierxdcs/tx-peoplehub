@@ -13,6 +13,7 @@ import { ApiService, TeamRecord, UserRecord, EmployeeProfile } from '../services
 })
 export class AdminComponent {
   saved = false;
+  savedMessage = '';
   teams: TeamRecord[] = [];
   userStatus = '';
   taskStatus = '';
@@ -105,8 +106,12 @@ export class AdminComponent {
       const saved = await firstValueFrom(this.api.saveEmployeeProfile(this.adminData as EmployeeProfile));
       this.adminData = { ...this.adminData, ...saved };
       this.saved = true;
+      const name = this.adminData.fullName?.trim() || 'Employee';
+      const employeeId = this.adminData.employeeId?.trim() || 'N/A';
+      this.savedMessage = `Onboarding completed for ${name} (ID: ${employeeId}).`;
     } catch {
       this.saved = false;
+      this.savedMessage = '';
     }
   }
 

@@ -12,6 +12,7 @@ functions/.env
 functions/.runtimeconfig.json
 npm-debug.log
 yarn-error.log
+firebase-debug.log
 
 # IDEs and editors
 .idea/
