@@ -128,7 +128,7 @@ export class AdminComponent {
 
   get managerOptions() {
     const options = this.users
-      .filter((user) => user.role === 'Manager' || user.role === 'Admin' || user.role === 'Superadmin')
+      .filter((user) => user.director === 'Yes')
       .map((user) => user.fullName);
     const fallback = [this.adminData.manager, this.adminData.managerLevel2, this.adminData.managerLevel3]
       .filter((name) => !!name)
