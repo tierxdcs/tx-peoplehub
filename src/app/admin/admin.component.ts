@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { ApiService, DepartmentRecord, UserRecord, EmployeeProfile } from '../services/api.service';
+import { ApiService, TeamRecord, UserRecord, EmployeeProfile } from '../services/api.service';
 
 @Component({
   selector: 'app-admin',
@@ -13,7 +13,7 @@ import { ApiService, DepartmentRecord, UserRecord, EmployeeProfile } from '../se
 })
 export class AdminComponent {
   saved = false;
-  departments: DepartmentRecord[] = [];
+  teams: TeamRecord[] = [];
   userStatus = '';
   taskStatus = '';
   users: UserRecord[] = [];
@@ -33,7 +33,7 @@ export class AdminComponent {
     employeeId: '',
     email: '',
     location: 'Bengaluru',
-    department: 'Operations',
+    department: '',
     startDate: '',
     jobTitle: '',
     manager: '',
@@ -83,7 +83,7 @@ export class AdminComponent {
   constructor(private readonly api: ApiService) {}
 
   async ngOnInit() {
-    await Promise.all([this.loadDepartments(), this.loadUsers(), this.loadProfile()]);
+    await Promise.all([this.loadTeams(), this.loadUsers(), this.loadProfile()]);
   }
 
   async save(event: Event) {
@@ -136,11 +136,14 @@ export class AdminComponent {
     return Array.from(new Set([...options, ...fallback]));
   }
 
-  async loadDepartments() {
+  async loadTeams() {
     try {
-      this.departments = await firstValueFrom(this.api.getDepartments());
+      this.teams = await firstValueFrom(this.api.getTeams());
+      if (!this.adminData.department && this.teams.length) {
+        this.adminData.department = this.teams[0].name;
+      }
     } catch {
-      this.departments = [];
+      this.teams = [];
     }
   }
 
@@ -157,6 +160,9 @@ export class AdminComponent {
       const profile = await firstValueFrom(this.api.getEmployeeProfile());
       if (profile) {
         this.adminData = { ...this.adminData, ...profile };
+        if (!this.adminData.department && this.teams.length) {
+          this.adminData.department = this.teams[0].name;
+        }
       }
     } catch {
       return;

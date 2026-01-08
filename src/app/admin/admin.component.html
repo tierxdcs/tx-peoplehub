@@ -81,15 +81,12 @@
             required
             [(ngModel)]="adminData.department"
           >
-            @if (departments.length) {
-              @for (department of departments; track department.name) {
-                <option [value]="department.name">{{ department.name }}</option>
+            @if (teams.length) {
+              @for (team of teams; track team.id) {
+                <option [value]="team.name">{{ team.name }}</option>
               }
             } @else {
-              <option>Operations</option>
-              <option>Facilities</option>
-              <option>Security</option>
-              <option>HR</option>
+              <option value="">No teams created yet</option>
             }
           </select>
         </label>
