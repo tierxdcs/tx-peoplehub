@@ -108,7 +108,31 @@ export class AdminComponent {
       this.saved = true;
       const name = this.adminData.fullName?.trim() || 'Employee';
       const employeeId = this.adminData.employeeId?.trim() || 'N/A';
-      this.savedMessage = `Onboarding completed for ${name} (ID: ${employeeId}).`;
+      let accessNote = '';
+      if (this.adminData.fullName && this.adminData.email) {
+        try {
+          const userPayload = {
+            fullName: this.adminData.fullName.trim(),
+            email: this.adminData.email.trim(),
+            department: this.adminData.department,
+            role: this.adminData.role as 'Employee' | 'Manager' | 'Admin' | 'Superadmin',
+            status: this.adminData.status === 'Separated' ? 'Deactivated' : 'Active',
+            director: this.adminData.director,
+            password: this.createPassword || undefined
+          };
+          const userSaved = await firstValueFrom(this.api.createUser(userPayload));
+          const existsIndex = this.users.findIndex((user) => user.email === userSaved.email);
+          if (existsIndex >= 0) {
+            this.users = this.users.map((user, index) => (index === existsIndex ? userSaved : user));
+          } else {
+            this.users = [userSaved, ...this.users];
+          }
+          accessNote = ' Access granted.';
+        } catch {
+          accessNote = '';
+        }
+      }
+      this.savedMessage = `Onboarding completed for ${name} (ID: ${employeeId}).${accessNote}`;
     } catch {
       this.saved = false;
       this.savedMessage = '';
