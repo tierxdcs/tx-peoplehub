@@ -1,41 +1,102 @@
 import { Routes } from '@angular/router';
 import { HomeComponent } from './home/home.component';
-import { PeopleProfileComponent } from './people-profile/people-profile.component';
-import { AdminComponent } from './admin/admin.component';
-import { ScorecardComponent } from './scorecard/scorecard.component';
-import { SettingsComponent } from './settings/settings.component';
-import { PeopleDirectoryComponent } from './people-directory/people-directory.component';
-import { TasksComponent } from './tasks/tasks.component';
-import { FinancialsComponent } from './financials/financials.component';
-import { PerformanceComponent } from './performance/performance.component';
-import { ReimbursementComponent } from './reimbursement/reimbursement.component';
-import { ReimbursementFormComponent } from './reimbursement-form/reimbursement-form.component';
-import { ComplianceTrainingComponent } from './compliance-training/compliance-training.component';
-import { AssignTrainingComponent } from './assign-training/assign-training.component';
-import { TrainingModuleComponent } from './training-module/training-module.component';
-import { LoginComponent } from './login/login.component';
-import { WorkforcePlanningComponent } from './workforce-planning/workforce-planning.component';
-import { ApprovalsComponent } from './approvals/approvals.component';
-import { OrgStructureComponent } from './org-structure/org-structure.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
-  { path: 'people', component: PeopleDirectoryComponent },
-  { path: 'financials', component: FinancialsComponent },
-  { path: 'tasks', component: TasksComponent },
-  { path: 'reimbursement', component: ReimbursementComponent },
-  { path: 'reimbursement/new', component: ReimbursementFormComponent },
-  { path: 'performance', component: PerformanceComponent },
-  { path: 'compliance-training', component: ComplianceTrainingComponent },
-  { path: 'compliance-training/:title', component: TrainingModuleComponent },
-  { path: 'admin/assign-training', component: AssignTrainingComponent },
-  { path: 'login', component: LoginComponent },
-  { path: 'workforce-planning', component: WorkforcePlanningComponent },
-  { path: 'approvals', component: ApprovalsComponent },
-  { path: 'org-structure', component: OrgStructureComponent },
-  { path: 'people/:id', component: PeopleProfileComponent },
-  { path: 'people/:id/scorecard', component: ScorecardComponent },
-  { path: 'admin', component: AdminComponent },
-  { path: 'settings', component: SettingsComponent },
+  {
+    path: 'people',
+    loadComponent: () =>
+      import('./people-directory/people-directory.component').then(
+        (m) => m.PeopleDirectoryComponent
+      )
+  },
+  {
+    path: 'financials',
+    loadComponent: () =>
+      import('./financials/financials.component').then((m) => m.FinancialsComponent)
+  },
+  {
+    path: 'tasks',
+    loadComponent: () => import('./tasks/tasks.component').then((m) => m.TasksComponent)
+  },
+  {
+    path: 'reimbursement',
+    loadComponent: () =>
+      import('./reimbursement/reimbursement.component').then((m) => m.ReimbursementComponent)
+  },
+  {
+    path: 'reimbursement/new',
+    loadComponent: () =>
+      import('./reimbursement-form/reimbursement-form.component').then(
+        (m) => m.ReimbursementFormComponent
+      )
+  },
+  {
+    path: 'performance',
+    loadComponent: () =>
+      import('./performance/performance.component').then((m) => m.PerformanceComponent)
+  },
+  {
+    path: 'compliance-training',
+    loadComponent: () =>
+      import('./compliance-training/compliance-training.component').then(
+        (m) => m.ComplianceTrainingComponent
+      )
+  },
+  {
+    path: 'compliance-training/:title',
+    loadComponent: () =>
+      import('./training-module/training-module.component').then(
+        (m) => m.TrainingModuleComponent
+      )
+  },
+  {
+    path: 'admin/assign-training',
+    loadComponent: () =>
+      import('./assign-training/assign-training.component').then(
+        (m) => m.AssignTrainingComponent
+      )
+  },
+  {
+    path: 'login',
+    loadComponent: () => import('./login/login.component').then((m) => m.LoginComponent)
+  },
+  {
+    path: 'workforce-planning',
+    loadComponent: () =>
+      import('./workforce-planning/workforce-planning.component').then(
+        (m) => m.WorkforcePlanningComponent
+      )
+  },
+  {
+    path: 'approvals',
+    loadComponent: () =>
+      import('./approvals/approvals.component').then((m) => m.ApprovalsComponent)
+  },
+  {
+    path: 'org-structure',
+    loadComponent: () =>
+      import('./org-structure/org-structure.component').then((m) => m.OrgStructureComponent)
+  },
+  {
+    path: 'people/:id',
+    loadComponent: () =>
+      import('./people-profile/people-profile.component').then(
+        (m) => m.PeopleProfileComponent
+      )
+  },
+  {
+    path: 'people/:id/scorecard',
+    loadComponent: () =>
+      import('./scorecard/scorecard.component').then((m) => m.ScorecardComponent)
+  },
+  {
+    path: 'admin',
+    loadComponent: () => import('./admin/admin.component').then((m) => m.AdminComponent)
+  },
+  {
+    path: 'settings',
+    loadComponent: () => import('./settings/settings.component').then((m) => m.SettingsComponent)
+  },
   { path: '**', redirectTo: '' }
 ];
