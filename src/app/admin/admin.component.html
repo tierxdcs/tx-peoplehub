@@ -118,8 +118,8 @@
       </div>
       <div class="user-create">
         <div>
-          <strong>{{ adminData.fullName || 'Employee profile' }}</strong>
-          <span>{{ adminData.email || 'Add a profile to create a user' }}</span>
+          <strong>{{ adminData.fullName }}</strong>
+          <span>{{ adminData.email }}</span>
         </div>
         <div class="user-create-actions">
           <select [(ngModel)]="adminData.role" name="createRole">
