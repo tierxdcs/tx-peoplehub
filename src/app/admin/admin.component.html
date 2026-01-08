@@ -108,6 +108,20 @@
             <option>Superadmin</option>
           </select>
         </label>
+        <label>
+          Temporary password
+          <input
+            type="password"
+            name="profilePassword"
+            placeholder="Set initial password"
+            [(ngModel)]="createPassword"
+          />
+        </label>
+        <div class="form-actions">
+          <button class="primary" type="button" (click)="createUserFromProfile()">
+            Create user
+          </button>
+        </div>
       </div>
     </article>
 
