@@ -113,13 +113,18 @@
       }
       @if (teams.length) {
         <div class="team-list">
-          @for (team of teams; track team.id) {
+          @for (team of teams; track team.id; let i = $index) {
             <div class="team-row">
               <div>
                 <strong>{{ team.name }}</strong>
                 <span>{{ team.head }}</span>
               </div>
-              <span class="pill">{{ team.peopleCount }} people</span>
+              <div class="team-actions">
+                <span class="pill">{{ team.peopleCount }} people</span>
+                <button class="ghost small" type="button" (click)="removeTeam(i)">
+                  Delete
+                </button>
+              </div>
             </div>
           }
         </div>

@@ -93,4 +93,22 @@ export class SettingsComponent {
         this.teamStatus = 'Unable to create team.';
       });
   }
+
+  removeTeam(index: number) {
+    const target = this.teams[index];
+    if (!target) {
+      return;
+    }
+    const confirmed = window.confirm(`Delete ${target.name}? This cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+    firstValueFrom(this.api.deleteTeam(target.id))
+      .then(() => {
+        this.teams = this.teams.filter((_, i) => i !== index);
+      })
+      .catch(() => {
+        this.teamStatus = 'Unable to delete team.';
+      });
+  }
 }

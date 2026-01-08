@@ -148,6 +148,16 @@ app.post('/api/teams', async (req, res) => {
   }
 });
 
+app.delete('/api/teams/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await getPoolInstance().query('DELETE FROM tx_teams WHERE id = $1', [id]);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to delete team' });
+  }
+});
+
 app.get('/api/employee-profiles', async (_req, res) => {
   try {
     const result = await getPoolInstance().query(
