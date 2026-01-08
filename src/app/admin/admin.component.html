@@ -655,6 +655,54 @@
             }
           </select>
         </div>
+        @for (item of adminData.checklistCustom; track item.title + '-' + $index) {
+          <div class="checklist-row">
+            <label>
+              <input
+                type="checkbox"
+                name="checklistCustomDone-{{ $index }}"
+                [(ngModel)]="item.done"
+              />
+              {{ item.title }}
+            </label>
+            <select
+              name="checklistCustomOwner-{{ $index }}"
+              required
+              [(ngModel)]="item.owner"
+            >
+              <option value="" disabled>Select manager</option>
+              @for (manager of managerOptions; track manager) {
+                <option [value]="manager">{{ manager }}</option>
+              }
+            </select>
+            <button class="ghost small" type="button" (click)="removeChecklistItem($index)">
+              Remove
+            </button>
+          </div>
+        }
+        <div class="checklist-row">
+          <label>
+            Task name
+            <input
+              type="text"
+              name="checklistNewTitle"
+              placeholder="Add onboarding task"
+              [(ngModel)]="newChecklistItem.title"
+            />
+          </label>
+          <select
+            name="checklistNewOwner"
+            [(ngModel)]="newChecklistItem.owner"
+          >
+            <option value="" disabled>Select manager</option>
+            @for (manager of managerOptions; track manager) {
+              <option [value]="manager">{{ manager }}</option>
+            }
+          </select>
+          <button class="ghost small" type="button" (click)="addChecklistItem()">
+            Add task
+          </button>
+        </div>
       </div>
       <button class="ghost full" type="button" (click)="assignTasks()">Assign tasks</button>
       @if (taskStatus) {

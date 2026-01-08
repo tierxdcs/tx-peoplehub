@@ -73,12 +73,14 @@ export class AdminComponent {
     checklistBadges: false,
     checklistOrientation: false,
     checklistBusinessCard: false,
+    checklistCustom: [] as { title: string; owner: string; done: boolean }[],
     checklistOfferOwner: '',
     checklistEquipmentOwner: '',
     checklistBadgesOwner: '',
     checklistOrientationOwner: '',
     checklistBusinessCardOwner: ''
   };
+  newChecklistItem = { title: '', owner: '' };
 
   constructor(private readonly api: ApiService) {}
 
@@ -313,8 +315,13 @@ export class AdminComponent {
         owner: this.adminData.checklistBusinessCardOwner
       }
     ];
+    const customTasks = this.adminData.checklistCustom.map((item) => ({
+      key: item.title,
+      owner: item.owner
+    }));
     const payload = tasks
       .filter((task) => task.owner)
+      .concat(customTasks.filter((task) => task.owner && task.key))
       .map((task) => ({
         title: `Onboarding: ${task.key}`,
         owner: task.owner as string,
@@ -333,5 +340,22 @@ export class AdminComponent {
     } catch {
       this.taskStatus = 'Unable to assign tasks.';
     }
+  }
+
+  addChecklistItem() {
+    const title = this.newChecklistItem.title.trim();
+    const owner = this.newChecklistItem.owner.trim();
+    if (!title || !owner) {
+      return;
+    }
+    this.adminData.checklistCustom = [
+      ...this.adminData.checklistCustom,
+      { title, owner, done: false }
+    ];
+    this.newChecklistItem = { title: '', owner: '' };
+  }
+
+  removeChecklistItem(index: number) {
+    this.adminData.checklistCustom = this.adminData.checklistCustom.filter((_, i) => i !== index);
   }
 }

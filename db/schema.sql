@@ -81,12 +81,15 @@ CREATE TABLE IF NOT EXISTS tx_employee_profiles (
   checklist_badges_owner TEXT,
   checklist_orientation_owner TEXT,
   checklist_business_card_owner TEXT,
+  checklist_custom JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE tx_employee_profiles
   ADD COLUMN IF NOT EXISTS role TEXT;
+ALTER TABLE tx_employee_profiles
+  ADD COLUMN IF NOT EXISTS checklist_custom JSONB DEFAULT '[]'::jsonb;
 
 CREATE TABLE IF NOT EXISTS tx_training_assignments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

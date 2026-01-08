@@ -74,6 +74,7 @@ export type EmployeeProfile = {
   checklistBadges: boolean;
   checklistOrientation: boolean;
   checklistBusinessCard: boolean;
+  checklistCustom: { title: string; owner: string; done: boolean }[];
   checklistOfferOwner: string;
   checklistEquipmentOwner: string;
   checklistBadgesOwner: string;
@@ -461,6 +462,7 @@ export class ApiService {
       checklistBadges: row.checklist_badges ?? false,
       checklistOrientation: row.checklist_orientation ?? false,
       checklistBusinessCard: row.checklist_business_card ?? false,
+      checklistCustom: Array.isArray(row.checklist_custom) ? row.checklist_custom : [],
       checklistOfferOwner: row.checklist_offer_owner ?? '',
       checklistEquipmentOwner: row.checklist_equipment_owner ?? '',
       checklistBadgesOwner: row.checklist_badges_owner ?? '',
