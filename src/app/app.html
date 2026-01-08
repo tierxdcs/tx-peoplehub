@@ -48,13 +48,13 @@
           </div>
         }
         <button class="avatar" type="button" aria-label="Account" (click)="toggleAvatarMenu()">
-          AT
+          {{ avatarInitials }}
         </button>
         @if (avatarOpen) {
           <div class="account-panel" role="dialog" aria-label="Account options">
             <div class="account-header">
-              <strong>Alex Taylor</strong>
-              <span>HR Operations</span>
+              <strong>{{ session.name }}</strong>
+              <span>{{ session.role }}</span>
             </div>
             <div class="account-actions">
               <a class="ghost button-link" routerLink="/people/current">My profile</a>
