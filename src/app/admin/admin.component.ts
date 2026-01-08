@@ -32,7 +32,7 @@ export class AdminComponent {
     fullName: '',
     employeeId: '',
     email: '',
-    location: 'Austin, TX',
+    location: 'Bengaluru',
     department: 'Operations',
     startDate: '',
     jobTitle: '',
