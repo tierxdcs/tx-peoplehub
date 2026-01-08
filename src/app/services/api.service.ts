@@ -90,7 +90,7 @@ export type TrainingAssignment = {
   dueDate: string;
   completed: number;
   total: number;
-  questions: { text: string; type: string; options?: string[] }[];
+  questions: { text: string; type: string; options?: string[]; correctAnswer?: string }[];
   participants: { name: string; status: TrainingParticipantStatus }[];
 };
 
@@ -99,6 +99,8 @@ export type TrainingResponse = {
   assignmentId: string;
   employee: string;
   responses: Record<number, string | string[]>;
+  score: number | null;
+  passed: boolean;
   submittedAt: string;
 };
 
@@ -281,6 +283,8 @@ export class ApiService {
     assignmentId: string;
     employee: string;
     responses: Record<number, string | string[]>;
+    score?: number | null;
+    passed?: boolean;
   }): Observable<TrainingResponse> {
     return this.http.post<TrainingResponse>(`${this.baseUrl}/training-responses`, payload).pipe(
       map((row) => this.mapTrainingResponse(row))
@@ -491,6 +495,8 @@ export class ApiService {
       assignmentId: row.assignment_id ?? row.assignmentId,
       employee: row.employee ?? '',
       responses: row.responses ?? {},
+      score: row.score !== undefined && row.score !== null ? Number(row.score) : null,
+      passed: row.passed ?? false,
       submittedAt: row.submitted_at ?? row.submittedAt ?? ''
     };
   }

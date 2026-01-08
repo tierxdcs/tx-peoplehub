@@ -22,6 +22,8 @@ export class TrainingModuleComponent {
   readonly trueFalseOptions = ['True', 'False'];
   private assignment: TrainingAssignment | null = null;
   private employeeName = 'Employee';
+  scorePercent = 0;
+  minScore = 80;
 
   constructor(private readonly route: ActivatedRoute, private readonly api: ApiService) {}
 
@@ -67,8 +69,12 @@ export class TrainingModuleComponent {
         })
       );
       if (responses.length) {
-        this.submitted = true;
-        this.responses[this.moduleTitle] = responses[0]?.responses ?? {};
+        const last = responses[0];
+        if (last.passed) {
+          this.submitted = true;
+        }
+        this.scorePercent = last.score ?? 0;
+        this.responses[this.moduleTitle] = last.responses ?? {};
       }
     } catch {
       return;
@@ -121,10 +127,19 @@ export class TrainingModuleComponent {
       return;
     }
     const assignment = this.assignment;
+    const { score, passed } = this.calculateScore(assignment);
+    this.scorePercent = score;
+    if (!passed) {
+      this.status = `Score ${score}% - minimum ${this.minScore}% required to pass.`;
+      return;
+    }
+
     const responsePayload = {
       assignmentId: assignment.id,
       employee: this.employeeName,
-      responses: this.responses[this.moduleTitle] ?? {}
+      responses: this.responses[this.moduleTitle] ?? {},
+      score,
+      passed
     };
     firstValueFrom(this.api.createTrainingResponse(responsePayload))
       .then(() => {
@@ -158,6 +173,30 @@ export class TrainingModuleComponent {
       .catch(() => {
         this.status = 'Unable to submit module.';
       });
+  }
+
+  calculateScore(assignment: TrainingAssignment) {
+    const responses = this.responses[this.moduleTitle] ?? {};
+    const gradable = assignment.questions.filter((question) => question.correctAnswer !== undefined);
+    if (!gradable.length) {
+      return { score: 0, passed: false };
+    }
+    const correctCount = gradable.reduce((count, question, index) => {
+      const answer = responses[index];
+      if (answer === undefined || answer === null) {
+        return count;
+      }
+      if (Array.isArray(answer)) {
+        return count + (answer.includes(question.correctAnswer ?? '') ? 1 : 0);
+      }
+      if (question.type === 'Short answer') {
+        const expected = (question.correctAnswer ?? '').trim().toLowerCase();
+        return count + (answer.toString().trim().toLowerCase() === expected ? 1 : 0);
+      }
+      return count + (answer === question.correctAnswer ? 1 : 0);
+    }, 0);
+    const score = Math.round((correctCount / gradable.length) * 100);
+    return { score, passed: score >= this.minScore };
   }
 
 }

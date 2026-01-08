@@ -78,6 +78,29 @@
                   <option>Short answer</option>
                 </select>
               </label>
+              @if (question.type !== 'Short answer') {
+                <label>
+                  Correct answer
+                  <select
+                    [(ngModel)]="question.correctAnswer"
+                    name="question-correct-{{ i }}"
+                  >
+                    @for (option of question.options; track $index) {
+                      <option [value]="option">{{ option }}</option>
+                    }
+                  </select>
+                </label>
+              } @else {
+                <label>
+                  Correct answer
+                  <input
+                    type="text"
+                    [(ngModel)]="question.correctAnswer"
+                    name="question-correct-text-{{ i }}"
+                    placeholder="Expected answer"
+                  />
+                </label>
+              }
               <button class="ghost small" type="button" (click)="removeQuestion(i)">
                 Remove
               </button>
@@ -185,6 +208,31 @@
                         <option>Short answer</option>
                       </select>
                     </label>
+                    @if (question.type !== 'Short answer') {
+                      <label>
+                        Correct answer
+                        <select
+                          [(ngModel)]="question.correctAnswer"
+                          name="assigned-question-correct-{{ i }}-{{ qi }}"
+                          (ngModelChange)="saveAssignment(i)"
+                        >
+                          @for (option of question.options; track $index) {
+                            <option [value]="option">{{ option }}</option>
+                          }
+                        </select>
+                      </label>
+                    } @else {
+                      <label>
+                        Correct answer
+                        <input
+                          type="text"
+                          [(ngModel)]="question.correctAnswer"
+                          name="assigned-question-correct-text-{{ i }}-{{ qi }}"
+                          placeholder="Expected answer"
+                          (ngModelChange)="saveAssignment(i)"
+                        />
+                      </label>
+                    }
                     <button
                       class="ghost small"
                       type="button"

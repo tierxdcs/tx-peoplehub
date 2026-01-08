@@ -359,13 +359,13 @@ app.put('/api/training-assignments/:id', async (req, res) => {
 });
 
 app.post('/api/training-responses', async (req, res) => {
-  const { assignmentId, employee, responses } = req.body;
+  const { assignmentId, employee, responses, score, passed } = req.body;
   try {
     const result = await getPoolInstance().query(
-      `INSERT INTO tx_training_responses (assignment_id, employee, responses)
-       VALUES ($1, $2, $3)
+      `INSERT INTO tx_training_responses (assignment_id, employee, responses, score, passed)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [assignmentId, employee, responses]
+      [assignmentId, employee, responses, score ?? null, passed ?? false]
     );
     res.json(result.rows[0]);
   } catch (error) {
