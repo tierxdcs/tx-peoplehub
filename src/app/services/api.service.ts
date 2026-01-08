@@ -174,7 +174,10 @@ export type CompletedApproval = {
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
-  private readonly baseUrl = '/api';
+  private readonly baseUrl =
+    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'https://tierx-peoplehub.web.app/api'
+      : '/api';
 
   constructor(private readonly http: HttpClient) {}
 
