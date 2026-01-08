@@ -121,7 +121,7 @@
                           @if (question.type === 'Multiple choice') {
                             <input
                               type="checkbox"
-                              [checked]="question.correctAnswers?.includes(option)"
+                              [checked]="question.correctAnswers.includes(option)"
                               (change)="toggleCorrectAnswer(question, option)"
                             />
                           }
@@ -270,7 +270,7 @@
                                 @if (question.type === 'Multiple choice') {
                                   <input
                                     type="checkbox"
-                                    [checked]="question.correctAnswers?.includes(option)"
+                                    [checked]="question.correctAnswers.includes(option)"
                                     (change)="toggleCorrectAnswer(question, option, i)"
                                   />
                                 }
