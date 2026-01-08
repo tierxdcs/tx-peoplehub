@@ -78,23 +78,7 @@
                   <option>Short answer</option>
                 </select>
               </label>
-              @if (question.type === 'Multiple choice') {
-                <label>
-                  Correct answers
-                  <div class="options-grid">
-                    @for (option of question.options; track $index) {
-                      <label class="option-check">
-                        <input
-                          type="checkbox"
-                          [checked]="question.correctAnswers?.includes(option)"
-                          (change)="toggleCorrectAnswer(question, option)"
-                        />
-                        {{ option }}
-                      </label>
-                    }
-                  </div>
-                </label>
-              } @else if (question.type !== 'Short answer') {
+              @if (question.type !== 'Short answer' && question.type !== 'Multiple choice') {
                 <label>
                   Correct answer
                   <select
@@ -133,13 +117,22 @@
                   <div class="options-grid">
                     @for (option of question.options; track $index; let oi = $index) {
                       <div class="option-row">
-                        <input
-                          type="text"
-                          [ngModel]="option"
-                          name="question-option-{{ i }}-{{ oi }}"
-                          placeholder="Option label"
-                          (ngModelChange)="updateOption(question, oi, $event)"
-                        />
+                        <label class="option-check">
+                          @if (question.type === 'Multiple choice') {
+                            <input
+                              type="checkbox"
+                              [checked]="question.correctAnswers?.includes(option)"
+                              (change)="toggleCorrectAnswer(question, option)"
+                            />
+                          }
+                          <input
+                            type="text"
+                            [ngModel]="option"
+                            name="question-option-{{ i }}-{{ oi }}"
+                            placeholder="Option label"
+                            (ngModelChange)="updateOption(question, oi, $event)"
+                          />
+                        </label>
                         <button
                           class="ghost small"
                           type="button"
@@ -226,23 +219,7 @@
                         <option>Short answer</option>
                       </select>
                     </label>
-                    @if (question.type === 'Multiple choice') {
-                      <label>
-                        Correct answers
-                        <div class="options-grid">
-                          @for (option of question.options; track $index) {
-                            <label class="option-check">
-                              <input
-                                type="checkbox"
-                                [checked]="question.correctAnswers?.includes(option)"
-                                (change)="toggleCorrectAnswer(question, option, i)"
-                              />
-                              {{ option }}
-                            </label>
-                          }
-                        </div>
-                      </label>
-                    } @else if (question.type !== 'Short answer') {
+                    @if (question.type !== 'Short answer' && question.type !== 'Multiple choice') {
                       <label>
                         Correct answer
                         <select
@@ -289,13 +266,22 @@
                         <div class="options-grid">
                           @for (option of question.options; track $index; let oi = $index) {
                             <div class="option-row">
-                              <input
-                                type="text"
-                                [ngModel]="option"
-                                name="assigned-question-option-{{ i }}-{{ qi }}-{{ oi }}"
-                                placeholder="Option label"
-                                (ngModelChange)="updateOption(question, oi, $event, true)"
-                              />
+                              <label class="option-check">
+                                @if (question.type === 'Multiple choice') {
+                                  <input
+                                    type="checkbox"
+                                    [checked]="question.correctAnswers?.includes(option)"
+                                    (change)="toggleCorrectAnswer(question, option, i)"
+                                  />
+                                }
+                                <input
+                                  type="text"
+                                  [ngModel]="option"
+                                  name="assigned-question-option-{{ i }}-{{ qi }}-{{ oi }}"
+                                  placeholder="Option label"
+                                  (ngModelChange)="updateOption(question, oi, $event, true)"
+                                />
+                              </label>
                               <button
                                 class="ghost small"
                                 type="button"
