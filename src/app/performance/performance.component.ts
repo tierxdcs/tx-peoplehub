@@ -9,24 +9,6 @@ import { RouterLink } from '@angular/router';
   styleUrl: './performance.component.scss'
 })
 export class PerformanceComponent {
-  reviews = [
-    {
-      name: 'Nithin Gangadhar',
-      cycle: 'Q4 2025',
-      status: 'In review',
-      due: 'Jan 28'
-    },
-    {
-      name: 'Jessie Moore',
-      cycle: 'Q4 2025',
-      status: 'Draft',
-      due: 'Jan 30'
-    },
-    {
-      name: 'Iman Shah',
-      cycle: 'Q4 2025',
-      status: 'Submitted',
-      due: 'Completed'
-    }
-  ];
+  reviews: { name: string; cycle: string; status: string; due: string }[] = [];
+  goals: { title: string; progress: number }[] = [];
 }

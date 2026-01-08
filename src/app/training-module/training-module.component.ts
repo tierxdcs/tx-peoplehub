@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService, TrainingAssignment } from '../services/api.service';
 
 @Component({
   selector: 'app-training-module',
@@ -10,9 +12,6 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
   styleUrl: './training-module.component.scss'
 })
 export class TrainingModuleComponent {
-  private readonly assignmentsKey = 'tx-peoplehub-assigned-training';
-  private readonly responsesKey = 'tx-peoplehub-training-responses';
-  private readonly statusKey = 'tx-peoplehub-training-status';
   moduleTitle = '';
   moduleDue = '';
   questions: { text: string; type: string; options?: string[] }[] = [];
@@ -21,10 +20,12 @@ export class TrainingModuleComponent {
   responses: Record<string, Record<number, string | string[]>> = {};
   readonly options = ['Option A', 'Option B', 'Option C'];
   readonly trueFalseOptions = ['True', 'False'];
+  private assignment: TrainingAssignment | null = null;
+  private employeeName = 'Employee';
 
-  constructor(private readonly route: ActivatedRoute) {}
+  constructor(private readonly route: ActivatedRoute, private readonly api: ApiService) {}
 
-  ngOnInit() {
+  async ngOnInit() {
     const rawTitle = this.route.snapshot.paramMap.get('title') ?? '';
     this.moduleTitle = decodeURIComponent(rawTitle);
     if (!this.moduleTitle) {
@@ -32,70 +33,46 @@ export class TrainingModuleComponent {
       return;
     }
 
-    this.loadAssignments();
-    this.loadResponses();
-    this.loadStatus();
+    const profile = await firstValueFrom(this.api.getEmployeeProfile());
+    this.employeeName = profile?.fullName ?? 'Employee';
+    await this.loadAssignments();
+    await this.loadStatus();
   }
 
-  loadAssignments() {
-    const stored = localStorage.getItem(this.assignmentsKey);
-    if (!stored) {
-      this.status = 'Training module not found.';
-      return;
-    }
+  async loadAssignments() {
     try {
-      const parsed = JSON.parse(stored) as {
-        title: string;
-        dueDate: string;
-        questions?: { text: string; type: string; options?: string[] }[];
-      }[];
-      const match = Array.isArray(parsed)
-        ? parsed.find((assignment) => assignment.title === this.moduleTitle)
-        : undefined;
+      const assignments = await firstValueFrom(this.api.getTrainingAssignments());
+      const match = assignments.find((assignment) => assignment.title === this.moduleTitle);
       if (!match) {
         this.status = 'Training module not found.';
         return;
       }
+      this.assignment = match;
       this.moduleDue = match.dueDate;
       this.questions = match.questions ?? [];
     } catch {
-      localStorage.removeItem(this.assignmentsKey);
       this.status = 'Training module not found.';
     }
   }
 
-  loadStatus() {
-    const stored = localStorage.getItem(this.statusKey);
-    if (!stored) {
+  async loadStatus() {
+    if (!this.assignment) {
       return;
     }
     try {
-      const parsed = JSON.parse(stored) as Record<string, { completed: boolean }>;
-      if (parsed?.[this.moduleTitle]?.completed) {
+      const responses = await firstValueFrom(
+        this.api.getTrainingResponses({
+          assignmentId: this.assignment.id,
+          employee: this.employeeName
+        })
+      );
+      if (responses.length) {
         this.submitted = true;
+        this.responses[this.moduleTitle] = responses[0]?.responses ?? {};
       }
     } catch {
-      localStorage.removeItem(this.statusKey);
-    }
-  }
-
-  loadResponses() {
-    const stored = localStorage.getItem(this.responsesKey);
-    if (!stored) {
       return;
     }
-    try {
-      const parsed = JSON.parse(stored) as Record<string, Record<number, string | string[]>>;
-      if (parsed && typeof parsed === 'object') {
-        this.responses = parsed;
-      }
-    } catch {
-      localStorage.removeItem(this.responsesKey);
-    }
-  }
-
-  saveResponses() {
-    localStorage.setItem(this.responsesKey, JSON.stringify(this.responses));
   }
 
   setResponse(index: number, value: string) {
@@ -103,7 +80,6 @@ export class TrainingModuleComponent {
       ...(this.responses[this.moduleTitle] ?? {}),
       [index]: value
     };
-    this.saveResponses();
   }
 
   getSingleResponse(index: number) {
@@ -120,7 +96,6 @@ export class TrainingModuleComponent {
       ...(this.responses[this.moduleTitle] ?? {}),
       [index]: updated
     };
-    this.saveResponses();
   }
 
   isMultiSelected(index: number, option: string) {
@@ -139,23 +114,50 @@ export class TrainingModuleComponent {
   }
 
   submitModule() {
-    if (!this.moduleTitle) {
+    if (!this.moduleTitle || !this.assignment) {
       return;
     }
-    const stored = localStorage.getItem(this.statusKey);
-    let statusMap: Record<string, { completed: boolean; completedAt: string }>;
-    try {
-      statusMap = stored ? JSON.parse(stored) : {};
-    } catch {
-      statusMap = {};
+    if (this.submitted) {
+      return;
     }
-    statusMap[this.moduleTitle] = {
-      completed: true,
-      completedAt: new Date().toISOString()
+    const assignment = this.assignment;
+    const responsePayload = {
+      assignmentId: assignment.id,
+      employee: this.employeeName,
+      responses: this.responses[this.moduleTitle] ?? {}
     };
-    localStorage.setItem(this.statusKey, JSON.stringify(statusMap));
-    this.submitted = true;
-    this.status = 'Module submitted.';
+    firstValueFrom(this.api.createTrainingResponse(responsePayload))
+      .then(() => {
+        const participants = Array.isArray(assignment.participants)
+          ? [...assignment.participants]
+          : [];
+        const existingIndex = participants.findIndex(
+          (participant) => participant.name === this.employeeName
+        );
+        if (existingIndex >= 0) {
+          participants[existingIndex] = { ...participants[existingIndex], status: 'Completed' };
+        } else {
+          participants.push({ name: this.employeeName, status: 'Completed' });
+        }
+        const completed = participants.filter((participant) => participant.status === 'Completed')
+          .length;
+        const total = assignment.total || participants.length;
+        return firstValueFrom(
+          this.api.updateTrainingAssignment(assignment.id, {
+            questions: assignment.questions,
+            participants,
+            completed,
+            total
+          })
+        );
+      })
+      .then(() => {
+        this.submitted = true;
+        this.status = 'Module submitted.';
+      })
+      .catch(() => {
+        this.status = 'Unable to submit module.';
+      });
   }
 
 }

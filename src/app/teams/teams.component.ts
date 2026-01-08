@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService, TeamRecord, UserRecord } from '../services/api.service';
 
 @Component({
   selector: 'app-teams',
@@ -10,58 +12,13 @@ import { RouterLink } from '@angular/router';
   styleUrl: './teams.component.scss'
 })
 export class TeamsComponent {
-  private readonly storageKey = 'tx-peoplehub-teams';
-  teams = [
-    {
-      name: 'Operations',
-      head: 'Nithin Gangadhar',
-      summary: 'Network ops, NOC, and response teams across TierX sites.',
-      people: 312,
-      coverage: '24/7',
-      sites: 'Austin, Dallas, Phoenix',
-      roster: [
-        { name: 'Jessie Moore', role: 'Network Engineer', location: 'Austin' },
-        { name: 'Iman Shah', role: 'Systems Analyst', location: 'Remote' },
-        { name: 'Ravi Patel', role: 'Infrastructure Lead', location: 'Dallas' }
-      ]
-    },
-    {
-      name: 'Facilities',
-      head: 'Sofia Nguyen',
-      summary: 'Critical infrastructure, maintenance, and uptime planning.',
-      people: 128,
-      coverage: 'Regional',
-      sites: 'Austin, Phoenix',
-      roster: [
-        { name: 'Liam Ortiz', role: 'Facilities Coordinator', location: 'Austin' },
-        { name: 'Amira Patel', role: 'Maintenance Lead', location: 'Phoenix' }
-      ]
-    },
-    {
-      name: 'Security',
-      head: 'Andre Lewis',
-      summary: 'Site security, access control, and risk monitoring.',
-      people: 74,
-      coverage: '24/7',
-      sites: 'Dallas, Austin',
-      roster: [
-        { name: 'Priya Rao', role: 'Site Security Lead', location: 'Dallas' },
-        { name: 'Marcus Lee', role: 'Access Control', location: 'Austin' }
-      ]
-    },
-    {
-      name: 'HR & People Ops',
-      head: 'Chloe Bishop',
-      summary: 'Workforce planning, talent programs, and compliance.',
-      people: 32,
-      coverage: 'Business hours',
-      sites: 'Austin',
-      roster: [
-        { name: 'Ava Daniels', role: 'HRBP', location: 'Austin' },
-        { name: 'Ethan Park', role: 'Talent Partner', location: 'Remote' }
-      ]
+  teams: Array<
+    TeamRecord & {
+      people: number;
+      roster: { name: string; role: string; location: string }[];
     }
-  ];
+  > = [];
+  users: UserRecord[] = [];
   createOpen = false;
   form = {
     name: '',
@@ -73,23 +30,47 @@ export class TeamsComponent {
   };
   selectedTeam: (typeof this.teams)[number] | null = null;
 
-  ngOnInit() {
-    const stored = localStorage.getItem(this.storageKey);
-    if (!stored) {
-      return;
-    }
+  constructor(private readonly api: ApiService) {}
+
+  async ngOnInit() {
+    await Promise.all([this.loadTeams(), this.loadUsers()]);
+  }
+
+  async loadTeams() {
     try {
-      const parsed = JSON.parse(stored) as typeof this.teams;
-      if (Array.isArray(parsed) && parsed.length) {
-        this.teams = parsed;
-      }
+      const teams = await firstValueFrom(this.api.getTeams());
+      this.teams = teams.map((team) => ({
+        ...team,
+        people: team.peopleCount,
+        roster: []
+      }));
     } catch {
-      localStorage.removeItem(this.storageKey);
+      this.teams = [];
+    }
+  }
+
+  async loadUsers() {
+    try {
+      this.users = await firstValueFrom(this.api.getUsers());
+    } catch {
+      this.users = [];
     }
   }
 
   openRoster(teamName: string) {
-    this.selectedTeam = this.teams.find((team) => team.name === teamName) ?? null;
+    const team = this.teams.find((team) => team.name === teamName) ?? null;
+    if (!team) {
+      this.selectedTeam = null;
+      return;
+    }
+    const roster = this.users
+      .filter((user) => user.department === team.name)
+      .map((user) => ({
+        name: user.fullName,
+        role: user.role,
+        location: 'Unspecified'
+      }));
+    this.selectedTeam = { ...team, roster };
   }
 
   closeRoster() {
@@ -112,21 +93,32 @@ export class TeamsComponent {
       name: this.form.name.trim(),
       head: this.form.head.trim(),
       summary: this.form.summary.trim(),
-      people: Number(this.form.people) || 0,
+      peopleCount: Number(this.form.people) || 0,
       coverage: this.form.coverage.trim() || 'Business hours',
-      sites: this.form.sites.trim() || 'Austin',
-      roster: []
+      sites: this.form.sites.trim() || 'Austin'
     };
-    this.teams = [newTeam, ...this.teams];
-    localStorage.setItem(this.storageKey, JSON.stringify(this.teams));
-    this.form = {
-      name: '',
-      head: '',
-      summary: '',
-      people: 0,
-      coverage: '',
-      sites: ''
-    };
-    this.createOpen = false;
+    firstValueFrom(this.api.createTeam(newTeam))
+      .then((saved) => {
+        this.teams = [
+          {
+            ...saved,
+            people: saved.peopleCount,
+            roster: []
+          },
+          ...this.teams
+        ];
+        this.form = {
+          name: '',
+          head: '',
+          summary: '',
+          people: 0,
+          coverage: '',
+          sites: ''
+        };
+        this.createOpen = false;
+      })
+      .catch(() => {
+        return;
+      });
   }
 }

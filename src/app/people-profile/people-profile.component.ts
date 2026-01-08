@@ -1,5 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink, ActivatedRoute } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService, EmployeeProfile, UserRecord } from '../services/api.service';
 
 type Profile = {
   name: string;
@@ -21,55 +23,18 @@ type Profile = {
   }[];
 };
 
-const PROFILES: Record<string, Profile> = {
-  'alina-torres': {
-    name: 'Nithin Gangadhar',
-    title: 'Network Operations Manager',
-    location: 'Austin, TX',
-    team: 'Operations',
-    manager: 'Chloe Bishop',
-    managerChain: ['Chloe Bishop', 'Ravi Kulal', 'Martin Kipping', 'CEO'],
-    status: 'Active',
-    tenure: '3y 8m',
-    photoUrl: 'assets/people/nithin-gangadhar.svg',
-    certifications: [],
-    teamMembers: [
-      {
-        name: 'Jessie Moore',
-        role: 'Network Engineer',
-        location: 'Austin',
-        department: 'Operations',
-        reportsTo: 'Nithin Gangadhar'
-      },
-      {
-        name: 'Iman Shah',
-        role: 'Systems Analyst',
-        location: 'Remote',
-        department: 'Operations',
-        reportsTo: 'Nithin Gangadhar'
-      },
-      {
-        name: 'Ravi Patel',
-        role: 'Infrastructure Lead',
-        location: 'Dallas',
-        department: 'Operations',
-        reportsTo: 'Nithin Gangadhar'
-      },
-      {
-        name: 'Camila Cruz',
-        role: 'NOC Technician',
-        location: 'Phoenix',
-        department: 'Operations',
-        reportsTo: 'Nithin Gangadhar'
-      },
-      {
-        name: 'Liam Ortiz',
-        role: 'Facilities Coordinator',
-        location: 'Austin',
-        department: 'Facilities'
-      }
-    ]
-  }
+const EMPTY_PROFILE: Profile = {
+  name: 'Employee',
+  title: '',
+  location: '',
+  team: '',
+  manager: '',
+  managerChain: [],
+  status: '',
+  tenure: '',
+  photoUrl: 'assets/people/default-avatar.svg',
+  certifications: [],
+  teamMembers: []
 };
 
 @Component({
@@ -81,12 +46,14 @@ const PROFILES: Record<string, Profile> = {
 })
 export class PeopleProfileComponent {
   private readonly route = inject(ActivatedRoute);
-  private readonly storageKey = 'tx-peoplehub-admin-draft';
-  readonly profileId =
-    this.route.snapshot.paramMap.get('id') ?? 'alina-torres';
-  readonly profile = PROFILES[this.profileId] ?? PROFILES['alina-torres'];
+  readonly profileId = this.route.snapshot.paramMap.get('id') ?? 'current';
+  profile = { ...EMPTY_PROFILE };
   isTeamModalOpen = false;
   adminDirectReports: { name: string; role: string; location: string }[] = [];
+  users: UserRecord[] = [];
+
+  constructor(private readonly api: ApiService) {}
+
   get filteredTeamMembers() {
     return this.profile.teamMembers.filter(
       (member) => member.department === this.profile.team
@@ -105,52 +72,93 @@ export class PeopleProfileComponent {
     ];
   }
 
-  ngOnInit() {
-    const stored = localStorage.getItem(this.storageKey);
-    if (!stored) {
+  async ngOnInit() {
+    await Promise.all([this.loadProfile(), this.loadUsers()]);
+    this.applyUserOverride();
+    this.buildTeamMembers();
+  }
+
+  async loadProfile() {
+    try {
+      const profile = await firstValueFrom(this.api.getEmployeeProfile());
+      if (!profile) {
+        return;
+      }
+      this.profile = this.mapProfile(profile);
+    } catch {
+      this.profile = { ...EMPTY_PROFILE };
+    }
+  }
+
+  async loadUsers() {
+    try {
+      this.users = await firstValueFrom(this.api.getUsers());
+    } catch {
+      this.users = [];
+    }
+  }
+
+  applyUserOverride() {
+    if (this.profileId === 'current') {
       return;
     }
-
-    try {
-      const parsed = JSON.parse(stored) as {
-        certifications?: string;
-        fullName?: string;
-        jobTitle?: string;
-        location?: string;
-        manager?: string;
-        managerLevel2?: string;
-        managerLevel3?: string;
-        managerLevel4?: string;
-        ceo?: string;
-      };
-      const certifications =
-        parsed.certifications
-          ?.split(',')
-          .map((item) => item.trim())
-          .filter(Boolean) ?? [];
-      this.profile.certifications = certifications;
-      if (parsed.manager === this.profile.name && parsed.fullName) {
-        this.adminDirectReports = [
-          {
-            name: parsed.fullName,
-            role: parsed.jobTitle ?? 'Direct report',
-            location: parsed.location ?? 'Unspecified'
-          }
-        ];
-      }
-      const chain = [
-        parsed.manager,
-        parsed.managerLevel2,
-        parsed.managerLevel3,
-        parsed.managerLevel4,
-        parsed.ceo
-      ].filter((value): value is string => Boolean(value));
-      if (chain.length) {
-        this.profile.managerChain = chain;
-      }
-    } catch {
-      this.profile.certifications = [];
+    const match = this.users.find((user) => user.id === this.profileId);
+    if (!match) {
+      return;
     }
+    this.profile = {
+      ...this.profile,
+      name: match.fullName,
+      title: match.role,
+      team: match.department,
+      status: match.status
+    };
+  }
+
+  buildTeamMembers() {
+    if (!this.users.length || !this.profile.team) {
+      this.profile.teamMembers = [];
+      return;
+    }
+    this.profile.teamMembers = this.users
+      .filter((user) => user.department === this.profile.team)
+      .map((user) => ({
+        name: user.fullName,
+        role: user.role,
+        location: 'Unspecified',
+        department: user.department,
+        reportsTo: ''
+      }));
+  }
+
+  mapProfile(profile: EmployeeProfile): Profile {
+    const certifications = profile.certifications
+      ? profile.certifications
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+    const managerChain = [
+      profile.manager,
+      profile.managerLevel2,
+      profile.managerLevel3,
+      profile.managerLevel4,
+      profile.ceo
+    ].filter((value): value is string => Boolean(value));
+
+    return {
+      name: profile.fullName || 'Employee',
+      title: profile.jobTitle || '',
+      location: profile.location || '',
+      team: profile.department || '',
+      manager: profile.manager || '',
+      managerChain,
+      status: profile.status || '',
+      tenure: profile.startDate || '',
+      photoUrl: this.profile.photoUrl,
+      certifications,
+      teamMembers: []
+    };
   }
 
   onPhotoSelected(event: Event) {

@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService, DepartmentRecord, UserRecord } from '../services/api.service';
 
 @Component({
   selector: 'app-people-directory',
@@ -13,40 +15,45 @@ export class PeopleDirectoryComponent {
   search = '';
   selectedDepartment = 'All departments';
   selectedStatus = 'Any status';
-  people = [
-    {
-      id: 'alina-torres',
-      name: 'Nithin Gangadhar',
-      role: 'Network Operations Manager',
-      location: 'Austin, TX',
-      department: 'Operations',
-      status: 'Active'
-    },
-    {
-      id: 'jessie-moore',
-      name: 'Jessie Moore',
-      role: 'Network Engineer',
-      location: 'Austin, TX',
-      department: 'Operations',
-      status: 'Active'
-    },
-    {
-      id: 'iman-shah',
-      name: 'Iman Shah',
-      role: 'Systems Analyst',
-      location: 'Remote',
-      department: 'Operations',
-      status: 'Active'
-    },
-    {
-      id: 'ravi-patel',
-      name: 'Ravi Patel',
-      role: 'Infrastructure Lead',
-      location: 'Dallas, TX',
-      department: 'Operations',
-      status: 'On leave'
+  people: Array<{
+    id: string;
+    name: string;
+    role: string;
+    location: string;
+    department: string;
+    status: string;
+  }> = [];
+  departments: DepartmentRecord[] = [];
+
+  constructor(private readonly api: ApiService) {}
+
+  async ngOnInit() {
+    await Promise.all([this.loadPeople(), this.loadDepartments()]);
+  }
+
+  async loadPeople() {
+    try {
+      const users = await firstValueFrom(this.api.getUsers());
+      this.people = users.map((user) => ({
+        id: user.id,
+        name: user.fullName,
+        role: user.role,
+        location: 'Unspecified',
+        department: user.department,
+        status: user.status
+      }));
+    } catch {
+      this.people = [];
     }
-  ];
+  }
+
+  async loadDepartments() {
+    try {
+      this.departments = await firstValueFrom(this.api.getDepartments());
+    } catch {
+      this.departments = [];
+    }
+  }
 
   get filteredPeople() {
     const search = this.search.trim().toLowerCase();

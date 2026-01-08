@@ -21,11 +21,11 @@
           <span class="label">Active employees</span>
         </div>
         <div>
-          <span class="value">96%</span>
+          <span class="value">{{ complianceCoverage }}%</span>
           <span class="label">Compliance coverage</span>
         </div>
         <div>
-          <span class="value">14</span>
+          <span class="value">{{ trainingsCompleted }}</span>
           <span class="label">Trainings completed</span>
         </div>
       </div>
@@ -37,36 +37,41 @@
           <span class="pill">Quarterly review</span>
         </div>
         <div class="spotlight-person">
-          <img src="assets/people/nithin-gangadhar.svg" alt="Nithin Gangadhar" />
+          <img
+            src="assets/people/default-avatar.svg"
+            [alt]="currentProfile?.fullName || 'Employee'"
+          />
           <div>
-            <h3>Nithin Gangadhar</h3>
-            <p>Employee ID: TX-24819</p>
-            <p>Network Operations · Austin</p>
+            <h3>{{ currentProfile?.fullName || 'Employee' }}</h3>
+            <p>Employee ID: {{ currentProfile?.employeeId || 'Not set' }}</p>
+            <p>{{ currentProfile?.department || 'Department' }} · {{ currentProfile?.location || 'Location' }}</p>
           </div>
         </div>
         <div class="progress">
-          <div class="bar" style="width: 86%"></div>
+          <div class="bar" [style.width.%]="spotlightProgress"></div>
         </div>
         <div class="spotlight-footer">
           <div>
-            <span class="value">4.8</span>
+            <span class="value">{{ spotlightScore ?? 'N/A' }}</span>
             <span class="label">Engagement score</span>
           </div>
-          <a class="ghost button-link" [routerLink]="['/people', 'alina-torres']"
-            >View profile</a
-          >
+          <a class="ghost button-link" [routerLink]="['/people', 'current']">View profile</a>
         </div>
       </article>
       <article class="card checklist">
         <div class="card-header">
           <span>Today</span>
-          <span class="pill soft">3 due</span>
+          <span class="pill soft">{{ todayTasks.length }} due</span>
         </div>
-        <ul>
-          <li>Approve 6 time-off requests</li>
-          <li>Finalize Dallas hiring plan</li>
-          <li>Review onboarding checklist</li>
-        </ul>
+        @if (todayTasks.length) {
+          <ul>
+            @for (task of todayTasks; track task.title) {
+              <li>{{ task.title }}</li>
+            }
+          </ul>
+        } @else {
+          <p class="empty">No tasks assigned yet.</p>
+        }
         <button class="ghost" type="button" routerLink="/tasks">Open tasks</button>
       </article>
     </div>

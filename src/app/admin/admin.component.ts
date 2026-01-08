@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService, DepartmentRecord, UserRecord, EmployeeProfile } from '../services/api.service';
 
 @Component({
   selector: 'app-admin',
@@ -10,23 +12,11 @@ import { RouterLink } from '@angular/router';
   styleUrl: './admin.component.scss'
 })
 export class AdminComponent {
-  private readonly storageKey = 'tx-peoplehub-admin-draft';
-  private readonly departmentsKey = 'tx-peoplehub-departments';
-  private readonly usersKey = 'tx-peoplehub-users';
-  private readonly tasksKey = 'tx-peoplehub-tasks';
   saved = false;
-  departments: { name: string; head: string }[] = [];
+  departments: DepartmentRecord[] = [];
   userStatus = '';
   taskStatus = '';
-  users: {
-    fullName: string;
-    email: string;
-    department: string;
-    role: 'Employee' | 'Manager' | 'Admin' | 'Superadmin';
-    status: 'Active' | 'Deactivated';
-    password?: string;
-    director?: string;
-  }[] = [];
+  users: UserRecord[] = [];
   editIndex: number | null = null;
   editUser = {
     fullName: '',
@@ -34,10 +24,10 @@ export class AdminComponent {
     department: '',
     role: 'Employee' as 'Employee' | 'Manager' | 'Admin' | 'Superadmin',
     status: 'Active' as 'Active' | 'Deactivated',
-    password: '',
     director: 'No'
   };
   createPassword = '';
+  editPassword = '';
   adminData = {
     fullName: '',
     employeeId: '',
@@ -90,37 +80,13 @@ export class AdminComponent {
     checklistBusinessCardOwner: ''
   };
 
-  ngOnInit() {
-    const storedDepartments = localStorage.getItem(this.departmentsKey);
-    if (storedDepartments) {
-      try {
-        const parsed = JSON.parse(storedDepartments) as {
-          name: string;
-          head: string;
-        }[];
-        if (Array.isArray(parsed)) {
-          this.departments = parsed;
-        }
-      } catch {
-        localStorage.removeItem(this.departmentsKey);
-      }
-    }
+  constructor(private readonly api: ApiService) {}
 
-    const raw = localStorage.getItem(this.storageKey);
-    if (!raw) {
-      this.loadUsers();
-      return;
-    }
-    try {
-      this.adminData = { ...this.adminData, ...JSON.parse(raw) };
-    } catch {
-      localStorage.removeItem(this.storageKey);
-    }
-
-    this.loadUsers();
+  async ngOnInit() {
+    await Promise.all([this.loadDepartments(), this.loadUsers(), this.loadProfile()]);
   }
 
-  save(event: Event) {
+  async save(event: Event) {
     event.preventDefault();
     const form = event.target as HTMLFormElement | null;
     if (!form || !form.reportValidity()) {
@@ -128,8 +94,13 @@ export class AdminComponent {
       return;
     }
 
-    localStorage.setItem(this.storageKey, JSON.stringify(this.adminData));
-    this.saved = true;
+    try {
+      const saved = await firstValueFrom(this.api.saveEmployeeProfile(this.adminData as EmployeeProfile));
+      this.adminData = { ...this.adminData, ...saved };
+      this.saved = true;
+    } catch {
+      this.saved = false;
+    }
   }
 
   onFileSelected(event: Event) {
@@ -165,26 +136,34 @@ export class AdminComponent {
     return Array.from(new Set([...options, ...fallback]));
   }
 
-  loadUsers() {
-    const stored = localStorage.getItem(this.usersKey);
-    if (!stored) {
-      return;
-    }
+  async loadDepartments() {
     try {
-      const parsed = JSON.parse(stored) as typeof this.users;
-      if (Array.isArray(parsed)) {
-        this.users = parsed;
+      this.departments = await firstValueFrom(this.api.getDepartments());
+    } catch {
+      this.departments = [];
+    }
+  }
+
+  async loadUsers() {
+    try {
+      this.users = await firstValueFrom(this.api.getUsers());
+    } catch {
+      this.users = [];
+    }
+  }
+
+  async loadProfile() {
+    try {
+      const profile = await firstValueFrom(this.api.getEmployeeProfile());
+      if (profile) {
+        this.adminData = { ...this.adminData, ...profile };
       }
     } catch {
-      localStorage.removeItem(this.usersKey);
+      return;
     }
   }
 
-  saveUsers() {
-    localStorage.setItem(this.usersKey, JSON.stringify(this.users));
-  }
-
-  createUserFromProfile() {
+  async createUserFromProfile() {
     if (!this.adminData.fullName || !this.adminData.email) {
       this.userStatus = 'Complete the employee profile before creating a user.';
       return;
@@ -199,26 +178,42 @@ export class AdminComponent {
       department: this.adminData.department,
       role: this.adminData.role as 'Employee' | 'Manager' | 'Admin' | 'Superadmin',
       status: 'Active' as const,
-      password: this.createPassword,
       director: this.adminData.director
     };
-    this.users = [newUser, ...this.users];
-    this.saveUsers();
-    this.userStatus = 'User created.';
-    this.createPassword = '';
-  }
-
-  updateUserRole(index: number, role: 'Employee' | 'Manager' | 'Admin' | 'Superadmin') {
-    const user = this.users[index];
-    if (!user) {
-      return;
+    try {
+      const saved = await firstValueFrom(this.api.createUser(newUser));
+      const existsIndex = this.users.findIndex((user) => user.email === saved.email);
+      if (existsIndex >= 0) {
+        this.users = this.users.map((user, index) => (index === existsIndex ? saved : user));
+      } else {
+        this.users = [saved, ...this.users];
+      }
+      this.userStatus = 'User created.';
+      this.createPassword = '';
+    } catch {
+      this.userStatus = 'Unable to create user. Check for duplicate emails.';
     }
-    user.role = role;
-    this.saveUsers();
-    this.userStatus = 'Role updated.';
   }
 
-  deactivateUser(index: number) {
+  updateUserRole(_index: number, _role: 'Employee' | 'Manager' | 'Admin' | 'Superadmin') {
+    return;
+  }
+
+  async updateUser(user: UserRecord) {
+    const updated = await firstValueFrom(
+      this.api.updateUser(user.id, {
+        fullName: user.fullName,
+        email: user.email,
+        department: user.department,
+        role: user.role,
+        status: user.status,
+        director: user.director
+      })
+    );
+    this.users = this.users.map((item) => (item.id === updated.id ? updated : item));
+  }
+
+  async deactivateUser(index: number) {
     const user = this.users[index];
     if (!user) {
       return;
@@ -227,9 +222,22 @@ export class AdminComponent {
     if (!confirmed) {
       return;
     }
-    user.status = 'Deactivated';
-    this.saveUsers();
-    this.userStatus = 'User deactivated.';
+    try {
+      const updated = await firstValueFrom(
+        this.api.updateUser(user.id, {
+          fullName: user.fullName,
+          email: user.email,
+          department: user.department,
+          role: user.role,
+          status: 'Deactivated',
+          director: user.director
+        })
+      );
+      this.users = this.users.map((item) => (item.id === updated.id ? updated : item));
+      this.userStatus = 'User deactivated.';
+    } catch {
+      this.userStatus = 'Unable to deactivate user.';
+    }
   }
 
   openEditUser(index: number) {
@@ -240,26 +248,43 @@ export class AdminComponent {
     this.editIndex = index;
     this.editUser = {
       ...user,
-      password: user.password ?? '',
       director: user.director ?? 'No'
     };
+    this.editPassword = '';
   }
 
   closeEditUser() {
     this.editIndex = null;
   }
 
-  saveEditUser() {
+  async saveEditUser() {
     if (this.editIndex === null) {
       return;
     }
-    this.users[this.editIndex] = { ...this.editUser };
-    this.saveUsers();
-    this.userStatus = 'User updated.';
-    this.closeEditUser();
+    const target = this.users[this.editIndex];
+    if (!target) {
+      return;
+    }
+    try {
+      const updated = await firstValueFrom(
+        this.api.updateUser(target.id, {
+          fullName: this.editUser.fullName,
+          email: this.editUser.email,
+          department: this.editUser.department,
+          role: target.role,
+          status: this.editUser.status,
+          director: this.editUser.director
+        })
+      );
+      this.users = this.users.map((user) => (user.id === updated.id ? updated : user));
+      this.userStatus = 'User updated.';
+      this.closeEditUser();
+    } catch {
+      this.userStatus = 'Unable to update user.';
+    }
   }
 
-  assignTasks() {
+  async assignTasks() {
     const tasks = [
       {
         key: 'Offer letter signed',
@@ -296,10 +321,11 @@ export class AdminComponent {
       return;
     }
 
-    const stored = localStorage.getItem(this.tasksKey);
-    const existing = stored ? (JSON.parse(stored) as typeof payload) : [];
-    localStorage.setItem(this.tasksKey, JSON.stringify([...payload, ...existing]));
-    this.taskStatus = `Assigned ${payload.length} tasks.`;
-    window.dispatchEvent(new Event('storage'));
+    try {
+      await Promise.all(payload.map((task) => firstValueFrom(this.api.createTask(task))));
+      this.taskStatus = `Assigned ${payload.length} tasks.`;
+    } catch {
+      this.taskStatus = 'Unable to assign tasks.';
+    }
   }
 }

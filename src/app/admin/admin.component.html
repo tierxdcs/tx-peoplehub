@@ -685,7 +685,7 @@
       </label>
       <label>
         Role
-        <select [(ngModel)]="editUser.role" name="editRole">
+        <select [(ngModel)]="editUser.role" name="editRole" disabled>
           <option>Employee</option>
           <option>Manager</option>
           <option>Admin</option>
@@ -710,7 +710,7 @@
         Temporary password
         <input
           type="password"
-          [(ngModel)]="editUser.password"
+          [(ngModel)]="editPassword"
           name="editPassword"
           placeholder="Set a new password"
         />

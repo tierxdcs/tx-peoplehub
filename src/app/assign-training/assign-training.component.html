@@ -168,7 +168,7 @@
                         type="text"
                         [(ngModel)]="question.text"
                         name="assigned-question-{{ i }}-{{ qi }}"
-                        (ngModelChange)="saveAssignments()"
+                        (ngModelChange)="saveAssignment(i)"
                       />
                     </label>
                     <label>
