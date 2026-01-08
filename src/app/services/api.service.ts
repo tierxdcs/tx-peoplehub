@@ -234,6 +234,10 @@ export class ApiService {
     );
   }
 
+  deleteTeam(id: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/teams/${id}`);
+  }
+
   getEmployeeProfile(): Observable<EmployeeProfile | null> {
     return this.http.get<EmployeeProfile | null>(`${this.baseUrl}/employee-profiles`).pipe(
       map((row) => (row ? this.mapProfile(row) : null))
