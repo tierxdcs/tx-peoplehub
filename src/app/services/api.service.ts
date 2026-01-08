@@ -67,6 +67,10 @@ export type EmployeeProfile = {
   backgroundCheck: string;
   safetyTraining: string;
   workAuthorization: string;
+  surveyScore: string;
+  checkinsScore: string;
+  participationScore: string;
+  riskAdjustedScore: string;
   photoUrl: string;
   complianceDocumentName: string;
   nextAuditDate: string;
@@ -467,6 +471,16 @@ export class ApiService {
       backgroundCheck: row.background_check ?? '',
       safetyTraining: row.safety_training ?? '',
       workAuthorization: row.work_authorization ?? '',
+      surveyScore: row.survey_score !== undefined && row.survey_score !== null ? String(row.survey_score) : '',
+      checkinsScore: row.checkins_score !== undefined && row.checkins_score !== null ? String(row.checkins_score) : '',
+      participationScore:
+        row.participation_score !== undefined && row.participation_score !== null
+          ? String(row.participation_score)
+          : '',
+      riskAdjustedScore:
+        row.risk_adjusted_score !== undefined && row.risk_adjusted_score !== null
+          ? String(row.risk_adjusted_score)
+          : '',
       photoUrl: row.photo_url ?? row.photoUrl ?? '',
       complianceDocumentName: row.compliance_document_name ?? '',
       nextAuditDate: row.next_audit_date ?? '',

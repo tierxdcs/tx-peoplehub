@@ -12,6 +12,8 @@ type Profile = {
   managerChain: string[];
   status: string;
   tenure: string;
+  engagementScore: number | null;
+  engagementProgress: number;
   photoUrl: string;
   certifications: string[];
   teamMembers: {
@@ -32,6 +34,8 @@ const EMPTY_PROFILE: Profile = {
   managerChain: [],
   status: '',
   tenure: '',
+  engagementScore: null,
+  engagementProgress: 0,
   photoUrl: 'assets/people/default-avatar.svg',
   certifications: [],
   teamMembers: []
@@ -147,6 +151,7 @@ export class PeopleProfileComponent {
       profile.managerLevel4,
       profile.ceo
     ].filter((value): value is string => Boolean(value));
+    const engagementScore = this.calculateEngagementScore(profile);
 
     return {
       name: profile.fullName || 'Employee',
@@ -157,10 +162,34 @@ export class PeopleProfileComponent {
       managerChain,
       status: profile.status || '',
       tenure: profile.startDate || '',
+      engagementScore,
+      engagementProgress: engagementScore ?? 0,
       photoUrl: profile.photoUrl || EMPTY_PROFILE.photoUrl,
       certifications,
       teamMembers: []
     };
+  }
+
+  private calculateEngagementScore(profile: EmployeeProfile): number | null {
+    const rawValues = [
+      profile.surveyScore,
+      profile.checkinsScore,
+      profile.participationScore,
+      profile.riskAdjustedScore
+    ];
+    const hasValues = rawValues.some(
+      (value) => value !== undefined && value !== null && String(value).trim() !== ''
+    );
+    if (!hasValues) {
+      return null;
+    }
+    const survey = Number(profile.surveyScore ?? 0);
+    const checkins = Number(profile.checkinsScore ?? 0);
+    const participation = Number(profile.participationScore ?? 0);
+    const riskAdjusted = Number(profile.riskAdjustedScore ?? 0);
+    const score =
+      0.4 * survey + 0.2 * checkins + 0.2 * participation + 0.2 * riskAdjusted;
+    return Math.min(100, Math.max(0, Math.round(score)));
   }
 
   onPhotoSelected(event: Event) {
