@@ -11,13 +11,16 @@
       <h1>Welcome back to tx-peoplehub</h1>
       <p class="subtitle">Sign in to manage people, teams, and workforce operations.</p>
     </header>
+    @if (errorMessage) {
+      <div class="login-error" role="alert">{{ errorMessage }}</div>
+    }
 
     <div class="sso-panel">
       <button class="ghost" type="button">Continue with SSO</button>
       <span>or use your TierX credentials</span>
     </div>
 
-    <form class="login-form">
+    <form class="login-form" (ngSubmit)="signIn()">
       <label>
         Work email
         <input
@@ -25,6 +28,7 @@
           placeholder="name@tierx.com"
           [(ngModel)]="credentials.email"
           name="email"
+          required
         />
       </label>
       <label>
@@ -34,6 +38,7 @@
           placeholder="Enter your password"
           [(ngModel)]="credentials.password"
           name="password"
+          required
         />
       </label>
       <div class="form-meta">
@@ -43,7 +48,7 @@
         </label>
         <a class="link" href="#">Forgot password?</a>
       </div>
-      <button class="primary" type="button">Sign in</button>
+      <button class="primary" type="submit">Sign in</button>
     </form>
 
     <footer class="login-footer">
