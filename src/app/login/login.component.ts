@@ -23,7 +23,11 @@ export class LoginComponent {
 
   async signIn() {
     const email = this.credentials.email.trim().toLowerCase();
-    const password = this.credentials.password;
+    const password = this.credentials.password.trim();
+    if (!email || !password) {
+      this.errorMessage = 'Enter your email and password to continue.';
+      return;
+    }
     const isMasterLogin = email === 'hradmin@tierxdcs.com' && password === 'Tierx@009';
     if (!isMasterLogin) {
       try {
