@@ -109,6 +109,7 @@ export class AdminComponent {
       const name = this.adminData.fullName?.trim() || 'Employee';
       const employeeId = this.adminData.employeeId?.trim() || 'N/A';
       let accessNote = '';
+      let taskNote = '';
       if (this.adminData.fullName && this.adminData.email) {
         try {
           const userPayload = {
@@ -133,8 +134,13 @@ export class AdminComponent {
         } catch {
           accessNote = '';
         }
+        const taskResult = await this.assignTasks();
+        if (taskResult?.message) {
+          this.taskStatus = taskResult.message;
+          taskNote = ` ${taskResult.message}`;
+        }
       }
-      this.savedMessage = `Onboarding completed for ${name} (ID: ${employeeId}).${accessNote}`;
+      this.savedMessage = `Onboarding completed for ${name} (ID: ${employeeId}).${accessNote}${taskNote}`;
     } catch {
       this.saved = false;
       this.savedMessage = '';
@@ -375,15 +381,14 @@ export class AdminComponent {
       }));
 
     if (!payload.length) {
-      this.taskStatus = 'Select managers before assigning tasks.';
-      return;
+      return { assigned: 0, message: 'Select managers before assigning tasks.' };
     }
 
     try {
       await Promise.all(payload.map((task) => firstValueFrom(this.api.createTask(task))));
-      this.taskStatus = `Assigned ${payload.length} tasks.`;
+      return { assigned: payload.length, message: `Assigned ${payload.length} tasks.` };
     } catch {
-      this.taskStatus = 'Unable to assign tasks.';
+      return { assigned: 0, message: 'Unable to assign tasks.' };
     }
   }
 
