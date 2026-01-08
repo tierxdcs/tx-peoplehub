@@ -26,9 +26,9 @@
         Department
         <select [(ngModel)]="selectedDepartment">
           <option>All departments</option>
-          <option>Operations</option>
-          <option>Facilities</option>
-          <option>Security</option>
+          @for (department of departments; track department.id) {
+            <option>{{ department.name }}</option>
+          }
         </select>
       </label>
       <label>
@@ -36,7 +36,7 @@
         <select [(ngModel)]="selectedStatus">
           <option>Any status</option>
           <option>Active</option>
-          <option>On leave</option>
+          <option>Deactivated</option>
         </select>
       </label>
     </div>

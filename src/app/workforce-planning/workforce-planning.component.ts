@@ -2,6 +2,8 @@ import { Component } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService, RequisitionRecord } from '../services/api.service';
 
 @Component({
   selector: 'app-workforce-planning',
@@ -11,9 +13,9 @@ import { RouterLink } from '@angular/router';
   styleUrl: './workforce-planning.component.scss'
 })
 export class WorkforcePlanningComponent {
-  private readonly storageKey = 'tx-peoplehub-workforce-requests';
   status = '';
   requests: {
+    id: string;
     title: string;
     department: string;
     location: string;
@@ -42,33 +44,31 @@ export class WorkforcePlanningComponent {
     costCenter: ''
   };
 
-  ngOnInit() {
-    const stored = localStorage.getItem(this.storageKey);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as typeof this.requests;
-        if (Array.isArray(parsed)) {
-          this.requests = parsed;
-        }
-      } catch {
-        localStorage.removeItem(this.storageKey);
-      }
-    }
+  constructor(private readonly api: ApiService) {}
 
-    const adminRaw = localStorage.getItem('tx-peoplehub-admin-draft');
-    if (!adminRaw) {
-      return;
-    }
+  async ngOnInit() {
+    await Promise.all([this.loadRequests(), this.loadProfile()]);
+  }
+
+  async loadRequests() {
     try {
-      const parsed = JSON.parse(adminRaw) as { manager?: string; department?: string };
-      if (parsed.manager) {
-        this.form.manager = parsed.manager;
+      this.requests = await firstValueFrom(this.api.getRequisitions());
+    } catch {
+      this.requests = [];
+    }
+  }
+
+  async loadProfile() {
+    try {
+      const profile = await firstValueFrom(this.api.getEmployeeProfile());
+      if (profile?.manager) {
+        this.form.manager = profile.manager;
       }
-      if (parsed.department) {
-        this.form.department = parsed.department;
+      if (profile?.department) {
+        this.form.department = profile.department;
       }
     } catch {
-      localStorage.removeItem('tx-peoplehub-admin-draft');
+      return;
     }
   }
 
@@ -77,7 +77,7 @@ export class WorkforcePlanningComponent {
       this.status = 'Please complete the role title, start date, and justification.';
       return;
     }
-    const request = {
+    const request: Omit<RequisitionRecord, 'id' | 'submittedAt'> = {
       title: this.form.title.trim(),
       department: this.form.department,
       location: this.form.location.trim(),
@@ -89,24 +89,28 @@ export class WorkforcePlanningComponent {
       budgetImpact: this.form.budgetImpact.trim(),
       costCenter: this.form.costCenter.trim(),
       manager: this.form.manager || 'Direct Manager',
-      approval: 'Pending Board Directors approval',
-      submittedAt: new Date().toISOString()
+      approval: 'Pending Board Directors approval'
     };
-    this.requests = [request, ...this.requests];
-    localStorage.setItem(this.storageKey, JSON.stringify(this.requests));
-    this.status = 'Request submitted to CFO and CEO for approval.';
-    this.form = {
-      title: '',
-      department: this.form.department,
-      location: 'Austin, TX',
-      headcount: 1,
-      level: 'Mid',
-      hireType: 'Full-time',
-      startDate: '',
-      justification: '',
-      budgetImpact: '',
-      manager: this.form.manager,
-      costCenter: ''
-    };
+    firstValueFrom(this.api.createRequisition(request))
+      .then((saved) => {
+        this.requests = [saved, ...this.requests];
+        this.status = 'Request submitted to Board Directors for approval.';
+        this.form = {
+          title: '',
+          department: this.form.department,
+          location: 'Austin, TX',
+          headcount: 1,
+          level: 'Mid',
+          hireType: 'Full-time',
+          startDate: '',
+          justification: '',
+          budgetImpact: '',
+          manager: this.form.manager,
+          costCenter: ''
+        };
+      })
+      .catch(() => {
+        this.status = 'Unable to submit requisition.';
+      });
   }
 }

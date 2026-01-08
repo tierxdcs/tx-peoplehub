@@ -1,5 +1,7 @@
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService } from '../services/api.service';
 
 @Component({
   selector: 'app-reimbursement',
@@ -9,40 +11,26 @@ import { RouterLink } from '@angular/router';
   styleUrl: './reimbursement.component.scss'
 })
 export class ReimbursementComponent {
-  private readonly storageKey = 'tx-peoplehub-reimbursements';
-  claims = [
-    {
-      title: 'Home office equipment',
-      amount: '₹280.00',
-      status: 'Pending',
-      submitted: 'Jan 18'
-    },
-    {
-      title: 'Client travel',
-      amount: '₹1,240.00',
-      status: 'Approved',
-      submitted: 'Jan 10'
-    },
-    {
-      title: 'Certification fees',
-      amount: '₹160.00',
-      status: 'Pending',
-      submitted: 'Jan 4'
-    }
-  ];
+  claims: { title: string; amount: string; status: string; submitted: string }[] = [];
 
-  ngOnInit() {
-    const stored = localStorage.getItem(this.storageKey);
-    if (!stored) {
-      return;
-    }
+  constructor(private readonly api: ApiService) {}
+
+  async ngOnInit() {
     try {
-      const parsed = JSON.parse(stored) as typeof this.claims;
-      if (Array.isArray(parsed) && parsed.length) {
-        this.claims = [...parsed, ...this.claims];
-      }
+      const reimbursements = await firstValueFrom(this.api.getReimbursements());
+      this.claims = reimbursements.map((claim) => ({
+        title: claim.title,
+        amount: claim.amount,
+        status: claim.status,
+        submitted: claim.date
+          ? new Date(claim.date).toLocaleDateString(undefined, {
+              month: 'short',
+              day: 'numeric'
+            })
+          : ''
+      }));
     } catch {
-      localStorage.removeItem(this.storageKey);
+      this.claims = [];
     }
   }
 }

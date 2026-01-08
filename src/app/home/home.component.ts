@@ -2,6 +2,8 @@ import { Component } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService, EmployeeProfile, IdeaRecord, LeaveRecord } from '../services/api.service';
 
 @Component({
   selector: 'app-home',
@@ -16,14 +18,13 @@ export class HomeComponent {
   ideaStatus = '';
   managerName = 'Direct Manager';
   activeUserCount = 0;
-  ideaHistory: {
-    title: string;
-    type: string;
-    summary: string;
-    manager: string;
-    submittedAt: string;
-  }[] = [];
-  pendingRequests: { type: string; range: string; status: string; employee?: string }[] = [];
+  spotlightScore: number | null = null;
+  spotlightProgress = 0;
+  todayTasks: { title: string }[] = [];
+  complianceCoverage = 0;
+  trainingsCompleted = 0;
+  ideaHistory: IdeaRecord[] = [];
+  pendingRequests: { id: string; type: string; range: string; status: string; employee?: string }[] = [];
   leaveForm = {
     type: 'PTO',
     startDate: '',
@@ -37,88 +38,93 @@ export class HomeComponent {
     manager: ''
   };
   leaveError = '';
-  private readonly ideasKey = 'tx-peoplehub-ideas';
-  private readonly tasksKey = 'tx-peoplehub-tasks';
-  private readonly usersKey = 'tx-peoplehub-users';
+  currentProfile: EmployeeProfile | null = null;
 
-  ngOnInit() {
-    this.loadActiveUsers();
-    const raw = localStorage.getItem('tx-peoplehub-admin-draft');
-    if (!raw) {
-      const storedRequests = localStorage.getItem('tx-peoplehub-leave-requests');
-      if (storedRequests) {
-        try {
-          const parsed = JSON.parse(storedRequests) as typeof this.pendingRequests;
-          if (Array.isArray(parsed)) {
-            this.pendingRequests = parsed;
-          }
-        } catch {
-          localStorage.removeItem('tx-peoplehub-leave-requests');
-        }
-      }
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw) as { manager?: string };
-      if (parsed.manager) {
-        this.managerName = parsed.manager;
-      }
-    } catch {
-      localStorage.removeItem('tx-peoplehub-admin-draft');
-    }
+  constructor(private readonly api: ApiService) {}
 
-    const storedIdeas = localStorage.getItem(this.ideasKey);
-    if (!storedIdeas) {
-      return;
-    }
-    try {
-      const parsed = JSON.parse(storedIdeas) as typeof this.ideaHistory;
-      if (Array.isArray(parsed)) {
-        this.ideaHistory = parsed;
-      }
-    } catch {
-      localStorage.removeItem(this.ideasKey);
-    }
+  async ngOnInit() {
+    await Promise.all([
+      this.loadActiveUsers(),
+      this.loadProfile(),
+      this.loadIdeas(),
+      this.loadPendingLeaves(),
+      this.loadTasks()
+    ]);
+    await this.loadTrainingStats();
+  }
 
-    const storedRequests = localStorage.getItem('tx-peoplehub-leave-requests');
-    if (!storedRequests) {
-      return;
-    }
+  async loadActiveUsers() {
     try {
-      const parsed = JSON.parse(storedRequests) as typeof this.pendingRequests;
-      if (Array.isArray(parsed)) {
-        const demoKeys = new Set(['PTO|Feb 12 - Feb 14', 'Sick|Jan 22']);
-        const isDemoOnly =
-          parsed.length > 0 &&
-          parsed.every((item) => demoKeys.has(`${item.type}|${item.range}`));
-        if (isDemoOnly) {
-          localStorage.removeItem('tx-peoplehub-leave-requests');
-          this.pendingRequests = [];
-        } else {
-          this.pendingRequests = parsed;
-        }
-      }
+      const users = await firstValueFrom(this.api.getUsers());
+      this.activeUserCount = users.filter((user) => user.status === 'Active').length;
     } catch {
-      localStorage.removeItem('tx-peoplehub-leave-requests');
+      this.activeUserCount = 0;
     }
   }
 
-  loadActiveUsers() {
-    const stored = localStorage.getItem(this.usersKey);
-    if (!stored) {
-      this.activeUserCount = 0;
-      return;
-    }
+  async loadProfile() {
     try {
-      const parsed = JSON.parse(stored) as { status?: string }[];
-      if (Array.isArray(parsed)) {
-        this.activeUserCount = parsed.filter(
-          (user) => user.status === 'Active'
-        ).length;
+      this.currentProfile = await firstValueFrom(this.api.getEmployeeProfile());
+      if (this.currentProfile?.manager) {
+        this.managerName = this.currentProfile.manager;
       }
+      this.spotlightScore = null;
+      this.spotlightProgress = 0;
     } catch {
-      localStorage.removeItem(this.usersKey);
-      this.activeUserCount = 0;
+      this.currentProfile = null;
+    }
+  }
+
+  async loadIdeas() {
+    try {
+      this.ideaHistory = await firstValueFrom(this.api.getIdeas());
+    } catch {
+      this.ideaHistory = [];
+    }
+  }
+
+  async loadPendingLeaves() {
+    try {
+      const leaves = await firstValueFrom(this.api.getLeaves());
+      this.pendingRequests = leaves
+        .filter((leave) => leave.status?.toLowerCase().includes('pending'))
+        .map((leave) => ({
+          id: leave.id,
+          type: leave.type,
+          range: leave.range,
+          status: leave.status,
+          employee: leave.employeeName
+        }));
+    } catch {
+      this.pendingRequests = [];
+    }
+  }
+
+  async loadTasks() {
+    try {
+      const tasks = await firstValueFrom(this.api.getTasks());
+      this.todayTasks = tasks.slice(0, 3).map((task) => ({ title: task.title }));
+    } catch {
+      this.todayTasks = [];
+    }
+  }
+
+  async loadTrainingStats() {
+    try {
+      const employeeName = this.currentProfile?.fullName ?? '';
+      const [assignments, responses] = await Promise.all([
+        firstValueFrom(this.api.getTrainingAssignments()),
+        employeeName
+          ? firstValueFrom(this.api.getTrainingResponses({ employee: employeeName }))
+          : Promise.resolve([])
+      ]);
+      const total = assignments.length;
+      const completed = responses.length;
+      this.trainingsCompleted = completed;
+      this.complianceCoverage = total ? Math.round((completed / total) * 100) : 0;
+    } catch {
+      this.trainingsCompleted = 0;
+      this.complianceCoverage = 0;
     }
   }
 
@@ -145,32 +151,36 @@ export class HomeComponent {
       this.ideaStatus = 'Add a title and summary before submitting.';
       return;
     }
-    const idea = {
+    const payload = {
       title: this.ideaForm.title.trim(),
       type: this.ideaForm.type,
       summary: this.ideaForm.summary.trim(),
-      manager: this.managerName,
-      submittedAt: new Date().toISOString()
-    };
-    this.ideaHistory = [idea, ...this.ideaHistory];
-    localStorage.setItem(this.ideasKey, JSON.stringify(this.ideaHistory));
-    const task = {
-      title: `Idea review: ${idea.title}`,
-      owner: this.managerName,
-      due: 'This week',
-      source: 'ideas'
-    };
-    const storedTasks = localStorage.getItem(this.tasksKey);
-    const existingTasks = storedTasks ? (JSON.parse(storedTasks) as typeof task[]) : [];
-    localStorage.setItem(this.tasksKey, JSON.stringify([task, ...existingTasks]));
-    window.dispatchEvent(new Event('storage'));
-    this.ideaStatus = `Idea sent to ${this.managerName}.`;
-    this.ideaForm = {
-      title: '',
-      type: 'Product',
-      summary: '',
       manager: this.managerName
     };
+    Promise.all([
+      firstValueFrom(this.api.createIdea(payload)),
+      firstValueFrom(
+        this.api.createTask({
+          title: `Idea review: ${payload.title}`,
+          owner: this.managerName,
+          due: 'This week',
+          source: 'ideas'
+        })
+      )
+    ])
+      .then(([idea]) => {
+        this.ideaHistory = [idea, ...this.ideaHistory];
+        this.ideaStatus = `Idea sent to ${this.managerName}.`;
+        this.ideaForm = {
+          title: '',
+          type: 'Product',
+          summary: '',
+          manager: this.managerName
+        };
+      })
+      .catch(() => {
+        this.ideaStatus = 'Unable to submit idea.';
+      });
   }
 
   submitLeave() {
@@ -202,22 +212,34 @@ export class HomeComponent {
         ? format(this.leaveForm.startDate)
         : `${format(this.leaveForm.startDate)} - ${format(this.leaveForm.endDate)}`;
 
-    this.pendingRequests = [
-      {
-        type: this.leaveForm.type,
-        range,
-        status: 'Pending',
-        employee: this.adminDataName()
-      },
-      ...this.pendingRequests
-    ];
-    localStorage.setItem(
-      'tx-peoplehub-leave-requests',
-      JSON.stringify(this.pendingRequests)
-    );
+    const payload: Omit<LeaveRecord, 'id'> = {
+      employeeName: this.adminDataName(),
+      type: this.leaveForm.type,
+      startDate: this.leaveForm.startDate,
+      endDate: this.leaveForm.endDate,
+      range,
+      status: 'Pending manager approval',
+      notes: this.leaveForm.notes
+    };
 
-    this.leaveError = '';
-    this.leaveForm = { type: 'PTO', startDate: '', endDate: '', notes: '' };
+    firstValueFrom(this.api.createLeave(payload))
+      .then((leave) => {
+        this.pendingRequests = [
+          {
+            id: leave.id,
+            type: leave.type,
+            range: leave.range,
+            status: leave.status,
+            employee: leave.employeeName
+          },
+          ...this.pendingRequests
+        ];
+        this.leaveError = '';
+        this.leaveForm = { type: 'PTO', startDate: '', endDate: '', notes: '' };
+      })
+      .catch(() => {
+        this.leaveError = 'Unable to submit leave request.';
+      });
   }
 
   cancelRequest(index: number) {
@@ -227,23 +249,20 @@ export class HomeComponent {
     if (!confirmed) {
       return;
     }
-    this.pendingRequests = this.pendingRequests.filter((_, i) => i !== index);
-    localStorage.setItem(
-      'tx-peoplehub-leave-requests',
-      JSON.stringify(this.pendingRequests)
-    );
+    const target = this.pendingRequests[index];
+    if (!target) {
+      return;
+    }
+    firstValueFrom(this.api.updateLeaveStatus(target.id, 'Cancelled'))
+      .then(() => {
+        this.pendingRequests = this.pendingRequests.filter((_, i) => i !== index);
+      })
+      .catch(() => {
+        return;
+      });
   }
 
   adminDataName() {
-    const raw = localStorage.getItem('tx-peoplehub-admin-draft');
-    if (!raw) {
-      return 'Employee';
-    }
-    try {
-      const parsed = JSON.parse(raw) as { fullName?: string };
-      return parsed.fullName || 'Employee';
-    } catch {
-      return 'Employee';
-    }
+    return this.currentProfile?.fullName || 'Employee';
   }
 }

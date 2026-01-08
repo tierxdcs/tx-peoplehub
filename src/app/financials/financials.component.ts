@@ -1,5 +1,7 @@
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService } from '../services/api.service';
 
 @Component({
   selector: 'app-financials',
@@ -9,22 +11,16 @@ import { RouterLink } from '@angular/router';
   styleUrl: './financials.component.scss'
 })
 export class FinancialsComponent {
-  private readonly adminDraftKey = 'tx-peoplehub-admin-draft';
   offerLetterName = '';
   offerLetterData = '';
 
-  ngOnInit() {
-    const stored = localStorage.getItem(this.adminDraftKey);
-    if (!stored) {
-      return;
-    }
+  constructor(private readonly api: ApiService) {}
+
+  async ngOnInit() {
     try {
-      const parsed = JSON.parse(stored) as {
-        offerLetterName?: string;
-        offerLetterData?: string;
-      };
-      this.offerLetterName = parsed.offerLetterName ?? '';
-      this.offerLetterData = parsed.offerLetterData ?? '';
+      const profile = await firstValueFrom(this.api.getEmployeeProfile());
+      this.offerLetterName = profile?.offerLetterName ?? '';
+      this.offerLetterData = profile?.offerLetterData ?? '';
     } catch {
       this.offerLetterName = '';
       this.offerLetterData = '';

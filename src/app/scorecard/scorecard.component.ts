@@ -11,5 +11,6 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 export class ScorecardComponent {
   private readonly route = inject(ActivatedRoute);
   readonly profileId =
-    this.route.snapshot.paramMap.get('id') ?? 'alina-torres';
+    this.route.snapshot.paramMap.get('id') ?? 'current';
+  hasScorecard = false;
 }

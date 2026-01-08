@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService, TrainingAssignment, TrainingResponse } from '../services/api.service';
 
 @Component({
   selector: 'app-compliance-training',
@@ -10,10 +12,8 @@ import { RouterLink } from '@angular/router';
   styleUrl: './compliance-training.component.scss'
 })
 export class ComplianceTrainingComponent {
-  private readonly assignmentsKey = 'tx-peoplehub-assigned-training';
-  private readonly adminKey = 'tx-peoplehub-admin-draft';
-  private readonly statusKey = 'tx-peoplehub-training-status';
   trainings: {
+    assignmentId: string;
     title: string;
     status: string;
     due: string;
@@ -21,78 +21,54 @@ export class ComplianceTrainingComponent {
   }[] = [];
   completedTrainings: { title: string; completedAt: string }[] = [];
 
-  ngOnInit() {
-    const adminRaw = localStorage.getItem(this.adminKey);
-    let department = 'Operations';
-    if (adminRaw) {
-      try {
-        const parsed = JSON.parse(adminRaw) as { department?: string };
-        if (parsed.department) {
-          department = parsed.department;
-        }
-      } catch {
-        localStorage.removeItem(this.adminKey);
-      }
-    }
+  constructor(private readonly api: ApiService) {}
 
-    this.loadAssignments(department);
-    this.applyCompletionStatus();
+  async ngOnInit() {
+    const profile = await firstValueFrom(this.api.getEmployeeProfile());
+    const department = profile?.department ?? 'Operations';
+    const employeeName = profile?.fullName ?? 'Employee';
+
+    const [assignments, responses] = await Promise.all([
+      firstValueFrom(this.api.getTrainingAssignments()),
+      firstValueFrom(this.api.getTrainingResponses({ employee: employeeName }))
+    ]);
+
+    this.loadAssignments(department, assignments);
+    this.applyCompletionStatus(responses);
     this.splitCompleted();
   }
 
-  loadAssignments(department: string) {
-    const stored = localStorage.getItem(this.assignmentsKey);
-    if (!stored) {
-      return;
-    }
-    try {
-      const parsed = JSON.parse(stored) as {
-        title: string;
-        department?: string;
-        dueDate: string;
-        questions?: { text: string; type: string }[];
-      }[];
-      if (Array.isArray(parsed)) {
-        this.trainings = parsed
-          .filter((assignment) => {
-            const assignedDepartment = assignment.department ?? 'All departments';
-            return (
-              assignedDepartment === 'All departments' ||
-              assignedDepartment === department
-            );
-          })
-          .map((assignment) => ({
-            title: assignment.title,
-            status: 'Required',
-            due: assignment.dueDate
-          }));
-      }
-    } catch {
-      localStorage.removeItem(this.assignmentsKey);
-    }
+  loadAssignments(department: string, assignments: TrainingAssignment[]) {
+    this.trainings = assignments
+      .filter((assignment) => {
+        const assignedDepartment = assignment.department ?? 'All departments';
+        return assignedDepartment === 'All departments' || assignedDepartment === department;
+      })
+      .map((assignment) => ({
+        assignmentId: assignment.id,
+        title: assignment.title,
+        status: 'Required',
+        due: assignment.dueDate
+      }));
   }
 
-  applyCompletionStatus() {
-    const stored = localStorage.getItem(this.statusKey);
-    if (!stored || !this.trainings.length) {
+  applyCompletionStatus(responses: TrainingResponse[]) {
+    if (!this.trainings.length) {
       return;
     }
-    try {
-      const parsed = JSON.parse(stored) as Record<
-        string,
-        { completed: boolean; completedAt?: string }
-      >;
-      if (!parsed || typeof parsed !== 'object') {
-        return;
-      }
-      this.trainings = this.trainings.map((training) => ({
+    const responseMap = responses.reduce<Record<string, TrainingResponse>>((acc, response) => {
+      acc[response.assignmentId] = response;
+      return acc;
+    }, {});
+    this.trainings = this.trainings.map((training) => {
+      const response = responseMap[training.assignmentId];
+      const completedAt = response?.submittedAt;
+      return {
         ...training,
-        status: parsed[training.title]?.completed ? 'Completed' : training.status,
-        completedAt: parsed[training.title]?.completedAt
-      }));
-    } catch {
-      localStorage.removeItem(this.statusKey);
-    }
+        status: completedAt ? 'Completed' : training.status,
+        completedAt
+      };
+    });
   }
 
   splitCompleted() {

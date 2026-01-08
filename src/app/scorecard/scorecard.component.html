@@ -14,77 +14,87 @@
   </header>
 
   <section class="scorecard-grid">
-    <article class="panel">
-      <div class="panel-header">
-        <h2>Overall score</h2>
-        <span class="pill">Q4</span>
-      </div>
-      <div class="score">
-        <span class="value">4.8</span>
-        <span class="label">Exceeds expectations</span>
-      </div>
-      <div class="progress">
-        <div class="bar" style="width: 86%"></div>
-      </div>
-      <div class="stat-grid">
-        <div>
-          <span class="label">Goal completion</span>
-          <span class="value">92%</span>
+    @if (hasScorecard) {
+      <article class="panel">
+        <div class="panel-header">
+          <h2>Overall score</h2>
+          <span class="pill">Q4</span>
         </div>
-        <div>
-          <span class="label">Quality rating</span>
-          <span class="value">4.9</span>
+        <div class="score">
+          <span class="value">4.8</span>
+          <span class="label">Exceeds expectations</span>
         </div>
-        <div>
-          <span class="label">Reliability</span>
-          <span class="value">4.7</span>
+        <div class="progress">
+          <div class="bar" style="width: 86%"></div>
         </div>
-        <div>
-          <span class="label">Leadership</span>
-          <span class="value">4.6</span>
+        <div class="stat-grid">
+          <div>
+            <span class="label">Goal completion</span>
+            <span class="value">92%</span>
+          </div>
+          <div>
+            <span class="label">Quality rating</span>
+            <span class="value">4.9</span>
+          </div>
+          <div>
+            <span class="label">Reliability</span>
+            <span class="value">4.7</span>
+          </div>
+          <div>
+            <span class="label">Leadership</span>
+            <span class="value">4.6</span>
+          </div>
         </div>
-      </div>
-    </article>
+      </article>
 
-    <article class="panel">
-      <div class="panel-header">
-        <h2>Key outcomes</h2>
-        <span class="pill soft">Ops</span>
-      </div>
-      <div class="outcome">
-        <strong>Network uptime</strong>
-        <p>Delivered 99.98% uptime across TierX sites.</p>
-      </div>
-      <div class="outcome">
-        <strong>Incident response</strong>
-        <p>Reduced MTTR by 18% through new escalation playbooks.</p>
-      </div>
-      <div class="outcome">
-        <strong>Team readiness</strong>
-        <p>Onboarded 4 new technicians with zero compliance gaps.</p>
-      </div>
-    </article>
+      <article class="panel">
+        <div class="panel-header">
+          <h2>Key outcomes</h2>
+          <span class="pill soft">Ops</span>
+        </div>
+        <div class="outcome">
+          <strong>Network uptime</strong>
+          <p>Delivered 99.98% uptime across TierX sites.</p>
+        </div>
+        <div class="outcome">
+          <strong>Incident response</strong>
+          <p>Reduced MTTR by 18% through new escalation playbooks.</p>
+        </div>
+        <div class="outcome">
+          <strong>Team readiness</strong>
+          <p>Onboarded 4 new technicians with zero compliance gaps.</p>
+        </div>
+      </article>
 
-    <article class="panel">
-      <div class="panel-header">
-        <h2>Growth & development</h2>
-        <span class="pill">Focus</span>
-      </div>
-      <div class="development">
-        <div>
-          <span class="label">Next role readiness</span>
-          <span class="value">75%</span>
+      <article class="panel">
+        <div class="panel-header">
+          <h2>Growth & development</h2>
+          <span class="pill">Focus</span>
         </div>
-        <div>
-          <span class="label">Mentorship</span>
-          <span class="value">2 active mentees</span>
+        <div class="development">
+          <div>
+            <span class="label">Next role readiness</span>
+            <span class="value">75%</span>
+          </div>
+          <div>
+            <span class="label">Mentorship</span>
+            <span class="value">2 active mentees</span>
+          </div>
+          <div>
+            <span class="label">Training hours</span>
+            <span class="value">36 hrs</span>
+          </div>
         </div>
-        <div>
-          <span class="label">Training hours</span>
-          <span class="value">36 hrs</span>
+        <button class="ghost full" type="button">Open development plan</button>
+      </article>
+    } @else {
+      <article class="panel">
+        <div class="panel-header">
+          <h2>Scorecard data</h2>
+          <span class="pill soft">Not ready</span>
         </div>
-      </div>
-      <button class="ghost full" type="button">Open development plan</button>
-    </article>
+        <p class="empty">No scorecard data has been recorded yet.</p>
+      </article>
+    }
   </section>
 </main>

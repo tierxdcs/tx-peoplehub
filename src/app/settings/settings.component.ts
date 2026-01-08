@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService, DepartmentRecord } from '../services/api.service';
 
 @Component({
   selector: 'app-settings',
@@ -10,27 +12,16 @@ import { RouterLink } from '@angular/router';
   styleUrl: './settings.component.scss'
 })
 export class SettingsComponent {
-  private readonly storageKey = 'tx-peoplehub-departments';
   newDepartment = { name: '', head: '' };
-  departments = [
-    { name: 'Operations', head: 'Nithin Gangadhar' },
-    { name: 'Facilities', head: 'Sofia Nguyen' },
-    { name: 'Security', head: 'Andre Lewis' },
-    { name: 'HR & People Ops', head: 'Chloe Bishop' }
-  ];
+  departments: DepartmentRecord[] = [];
 
-  ngOnInit() {
-    const stored = localStorage.getItem(this.storageKey);
-    if (!stored) {
-      return;
-    }
+  constructor(private readonly api: ApiService) {}
+
+  async ngOnInit() {
     try {
-      const parsed = JSON.parse(stored) as { name: string; head: string }[];
-      if (Array.isArray(parsed) && parsed.length) {
-        this.departments = parsed;
-      }
+      this.departments = await firstValueFrom(this.api.getDepartments());
     } catch {
-      localStorage.removeItem(this.storageKey);
+      this.departments = [];
     }
   }
 
@@ -40,13 +31,27 @@ export class SettingsComponent {
     if (!name || !head) {
       return;
     }
-    this.departments = [...this.departments, { name, head }];
-    this.newDepartment = { name: '', head: '' };
-    localStorage.setItem(this.storageKey, JSON.stringify(this.departments));
+    firstValueFrom(this.api.createDepartment({ name, head }))
+      .then((saved) => {
+        this.departments = [...this.departments, saved];
+        this.newDepartment = { name: '', head: '' };
+      })
+      .catch(() => {
+        return;
+      });
   }
 
   removeDepartment(index: number) {
-    this.departments = this.departments.filter((_, i) => i !== index);
-    localStorage.setItem(this.storageKey, JSON.stringify(this.departments));
+    const target = this.departments[index];
+    if (!target) {
+      return;
+    }
+    firstValueFrom(this.api.deleteDepartment(target.id))
+      .then(() => {
+        this.departments = this.departments.filter((_, i) => i !== index);
+      })
+      .catch(() => {
+        return;
+      });
   }
 }

@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService } from '../services/api.service';
 
 @Component({
   selector: 'app-reimbursement-form',
@@ -10,7 +12,6 @@ import { RouterLink } from '@angular/router';
   styleUrl: './reimbursement-form.component.scss'
 })
 export class ReimbursementFormComponent {
-  private readonly storageKey = 'tx-peoplehub-reimbursements';
   form = {
     title: '',
     amount: '',
@@ -19,6 +20,20 @@ export class ReimbursementFormComponent {
     notes: ''
   };
   statusMessage = '';
+  employeeName = 'Current user';
+
+  constructor(private readonly api: ApiService) {}
+
+  async ngOnInit() {
+    try {
+      const profile = await firstValueFrom(this.api.getEmployeeProfile());
+      if (profile?.fullName) {
+        this.employeeName = profile.fullName;
+      }
+    } catch {
+      return;
+    }
+  }
 
   submit() {
     if (!this.form.title || !this.form.amount || !this.form.date) {
@@ -28,26 +43,22 @@ export class ReimbursementFormComponent {
 
     const numericAmount = this.form.amount.toString().replace(/[^\d.]/g, '');
     const formattedAmount = `₹${numericAmount}`;
-    const submitted = new Date(this.form.date).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric'
-    });
     const newClaim = {
       title: this.form.title,
       amount: formattedAmount,
       category: this.form.category,
+      date: this.form.date,
+      notes: this.form.notes,
       status: 'Pending',
-      submitted,
-      employee: 'Current user'
+      employee: this.employeeName
     };
-    const stored = localStorage.getItem(this.storageKey);
-    const existing = stored ? (JSON.parse(stored) as typeof newClaim[]) : [];
-    localStorage.setItem(
-      this.storageKey,
-      JSON.stringify([newClaim, ...existing])
-    );
-
-    this.statusMessage = 'Reimbursement submitted for approval.';
-    this.form = { title: '', amount: '', category: 'Travel', date: '', notes: '' };
+    firstValueFrom(this.api.createReimbursement(newClaim))
+      .then(() => {
+        this.statusMessage = 'Reimbursement submitted for approval.';
+        this.form = { title: '', amount: '', category: 'Travel', date: '', notes: '' };
+      })
+      .catch(() => {
+        this.statusMessage = 'Unable to submit reimbursement.';
+      });
   }
 }

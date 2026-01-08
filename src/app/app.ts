@@ -1,5 +1,7 @@
 import { Component, HostListener } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { forkJoin } from 'rxjs';
+import { ApiService } from './services/api.service';
 
 @Component({
   selector: 'app-root',
@@ -14,14 +16,14 @@ export class App {
   avatarOpen = false;
   notifications: { message: string; category: string }[] = [];
 
-  constructor(private readonly router: Router) {}
+  constructor(private readonly router: Router, private readonly api: ApiService) {}
 
   ngOnInit() {
     this.loadNotifications();
-    window.addEventListener('storage', () => this.loadNotifications());
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
         this.showChrome = !event.urlAfterRedirects.startsWith('/login');
+        this.loadNotifications();
       }
     });
   }
@@ -60,22 +62,22 @@ export class App {
   }
 
   loadNotifications() {
-    const taskRaw = localStorage.getItem('tx-peoplehub-tasks');
-    const trainingRaw = localStorage.getItem('tx-peoplehub-assigned-training');
-    const tasks = taskRaw ? (JSON.parse(taskRaw) as { title: string; owner: string }[]) : [];
-    const trainings = trainingRaw
-      ? (JSON.parse(trainingRaw) as { title: string; department: string }[])
-      : [];
-
-    this.notifications = [
-      ...tasks.map((task) => ({
-        message: `Task assigned: ${task.title}`,
-        category: 'Tasks'
-      })),
-      ...trainings.map((training) => ({
-        message: `Training assigned: ${training.title}`,
-        category: 'Training'
-      }))
-    ].slice(0, 6);
+    forkJoin([this.api.getTasks(), this.api.getTrainingAssignments()]).subscribe({
+      next: ([tasks, trainings]) => {
+        this.notifications = [
+          ...tasks.map((task) => ({
+            message: `Task assigned: ${task.title}`,
+            category: 'Tasks'
+          })),
+          ...trainings.map((training) => ({
+            message: `Training assigned: ${training.title}`,
+            category: 'Training'
+          }))
+        ].slice(0, 6);
+      },
+      error: () => {
+        this.notifications = [];
+      }
+    });
   }
 }

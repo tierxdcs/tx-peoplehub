@@ -19,20 +19,24 @@
         <h2>Active reviews</h2>
         <span class="pill">Q4 2025</span>
       </div>
-      <div class="review-list">
-        @for (review of reviews; track review.name) {
-          <div class="review-row">
-            <div>
-              <strong>{{ review.name }}</strong>
-              <span>{{ review.cycle }}</span>
+      @if (reviews.length) {
+        <div class="review-list">
+          @for (review of reviews; track review.name) {
+            <div class="review-row">
+              <div>
+                <strong>{{ review.name }}</strong>
+                <span>{{ review.cycle }}</span>
+              </div>
+              <div class="meta">
+                <span class="status">{{ review.status }}</span>
+                <span>{{ review.due }}</span>
+              </div>
             </div>
-            <div class="meta">
-              <span class="status">{{ review.status }}</span>
-              <span>{{ review.due }}</span>
-            </div>
-          </div>
-        }
-      </div>
+          }
+        </div>
+      } @else {
+        <p class="empty">No review cycles scheduled yet.</p>
+      }
     </article>
 
     <article class="panel">
@@ -40,25 +44,22 @@
         <h2>Goal progress</h2>
         <span class="pill soft">Teams</span>
       </div>
-      <div class="goal-row">
-        <div>
-          <strong>Operations readiness</strong>
-          <span>76% complete</span>
-        </div>
-        <div class="progress">
-          <div class="bar" style="width: 76%"></div>
-        </div>
-      </div>
-      <div class="goal-row">
-        <div>
-          <strong>Compliance training</strong>
-          <span>92% complete</span>
-        </div>
-        <div class="progress">
-          <div class="bar" style="width: 92%"></div>
-        </div>
-      </div>
-      <button class="ghost full" type="button">View goal details</button>
+      @if (goals.length) {
+        @for (goal of goals; track goal.title) {
+          <div class="goal-row">
+            <div>
+              <strong>{{ goal.title }}</strong>
+              <span>{{ goal.progress }}% complete</span>
+            </div>
+            <div class="progress">
+              <div class="bar" [style.width.%]="goal.progress"></div>
+            </div>
+          </div>
+        }
+        <button class="ghost full" type="button">View goal details</button>
+      } @else {
+        <p class="empty">No goal data available yet.</p>
+      }
     </article>
   </section>
 </main>
