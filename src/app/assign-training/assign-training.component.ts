@@ -245,7 +245,7 @@ export class AssignTrainingComponent {
       return [];
     }
     if (type === 'True/False') {
-      return options?.length ? options : ['True', 'False'];
+      return ['True', 'False'];
     }
     return options?.length ? options : ['Option A', 'Option B', 'Option C'];
   }
