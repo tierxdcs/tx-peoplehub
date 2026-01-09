@@ -225,6 +225,43 @@ app.get('/api/employee-profiles', async (_req, res) => {
 
 app.post('/api/employee-profiles', async (req, res) => {
   const profile = req.body;
+  const normalizeNumber = (value) => {
+    if (value === '' || value === null || value === undefined) {
+      return null;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const normalizeInt = (value) => {
+    if (value === '' || value === null || value === undefined) {
+      return null;
+    }
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const normalizeDate = (value) => {
+    if (value === '' || value === null || value === undefined) {
+      return null;
+    }
+    return value;
+  };
+  const cleaned = {
+    ...profile,
+    startDate: normalizeDate(profile.startDate),
+    compensationEffectiveDate: normalizeDate(profile.compensationEffectiveDate),
+    policyEffective: normalizeDate(profile.policyEffective),
+    nextAuditDate: normalizeDate(profile.nextAuditDate),
+    baseSalary: normalizeNumber(profile.baseSalary),
+    annualPto: normalizeInt(profile.annualPto),
+    sickLeave: normalizeInt(profile.sickLeave),
+    floatingHolidays: normalizeInt(profile.floatingHolidays),
+    parentalLeave: normalizeInt(profile.parentalLeave),
+    carryoverCap: normalizeInt(profile.carryoverCap),
+    surveyScore: normalizeNumber(profile.surveyScore),
+    checkinsScore: normalizeNumber(profile.checkinsScore),
+    participationScore: normalizeNumber(profile.participationScore),
+    riskAdjustedScore: normalizeNumber(profile.riskAdjustedScore)
+  };
   try {
     const result = await getPoolInstance().query(
       `INSERT INTO tx_employee_profiles (
@@ -312,61 +349,61 @@ app.post('/api/employee-profiles', async (req, res) => {
         updated_at = NOW()
       RETURNING *`,
       [
-        profile.fullName,
-        profile.employeeId,
-        profile.email,
-        profile.location,
-        profile.department,
-        profile.startDate,
-        profile.jobTitle,
-        profile.role,
-        profile.manager,
-        profile.managerLevel2,
-        profile.managerLevel3,
-        profile.managerLevel4,
-        profile.ceo,
-        profile.director,
-        profile.employmentType,
-        profile.status,
-        profile.costCenter,
-        profile.baseSalary,
-        profile.paySchedule,
-        profile.bonusEligible,
-        profile.equityPlan,
-        profile.benefitsTier,
-        profile.compensationEffectiveDate,
-        profile.offerLetterName,
-        profile.offerLetterData,
-        profile.compBand,
-        profile.compPositioning,
-        profile.annualPto,
-        profile.sickLeave,
-        profile.floatingHolidays,
-        profile.parentalLeave,
-        profile.carryoverCap,
-        profile.policyEffective,
-        profile.certifications,
-        profile.backgroundCheck,
-        profile.safetyTraining,
-        profile.workAuthorization,
-        profile.surveyScore,
-        profile.checkinsScore,
-        profile.participationScore,
-        profile.riskAdjustedScore,
-        profile.photoUrl,
-        profile.complianceDocumentName,
-        profile.nextAuditDate,
-        profile.checklistOffer,
-        profile.checklistEquipment,
-        profile.checklistBadges,
-        profile.checklistOrientation,
-        profile.checklistBusinessCard,
-        profile.checklistCustom ?? [],
-        profile.checklistOfferOwner,
-        profile.checklistEquipmentOwner,
-        profile.checklistBadgesOwner,
-        profile.checklistOrientationOwner,
-        profile.checklistBusinessCardOwner
+        cleaned.fullName,
+        cleaned.employeeId,
+        cleaned.email,
+        cleaned.location,
+        cleaned.department,
+        cleaned.startDate,
+        cleaned.jobTitle,
+        cleaned.role,
+        cleaned.manager,
+        cleaned.managerLevel2,
+        cleaned.managerLevel3,
+        cleaned.managerLevel4,
+        cleaned.ceo,
+        cleaned.director,
+        cleaned.employmentType,
+        cleaned.status,
+        cleaned.costCenter,
+        cleaned.baseSalary,
+        cleaned.paySchedule,
+        cleaned.bonusEligible,
+        cleaned.equityPlan,
+        cleaned.benefitsTier,
+        cleaned.compensationEffectiveDate,
+        cleaned.offerLetterName,
+        cleaned.offerLetterData,
+        cleaned.compBand,
+        cleaned.compPositioning,
+        cleaned.annualPto,
+        cleaned.sickLeave,
+        cleaned.floatingHolidays,
+        cleaned.parentalLeave,
+        cleaned.carryoverCap,
+        cleaned.policyEffective,
+        cleaned.certifications,
+        cleaned.backgroundCheck,
+        cleaned.safetyTraining,
+        cleaned.workAuthorization,
+        cleaned.surveyScore,
+        cleaned.checkinsScore,
+        cleaned.participationScore,
+        cleaned.riskAdjustedScore,
+        cleaned.photoUrl,
+        cleaned.complianceDocumentName,
+        cleaned.nextAuditDate,
+        cleaned.checklistOffer,
+        cleaned.checklistEquipment,
+        cleaned.checklistBadges,
+        cleaned.checklistOrientation,
+        cleaned.checklistBusinessCard,
+        cleaned.checklistCustom ?? [],
+        cleaned.checklistOfferOwner,
+        cleaned.checklistEquipmentOwner,
+        cleaned.checklistBadgesOwner,
+        cleaned.checklistOrientationOwner,
+        cleaned.checklistBusinessCardOwner
       ]
     );
     res.json(result.rows[0]);
