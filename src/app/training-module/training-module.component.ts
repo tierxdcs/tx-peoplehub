@@ -170,7 +170,7 @@ export class TrainingModuleComponent {
     const { score, passed } = this.calculateScore(assignment);
     this.scorePercent = score;
     if (!passed) {
-      this.status = `Score ${score}% - minimum ${this.minScore}% required to pass.`;
+      this.status = `Score ${score}% - minimum ${this.minScore}% required to pass. Please retake the test`;
       return;
     }
 
