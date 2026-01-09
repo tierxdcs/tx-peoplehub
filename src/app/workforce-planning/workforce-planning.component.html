@@ -37,7 +37,11 @@
       </label>
       <label>
         Location
-        <input type="text" [(ngModel)]="form.location" name="location" />
+        <select [(ngModel)]="form.location" name="location">
+          @for (city of locationOptions; track city) {
+            <option [value]="city">{{ city }}</option>
+          }
+        </select>
       </label>
       <label>
         Headcount

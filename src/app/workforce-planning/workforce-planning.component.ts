@@ -36,7 +36,7 @@ export class WorkforcePlanningComponent {
   form = {
     title: '',
     department: 'Operations',
-    location: 'Austin, TX',
+    location: '',
     headcount: 1,
     level: 'Mid',
     hireType: 'Full-time',
@@ -46,6 +46,28 @@ export class WorkforcePlanningComponent {
     manager: '',
     costCenter: ''
   };
+  readonly locationOptions = [
+    'Bengaluru',
+    'Chennai',
+    'Delhi',
+    'Mumbai',
+    'Hyderabad',
+    'Pune',
+    'Kolkata',
+    'Ahmedabad',
+    'Jaipur',
+    'Surat',
+    'Lucknow',
+    'Noida',
+    'Gurugram',
+    'Indore',
+    'Kochi',
+    'Coimbatore',
+    'Nagpur',
+    'Bhopal',
+    'Vadodara',
+    'Visakhapatnam'
+  ];
 
   constructor(private readonly api: ApiService) {}
 
@@ -65,6 +87,9 @@ export class WorkforcePlanningComponent {
       this.sessionDepartment = parsed.department?.trim() || this.sessionDepartment;
       if (this.sessionDepartment) {
         this.form.department = this.sessionDepartment;
+      }
+      if (!this.form.location) {
+        this.form.location = 'Bengaluru';
       }
     } catch {
       this.sessionEmail = '';
@@ -90,10 +115,16 @@ export class WorkforcePlanningComponent {
         );
         this.form.department = match?.name ?? this.departments[0]?.name ?? 'Operations';
       }
+      if (!this.form.location) {
+        this.form.location = 'Bengaluru';
+      }
     } catch {
       this.departments = [];
       if (!this.form.department) {
         this.form.department = this.sessionDepartment || 'Operations';
+      }
+      if (!this.form.location) {
+        this.form.location = 'Bengaluru';
       }
     }
   }
