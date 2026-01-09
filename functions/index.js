@@ -9,6 +9,9 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 const getPoolInstance = () => getPool();
+const cache = {
+  homeDashboard: { expiresAt: 0, data: null }
+};
 
 app.get('/api/health', async (_req, res) => {
   try {
@@ -227,7 +230,8 @@ app.get('/api/employee-spotlight', async (_req, res) => {
   try {
     const result = await getPoolInstance().query(
       `SELECT full_name, employee_id, email, location, department, job_title, status,
-              photo_url, survey_score, checkins_score, participation_score, risk_adjusted_score
+              manager, photo_url, survey_score, checkins_score, participation_score,
+              risk_adjusted_score
        FROM tx_employee_profiles
        ORDER BY updated_at DESC NULLS LAST
        LIMIT 1`
@@ -235,6 +239,75 @@ app.get('/api/employee-spotlight', async (_req, res) => {
     res.json(result.rows[0] ?? null);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load employee spotlight' });
+  }
+});
+
+app.get('/api/home-dashboard', async (_req, res) => {
+  const now = Date.now();
+  if (cache.homeDashboard.data && cache.homeDashboard.expiresAt > now) {
+    res.json(cache.homeDashboard.data);
+    return;
+  }
+  try {
+    const pool = getPoolInstance();
+    const [
+      activeUsersResult,
+      profileResult,
+      tasksResult,
+      leavesResult,
+      ideasResult,
+      assignmentsResult
+    ] = await Promise.all([
+      pool.query('SELECT COUNT(*) AS count FROM tx_users WHERE status = $1', ['Active']),
+      pool.query(
+        `SELECT full_name, employee_id, email, location, department, job_title, status,
+                manager, photo_url, survey_score, checkins_score, participation_score,
+                risk_adjusted_score
+         FROM tx_employee_profiles
+         ORDER BY updated_at DESC NULLS LAST
+         LIMIT 1`
+      ),
+      pool.query('SELECT title FROM tx_tasks ORDER BY created_at DESC LIMIT 3'),
+      pool.query(
+        `SELECT id, employee_name, type, start_date, end_date, range, status, notes
+         FROM tx_leave_requests
+         WHERE LOWER(status) LIKE '%pending%'
+         ORDER BY created_at DESC
+         LIMIT 6`
+      ),
+      pool.query(
+        `SELECT id, title, type, summary, manager, submitted_at
+         FROM tx_ideas
+         ORDER BY submitted_at DESC
+         LIMIT 6`
+      ),
+      pool.query('SELECT COUNT(*) AS count FROM tx_training_assignments')
+    ]);
+
+    const profile = profileResult.rows[0] ?? null;
+    let completed = 0;
+    if (profile?.full_name) {
+      const responsesResult = await pool.query(
+        'SELECT COUNT(*) AS count FROM tx_training_responses WHERE employee = $1',
+        [profile.full_name]
+      );
+      completed = Number(responsesResult.rows[0]?.count ?? 0);
+    }
+    const total = Number(assignmentsResult.rows[0]?.count ?? 0);
+    const coverage = total ? Math.round((completed / total) * 100) : 0;
+
+    const payload = {
+      activeUserCount: Number(activeUsersResult.rows[0]?.count ?? 0),
+      profile,
+      tasks: tasksResult.rows ?? [],
+      pendingLeaves: leavesResult.rows ?? [],
+      ideas: ideasResult.rows ?? [],
+      training: { completed, total, coverage }
+    };
+    cache.homeDashboard = { data: payload, expiresAt: now + 15000 };
+    res.json(payload);
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to load home dashboard' });
   }
 });
 
