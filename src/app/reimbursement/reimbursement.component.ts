@@ -32,7 +32,8 @@ export class ReimbursementComponent {
       }
       const reimbursements = await firstValueFrom(
         this.api.getReimbursements({
-          employeeEmail: this.employeeEmail || undefined
+          employeeEmail: this.employeeEmail || undefined,
+          employeeName: this.employeeName || undefined
         })
       );
       this.claims = reimbursements
