@@ -601,6 +601,8 @@ app.post('/api/training-assignments', async (req, res) => {
     const department = String(assignment.department ?? 'All departments');
     const questions = Array.isArray(assignment.questions) ? assignment.questions : [];
     const participants = Array.isArray(assignment.participants) ? assignment.participants : [];
+    const questionsJson = JSON.stringify(questions);
+    const participantsJson = JSON.stringify(participants);
     const result = await getPoolInstance().query(
       `INSERT INTO tx_training_assignments
        (title, audience, department, due_date, questions, completed, total, participants)
@@ -611,10 +613,10 @@ app.post('/api/training-assignments', async (req, res) => {
         audience,
         department,
         dueDate,
-        questions,
+        questionsJson,
         Number(assignment.completed ?? 0),
         Number(assignment.total ?? 0),
-        participants
+        participantsJson
       ]
     );
     res.json(result.rows[0]);
@@ -631,14 +633,16 @@ app.put('/api/training-assignments/:id', async (req, res) => {
   const { id } = req.params;
   const assignment = req.body;
   try {
+    const questions = Array.isArray(assignment.questions) ? assignment.questions : [];
+    const participants = Array.isArray(assignment.participants) ? assignment.participants : [];
     const result = await getPoolInstance().query(
       `UPDATE tx_training_assignments
        SET questions = $1, participants = $2, completed = $3, total = $4
        WHERE id = $5
        RETURNING *`,
       [
-        assignment.questions ?? [],
-        assignment.participants ?? [],
+        JSON.stringify(questions),
+        JSON.stringify(participants),
         assignment.completed ?? 0,
         assignment.total ?? 0,
         id
