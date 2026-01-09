@@ -118,8 +118,8 @@ export class AssignTrainingComponent {
     };
     try {
       const saved = await firstValueFrom(this.api.createTrainingAssignment(newAssignment));
-    this.assignments = [saved, ...this.assignments];
-    this.status = 'Training assigned.';
+      this.assignments = [saved, ...this.assignments];
+      this.status = 'Training assigned.';
     this.form = {
       title: '',
       audience: 'All employees',
@@ -134,8 +134,13 @@ export class AssignTrainingComponent {
         }
       ]
     };
-    } catch {
-      this.status = 'Unable to assign training.';
+    } catch (error: any) {
+      const apiMessage =
+        error?.error?.error ||
+        error?.error?.details ||
+        error?.message ||
+        '';
+      this.status = apiMessage ? `Unable to assign training: ${apiMessage}` : 'Unable to assign training.';
     }
   }
 
