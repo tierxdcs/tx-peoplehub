@@ -682,6 +682,13 @@
             </div>
           }
         </div>
+        @if (hasMoreUsers) {
+          <div class="load-more">
+            <button class="ghost small" type="button" (click)="loadMoreUsers()" [disabled]="isLoadingUsers">
+              {{ isLoadingUsers ? 'Loading…' : 'Load more' }}
+            </button>
+          </div>
+        }
       } @else {
         <p class="empty">No users onboarded yet.</p>
       }

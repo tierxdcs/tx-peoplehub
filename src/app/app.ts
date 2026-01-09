@@ -1,7 +1,6 @@
 import { Component, HostListener, OnDestroy } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { Subject, forkJoin, takeUntil } from 'rxjs';
-import { ApiService } from './services/api.service';
+import { Subject, takeUntil } from 'rxjs';
 import { LoadingService } from './services/loading.service';
 
 @Component({
@@ -15,7 +14,6 @@ export class App implements OnDestroy {
   notificationsOpen = false;
   showChrome = true;
   avatarOpen = false;
-  notifications: { message: string; category: string }[] = [];
   isLoading = false;
   private readonly destroy$ = new Subject<void>();
   session = {
@@ -26,15 +24,10 @@ export class App implements OnDestroy {
     department: 'Operations'
   };
 
-  constructor(
-    private readonly router: Router,
-    private readonly api: ApiService,
-    private readonly loading: LoadingService
-  ) {}
+  constructor(private readonly router: Router, private readonly loading: LoadingService) {}
 
   ngOnInit() {
     this.loadSession();
-    this.loadNotifications();
     this.loading.isLoading$.pipe(takeUntil(this.destroy$)).subscribe((state) => {
       this.isLoading = state;
     });
@@ -42,16 +35,8 @@ export class App implements OnDestroy {
       if (event instanceof NavigationEnd) {
         this.showChrome = !event.urlAfterRedirects.startsWith('/login');
         this.loadSession();
-        this.loadNotifications();
       }
     });
-  }
-
-  toggleNotifications() {
-    this.notificationsOpen = !this.notificationsOpen;
-    if (this.notificationsOpen) {
-      this.avatarOpen = false;
-    }
   }
 
   logout() {
@@ -79,32 +64,6 @@ export class App implements OnDestroy {
       this.notificationsOpen = false;
       this.avatarOpen = false;
     }
-  }
-
-  loadNotifications() {
-    forkJoin([
-      this.api.getTasks({
-        ownerEmail: this.session.email?.trim().toLowerCase() || undefined,
-        ownerName: this.session.name
-      }),
-      this.api.getTrainingAssignments()
-    ]).subscribe({
-      next: ([tasks, trainings]) => {
-        this.notifications = [
-          ...tasks.map((task) => ({
-            message: `Task assigned: ${task.title}`,
-            category: 'Tasks'
-          })),
-          ...trainings.map((training) => ({
-            message: `Training assigned: ${training.title}`,
-            category: 'Training'
-          }))
-        ].slice(0, 6);
-      },
-      error: () => {
-        this.notifications = [];
-      }
-    });
   }
 
   loadSession() {

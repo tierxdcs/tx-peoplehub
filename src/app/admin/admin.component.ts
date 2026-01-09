@@ -19,6 +19,11 @@ export class AdminComponent {
   userStatus = '';
   taskStatus = '';
   users: UserRecord[] = [];
+  directors: UserRecord[] = [];
+  private readonly userPageSize = 25;
+  private userOffset = 0;
+  hasMoreUsers = true;
+  isLoadingUsers = false;
   editIndex: number | null = null;
   editUser = {
     fullName: '',
@@ -93,7 +98,7 @@ export class AdminComponent {
   constructor(private readonly api: ApiService) {}
 
   async ngOnInit() {
-    await Promise.all([this.loadTeams(), this.loadUsers(), this.loadProfile()]);
+    await Promise.all([this.loadTeams(), this.loadUsers(true), this.loadDirectors(), this.loadProfile()]);
   }
 
   async save(event: Event) {
@@ -179,7 +184,7 @@ export class AdminComponent {
   }
 
   get managerOptions() {
-    const options = this.users
+    const options = this.directors
       .filter((user) => user.director === 'Yes')
       .map((user) => user.fullName);
     const fallback = [this.adminData.manager, this.adminData.managerLevel2, this.adminData.managerLevel3]
@@ -199,11 +204,65 @@ export class AdminComponent {
     }
   }
 
-  async loadUsers() {
+  private async loadUsersPage() {
     try {
-      this.users = await firstValueFrom(this.api.getUsers());
+      if (this.isLoadingUsers) {
+        return;
+      }
+      this.isLoadingUsers = true;
+      const users = await firstValueFrom(
+        this.api.getUsers({ limit: this.userPageSize, offset: this.userOffset })
+      );
+      if (this.userOffset === 0) {
+        this.users = users;
+      } else {
+        this.users = [...this.users, ...users];
+      }
+      this.hasMoreUsers = users.length === this.userPageSize;
+      this.isLoadingUsers = false;
     } catch {
+      this.isLoadingUsers = false;
       this.users = [];
+    }
+  }
+
+  async loadUsers(reset = false) {
+    if (reset) {
+      this.userOffset = 0;
+      this.users = [];
+      this.hasMoreUsers = true;
+    }
+    await this.loadUsersPage();
+  }
+
+  async loadDirectors() {
+    try {
+      this.directors = await firstValueFrom(this.api.getUsers({ director: 'Yes', limit: 200 }));
+    } catch {
+      this.directors = [];
+    }
+  }
+
+  loadMoreUsers() {
+    if (!this.hasMoreUsers || this.isLoadingUsers) {
+      return;
+    }
+    this.userOffset += this.userPageSize;
+    void this.loadUsersPage();
+  }
+
+  private syncDirectors(user: UserRecord) {
+    const existsIndex = this.directors.findIndex((item) => item.id === user.id);
+    if (user.director === 'Yes') {
+      if (existsIndex >= 0) {
+        this.directors = this.directors.map((item, index) =>
+          index === existsIndex ? user : item
+        );
+      } else {
+        this.directors = [user, ...this.directors];
+      }
+    } else if (existsIndex >= 0) {
+      this.directors = this.directors.filter((item) => item.id !== user.id);
     }
   }
 
@@ -247,6 +306,7 @@ export class AdminComponent {
       } else {
         this.users = [saved, ...this.users];
       }
+      this.syncDirectors(saved);
       this.userStatus = 'User created.';
       this.createPassword = '';
     } catch {
@@ -270,6 +330,7 @@ export class AdminComponent {
       })
     );
     this.users = this.users.map((item) => (item.id === updated.id ? updated : item));
+    this.syncDirectors(updated);
   }
 
   async resetPassword(index: number) {
@@ -322,6 +383,7 @@ export class AdminComponent {
         })
       );
       this.users = this.users.map((item) => (item.id === updated.id ? updated : item));
+      this.syncDirectors(updated);
       this.userStatus = 'User deactivated.';
     } catch {
       this.userStatus = 'Unable to deactivate user.';
@@ -366,6 +428,7 @@ export class AdminComponent {
         })
       );
       this.users = this.users.map((user) => (user.id === updated.id ? updated : user));
+      this.syncDirectors(updated);
       this.userStatus = 'User updated.';
       this.closeEditUser();
     } catch {

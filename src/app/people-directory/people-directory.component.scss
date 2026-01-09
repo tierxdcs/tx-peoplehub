@@ -120,6 +120,12 @@ select {
   gap: 12px;
 }
 
+.load-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 24px;
+}
+
 .person-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;

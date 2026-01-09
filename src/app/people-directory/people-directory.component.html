@@ -60,4 +60,11 @@
       </article>
     }
   </section>
+  @if (hasMore) {
+    <div class="load-more">
+      <button class="ghost" type="button" (click)="loadMore()" [disabled]="isLoadingMore">
+        {{ isLoadingMore ? 'Loading…' : 'Load more' }}
+      </button>
+    </div>
+  }
 </main>

@@ -292,6 +292,12 @@ select:focus {
   background: rgba(148, 163, 184, 0.12);
 }
 
+.load-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 12px;
+}
+
 .small {
   padding: 6px 10px;
   font-size: 0.75rem;

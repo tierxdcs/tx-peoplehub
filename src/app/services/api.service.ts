@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable, map, shareReplay, tap } from 'rxjs';
 
 export type UserRole = 'Employee' | 'Manager' | 'Admin' | 'Superadmin';
 export type UserStatus = 'Active' | 'Deactivated';
@@ -216,18 +216,67 @@ export class ApiService {
     window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
       ? 'https://tierx-peoplehub.web.app/api'
       : '/api';
+  private readonly cache = new Map<string, { expires: number; obs: Observable<any> }>();
 
   constructor(private readonly http: HttpClient) {}
 
-  getUsers(): Observable<UserRecord[]> {
-    return this.http.get<UserRecord[]>(`${this.baseUrl}/users`).pipe(
-      map((rows) => rows.map((row) => this.mapUser(row)))
+  private cacheFor<T>(key: string, fetcher: () => Observable<T>, ttl = 15000): Observable<T> {
+    const now = Date.now();
+    const cached = this.cache.get(key);
+    if (cached && cached.expires > now) {
+      return cached.obs as Observable<T>;
+    }
+    const obs = fetcher().pipe(shareReplay(1));
+    this.cache.set(key, { expires: now + ttl, obs });
+    return obs;
+  }
+
+  private cacheKey(path: string, params?: HttpParams): string {
+    const query = params?.toString();
+    return query ? `${path}?${query}` : path;
+  }
+
+  private clearCache() {
+    this.cache.clear();
+  }
+
+  getUsers(params?: {
+    limit?: number;
+    offset?: number;
+    status?: UserStatus;
+    director?: string;
+    search?: string;
+  }): Observable<UserRecord[]> {
+    let httpParams = new HttpParams();
+    if (params?.limit) {
+      httpParams = httpParams.set('limit', String(params.limit));
+    }
+    if (params?.offset) {
+      httpParams = httpParams.set('offset', String(params.offset));
+    }
+    if (params?.status) {
+      httpParams = httpParams.set('status', params.status);
+    }
+    if (params?.director) {
+      httpParams = httpParams.set('director', params.director);
+    }
+    if (params?.search) {
+      httpParams = httpParams.set('search', params.search);
+    }
+    const key = this.cacheKey('users', httpParams);
+    return this.cacheFor(
+      key,
+      () =>
+        this.http.get<UserRecord[]>(`${this.baseUrl}/users`, { params: httpParams }).pipe(
+          map((rows) => rows.map((row) => this.mapUser(row)))
+        )
     );
   }
 
   createUser(payload: CreateUserPayload): Observable<UserRecord> {
     return this.http.post<UserRecord>(`${this.baseUrl}/users`, payload).pipe(
-      map((row) => this.mapUser(row))
+      map((row) => this.mapUser(row)),
+      tap(() => this.clearCache())
     );
   }
 
@@ -239,29 +288,43 @@ export class ApiService {
 
   updateUser(id: string, payload: UpdateUserPayload): Observable<UserRecord> {
     return this.http.put<UserRecord>(`${this.baseUrl}/users/${id}`, payload).pipe(
-      map((row) => this.mapUser(row))
+      map((row) => this.mapUser(row)),
+      tap(() => this.clearCache())
     );
   }
 
   getDepartments(): Observable<DepartmentRecord[]> {
-    return this.http.get<DepartmentRecord[]>(`${this.baseUrl}/departments`).pipe(
-      map((rows) => rows.map((row) => this.mapDepartment(row)))
+    const key = this.cacheKey('departments');
+    return this.cacheFor(
+      key,
+      () =>
+        this.http.get<DepartmentRecord[]>(`${this.baseUrl}/departments`).pipe(
+          map((rows) => rows.map((row) => this.mapDepartment(row)))
+        )
     );
   }
 
   createDepartment(payload: { name: string; head: string }): Observable<DepartmentRecord> {
     return this.http.post<DepartmentRecord>(`${this.baseUrl}/departments`, payload).pipe(
-      map((row) => this.mapDepartment(row))
+      map((row) => this.mapDepartment(row)),
+      tap(() => this.clearCache())
     );
   }
 
   deleteDepartment(id: string): Observable<{ ok: boolean }> {
-    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/departments/${id}`);
+    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/departments/${id}`).pipe(
+      tap(() => this.clearCache())
+    );
   }
 
   getTeams(): Observable<TeamRecord[]> {
-    return this.http.get<TeamRecord[]>(`${this.baseUrl}/teams`).pipe(
-      map((rows) => rows.map((row) => this.mapTeam(row)))
+    const key = this.cacheKey('teams');
+    return this.cacheFor(
+      key,
+      () =>
+        this.http.get<TeamRecord[]>(`${this.baseUrl}/teams`).pipe(
+          map((rows) => rows.map((row) => this.mapTeam(row)))
+        )
     );
   }
 
@@ -274,60 +337,92 @@ export class ApiService {
     sites: string;
   }): Observable<TeamRecord> {
     return this.http.post<TeamRecord>(`${this.baseUrl}/teams`, payload).pipe(
-      map((row) => this.mapTeam(row))
+      map((row) => this.mapTeam(row)),
+      tap(() => this.clearCache())
     );
   }
 
   deleteTeam(id: string): Observable<{ ok: boolean }> {
-    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/teams/${id}`);
+    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/teams/${id}`).pipe(
+      tap(() => this.clearCache())
+    );
   }
 
   getEmployeeProfile(): Observable<EmployeeProfile | null> {
-    return this.http.get<EmployeeProfile | null>(`${this.baseUrl}/employee-profiles`).pipe(
-      map((row) => (row ? this.mapProfile(row) : null))
+    const key = this.cacheKey('employee-profiles');
+    return this.cacheFor(
+      key,
+      () =>
+        this.http.get<EmployeeProfile | null>(`${this.baseUrl}/employee-profiles`).pipe(
+          map((row) => (row ? this.mapProfile(row) : null))
+        )
     );
   }
 
   getEmployeeSpotlight(): Observable<EmployeeProfile | null> {
-    return this.http.get<EmployeeProfile | null>(`${this.baseUrl}/employee-spotlight`).pipe(
-      map((row) => (row ? this.mapProfile(row) : null))
+    const key = this.cacheKey('employee-spotlight');
+    return this.cacheFor(
+      key,
+      () =>
+        this.http.get<EmployeeProfile | null>(`${this.baseUrl}/employee-spotlight`).pipe(
+          map((row) => (row ? this.mapProfile(row) : null))
+        )
     );
   }
 
   getHomeDashboard(employeeEmail?: string): Observable<HomeDashboard> {
     const params = employeeEmail
       ? new HttpParams().set('employeeEmail', employeeEmail)
-      : undefined;
-    return this.http.get<HomeDashboard>(`${this.baseUrl}/home-dashboard`, { params }).pipe(
-      map((payload) => ({
-        activeUserCount: Number(payload.activeUserCount ?? 0),
-        profile: payload.profile ? this.mapProfile(payload.profile) : null,
-        tasks: Array.isArray(payload.tasks) ? payload.tasks : [],
-        pendingLeaves: Array.isArray(payload.pendingLeaves)
-          ? payload.pendingLeaves.map((row) => this.mapLeave(row))
-          : [],
-        ideas: Array.isArray(payload.ideas) ? payload.ideas.map((row) => this.mapIdea(row)) : [],
-        reimbursements: payload.reimbursements ?? { pending: 0 },
-        training: payload.training ?? { completed: 0, total: 0, coverage: 0 }
-      }))
+      : new HttpParams();
+    const key = this.cacheKey('home-dashboard', params);
+    return this.cacheFor(
+      key,
+      () =>
+        this.http.get<HomeDashboard>(`${this.baseUrl}/home-dashboard`, { params }).pipe(
+          map((payload) => ({
+            activeUserCount: Number(payload.activeUserCount ?? 0),
+            profile: payload.profile ? this.mapProfile(payload.profile) : null,
+            tasks: Array.isArray(payload.tasks) ? payload.tasks : [],
+            pendingLeaves: Array.isArray(payload.pendingLeaves)
+              ? payload.pendingLeaves.map((row) => this.mapLeave(row))
+              : [],
+            ideas: Array.isArray(payload.ideas) ? payload.ideas.map((row) => this.mapIdea(row)) : [],
+            reimbursements: payload.reimbursements ?? { pending: 0 },
+            training: payload.training ?? { completed: 0, total: 0, coverage: 0 }
+          }))
+        )
     );
   }
 
   saveEmployeeProfile(payload: EmployeeProfile): Observable<EmployeeProfile> {
     return this.http.post<EmployeeProfile>(`${this.baseUrl}/employee-profiles`, payload).pipe(
-      map((row) => this.mapProfile(row))
+      map((row) => this.mapProfile(row)),
+      tap(() => this.clearCache())
     );
   }
 
-  getTrainingAssignments(): Observable<TrainingAssignment[]> {
-    return this.http.get<TrainingAssignment[]>(`${this.baseUrl}/training-assignments`).pipe(
-      map((rows) => rows.map((row) => this.mapTrainingAssignment(row)))
+  getTrainingAssignments(params?: { limit?: number; offset?: number }): Observable<TrainingAssignment[]> {
+    let httpParams = new HttpParams();
+    if (params?.limit) {
+      httpParams = httpParams.set('limit', String(params.limit));
+    }
+    if (params?.offset) {
+      httpParams = httpParams.set('offset', String(params.offset));
+    }
+    const key = this.cacheKey('training-assignments', httpParams);
+    return this.cacheFor(
+      key,
+      () =>
+        this.http.get<TrainingAssignment[]>(`${this.baseUrl}/training-assignments`, { params: httpParams }).pipe(
+          map((rows) => rows.map((row) => this.mapTrainingAssignment(row)))
+        )
     );
   }
 
   createTrainingAssignment(payload: Omit<TrainingAssignment, 'id'>): Observable<TrainingAssignment> {
     return this.http.post<TrainingAssignment>(`${this.baseUrl}/training-assignments`, payload).pipe(
-      map((row) => this.mapTrainingAssignment(row))
+      map((row) => this.mapTrainingAssignment(row)),
+      tap(() => this.clearCache())
     );
   }
 
@@ -336,11 +431,17 @@ export class ApiService {
     payload: Pick<TrainingAssignment, 'questions' | 'participants' | 'completed' | 'total'>
   ): Observable<TrainingAssignment> {
     return this.http.put<TrainingAssignment>(`${this.baseUrl}/training-assignments/${id}`, payload).pipe(
-      map((row) => this.mapTrainingAssignment(row))
+      map((row) => this.mapTrainingAssignment(row)),
+      tap(() => this.clearCache())
     );
   }
 
-  getTrainingResponses(params?: { assignmentId?: string; employee?: string }): Observable<TrainingResponse[]> {
+  getTrainingResponses(params?: {
+    assignmentId?: string;
+    employee?: string;
+    limit?: number;
+    offset?: number;
+  }): Observable<TrainingResponse[]> {
     let httpParams = new HttpParams();
     if (params?.assignmentId) {
       httpParams = httpParams.set('assignmentId', params.assignmentId);
@@ -348,10 +449,19 @@ export class ApiService {
     if (params?.employee) {
       httpParams = httpParams.set('employee', params.employee);
     }
-    return this.http.get<TrainingResponse[]>(`${this.baseUrl}/training-responses`, {
-      params: httpParams
-    }).pipe(
-      map((rows) => rows.map((row) => this.mapTrainingResponse(row)))
+    if (params?.limit) {
+      httpParams = httpParams.set('limit', String(params.limit));
+    }
+    if (params?.offset) {
+      httpParams = httpParams.set('offset', String(params.offset));
+    }
+    const key = this.cacheKey('training-responses', httpParams);
+    return this.cacheFor(
+      key,
+      () =>
+        this.http.get<TrainingResponse[]>(`${this.baseUrl}/training-responses`, {
+          params: httpParams
+        }).pipe(map((rows) => rows.map((row) => this.mapTrainingResponse(row))))
     );
   }
 
@@ -363,26 +473,45 @@ export class ApiService {
     passed?: boolean;
   }): Observable<TrainingResponse> {
     return this.http.post<TrainingResponse>(`${this.baseUrl}/training-responses`, payload).pipe(
-      map((row) => this.mapTrainingResponse(row))
+      map((row) => this.mapTrainingResponse(row)),
+      tap(() => this.clearCache())
     );
   }
 
-  getIdeas(employeeEmail?: string): Observable<IdeaRecord[]> {
-    const params = employeeEmail
-      ? new HttpParams().set('employeeEmail', employeeEmail)
-      : undefined;
-    return this.http.get<IdeaRecord[]>(`${this.baseUrl}/ideas`, { params }).pipe(
-      map((rows) => rows.map((row) => this.mapIdea(row)))
+  getIdeas(params?: { employeeEmail?: string; limit?: number; offset?: number }): Observable<IdeaRecord[]> {
+    let httpParams = new HttpParams();
+    if (params?.employeeEmail) {
+      httpParams = httpParams.set('employeeEmail', params.employeeEmail);
+    }
+    if (params?.limit) {
+      httpParams = httpParams.set('limit', String(params.limit));
+    }
+    if (params?.offset) {
+      httpParams = httpParams.set('offset', String(params.offset));
+    }
+    const key = this.cacheKey('ideas', httpParams);
+    return this.cacheFor(
+      key,
+      () =>
+        this.http.get<IdeaRecord[]>(`${this.baseUrl}/ideas`, { params: httpParams }).pipe(
+          map((rows) => rows.map((row) => this.mapIdea(row)))
+        )
     );
   }
 
   createIdea(payload: Omit<IdeaRecord, 'id' | 'submittedAt'>): Observable<IdeaRecord> {
     return this.http.post<IdeaRecord>(`${this.baseUrl}/ideas`, payload).pipe(
-      map((row) => this.mapIdea(row))
+      map((row) => this.mapIdea(row)),
+      tap(() => this.clearCache())
     );
   }
 
-  getLeaves(params?: { employeeEmail?: string; employeeName?: string }): Observable<LeaveRecord[]> {
+  getLeaves(params?: {
+    employeeEmail?: string;
+    employeeName?: string;
+    limit?: number;
+    offset?: number;
+  }): Observable<LeaveRecord[]> {
     let httpParams = new HttpParams();
     if (params?.employeeEmail) {
       httpParams = httpParams.set('employeeEmail', params.employeeEmail);
@@ -390,20 +519,33 @@ export class ApiService {
     if (params?.employeeName) {
       httpParams = httpParams.set('employeeName', params.employeeName);
     }
-    return this.http.get<LeaveRecord[]>(`${this.baseUrl}/leaves`, { params: httpParams }).pipe(
-      map((rows) => rows.map((row) => this.mapLeave(row)))
+    if (params?.limit) {
+      httpParams = httpParams.set('limit', String(params.limit));
+    }
+    if (params?.offset) {
+      httpParams = httpParams.set('offset', String(params.offset));
+    }
+    const key = this.cacheKey('leaves', httpParams);
+    return this.cacheFor(
+      key,
+      () =>
+        this.http.get<LeaveRecord[]>(`${this.baseUrl}/leaves`, { params: httpParams }).pipe(
+          map((rows) => rows.map((row) => this.mapLeave(row)))
+        )
     );
   }
 
   createLeave(payload: Omit<LeaveRecord, 'id'>): Observable<LeaveRecord> {
     return this.http.post<LeaveRecord>(`${this.baseUrl}/leaves`, payload).pipe(
-      map((row) => this.mapLeave(row))
+      map((row) => this.mapLeave(row)),
+      tap(() => this.clearCache())
     );
   }
 
   updateLeaveStatus(id: string, status: string): Observable<LeaveRecord> {
     return this.http.patch<LeaveRecord>(`${this.baseUrl}/leaves/${id}`, { status }).pipe(
-      map((row) => this.mapLeave(row))
+      map((row) => this.mapLeave(row)),
+      tap(() => this.clearCache())
     );
   }
 
@@ -411,6 +553,8 @@ export class ApiService {
     employeeEmail?: string;
     employeeName?: string;
     scope?: 'all';
+    limit?: number;
+    offset?: number;
   }): Observable<ReimbursementRecord[]> {
     let httpParams = new HttpParams();
     if (params?.employeeEmail) {
@@ -422,28 +566,41 @@ export class ApiService {
     if (params?.scope === 'all') {
       httpParams = httpParams.set('scope', 'all');
     }
-    return this.http
-      .get<ReimbursementRecord[]>(`${this.baseUrl}/reimbursements`, { params: httpParams })
-      .pipe(
-      map((rows) => rows.map((row) => this.mapReimbursement(row)))
+    if (params?.limit) {
+      httpParams = httpParams.set('limit', String(params.limit));
+    }
+    if (params?.offset) {
+      httpParams = httpParams.set('offset', String(params.offset));
+    }
+    const key = this.cacheKey('reimbursements', httpParams);
+    return this.cacheFor(
+      key,
+      () =>
+        this.http
+          .get<ReimbursementRecord[]>(`${this.baseUrl}/reimbursements`, { params: httpParams })
+          .pipe(map((rows) => rows.map((row) => this.mapReimbursement(row))))
     );
   }
 
   createReimbursement(payload: Omit<ReimbursementRecord, 'id'>): Observable<ReimbursementRecord> {
     return this.http.post<ReimbursementRecord>(`${this.baseUrl}/reimbursements`, payload).pipe(
-      map((row) => this.mapReimbursement(row))
+      map((row) => this.mapReimbursement(row)),
+      tap(() => this.clearCache())
     );
   }
 
   updateReimbursementStatus(id: string, status: string): Observable<ReimbursementRecord> {
     return this.http.patch<ReimbursementRecord>(`${this.baseUrl}/reimbursements/${id}`, { status }).pipe(
-      map((row) => this.mapReimbursement(row))
+      map((row) => this.mapReimbursement(row)),
+      tap(() => this.clearCache())
     );
   }
 
   getRequisitions(params?: {
     requesterEmail?: string;
     scope?: 'all';
+    limit?: number;
+    offset?: number;
   }): Observable<RequisitionRecord[]> {
     let httpParams = new HttpParams();
     if (params?.requesterEmail) {
@@ -452,26 +609,37 @@ export class ApiService {
     if (params?.scope === 'all') {
       httpParams = httpParams.set('scope', 'all');
     }
-    return this.http
-      .get<RequisitionRecord[]>(`${this.baseUrl}/requisitions`, { params: httpParams })
-      .pipe(
-      map((rows) => rows.map((row) => this.mapRequisition(row)))
+    if (params?.limit) {
+      httpParams = httpParams.set('limit', String(params.limit));
+    }
+    if (params?.offset) {
+      httpParams = httpParams.set('offset', String(params.offset));
+    }
+    const key = this.cacheKey('requisitions', httpParams);
+    return this.cacheFor(
+      key,
+      () =>
+        this.http
+          .get<RequisitionRecord[]>(`${this.baseUrl}/requisitions`, { params: httpParams })
+          .pipe(map((rows) => rows.map((row) => this.mapRequisition(row))))
     );
   }
 
   createRequisition(payload: Omit<RequisitionRecord, 'id' | 'submittedAt'>): Observable<RequisitionRecord> {
     return this.http.post<RequisitionRecord>(`${this.baseUrl}/requisitions`, payload).pipe(
-      map((row) => this.mapRequisition(row))
+      map((row) => this.mapRequisition(row)),
+      tap(() => this.clearCache())
     );
   }
 
   updateRequisitionApproval(id: string, approval: string): Observable<RequisitionRecord> {
     return this.http.patch<RequisitionRecord>(`${this.baseUrl}/requisitions/${id}`, { approval }).pipe(
-      map((row) => this.mapRequisition(row))
+      map((row) => this.mapRequisition(row)),
+      tap(() => this.clearCache())
     );
   }
 
-  getTasks(params?: { ownerEmail?: string; ownerName?: string }): Observable<TaskRecord[]> {
+  getTasks(params?: { ownerEmail?: string; ownerName?: string; limit?: number; offset?: number }): Observable<TaskRecord[]> {
     let httpParams = new HttpParams();
     if (params?.ownerEmail) {
       httpParams = httpParams.set('ownerEmail', params.ownerEmail);
@@ -479,24 +647,50 @@ export class ApiService {
     if (params?.ownerName) {
       httpParams = httpParams.set('ownerName', params.ownerName);
     }
-    return this.http.get<TaskRecord[]>(`${this.baseUrl}/tasks`, { params: httpParams }).pipe(
-      map((rows) => rows.map((row) => this.mapTask(row)))
+    if (params?.limit) {
+      httpParams = httpParams.set('limit', String(params.limit));
+    }
+    if (params?.offset) {
+      httpParams = httpParams.set('offset', String(params.offset));
+    }
+    const key = this.cacheKey('tasks', httpParams);
+    return this.cacheFor(
+      key,
+      () =>
+        this.http.get<TaskRecord[]>(`${this.baseUrl}/tasks`, { params: httpParams }).pipe(
+          map((rows) => rows.map((row) => this.mapTask(row)))
+        )
     );
   }
 
   createTask(payload: Omit<TaskRecord, 'id'>): Observable<TaskRecord> {
     return this.http.post<TaskRecord>(`${this.baseUrl}/tasks`, payload).pipe(
-      map((row) => this.mapTask(row))
+      map((row) => this.mapTask(row)),
+      tap(() => this.clearCache())
     );
   }
 
   deleteTask(id: string): Observable<{ ok: boolean }> {
-    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/tasks/${id}`);
+    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/tasks/${id}`).pipe(
+      tap(() => this.clearCache())
+    );
   }
 
-  getCompletedApprovals(): Observable<CompletedApproval[]> {
-    return this.http.get<CompletedApproval[]>(`${this.baseUrl}/approvals/completed`).pipe(
-      map((rows) => rows.map((row) => this.mapCompletedApproval(row)))
+  getCompletedApprovals(params?: { limit?: number; offset?: number }): Observable<CompletedApproval[]> {
+    let httpParams = new HttpParams();
+    if (params?.limit) {
+      httpParams = httpParams.set('limit', String(params.limit));
+    }
+    if (params?.offset) {
+      httpParams = httpParams.set('offset', String(params.offset));
+    }
+    const key = this.cacheKey('approvals/completed', httpParams);
+    return this.cacheFor(
+      key,
+      () =>
+        this.http.get<CompletedApproval[]>(`${this.baseUrl}/approvals/completed`, { params: httpParams }).pipe(
+          map((rows) => rows.map((row) => this.mapCompletedApproval(row)))
+        )
     );
   }
 
@@ -504,7 +698,8 @@ export class ApiService {
     payload: Omit<CompletedApproval, 'id' | 'decidedAt'>
   ): Observable<CompletedApproval> {
     return this.http.post<CompletedApproval>(`${this.baseUrl}/approvals/completed`, payload).pipe(
-      map((row) => this.mapCompletedApproval(row))
+      map((row) => this.mapCompletedApproval(row)),
+      tap(() => this.clearCache())
     );
   }
 
