@@ -184,7 +184,7 @@ export type RequisitionRecord = {
   manager: string;
   costCenter: string;
   approval: string;
-  requesterEmail: string;
+  requesterEmail?: string;
   submittedAt: string;
 };
 
