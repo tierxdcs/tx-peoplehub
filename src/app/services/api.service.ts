@@ -272,6 +272,12 @@ export class ApiService {
     );
   }
 
+  getEmployeeSpotlight(): Observable<EmployeeProfile | null> {
+    return this.http.get<EmployeeProfile | null>(`${this.baseUrl}/employee-spotlight`).pipe(
+      map((row) => (row ? this.mapProfile(row) : null))
+    );
+  }
+
   saveEmployeeProfile(payload: EmployeeProfile): Observable<EmployeeProfile> {
     return this.http.post<EmployeeProfile>(`${this.baseUrl}/employee-profiles`, payload).pipe(
       map((row) => this.mapProfile(row))
