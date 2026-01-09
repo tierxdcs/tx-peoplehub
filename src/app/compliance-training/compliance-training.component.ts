@@ -22,6 +22,7 @@ export class ComplianceTrainingComponent {
   completedTrainings: { title: string; completedAt: string }[] = [];
   sessionDepartment = 'Operations';
   sessionName = 'Employee';
+  sessionRole = 'Employee';
 
   constructor(private readonly api: ApiService) {}
 
@@ -29,13 +30,14 @@ export class ComplianceTrainingComponent {
     this.loadSession();
     const department = this.sessionDepartment;
     const employeeName = this.sessionName;
+    const role = this.sessionRole;
 
     const [assignments, responses] = await Promise.all([
       firstValueFrom(this.api.getTrainingAssignments()),
       firstValueFrom(this.api.getTrainingResponses({ employee: employeeName }))
     ]);
 
-    this.loadAssignments(department, assignments);
+    this.loadAssignments(department, role, assignments);
     this.applyCompletionStatus(responses);
     this.splitCompleted();
   }
@@ -46,19 +48,29 @@ export class ComplianceTrainingComponent {
       return;
     }
     try {
-      const parsed = JSON.parse(raw) as { name?: string; department?: string };
+      const parsed = JSON.parse(raw) as {
+        name?: string;
+        department?: string;
+        role?: string;
+      };
       this.sessionName = parsed.name?.trim() || this.sessionName;
       this.sessionDepartment = parsed.department?.trim() || this.sessionDepartment;
+      this.sessionRole = parsed.role?.trim() || this.sessionRole;
     } catch {
       return;
     }
   }
 
-  loadAssignments(department: string, assignments: TrainingAssignment[]) {
+  loadAssignments(department: string, role: string, assignments: TrainingAssignment[]) {
     this.trainings = assignments
       .filter((assignment) => {
         const assignedDepartment = assignment.department ?? 'All departments';
-        return assignedDepartment === 'All departments' || assignedDepartment === department;
+        const assignedAudience = assignment.audience ?? 'All employees';
+        const departmentMatch =
+          assignedDepartment === 'All departments' || assignedDepartment === department;
+        const audienceMatch =
+          assignedAudience === 'All employees' || assignedAudience === role;
+        return departmentMatch && audienceMatch;
       })
       .map((assignment) => ({
         assignmentId: assignment.id,
