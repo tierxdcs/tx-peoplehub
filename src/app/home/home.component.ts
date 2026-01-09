@@ -40,16 +40,34 @@ export class HomeComponent {
   };
   leaveError = '';
   currentProfile: EmployeeProfile | null = null;
+  sessionEmail = '';
+  sessionName = '';
 
   constructor(private readonly api: ApiService) {}
 
   async ngOnInit() {
+    this.loadSession();
     await this.loadDashboard();
+  }
+
+  loadSession() {
+    const raw = localStorage.getItem('tx-peoplehub-session');
+    if (!raw) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as { email?: string; name?: string };
+      this.sessionEmail = parsed.email?.trim().toLowerCase() || '';
+      this.sessionName = parsed.name?.trim() || '';
+    } catch {
+      this.sessionEmail = '';
+      this.sessionName = '';
+    }
   }
 
   async loadDashboard() {
     try {
-      const payload = await firstValueFrom(this.api.getHomeDashboard());
+      const payload = await firstValueFrom(this.api.getHomeDashboard(this.sessionEmail || undefined));
       this.activeUserCount = payload.activeUserCount;
       this.currentProfile = payload.profile;
       if (this.currentProfile?.manager) {
@@ -110,7 +128,7 @@ export class HomeComponent {
 
   async refreshIdeas() {
     try {
-      this.ideaHistory = await firstValueFrom(this.api.getIdeas());
+      this.ideaHistory = await firstValueFrom(this.api.getIdeas(this.sessionEmail || undefined));
     } catch {
       return;
     }
@@ -143,7 +161,8 @@ export class HomeComponent {
       title: this.ideaForm.title.trim(),
       type: this.ideaForm.type,
       summary: this.ideaForm.summary.trim(),
-      manager: this.managerName
+      manager: this.managerName,
+      employeeEmail: this.sessionEmail
     };
     Promise.all([
       firstValueFrom(this.api.createIdea(payload)),
@@ -151,6 +170,7 @@ export class HomeComponent {
         this.api.createTask({
           title: `Idea review: ${payload.title}`,
           owner: this.managerName,
+          ownerEmail: '',
           due: 'This week',
           source: 'ideas'
         })
@@ -202,6 +222,7 @@ export class HomeComponent {
 
     const payload: Omit<LeaveRecord, 'id'> = {
       employeeName: this.adminDataName(),
+      employeeEmail: this.sessionEmail,
       type: this.leaveForm.type,
       startDate: this.leaveForm.startDate,
       endDate: this.leaveForm.endDate,
@@ -251,6 +272,6 @@ export class HomeComponent {
   }
 
   adminDataName() {
-    return this.currentProfile?.fullName || 'Employee';
+    return this.currentProfile?.fullName || this.sessionName || 'Employee';
   }
 }

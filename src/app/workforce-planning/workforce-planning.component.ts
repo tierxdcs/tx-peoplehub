@@ -14,6 +14,7 @@ import { ApiService, RequisitionRecord } from '../services/api.service';
 })
 export class WorkforcePlanningComponent {
   status = '';
+  sessionEmail = '';
   requests: {
     id: string;
     title: string;
@@ -47,12 +48,28 @@ export class WorkforcePlanningComponent {
   constructor(private readonly api: ApiService) {}
 
   async ngOnInit() {
+    this.loadSession();
     await Promise.all([this.loadRequests(), this.loadProfile()]);
+  }
+
+  loadSession() {
+    const raw = localStorage.getItem('tx-peoplehub-session');
+    if (!raw) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as { email?: string };
+      this.sessionEmail = parsed.email?.trim().toLowerCase() || '';
+    } catch {
+      this.sessionEmail = '';
+    }
   }
 
   async loadRequests() {
     try {
-      this.requests = await firstValueFrom(this.api.getRequisitions());
+      this.requests = await firstValueFrom(
+        this.api.getRequisitions(this.sessionEmail || undefined)
+      );
     } catch {
       this.requests = [];
     }
@@ -89,7 +106,8 @@ export class WorkforcePlanningComponent {
       budgetImpact: this.form.budgetImpact.trim(),
       costCenter: this.form.costCenter.trim(),
       manager: this.form.manager || 'Direct Manager',
-      approval: 'Pending Board Directors approval'
+      approval: 'Pending Board Directors approval',
+      requesterEmail: this.sessionEmail
     };
     firstValueFrom(this.api.createRequisition(request))
       .then((saved) => {

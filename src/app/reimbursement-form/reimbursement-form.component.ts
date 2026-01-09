@@ -36,7 +36,7 @@ export class ReimbursementFormComponent {
         try {
           const parsed = JSON.parse(rawSession) as { name?: string; email?: string };
           this.employeeName = parsed.name?.trim() || this.employeeName;
-          this.employeeEmail = parsed.email?.trim() || '';
+          this.employeeEmail = parsed.email?.trim().toLowerCase() || '';
         } catch {
           this.employeeEmail = '';
         }

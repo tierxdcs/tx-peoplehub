@@ -11,6 +11,8 @@ import { ApiService } from '../services/api.service';
   styleUrl: './tasks.component.scss'
 })
 export class TasksComponent {
+  sessionEmail = '';
+  sessionName = '';
   approvals: {
     id: string;
     title: string;
@@ -30,8 +32,24 @@ export class TasksComponent {
 
   async ngOnInit() {
     try {
+      const raw = localStorage.getItem('tx-peoplehub-session');
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as { email?: string; name?: string };
+          this.sessionEmail = parsed.email?.trim().toLowerCase() || '';
+          this.sessionName = parsed.name?.trim() || '';
+        } catch {
+          this.sessionEmail = '';
+          this.sessionName = '';
+        }
+      }
       const [tasks, leaves, reimbursements, requisitions, completed] = await Promise.all([
-        firstValueFrom(this.api.getTasks()),
+        firstValueFrom(
+          this.api.getTasks({
+            ownerEmail: this.sessionEmail || undefined,
+            ownerName: this.sessionName || undefined
+          })
+        ),
         firstValueFrom(this.api.getLeaves()),
         firstValueFrom(this.api.getReimbursements()),
         firstValueFrom(this.api.getRequisitions()),

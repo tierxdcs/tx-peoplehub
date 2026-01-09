@@ -12,7 +12,7 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 const getPoolInstance = () => getPool();
 const cache = {
-  homeDashboard: { expiresAt: 0, data: null }
+  homeDashboard: { dataByEmail: {} }
 };
 const setCacheHeader = (res, seconds) => {
   res.set('Cache-Control', `public, max-age=${seconds}`);
@@ -254,50 +254,92 @@ app.get('/api/employee-spotlight', async (_req, res) => {
   }
 });
 
-app.get('/api/home-dashboard', async (_req, res) => {
+app.get('/api/home-dashboard', async (req, res) => {
   const now = Date.now();
-  if (cache.homeDashboard.data && cache.homeDashboard.expiresAt > now) {
+  const emailKey = String(req.query.employeeEmail ?? '')
+    .trim()
+    .toLowerCase() || 'all';
+  const cached = cache.homeDashboard.dataByEmail[emailKey];
+  if (cached && cached.expiresAt > now) {
     setCacheHeader(res, 15);
-    res.json(cache.homeDashboard.data);
+    res.json(cached.data);
     return;
   }
   try {
     const pool = getPoolInstance();
+    const profileResult = emailKey !== 'all'
+      ? await pool.query(
+          `SELECT full_name, employee_id, email, location, department, job_title, status,
+                  manager, photo_url, survey_score, checkins_score, participation_score,
+                  risk_adjusted_score
+           FROM tx_employee_profiles
+           WHERE LOWER(email) = $1
+           ORDER BY updated_at DESC NULLS LAST
+           LIMIT 1`,
+          [emailKey]
+        )
+      : await pool.query(
+          `SELECT full_name, employee_id, email, location, department, job_title, status,
+                  manager, photo_url, survey_score, checkins_score, participation_score,
+                  risk_adjusted_score
+           FROM tx_employee_profiles
+           ORDER BY updated_at DESC NULLS LAST
+           LIMIT 1`
+        );
+    const profile = profileResult.rows[0] ?? null;
+
     const [
       activeUsersResult,
-      profileResult,
       tasksResult,
       leavesResult,
       ideasResult,
       assignmentsResult
     ] = await Promise.all([
       pool.query('SELECT COUNT(*) AS count FROM tx_users WHERE status = $1', ['Active']),
-      pool.query(
-        `SELECT full_name, employee_id, email, location, department, job_title, status,
-                manager, photo_url, survey_score, checkins_score, participation_score,
-                risk_adjusted_score
-         FROM tx_employee_profiles
-         ORDER BY updated_at DESC NULLS LAST
-         LIMIT 1`
-      ),
-      pool.query('SELECT title FROM tx_tasks ORDER BY created_at DESC LIMIT 3'),
-      pool.query(
-        `SELECT id, employee_name, type, start_date, end_date, range, status, notes
-         FROM tx_leave_requests
-         WHERE LOWER(status) LIKE '%pending%'
-         ORDER BY created_at DESC
-         LIMIT 6`
-      ),
-      pool.query(
-        `SELECT id, title, type, summary, manager, submitted_at
-         FROM tx_ideas
-         ORDER BY submitted_at DESC
-         LIMIT 6`
-      ),
+      emailKey !== 'all'
+        ? pool.query(
+            `SELECT title FROM tx_tasks
+             WHERE owner_email = $1 OR owner = $2
+             ORDER BY created_at DESC
+             LIMIT 3`,
+            [emailKey, profile?.full_name ?? '']
+          )
+        : pool.query('SELECT title FROM tx_tasks ORDER BY created_at DESC LIMIT 3'),
+      emailKey !== 'all'
+        ? pool.query(
+            `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
+             FROM tx_leave_requests
+             WHERE LOWER(status) LIKE '%pending%'
+               AND (employee_email = $1 OR employee_name = $2)
+             ORDER BY created_at DESC
+             LIMIT 6`,
+            [emailKey, profile?.full_name ?? '']
+          )
+        : pool.query(
+            `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
+             FROM tx_leave_requests
+             WHERE LOWER(status) LIKE '%pending%'
+             ORDER BY created_at DESC
+             LIMIT 6`
+          ),
+      emailKey !== 'all'
+        ? pool.query(
+            `SELECT id, title, type, summary, manager, employee_email, submitted_at
+             FROM tx_ideas
+             WHERE employee_email = $1
+             ORDER BY submitted_at DESC
+             LIMIT 6`,
+            [emailKey]
+          )
+        : pool.query(
+            `SELECT id, title, type, summary, manager, employee_email, submitted_at
+             FROM tx_ideas
+             ORDER BY submitted_at DESC
+             LIMIT 6`
+          ),
       pool.query('SELECT COUNT(*) AS count FROM tx_training_assignments')
     ]);
 
-    const profile = profileResult.rows[0] ?? null;
     let completed = 0;
     if (profile?.full_name) {
       const responsesResult = await pool.query(
@@ -317,7 +359,7 @@ app.get('/api/home-dashboard', async (_req, res) => {
       ideas: ideasResult.rows ?? [],
       training: { completed, total, coverage }
     };
-    cache.homeDashboard = { data: payload, expiresAt: now + 15000 };
+    cache.homeDashboard.dataByEmail[emailKey] = { data: payload, expiresAt: now + 15000 };
     setCacheHeader(res, 15);
     res.json(payload);
   } catch (error) {
@@ -617,13 +659,22 @@ app.get('/api/training-responses', async (req, res) => {
   }
 });
 
-app.get('/api/ideas', async (_req, res) => {
+app.get('/api/ideas', async (req, res) => {
+  const employeeEmail = String(req.query.employeeEmail ?? '').trim().toLowerCase();
   try {
-    const result = await getPoolInstance().query(
-      `SELECT id, title, type, summary, manager, submitted_at
-       FROM tx_ideas
-       ORDER BY submitted_at DESC`
-    );
+    const result = employeeEmail
+      ? await getPoolInstance().query(
+          `SELECT id, title, type, summary, manager, employee_email, submitted_at
+           FROM tx_ideas
+           WHERE employee_email = $1
+           ORDER BY submitted_at DESC`,
+          [employeeEmail]
+        )
+      : await getPoolInstance().query(
+          `SELECT id, title, type, summary, manager, employee_email, submitted_at
+           FROM tx_ideas
+           ORDER BY submitted_at DESC`
+        );
     setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {
@@ -633,12 +684,13 @@ app.get('/api/ideas', async (_req, res) => {
 
 app.post('/api/ideas', async (req, res) => {
   const idea = req.body;
+  const employeeEmail = String(idea.employeeEmail ?? '').trim().toLowerCase() || null;
   try {
     const result = await getPoolInstance().query(
-      `INSERT INTO tx_ideas (title, type, summary, manager)
-       VALUES ($1,$2,$3,$4)
+      `INSERT INTO tx_ideas (title, type, summary, manager, employee_email)
+       VALUES ($1,$2,$3,$4,$5)
        RETURNING *`,
-      [idea.title, idea.type, idea.summary, idea.manager]
+      [idea.title, idea.type, idea.summary, idea.manager, employeeEmail]
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -646,13 +698,24 @@ app.post('/api/ideas', async (req, res) => {
   }
 });
 
-app.get('/api/leaves', async (_req, res) => {
+app.get('/api/leaves', async (req, res) => {
+  const employeeEmail = String(req.query.employeeEmail ?? '').trim().toLowerCase();
+  const employeeName = String(req.query.employeeName ?? '').trim();
   try {
-    const result = await getPoolInstance().query(
-      `SELECT id, employee_name, type, start_date, end_date, range, status, notes
-       FROM tx_leave_requests
-       ORDER BY created_at DESC`
-    );
+    const result = employeeEmail || employeeName
+      ? await getPoolInstance().query(
+          `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
+           FROM tx_leave_requests
+           WHERE ($1 = '' OR employee_email = $1)
+             AND ($2 = '' OR employee_name = $2)
+           ORDER BY created_at DESC`,
+          [employeeEmail, employeeName]
+        )
+      : await getPoolInstance().query(
+          `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
+           FROM tx_leave_requests
+           ORDER BY created_at DESC`
+        );
     setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {
@@ -662,14 +725,16 @@ app.get('/api/leaves', async (_req, res) => {
 
 app.post('/api/leaves', async (req, res) => {
   const leave = req.body;
+  const employeeEmail = String(leave.employeeEmail ?? '').trim().toLowerCase() || null;
   try {
     const result = await getPoolInstance().query(
       `INSERT INTO tx_leave_requests
-       (employee_name, type, start_date, end_date, range, status, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       (employee_name, employee_email, type, start_date, end_date, range, status, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING *`,
       [
         leave.employeeName,
+        employeeEmail,
         leave.type,
         leave.startDate,
         leave.endDate,
@@ -760,14 +825,24 @@ app.patch('/api/reimbursements/:id', async (req, res) => {
   }
 });
 
-app.get('/api/requisitions', async (_req, res) => {
+app.get('/api/requisitions', async (req, res) => {
+  const requesterEmail = String(req.query.requesterEmail ?? '').trim().toLowerCase();
   try {
-    const result = await getPoolInstance().query(
-      `SELECT id, title, department, location, headcount, level, hire_type, start_date,
-              justification, budget_impact, manager, cost_center, approval, submitted_at
-       FROM tx_requisitions
-       ORDER BY submitted_at DESC`
-    );
+    const result = requesterEmail
+      ? await getPoolInstance().query(
+          `SELECT id, title, department, location, headcount, level, hire_type, start_date,
+                  justification, budget_impact, manager, cost_center, approval, requester_email, submitted_at
+           FROM tx_requisitions
+           WHERE requester_email = $1
+           ORDER BY submitted_at DESC`,
+          [requesterEmail]
+        )
+      : await getPoolInstance().query(
+          `SELECT id, title, department, location, headcount, level, hire_type, start_date,
+                  justification, budget_impact, manager, cost_center, approval, requester_email, submitted_at
+           FROM tx_requisitions
+           ORDER BY submitted_at DESC`
+        );
     setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {
@@ -777,11 +852,12 @@ app.get('/api/requisitions', async (_req, res) => {
 
 app.post('/api/requisitions', async (req, res) => {
   const item = req.body;
+  const requesterEmail = String(item.requesterEmail ?? '').trim().toLowerCase() || null;
   try {
     const result = await getPoolInstance().query(
       `INSERT INTO tx_requisitions
-       (title, department, location, headcount, level, hire_type, start_date, justification, budget_impact, manager, cost_center, approval)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       (title, department, location, headcount, level, hire_type, start_date, justification, budget_impact, manager, cost_center, approval, requester_email)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
       [
         item.title,
@@ -795,7 +871,8 @@ app.post('/api/requisitions', async (req, res) => {
         item.budgetImpact,
         item.manager,
         item.costCenter,
-        item.approval
+        item.approval,
+        requesterEmail
       ]
     );
     res.json(result.rows[0]);
@@ -818,10 +895,27 @@ app.patch('/api/requisitions/:id', async (req, res) => {
   }
 });
 
-app.get('/api/tasks', async (_req, res) => {
+app.get('/api/tasks', async (req, res) => {
+  const ownerEmail = String(req.query.ownerEmail ?? '').trim().toLowerCase();
+  const ownerName = String(req.query.ownerName ?? '').trim();
   try {
+    const filters = [];
+    const values = [];
+    if (ownerEmail) {
+      values.push(ownerEmail);
+      filters.push(`owner_email = $${values.length}`);
+    }
+    if (ownerName) {
+      values.push(ownerName);
+      filters.push(`owner = $${values.length}`);
+    }
+    const where = filters.length ? `WHERE ${filters.join(' OR ')}` : '';
     const result = await getPoolInstance().query(
-      'SELECT id, title, owner, due, source FROM tx_tasks ORDER BY created_at DESC'
+      `SELECT id, title, owner, owner_email, due, source
+       FROM tx_tasks
+       ${where}
+       ORDER BY created_at DESC`,
+      values
     );
     setCacheHeader(res, 5);
     res.json(result.rows);
@@ -832,12 +926,13 @@ app.get('/api/tasks', async (_req, res) => {
 
 app.post('/api/tasks', async (req, res) => {
   const item = req.body;
+  const ownerEmail = String(item.ownerEmail ?? '').trim().toLowerCase() || null;
   try {
     const result = await getPoolInstance().query(
-      `INSERT INTO tx_tasks (title, owner, due, source)
-       VALUES ($1,$2,$3,$4)
+      `INSERT INTO tx_tasks (title, owner, owner_email, due, source)
+       VALUES ($1,$2,$3,$4,$5)
        RETURNING *`,
-      [item.title, item.owner, item.due, item.source]
+      [item.title, item.owner, ownerEmail, item.due, item.source]
     );
     res.json(result.rows[0]);
   } catch (error) {
