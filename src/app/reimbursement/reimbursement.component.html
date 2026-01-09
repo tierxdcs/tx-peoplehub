@@ -101,3 +101,20 @@
     </article>
   </section>
 </main>
+
+@if (showSuccessModal) {
+  <div class="modal-backdrop" (click)="closeSuccessModal()"></div>
+  <div class="modal" role="dialog" aria-modal="true">
+    <header>
+      <div>
+        <p class="eyebrow">Reimbursement</p>
+        <h3>Claim submitted</h3>
+        <p class="subtitle">Your reimbursement request is now pending approval.</p>
+      </div>
+      <button class="ghost" type="button" (click)="closeSuccessModal()">Close</button>
+    </header>
+    <div class="modal-actions">
+      <button class="primary" type="button" (click)="closeSuccessModal()">Done</button>
+    </div>
+  </div>
+}
