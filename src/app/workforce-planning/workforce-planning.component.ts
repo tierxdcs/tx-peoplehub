@@ -15,6 +15,7 @@ import { ApiService, RequisitionRecord } from '../services/api.service';
 export class WorkforcePlanningComponent {
   status = '';
   sessionEmail = '';
+  sessionDepartment = 'Operations';
   requests: {
     id: string;
     title: string;
@@ -58,8 +59,12 @@ export class WorkforcePlanningComponent {
       return;
     }
     try {
-      const parsed = JSON.parse(raw) as { email?: string };
+      const parsed = JSON.parse(raw) as { email?: string; department?: string };
       this.sessionEmail = parsed.email?.trim().toLowerCase() || '';
+      this.sessionDepartment = parsed.department?.trim() || this.sessionDepartment;
+      if (this.sessionDepartment) {
+        this.form.department = this.sessionDepartment;
+      }
     } catch {
       this.sessionEmail = '';
     }
@@ -76,17 +81,7 @@ export class WorkforcePlanningComponent {
   }
 
   async loadProfile() {
-    try {
-      const profile = await firstValueFrom(this.api.getEmployeeProfile());
-      if (profile?.manager) {
-        this.form.manager = profile.manager;
-      }
-      if (profile?.department) {
-        this.form.department = profile.department;
-      }
-    } catch {
-      return;
-    }
+    return;
   }
 
   submitRequest() {

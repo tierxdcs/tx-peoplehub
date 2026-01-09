@@ -39,7 +39,8 @@ export class LoginComponent {
             email: user.email,
             role: user.role,
             name: user.fullName,
-            director: user.director ?? 'No'
+            director: user.director ?? 'No',
+            department: user.department ?? ''
           })
         );
         this.router.navigateByUrl('/');
@@ -56,7 +57,8 @@ export class LoginComponent {
         email: 'hradmin@tierxdcs.com',
         role: 'Admin',
         name: 'HR Admin',
-        director: 'Yes'
+        director: 'Yes',
+        department: 'HR Operations'
       })
     );
     this.router.navigateByUrl('/');
