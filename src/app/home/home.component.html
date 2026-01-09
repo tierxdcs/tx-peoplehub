@@ -43,6 +43,7 @@
           />
           <div>
             <h3>{{ currentProfile?.fullName || 'Employee' }}</h3>
+            <p>{{ currentProfile?.jobTitle || 'Job title' }}</p>
             <p>Employee ID: {{ currentProfile?.employeeId || 'Not set' }}</p>
             <p>{{ currentProfile?.department || 'Department' }} · {{ currentProfile?.location || 'Location' }}</p>
           </div>
