@@ -13,6 +13,7 @@ import { ApiService } from '../services/api.service';
 export class ReimbursementComponent {
   claims: { title: string; amount: string; status: string; submitted: string }[] = [];
   employeeEmail = '';
+  employeeName = '';
 
   constructor(private readonly api: ApiService) {}
 
@@ -21,10 +22,12 @@ export class ReimbursementComponent {
       const rawSession = localStorage.getItem('tx-peoplehub-session');
       if (rawSession) {
         try {
-          const parsed = JSON.parse(rawSession) as { email?: string };
+          const parsed = JSON.parse(rawSession) as { email?: string; name?: string };
           this.employeeEmail = parsed.email?.trim().toLowerCase() ?? '';
+          this.employeeName = parsed.name?.trim() ?? '';
         } catch {
           this.employeeEmail = '';
+          this.employeeName = '';
         }
       }
       const reimbursements = await firstValueFrom(
@@ -33,11 +36,15 @@ export class ReimbursementComponent {
         })
       );
       this.claims = reimbursements
-        .filter(
-          (claim) =>
-            this.employeeEmail &&
-            claim.employeeEmail?.toLowerCase() === this.employeeEmail
-        )
+        .filter((claim) => {
+          if (this.employeeEmail) {
+            return claim.employeeEmail?.toLowerCase() === this.employeeEmail;
+          }
+          if (this.employeeName) {
+            return claim.employee === this.employeeName;
+          }
+          return false;
+        })
         .map((claim) => ({
           title: claim.title,
           amount: claim.amount,
