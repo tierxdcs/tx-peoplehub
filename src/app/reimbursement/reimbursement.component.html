@@ -7,11 +7,53 @@
     </div>
     <div class="actions">
       <a class="ghost button-link" routerLink="/">Back to home</a>
-      <a class="primary button-link" routerLink="/reimbursement/new">New reimbursement</a>
     </div>
   </header>
 
   <section class="reimburse-grid">
+    <article class="panel form-panel">
+      <div class="panel-header">
+        <h2>New reimbursement</h2>
+        <span class="pill">Required</span>
+      </div>
+      <form class="form-grid">
+        <label>
+          Title
+          <input type="text" [(ngModel)]="form.title" name="title" placeholder="Client travel" />
+        </label>
+        <label>
+          Amount (₹)
+          <input type="number" [(ngModel)]="form.amount" name="amount" placeholder="1250" />
+        </label>
+        <label>
+          Category
+          <select [(ngModel)]="form.category" name="category">
+            <option>Travel</option>
+            <option>Meals</option>
+            <option>Supplies</option>
+            <option>Training</option>
+          </select>
+        </label>
+        <label>
+          Date
+          <input type="date" [(ngModel)]="form.date" name="date" />
+        </label>
+        <label class="full">
+          Notes
+          <textarea rows="4" [(ngModel)]="form.notes" name="notes"></textarea>
+        </label>
+        <div class="full approver-note">
+          Routed to approver: Ravi Kulal (CFO)
+        </div>
+      </form>
+      <button class="primary full" type="button" (click)="submit()">
+        Submit reimbursement
+      </button>
+      @if (statusMessage) {
+        <p class="status">{{ statusMessage }}</p>
+      }
+    </article>
+
     <article class="panel">
       <div class="panel-header">
         <h2>Recent claims</h2>
@@ -29,6 +71,8 @@
               <span class="status">{{ claim.status }}</span>
             </div>
           </div>
+        } @empty {
+          <p class="empty">No reimbursements submitted yet.</p>
         }
       </div>
     </article>

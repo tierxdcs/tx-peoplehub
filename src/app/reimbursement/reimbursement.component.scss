@@ -88,6 +88,10 @@ button:hover,
   gap: 16px;
 }
 
+.form-panel {
+  grid-column: 1 / -1;
+}
+
 .panel-header {
   display: flex;
   align-items: center;
@@ -115,6 +119,30 @@ button:hover,
 .pill.soft {
   background: rgba(52, 178, 77, 0.12);
   color: var(--brand-green);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--ink-600);
+}
+
+input,
+select,
+textarea {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  padding: 10px 12px;
+  font: inherit;
+  background: #fff;
+  color: var(--ink-900);
 }
 
 .claim-list {
@@ -158,6 +186,26 @@ button:hover,
   letter-spacing: 0.08em;
 }
 
+.status {
+  margin: 0;
+  color: var(--brand-green);
+  font-weight: 600;
+}
+
+.approver-note {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--ink-600);
+  font-size: 0.85rem;
+}
+
+.empty {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 0.9rem;
+}
+
 .detail {
   display: flex;
   align-items: center;
@@ -189,6 +237,10 @@ button:hover,
   }
 
   .reimburse-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid {
     grid-template-columns: 1fr;
   }
 }
