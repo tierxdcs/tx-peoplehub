@@ -22,6 +22,7 @@ export class TrainingModuleComponent {
   readonly trueFalseOptions = ['True', 'False'];
   private assignment: TrainingAssignment | null = null;
   private employeeName = 'Employee';
+  private sessionRole = 'Employee';
   scorePercent = 0;
   minScore = 80;
 
@@ -35,21 +36,25 @@ export class TrainingModuleComponent {
       return;
     }
 
-    this.employeeName = this.loadSessionName();
+    this.loadSessionInfo();
     await this.loadAssignments();
     await this.loadStatus();
   }
 
-  loadSessionName() {
+  loadSessionInfo() {
     const raw = localStorage.getItem('tx-peoplehub-session');
     if (!raw) {
-      return 'Employee';
+      this.employeeName = 'Employee';
+      this.sessionRole = 'Employee';
+      return;
     }
     try {
-      const parsed = JSON.parse(raw) as { name?: string };
-      return parsed.name?.trim() || 'Employee';
+      const parsed = JSON.parse(raw) as { name?: string; role?: string };
+      this.employeeName = parsed.name?.trim() || 'Employee';
+      this.sessionRole = parsed.role?.trim() || 'Employee';
     } catch {
-      return 'Employee';
+      this.employeeName = 'Employee';
+      this.sessionRole = 'Employee';
     }
   }
 
@@ -59,6 +64,11 @@ export class TrainingModuleComponent {
       const match = assignments.find((assignment) => assignment.title === this.moduleTitle);
       if (!match) {
         this.status = 'Training module not found.';
+        return;
+      }
+      const assignedAudience = match.audience ?? 'All employees';
+      if (assignedAudience !== 'All employees' && assignedAudience !== this.sessionRole) {
+        this.status = 'Training module not assigned to your role.';
         return;
       }
       this.assignment = match;

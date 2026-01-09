@@ -92,10 +92,12 @@ export class AssignTrainingComponent {
     const participants = this.users
       .filter((user) => user.status === 'Active')
       .filter((user) => {
-        return (
+        const departmentMatch =
           this.form.department === 'All departments' ||
-          user.department === this.form.department
-        );
+          user.department === this.form.department;
+        const audienceMatch =
+          this.form.audience === 'All employees' || user.role === this.form.audience;
+        return departmentMatch && audienceMatch;
       })
       .map((user) => ({ name: user.fullName, status: 'Pending' as const }));
 
