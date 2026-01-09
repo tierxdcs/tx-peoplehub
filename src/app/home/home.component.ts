@@ -158,6 +158,15 @@ export class HomeComponent {
     this.ideaStatus = '';
   }
 
+  formatLeaveValue(value?: string) {
+    const trimmed = String(value ?? '').trim();
+    if (!trimmed) {
+      return 'Not set';
+    }
+    const isNumeric = /^\d+(\.\d+)?$/.test(trimmed);
+    return isNumeric ? `${trimmed} days` : trimmed;
+  }
+
   submitIdea() {
     if (!this.ideaForm.title || !this.ideaForm.summary) {
       this.ideaStatus = 'Add a title and summary before submitting.';
