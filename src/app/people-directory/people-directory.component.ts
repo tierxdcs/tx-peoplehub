@@ -22,6 +22,8 @@ export class PeopleDirectoryComponent {
     location: string;
     department: string;
     status: string;
+    email: string;
+    employeeId: string;
   }> = [];
   departments: DepartmentRecord[] = [];
   private readonly pageSize = 30;
@@ -52,7 +54,9 @@ export class PeopleDirectoryComponent {
         role: user.role || '',
         location: 'Unspecified',
         department: user.department || '',
-        status: user.status || ''
+        status: user.status || '',
+        email: user.email || '',
+        employeeId: user.employeeId || ''
       }));
       this.people = reset ? mapped : [...this.people, ...mapped];
       this.hasMore = users.length === this.pageSize;
@@ -93,5 +97,16 @@ export class PeopleDirectoryComponent {
     }
     this.offset += this.pageSize;
     void this.loadPeople(false);
+  }
+
+  getInitials(name: string) {
+    const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) {
+      return 'TX';
+    }
+    return parts
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join('');
   }
 }

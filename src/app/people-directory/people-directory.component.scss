@@ -1,8 +1,9 @@
 .directory-shell {
   min-height: 100vh;
   padding: 32px 48px 64px;
-  display: grid;
-  gap: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
 }
 
 .directory-topbar {
@@ -34,6 +35,7 @@
 .subtitle {
   margin: 0;
   color: var(--ink-600);
+  max-width: 520px;
 }
 
 .actions {
@@ -117,7 +119,8 @@ select {
 
 .directory-list {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .load-more {
@@ -128,14 +131,18 @@ select {
 
 .person-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 16px;
-  align-items: center;
-  padding: 16px 18px;
-  border-radius: 16px;
+  gap: 12px;
+  padding: 14px 14px 16px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(148, 163, 184, 0.2);
   box-shadow: var(--shadow-soft);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .person-card p {
@@ -143,20 +150,78 @@ select {
   color: var(--ink-600);
 }
 
-.meta {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+.person-card .muted {
+  margin: 2px 0 0;
   color: var(--ink-500);
   font-size: 0.85rem;
 }
 
-.status {
-  padding: 4px 10px;
-  border-radius: 999px;
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.06);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: var(--ink-700);
+  position: relative;
+}
+
+.avatar span:first-child {
+  font-size: 0.9rem;
+}
+
+.status-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.6);
+  border: 2px solid #fff;
+}
+
+.status-dot.active {
+  background: #22c55e;
+}
+
+.title {
+  display: grid;
+  gap: 2px;
+}
+
+.title strong {
+  font-size: 0.98rem;
+  color: var(--ink-900);
+}
+
+.title span {
+  font-size: 0.8rem;
+  color: var(--ink-500);
+}
+
+.card-meta {
+  display: grid;
+  gap: 6px;
+  color: var(--ink-500);
+  font-size: 0.85rem;
+}
+
+.card-meta .pill {
+  width: fit-content;
+}
+
+.card-meta .pill.soft {
   background: rgba(52, 178, 77, 0.12);
   color: var(--brand-green);
-  font-weight: 600;
+}
+
+.person-card .button-link {
+  width: fit-content;
+  padding: 6px 12px;
+  font-size: 0.8rem;
 }
 
 @media (max-width: 1100px) {
@@ -168,10 +233,18 @@ select {
   .person-card {
     grid-template-columns: 1fr;
   }
+
+  .directory-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
   .directory-shell {
     padding: 24px;
+  }
+
+  .directory-list {
+    grid-template-columns: 1fr;
   }
 }
