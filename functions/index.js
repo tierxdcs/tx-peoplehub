@@ -657,15 +657,20 @@ app.put('/api/training-assignments/:id', async (req, res) => {
 app.post('/api/training-responses', async (req, res) => {
   const { assignmentId, employee, responses, score, passed } = req.body;
   try {
+    const responsesJson = JSON.stringify(responses ?? {});
     const result = await getPoolInstance().query(
       `INSERT INTO tx_training_responses (assignment_id, employee, responses, score, passed)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [assignmentId, employee, responses, score ?? null, passed ?? false]
+      [assignmentId, employee, responsesJson, score ?? null, passed ?? false]
     );
     res.json(result.rows[0]);
   } catch (error) {
-    res.status(500).json({ error: 'Unable to save training responses' });
+    console.error('training-responses', error);
+    res.status(500).json({
+      error: 'Unable to save training responses',
+      details: error?.message ?? 'Unknown error'
+    });
   }
 });
 
