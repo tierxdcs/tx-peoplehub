@@ -16,6 +16,7 @@ export class WorkforcePlanningComponent {
   status = '';
   sessionEmail = '';
   sessionDepartment = 'Operations';
+  showSuccessModal = false;
   departments: DepartmentRecord[] = [];
   requests: {
     id: string;
@@ -169,6 +170,7 @@ export class WorkforcePlanningComponent {
       .then((saved) => {
         this.requests = [saved, ...this.requests];
         this.status = 'Request submitted to Board Directors for approval.';
+        this.showSuccessModal = true;
         this.form = {
           title: '',
           department: this.form.department,
@@ -186,5 +188,9 @@ export class WorkforcePlanningComponent {
       .catch(() => {
         this.status = 'Unable to submit requisition.';
       });
+  }
+
+  closeSuccessModal() {
+    this.showSuccessModal = false;
   }
 }

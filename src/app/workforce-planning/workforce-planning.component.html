@@ -139,3 +139,20 @@
     }
   </section>
 </main>
+
+@if (showSuccessModal) {
+  <div class="modal-backdrop" (click)="closeSuccessModal()"></div>
+  <div class="modal" role="dialog" aria-modal="true">
+    <header>
+      <div>
+        <p class="eyebrow">Workforce planning</p>
+        <h3>Request submitted</h3>
+        <p class="subtitle">Your requisition is pending Board Directors approval.</p>
+      </div>
+      <button class="ghost" type="button" (click)="closeSuccessModal()">Close</button>
+    </header>
+    <div class="modal-actions">
+      <button class="primary" type="button" (click)="closeSuccessModal()">Done</button>
+    </div>
+  </div>
+}
