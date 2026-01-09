@@ -764,9 +764,16 @@ app.patch('/api/leaves/:id', async (req, res) => {
 });
 
 app.get('/api/reimbursements', async (req, res) => {
-  const employeeEmail = req.query.employeeEmail;
+  const employeeEmail = String(req.query.employeeEmail ?? '').trim().toLowerCase();
+  const scope = String(req.query.scope ?? '').trim().toLowerCase();
   try {
-    const result = employeeEmail
+    const result = scope === 'all'
+      ? await getPoolInstance().query(
+          `SELECT id, title, amount, category, date, notes, status, employee, employee_email
+           FROM tx_reimbursements
+           ORDER BY created_at DESC`
+        )
+      : employeeEmail
       ? await getPoolInstance().query(
           `SELECT id, title, amount, category, date, notes, status, employee, employee_email
            FROM tx_reimbursements
@@ -774,11 +781,7 @@ app.get('/api/reimbursements', async (req, res) => {
            ORDER BY created_at DESC`,
           [employeeEmail]
         )
-      : await getPoolInstance().query(
-          `SELECT id, title, amount, category, date, notes, status, employee, employee_email
-           FROM tx_reimbursements
-           ORDER BY created_at DESC`
-        );
+      : { rows: [] };
     setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {

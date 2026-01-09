@@ -108,7 +108,7 @@ export class ApprovalsComponent {
         await Promise.all([
           firstValueFrom(this.api.getTasks()),
           firstValueFrom(this.api.getLeaves()),
-          firstValueFrom(this.api.getReimbursements()),
+          firstValueFrom(this.api.getReimbursements({ scope: 'all' })),
           firstValueFrom(this.api.getRequisitions()),
           firstValueFrom(this.api.getCompletedApprovals()),
           firstValueFrom(this.api.getUsers())
