@@ -162,11 +162,12 @@ app.post('/api/login', async (req, res) => {
       `SELECT id, full_name, email, role, department, director, status, password
        FROM tx_users
        WHERE LOWER(email) = $1
+         AND LOWER(status) = 'active'
        LIMIT 1`,
       [normalizedEmail]
     );
     const user = result.rows[0];
-    if (!user || user.status !== 'Active') {
+    if (!user) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
