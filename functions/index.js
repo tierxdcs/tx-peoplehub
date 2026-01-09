@@ -32,6 +32,13 @@ const parseOffset = (value) => {
   }
   return Math.floor(parsed);
 };
+const buildLimitClause = (params, limit, offset) => {
+  if (!limit) {
+    return '';
+  }
+  params.push(limit, offset);
+  return ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
+};
 
 app.get('/api/health', async (_req, res) => {
   try {
@@ -897,25 +904,19 @@ app.get('/api/ideas', async (req, res) => {
   const limit = parseLimit(req.query.limit, 200);
   const offset = parseOffset(req.query.offset);
   try {
-    const values = [];
-    let limitClause = '';
-    if (limit) {
-      values.push(limit, offset);
-      limitClause = ` LIMIT $${values.length - 1} OFFSET $${values.length}`;
-    }
     const result = employeeEmail
       ? await getPoolInstance().query(
           `SELECT id, title, type, summary, manager, employee_email, submitted_at
            FROM tx_ideas
            WHERE employee_email = $1
-           ORDER BY submitted_at DESC${limitClause}`,
-          [employeeEmail, ...values]
+           ORDER BY submitted_at DESC${buildLimitClause([employeeEmail], limit, offset)}`,
+          [employeeEmail, ...(limit ? [limit, offset] : [])]
         )
       : await getPoolInstance().query(
           `SELECT id, title, type, summary, manager, employee_email, submitted_at
            FROM tx_ideas
-           ORDER BY submitted_at DESC${limitClause}`,
-          values
+           ORDER BY submitted_at DESC${buildLimitClause([], limit, offset)}`,
+          limit ? [limit, offset] : []
         );
     setCacheHeader(res, 10);
     res.json(result.rows);
@@ -946,26 +947,20 @@ app.get('/api/leaves', async (req, res) => {
   const limit = parseLimit(req.query.limit, 200);
   const offset = parseOffset(req.query.offset);
   try {
-    const values = [];
-    let limitClause = '';
-    if (limit) {
-      values.push(limit, offset);
-      limitClause = ` LIMIT $${values.length - 1} OFFSET $${values.length}`;
-    }
     const result = employeeEmail || employeeName
       ? await getPoolInstance().query(
           `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
            FROM tx_leave_requests
-           WHERE ($1 = '' OR employee_email = $1)
-             AND ($2 = '' OR employee_name = $2)
-           ORDER BY created_at DESC${limitClause}`,
-          [employeeEmail, employeeName, ...values]
+           WHERE (${employeeEmail ? 'employee_email = $1' : '$1 = \'\' OR employee_email = $1'})
+             AND (${employeeName ? 'employee_name = $2' : '$2 = \'\' OR employee_name = $2'})
+           ORDER BY created_at DESC${buildLimitClause([employeeEmail, employeeName], limit, offset)}`,
+          [employeeEmail, employeeName, ...(limit ? [limit, offset] : [])]
         )
       : await getPoolInstance().query(
           `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
            FROM tx_leave_requests
-           ORDER BY created_at DESC${limitClause}`,
-          values
+           ORDER BY created_at DESC${buildLimitClause([], limit, offset)}`,
+          limit ? [limit, offset] : []
         );
     setCacheHeader(res, 10);
     res.json(result.rows);
@@ -1018,30 +1013,29 @@ app.get('/api/reimbursements', async (req, res) => {
   const employeeEmail = String(req.query.employeeEmail ?? '').trim().toLowerCase();
   const employeeName = String(req.query.employeeName ?? '').trim();
   const scope = String(req.query.scope ?? '').trim().toLowerCase();
+  const includeEmpty = String(req.query.includeEmpty ?? '').trim().toLowerCase() === 'true';
   const limit = parseLimit(req.query.limit, 200);
   const offset = parseOffset(req.query.offset);
   try {
-    const values = [];
-    let limitClause = '';
-    if (limit) {
-      values.push(limit, offset);
-      limitClause = ` LIMIT $${values.length - 1} OFFSET $${values.length}`;
-    }
     const result = scope === 'all'
       ? await getPoolInstance().query(
           `SELECT id, title, amount, category, date, notes, status, employee, employee_email
            FROM tx_reimbursements
-           ORDER BY created_at DESC${limitClause}`,
-          values
+           ${includeEmpty ? '' : 'WHERE status IS NOT NULL'}
+           ORDER BY created_at DESC${buildLimitClause([], limit, offset)}`,
+          limit ? [limit, offset] : []
         )
       : employeeEmail
       ? await getPoolInstance().query(
           `SELECT id, title, amount, category, date, notes, status, employee, employee_email
            FROM tx_reimbursements
-           WHERE employee_email = $1
-              OR ((employee_email IS NULL OR employee_email = '') AND employee = $2)
-           ORDER BY created_at DESC${limitClause}`,
-          [employeeEmail, employeeName, ...values]
+           WHERE ${
+             includeEmpty
+               ? '(employee_email = $1 OR ((employee_email IS NULL OR employee_email = \'\') AND employee = $2))'
+               : '(status IS NOT NULL AND (employee_email = $1 OR ((employee_email IS NULL OR employee_email = \'\') AND employee = $2)))'
+           }
+           ORDER BY created_at DESC${buildLimitClause([employeeEmail, employeeName], limit, offset)}`,
+          [employeeEmail, employeeName, ...(limit ? [limit, offset] : [])]
         )
       : { rows: [] };
     setCacheHeader(res, 10);
@@ -1096,19 +1090,13 @@ app.get('/api/requisitions', async (req, res) => {
   const limit = parseLimit(req.query.limit, 200);
   const offset = parseOffset(req.query.offset);
   try {
-    const values = [];
-    let limitClause = '';
-    if (limit) {
-      values.push(limit, offset);
-      limitClause = ` LIMIT $${values.length - 1} OFFSET $${values.length}`;
-    }
     const result = scope === 'all'
       ? await getPoolInstance().query(
           `SELECT id, title, department, location, headcount, level, hire_type, start_date,
                   justification, budget_impact, manager, cost_center, approval, requester_email, submitted_at
            FROM tx_requisitions
-           ORDER BY submitted_at DESC${limitClause}`,
-          values
+           ORDER BY submitted_at DESC${buildLimitClause([], limit, offset)}`,
+          limit ? [limit, offset] : []
         )
       : requesterEmail
       ? await getPoolInstance().query(
@@ -1116,8 +1104,8 @@ app.get('/api/requisitions', async (req, res) => {
                   justification, budget_impact, manager, cost_center, approval, requester_email, submitted_at
            FROM tx_requisitions
            WHERE requester_email = $1
-           ORDER BY submitted_at DESC${limitClause}`,
-          [requesterEmail, ...values]
+           ORDER BY submitted_at DESC${buildLimitClause([requesterEmail], limit, offset)}`,
+          [requesterEmail, ...(limit ? [limit, offset] : [])]
         )
       : { rows: [] };
     setCacheHeader(res, 10);
