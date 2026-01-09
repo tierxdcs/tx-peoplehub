@@ -13,40 +13,6 @@
         <a routerLink="/settings" routerLinkActive="active">Settings</a>
       </nav>
       <div class="actions">
-        <button
-          class="ghost icon-button"
-          type="button"
-          aria-label="Notifications"
-          (click)="toggleNotifications()"
-        >
-          <span aria-hidden="true">🔔</span>
-          @if (notifications.length) {
-            <span class="notification-badge">{{ notifications.length }}</span>
-          }
-        </button>
-        @if (notificationsOpen) {
-          <div class="notifications-panel" role="dialog" aria-label="Notifications">
-            <div class="notifications-header">
-              <strong>Alerts</strong>
-              <span>{{ notifications.length }} new</span>
-            </div>
-            <div class="notifications-list">
-              @if (notifications.length) {
-                @for (note of notifications; track note.message) {
-                  <div class="notification-item">
-                    <p>{{ note.message }}</p>
-                    <span>{{ note.category }}</span>
-                  </div>
-                }
-              } @else {
-                <div class="notification-item">
-                  <p>No new alerts.</p>
-                  <span>All caught up</span>
-                </div>
-              }
-            </div>
-          </div>
-        }
         <button class="avatar" type="button" aria-label="Account" (click)="toggleAvatarMenu()">
           {{ avatarInitials }}
         </button>

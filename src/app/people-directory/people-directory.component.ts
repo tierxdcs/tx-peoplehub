@@ -24,17 +24,29 @@ export class PeopleDirectoryComponent {
     status: string;
   }> = [];
   departments: DepartmentRecord[] = [];
+  private readonly pageSize = 30;
+  private offset = 0;
+  hasMore = true;
+  isLoadingMore = false;
 
   constructor(private readonly api: ApiService) {}
 
   async ngOnInit() {
-    await Promise.all([this.loadPeople(), this.loadDepartments()]);
+    await Promise.all([this.loadPeople(true), this.loadDepartments()]);
   }
 
-  async loadPeople() {
+  async loadPeople(reset = false) {
     try {
-      const users = await firstValueFrom(this.api.getUsers());
-      this.people = users.map((user) => ({
+      if (reset) {
+        this.offset = 0;
+        this.people = [];
+        this.hasMore = true;
+      }
+      this.isLoadingMore = true;
+      const users = await firstValueFrom(
+        this.api.getUsers({ limit: this.pageSize, offset: this.offset })
+      );
+      const mapped = users.map((user) => ({
         id: user.id,
         name: user.fullName,
         role: user.role,
@@ -42,7 +54,11 @@ export class PeopleDirectoryComponent {
         department: user.department,
         status: user.status
       }));
+      this.people = reset ? mapped : [...this.people, ...mapped];
+      this.hasMore = users.length === this.pageSize;
+      this.isLoadingMore = false;
     } catch {
+      this.isLoadingMore = false;
       this.people = [];
     }
   }
@@ -71,5 +87,13 @@ export class PeopleDirectoryComponent {
         person.status === this.selectedStatus;
       return matchesSearch && matchesDepartment && matchesStatus;
     });
+  }
+
+  loadMore() {
+    if (this.isLoadingMore || !this.hasMore) {
+      return;
+    }
+    this.offset += this.pageSize;
+    void this.loadPeople(false);
   }
 }

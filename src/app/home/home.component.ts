@@ -134,7 +134,9 @@ export class HomeComponent {
 
   async refreshIdeas() {
     try {
-      this.ideaHistory = await firstValueFrom(this.api.getIdeas(this.sessionEmail || undefined));
+      this.ideaHistory = await firstValueFrom(
+        this.api.getIdeas({ employeeEmail: this.sessionEmail || undefined, limit: 6 })
+      );
     } catch {
       return;
     }
