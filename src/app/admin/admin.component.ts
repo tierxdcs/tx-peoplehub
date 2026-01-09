@@ -14,6 +14,7 @@ import { ApiService, TeamRecord, UserRecord, EmployeeProfile } from '../services
 export class AdminComponent {
   saved = false;
   savedMessage = '';
+  showOnboardModal = false;
   teams: TeamRecord[] = [];
   userStatus = '';
   taskStatus = '';
@@ -141,10 +142,16 @@ export class AdminComponent {
         }
       }
       this.savedMessage = `Onboarding completed for ${name} (ID: ${employeeId}).${accessNote}${taskNote}`;
+      this.showOnboardModal = true;
     } catch {
       this.saved = false;
       this.savedMessage = '';
+      this.showOnboardModal = false;
     }
+  }
+
+  closeOnboardModal() {
+    this.showOnboardModal = false;
   }
 
   onFileSelected(event: Event) {
