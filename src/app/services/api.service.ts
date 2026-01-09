@@ -165,6 +165,7 @@ export type ReimbursementRecord = {
   notes: string;
   status: string;
   employee: string;
+  employeeEmail: string;
 };
 
 export type RequisitionRecord = {
@@ -387,8 +388,11 @@ export class ApiService {
     );
   }
 
-  getReimbursements(): Observable<ReimbursementRecord[]> {
-    return this.http.get<ReimbursementRecord[]>(`${this.baseUrl}/reimbursements`).pipe(
+  getReimbursements(employeeEmail?: string): Observable<ReimbursementRecord[]> {
+    const params = employeeEmail
+      ? new HttpParams().set('employeeEmail', employeeEmail)
+      : undefined;
+    return this.http.get<ReimbursementRecord[]>(`${this.baseUrl}/reimbursements`, { params }).pipe(
       map((rows) => rows.map((row) => this.mapReimbursement(row)))
     );
   }
@@ -615,7 +619,8 @@ export class ApiService {
       date: row.date ?? '',
       notes: row.notes ?? '',
       status: row.status ?? '',
-      employee: row.employee ?? ''
+      employee: row.employee ?? '',
+      employeeEmail: row.employee_email ?? row.employeeEmail ?? ''
     };
   }
 

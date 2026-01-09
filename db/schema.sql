@@ -171,8 +171,12 @@ CREATE TABLE IF NOT EXISTS tx_reimbursements (
   notes TEXT,
   status TEXT,
   employee TEXT,
+  employee_email TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE tx_reimbursements
+  ADD COLUMN IF NOT EXISTS employee_email TEXT;
 
 CREATE TABLE IF NOT EXISTS tx_requisitions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

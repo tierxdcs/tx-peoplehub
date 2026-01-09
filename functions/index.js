@@ -698,13 +698,22 @@ app.patch('/api/leaves/:id', async (req, res) => {
   }
 });
 
-app.get('/api/reimbursements', async (_req, res) => {
+app.get('/api/reimbursements', async (req, res) => {
+  const employeeEmail = req.query.employeeEmail;
   try {
-    const result = await getPoolInstance().query(
-      `SELECT id, title, amount, category, date, notes, status, employee
-       FROM tx_reimbursements
-       ORDER BY created_at DESC`
-    );
+    const result = employeeEmail
+      ? await getPoolInstance().query(
+          `SELECT id, title, amount, category, date, notes, status, employee, employee_email
+           FROM tx_reimbursements
+           WHERE employee_email = $1
+           ORDER BY created_at DESC`,
+          [employeeEmail]
+        )
+      : await getPoolInstance().query(
+          `SELECT id, title, amount, category, date, notes, status, employee, employee_email
+           FROM tx_reimbursements
+           ORDER BY created_at DESC`
+        );
     setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {
@@ -717,10 +726,19 @@ app.post('/api/reimbursements', async (req, res) => {
   try {
     const result = await getPoolInstance().query(
       `INSERT INTO tx_reimbursements
-       (title, amount, category, date, notes, status, employee)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       (title, amount, category, date, notes, status, employee, employee_email)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING *`,
-      [item.title, item.amount, item.category, item.date, item.notes, item.status, item.employee]
+      [
+        item.title,
+        item.amount,
+        item.category,
+        item.date,
+        item.notes,
+        item.status,
+        item.employee,
+        item.employeeEmail ?? null
+      ]
     );
     res.json(result.rows[0]);
   } catch (error) {

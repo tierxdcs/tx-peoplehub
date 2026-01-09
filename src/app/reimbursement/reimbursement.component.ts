@@ -12,12 +12,22 @@ import { ApiService } from '../services/api.service';
 })
 export class ReimbursementComponent {
   claims: { title: string; amount: string; status: string; submitted: string }[] = [];
+  employeeEmail = '';
 
   constructor(private readonly api: ApiService) {}
 
   async ngOnInit() {
     try {
-      const reimbursements = await firstValueFrom(this.api.getReimbursements());
+      const rawSession = localStorage.getItem('tx-peoplehub-session');
+      if (rawSession) {
+        try {
+          const parsed = JSON.parse(rawSession) as { email?: string };
+          this.employeeEmail = parsed.email?.trim() ?? '';
+        } catch {
+          this.employeeEmail = '';
+        }
+      }
+      const reimbursements = await firstValueFrom(this.api.getReimbursements(this.employeeEmail || undefined));
       this.claims = reimbursements.map((claim) => ({
         title: claim.title,
         amount: claim.amount,
