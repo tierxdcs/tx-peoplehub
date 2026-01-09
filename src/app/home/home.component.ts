@@ -3,7 +3,7 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { ApiService, EmployeeProfile, IdeaRecord } from '../services/api.service';
+import { ApiService, EmployeeProfile, IdeaRecord, LeaveRecord } from '../services/api.service';
 
 @Component({
   selector: 'app-home',
