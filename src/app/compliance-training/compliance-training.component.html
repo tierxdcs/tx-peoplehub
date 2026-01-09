@@ -28,7 +28,7 @@
                   @if (training.status === 'Completed' && training.completedAt) {
                     Completed on {{ training.completedAt | date : 'mediumDate' }}
                   } @else {
-                    Due {{ training.due }}
+                    Due {{ training.due | date : 'dd-MM-yyyy' }}
                   }
                 </span>
               </div>

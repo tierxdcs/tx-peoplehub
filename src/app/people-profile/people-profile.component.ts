@@ -14,6 +14,7 @@ type Profile = {
   tenure: string;
   engagementScore: number | null;
   engagementProgress: number;
+  engagementPercent: number | null;
   photoUrl: string;
   certifications: string[];
   teamMembers: {
@@ -36,6 +37,7 @@ const EMPTY_PROFILE: Profile = {
   tenure: '',
   engagementScore: null,
   engagementProgress: 0,
+  engagementPercent: null,
   photoUrl: 'assets/people/default-avatar.svg',
   certifications: [],
   teamMembers: []
@@ -56,6 +58,8 @@ export class PeopleProfileComponent {
   isTeamModalOpen = false;
   adminDirectReports: { name: string; role: string; location: string }[] = [];
   users: UserRecord[] = [];
+  ideaCount = 0;
+  targetEmail = '';
 
   constructor(private readonly api: ApiService) {}
 
@@ -78,22 +82,64 @@ export class PeopleProfileComponent {
   }
 
   async ngOnInit() {
-    await Promise.all([this.loadProfile(), this.loadUsers()]);
+    await this.loadUsers();
+    this.resolveTargetEmail();
+    await this.loadProfile();
     this.applyUserOverride();
     this.buildTeamMembers();
   }
 
   async loadProfile() {
     try {
-      const profile = await firstValueFrom(this.api.getEmployeeProfile());
+      const profile = await firstValueFrom(
+        this.api.getEmployeeProfile(
+          this.targetEmail ? { email: this.targetEmail } : undefined
+        )
+      );
       if (!profile) {
         return;
       }
       this.employeeProfile = profile;
       this.profile = this.mapProfile(profile);
+      await this.loadIdeaCount();
     } catch {
       this.profile = { ...EMPTY_PROFILE };
     }
+  }
+
+  async loadIdeaCount() {
+    const email = this.employeeProfile?.email?.trim().toLowerCase() || this.targetEmail;
+    if (!email) {
+      this.ideaCount = 0;
+      this.applyEngagementScore();
+      return;
+    }
+    try {
+      const ideas = await firstValueFrom(this.api.getIdeas({ employeeEmail: email, limit: 20 }));
+      this.ideaCount = ideas.length;
+    } catch {
+      this.ideaCount = 0;
+    }
+    this.applyEngagementScore();
+  }
+
+  resolveTargetEmail() {
+    const sessionRaw = localStorage.getItem('tx-peoplehub-session');
+    let sessionEmail = '';
+    if (sessionRaw) {
+      try {
+        const parsed = JSON.parse(sessionRaw) as { email?: string };
+        sessionEmail = parsed.email?.trim().toLowerCase() || '';
+      } catch {
+        sessionEmail = '';
+      }
+    }
+    if (this.profileId === 'current') {
+      this.targetEmail = sessionEmail;
+      return;
+    }
+    const match = this.users.find((user) => user.id === this.profileId);
+    this.targetEmail = match?.email?.trim().toLowerCase() || sessionEmail;
   }
 
   async loadUsers() {
@@ -145,14 +191,16 @@ export class PeopleProfileComponent {
           .filter(Boolean)
       : [];
     const managerChain = [
-      profile.manager,
-      profile.managerLevel2,
-      profile.managerLevel3,
+      profile.ceo,
       profile.managerLevel4,
-      profile.ceo
+      profile.managerLevel3,
+      profile.managerLevel2,
+      profile.manager
     ].filter((value): value is string => Boolean(value));
-    const engagementScore = this.calculateEngagementScore(profile);
+    const engagementScore = this.calculateEngagementScore(profile, this.ideaCount);
 
+    const engagementPercent =
+      engagementScore === null ? null : Math.round((engagementScore / 5) * 100);
     return {
       name: profile.fullName || 'Employee',
       title: profile.jobTitle || '',
@@ -163,7 +211,8 @@ export class PeopleProfileComponent {
       status: profile.status || '',
       tenure: this.calculateTenureYears(profile.startDate),
       engagementScore,
-      engagementProgress: engagementScore ?? 0,
+      engagementProgress: engagementPercent ?? 0,
+      engagementPercent,
       photoUrl: profile.photoUrl || EMPTY_PROFILE.photoUrl,
       certifications,
       teamMembers: []
@@ -192,26 +241,47 @@ export class PeopleProfileComponent {
     return `${String(years).padStart(2, '0')}:${String(months).padStart(2, '0')}`;
   }
 
-  private calculateEngagementScore(profile: EmployeeProfile): number | null {
+  private calculateEngagementScore(profile: EmployeeProfile, ideaCount = 0): number | null {
     const rawValues = [
       profile.surveyScore,
       profile.checkinsScore,
       profile.participationScore,
       profile.riskAdjustedScore
     ];
+    const ideaScore = Math.min(100, ideaCount * 20);
     const hasValues = rawValues.some(
       (value) => value !== undefined && value !== null && String(value).trim() !== ''
     );
-    if (!hasValues) {
-      return null;
+    if (!hasValues && ideaScore === 0) {
+      return 0;
     }
     const survey = Number(profile.surveyScore ?? 0);
     const checkins = Number(profile.checkinsScore ?? 0);
     const participation = Number(profile.participationScore ?? 0);
     const riskAdjusted = Number(profile.riskAdjustedScore ?? 0);
-    const score =
-      0.4 * survey + 0.2 * checkins + 0.2 * participation + 0.2 * riskAdjusted;
-    return Math.min(100, Math.max(0, Math.round(score)));
+    const rawScore =
+      0.4 * survey +
+      0.2 * checkins +
+      0.2 * participation +
+      0.2 * riskAdjusted +
+      ideaScore;
+    const score = (rawScore / 200) * 5;
+    return Math.max(0, Math.min(5, Math.round(score)));
+  }
+
+  private applyEngagementScore() {
+    if (!this.employeeProfile) {
+      return;
+    }
+    const engagementScore = this.calculateEngagementScore(this.employeeProfile, this.ideaCount);
+    this.profile = {
+      ...this.profile,
+      engagementScore,
+      engagementProgress:
+        engagementScore === null ? 0 : Math.round((engagementScore / 5) * 100),
+      engagementPercent:
+        engagementScore === null ? null : Math.round((engagementScore / 5) * 100)
+    };
   }
 
   onPhotoSelected(event: Event) {

@@ -20,6 +20,7 @@ export class HomeComponent {
   activeUserCount = 0;
   spotlightScore: number | null = null;
   spotlightProgress = 0;
+  spotlightPercent: number | null = null;
   spotlightPhoto = 'assets/people/default-avatar.svg';
   todayTasks: { title: string }[] = [];
   complianceCoverage = 0;
@@ -115,8 +116,6 @@ export class HomeComponent {
     if (this.currentProfile?.manager) {
       this.managerName = this.currentProfile.manager;
     }
-    this.spotlightScore = this.calculateEngagementScore(this.currentProfile);
-    this.spotlightProgress = this.spotlightScore ?? 0;
     this.spotlightPhoto = this.currentProfile?.photoUrl || 'assets/people/default-avatar.svg';
     this.todayTasks = payload.tasks.slice(0, 3).map((task) => ({ title: task.title }));
     this.pendingRequests = payload.pendingLeaves.map((leave) => ({
@@ -127,13 +126,18 @@ export class HomeComponent {
       employee: leave.employeeName
     }));
     this.ideaHistory = payload.ideas;
+    const ideaCount = payload.ideas?.length ?? 0;
+    this.spotlightScore = this.calculateEngagementScore(this.currentProfile, ideaCount);
+    this.spotlightPercent =
+      this.spotlightScore === null ? null : Math.round((this.spotlightScore / 5) * 100);
+    this.spotlightProgress = this.spotlightPercent ?? 0;
     this.pendingReimbursements = payload.reimbursements?.pending ?? 0;
     this.trainingsCompleted = payload.training.completed;
     this.complianceCoverage = payload.training.coverage;
     this.trainingsAssigned = payload.training.total;
   }
 
-  private calculateEngagementScore(profile: EmployeeProfile | null): number | null {
+  private calculateEngagementScore(profile: EmployeeProfile | null, ideaCount = 0): number | null {
     if (!profile) {
       return null;
     }
@@ -143,19 +147,25 @@ export class HomeComponent {
       profile.participationScore,
       profile.riskAdjustedScore
     ];
+    const ideaScore = Math.min(100, ideaCount * 20);
     const hasValues = inputs.some(
       (value) => value !== undefined && value !== null && String(value).trim() !== ''
     );
-    if (!hasValues) {
-      return null;
+    if (!hasValues && ideaScore === 0) {
+      return 0;
     }
     const survey = Number(profile.surveyScore ?? 0);
     const checkins = Number(profile.checkinsScore ?? 0);
     const participation = Number(profile.participationScore ?? 0);
     const riskAdjusted = Number(profile.riskAdjustedScore ?? 0);
-    const score =
-      0.4 * survey + 0.2 * checkins + 0.2 * participation + 0.2 * riskAdjusted;
-    return Math.min(100, Math.max(0, Math.round(score)));
+    const rawScore =
+      0.4 * survey +
+      0.2 * checkins +
+      0.2 * participation +
+      0.2 * riskAdjusted +
+      ideaScore;
+    const score = (rawScore / 200) * 5;
+    return Math.max(0, Math.min(5, Math.round(score)));
   }
 
   async refreshIdeas() {

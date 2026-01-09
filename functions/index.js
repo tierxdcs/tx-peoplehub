@@ -277,11 +277,29 @@ app.delete('/api/teams/:id', async (req, res) => {
   }
 });
 
-app.get('/api/employee-profiles', async (_req, res) => {
+app.get('/api/employee-profiles', async (req, res) => {
+  const email = String(req.query.email ?? '').trim().toLowerCase();
+  const employeeId = String(req.query.employeeId ?? '').trim();
   try {
-    const result = await getPoolInstance().query(
-      'SELECT * FROM tx_employee_profiles ORDER BY updated_at DESC NULLS LAST LIMIT 1'
-    );
+    const result = email
+      ? await getPoolInstance().query(
+          `SELECT * FROM tx_employee_profiles
+           WHERE LOWER(email) = $1
+           ORDER BY updated_at DESC NULLS LAST
+           LIMIT 1`,
+          [email]
+        )
+      : employeeId
+      ? await getPoolInstance().query(
+          `SELECT * FROM tx_employee_profiles
+           WHERE employee_id = $1
+           ORDER BY updated_at DESC NULLS LAST
+           LIMIT 1`,
+          [employeeId]
+        )
+      : await getPoolInstance().query(
+          'SELECT * FROM tx_employee_profiles ORDER BY updated_at DESC NULLS LAST LIMIT 1'
+        );
     setCacheHeader(res, 10);
     res.json(result.rows[0] ?? null);
   } catch (error) {

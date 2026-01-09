@@ -59,7 +59,7 @@
       </div>
       <div class="score">
         <span class="value">
-          {{ profile.engagementScore === null ? 'N/A' : profile.engagementScore + '%' }}
+          {{ profile.engagementPercent === null ? 'N/A' : profile.engagementPercent + '%' }}
         </span>
         <span class="label">Engagement score</span>
       </div>
@@ -89,7 +89,7 @@
           @if (profile.managerChain.length) {
             @for (leader of profile.managerChain; track leader) {
               <div class="tree-node manager">
-                <span class="label">@if ($index === 0) {Manager} @else if ($index === profile.managerChain.length - 1) {CEO} @else {Leader}</span>
+                <span class="label">@if ($index === 0) {CEO} @else if ($index === profile.managerChain.length - 1) {Manager} @else {Leader}</span>
                 <strong>{{ leader }}</strong>
               </div>
             }

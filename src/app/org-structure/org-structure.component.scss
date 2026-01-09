@@ -158,6 +158,11 @@ button:hover,
 
 .reporting-grid {
   display: grid;
+  gap: 16px;
+}
+
+.reporting-row {
+  display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
@@ -168,6 +173,15 @@ button:hover,
   padding: 18px;
   display: grid;
   gap: 10px;
+}
+
+.ceo-card {
+  align-items: center;
+  text-align: center;
+}
+
+.ceo-card .tag {
+  justify-self: center;
 }
 
 .reporting-card h3 {
