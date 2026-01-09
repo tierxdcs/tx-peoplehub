@@ -1275,8 +1275,9 @@ app.post('/api/approvals/completed', async (req, res) => {
 exports.api = onRequest(
   {
     cors: true,
-    invoker: 'public',
+    invoker: ['public'],
     secrets,
+    region: 'asia-south1',
     minInstances: 1
   },
   app
