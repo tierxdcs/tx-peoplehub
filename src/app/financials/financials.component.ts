@@ -13,6 +13,8 @@ import { ApiService } from '../services/api.service';
 export class FinancialsComponent {
   offerLetterName = '';
   offerLetterData = '';
+  annualSalary = '₹85,000';
+  showAnnualSalary = false;
 
   constructor(private readonly api: ApiService) {}
 
@@ -25,5 +27,9 @@ export class FinancialsComponent {
       this.offerLetterName = '';
       this.offerLetterData = '';
     }
+  }
+
+  toggleAnnualSalary() {
+    this.showAnnualSalary = !this.showAnnualSalary;
   }
 }
