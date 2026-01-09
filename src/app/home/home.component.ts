@@ -24,6 +24,7 @@ export class HomeComponent {
   todayTasks: { title: string }[] = [];
   complianceCoverage = 0;
   trainingsCompleted = 0;
+  trainingsAssigned = 0;
   pendingReimbursements = 0;
   ideaHistory: IdeaRecord[] = [];
   pendingRequests: { id: string; type: string; range: string; status: string; employee?: string }[] = [];
@@ -89,6 +90,7 @@ export class HomeComponent {
       this.pendingReimbursements = payload.reimbursements?.pending ?? 0;
       this.trainingsCompleted = payload.training.completed;
       this.complianceCoverage = payload.training.coverage;
+      this.trainingsAssigned = payload.training.total;
     } catch {
       this.currentProfile = null;
       this.activeUserCount = 0;
@@ -101,6 +103,7 @@ export class HomeComponent {
       this.pendingReimbursements = 0;
       this.trainingsCompleted = 0;
       this.complianceCoverage = 0;
+      this.trainingsAssigned = 0;
     }
   }
 
