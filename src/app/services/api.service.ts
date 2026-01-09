@@ -371,25 +371,38 @@ export class ApiService {
   }
 
   getHomeDashboard(employeeEmail?: string): Observable<HomeDashboard> {
-    return this.getHomeDashboardPayload(employeeEmail, false);
-  }
-
-  getHomeDashboardLight(employeeEmail?: string): Observable<HomeDashboard> {
-    return this.getHomeDashboardPayload(employeeEmail, true);
-  }
-
-  private getHomeDashboardPayload(employeeEmail?: string, light = false): Observable<HomeDashboard> {
-    let params = employeeEmail
+    const params = employeeEmail
       ? new HttpParams().set('employeeEmail', employeeEmail)
       : new HttpParams();
-    if (light) {
-      params = params.set('light', '1');
-    }
     const key = this.cacheKey('home-dashboard', params);
     return this.cacheFor(
       key,
       () =>
         this.http.get<HomeDashboard>(`${this.baseUrl}/home-dashboard`, { params }).pipe(
+          map((payload) => ({
+            activeUserCount: Number(payload.activeUserCount ?? 0),
+            profile: payload.profile ? this.mapProfile(payload.profile) : null,
+            tasks: Array.isArray(payload.tasks) ? payload.tasks : [],
+            pendingLeaves: Array.isArray(payload.pendingLeaves)
+              ? payload.pendingLeaves.map((row) => this.mapLeave(row))
+              : [],
+            ideas: Array.isArray(payload.ideas) ? payload.ideas.map((row) => this.mapIdea(row)) : [],
+            reimbursements: payload.reimbursements ?? { pending: 0 },
+            training: payload.training ?? { completed: 0, total: 0, coverage: 0 }
+          }))
+        )
+    );
+  }
+
+  getHomeDashboardLight(employeeEmail?: string): Observable<HomeDashboard> {
+    const params = employeeEmail
+      ? new HttpParams().set('employeeEmail', employeeEmail)
+      : new HttpParams();
+    const key = this.cacheKey('home-dashboard-lite', params);
+    return this.cacheFor(
+      key,
+      () =>
+        this.http.get<HomeDashboard>(`${this.baseUrl}/home-dashboard-lite`, { params }).pipe(
           map((payload) => ({
             activeUserCount: Number(payload.activeUserCount ?? 0),
             profile: payload.profile ? this.mapProfile(payload.profile) : null,
