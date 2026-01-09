@@ -590,9 +590,11 @@ app.post('/api/training-assignments', async (req, res) => {
   const assignment = req.body;
   try {
     const title = String(assignment.title ?? '').trim();
-    const dueDate = assignment.dueDate ? String(assignment.dueDate) : null;
-    if (!title || !dueDate) {
-      res.status(400).json({ error: 'Title and due date are required' });
+    const rawDueDate = assignment.dueDate ? String(assignment.dueDate) : '';
+    const dueDate = rawDueDate.length > 10 ? rawDueDate.slice(0, 10) : rawDueDate;
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(dueDate);
+    if (!title || !dueDate || !validDate) {
+      res.status(400).json({ error: 'Title and valid due date are required' });
       return;
     }
     const audience = String(assignment.audience ?? 'All employees');
@@ -610,14 +612,18 @@ app.post('/api/training-assignments', async (req, res) => {
         department,
         dueDate,
         questions,
-        assignment.completed ?? 0,
-        assignment.total ?? 0,
+        Number(assignment.completed ?? 0),
+        Number(assignment.total ?? 0),
         participants
       ]
     );
     res.json(result.rows[0]);
   } catch (error) {
-    res.status(500).json({ error: 'Unable to save training assignment' });
+    console.error('training-assignments', error);
+    res.status(500).json({
+      error: 'Unable to save training assignment',
+      details: error?.message ?? 'Unknown error'
+    });
   }
 });
 
