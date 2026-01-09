@@ -66,6 +66,18 @@
     </header>
   }
 
+  @if (isLoading) {
+    <div class="global-loader" role="status" aria-live="polite">
+      <div class="loader-card">
+        <span class="spinner" aria-hidden="true"></span>
+        <div>
+          <strong>Loading</strong>
+          <span>Fetching latest data</span>
+        </div>
+      </div>
+    </div>
+  }
+
   <main class="app-content" [class.no-topbar]="!showChrome">
     <router-outlet />
   </main>
