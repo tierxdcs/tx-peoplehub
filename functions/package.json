@@ -11,6 +11,7 @@
     "deploy": "firebase deploy --only functions"
   },
   "dependencies": {
+    "compression": "^1.7.4",
     "cors": "^2.8.5",
     "express": "^4.18.3",
     "firebase-functions": "^5.1.0",

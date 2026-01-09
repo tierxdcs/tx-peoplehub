@@ -208,3 +208,18 @@ CREATE TABLE IF NOT EXISTS tx_approvals_completed (
   note TEXT,
   decided_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_tx_users_status ON tx_users (status);
+CREATE INDEX IF NOT EXISTS idx_tx_users_created_at ON tx_users (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_teams_name ON tx_teams (name);
+CREATE INDEX IF NOT EXISTS idx_tx_departments_name ON tx_departments (name);
+CREATE INDEX IF NOT EXISTS idx_tx_employee_profiles_updated_at ON tx_employee_profiles (updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_tasks_created_at ON tx_tasks (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_leave_requests_status ON tx_leave_requests (status);
+CREATE INDEX IF NOT EXISTS idx_tx_leave_requests_created_at ON tx_leave_requests (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_ideas_submitted_at ON tx_ideas (submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_training_assignments_created_at ON tx_training_assignments (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_training_responses_employee ON tx_training_responses (employee);
+CREATE INDEX IF NOT EXISTS idx_tx_reimbursements_created_at ON tx_reimbursements (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_requisitions_submitted_at ON tx_requisitions (submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_approvals_completed_decided_at ON tx_approvals_completed (decided_at DESC);

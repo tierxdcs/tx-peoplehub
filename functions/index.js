@@ -1,16 +1,21 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const { getPool, secrets } = require('./db');
 
 const app = express();
 app.use(cors({ origin: true }));
+app.use(compression());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 const getPoolInstance = () => getPool();
 const cache = {
   homeDashboard: { expiresAt: 0, data: null }
+};
+const setCacheHeader = (res, seconds) => {
+  res.set('Cache-Control', `public, max-age=${seconds}`);
 };
 
 app.get('/api/health', async (_req, res) => {
@@ -40,6 +45,7 @@ app.get('/api/users', async (_req, res) => {
        FROM tx_users
        ORDER BY created_at DESC`
     );
+    setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load users' });
@@ -138,8 +144,9 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/departments', async (_req, res) => {
   try {
     const result = await getPoolInstance().query(
-      'SELECT * FROM tx_departments ORDER BY name'
+      'SELECT id, name, head FROM tx_departments ORDER BY name'
     );
+    setCacheHeader(res, 30);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load departments' });
@@ -176,8 +183,11 @@ app.delete('/api/departments/:id', async (req, res) => {
 app.get('/api/teams', async (_req, res) => {
   try {
     const result = await getPoolInstance().query(
-      'SELECT * FROM tx_teams ORDER BY name'
+      `SELECT id, name, head, summary, people_count, coverage, sites
+       FROM tx_teams
+       ORDER BY name`
     );
+    setCacheHeader(res, 30);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load teams' });
@@ -220,6 +230,7 @@ app.get('/api/employee-profiles', async (_req, res) => {
     const result = await getPoolInstance().query(
       'SELECT * FROM tx_employee_profiles ORDER BY updated_at DESC NULLS LAST LIMIT 1'
     );
+    setCacheHeader(res, 10);
     res.json(result.rows[0] ?? null);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load employee profile' });
@@ -236,6 +247,7 @@ app.get('/api/employee-spotlight', async (_req, res) => {
        ORDER BY updated_at DESC NULLS LAST
        LIMIT 1`
     );
+    setCacheHeader(res, 10);
     res.json(result.rows[0] ?? null);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load employee spotlight' });
@@ -245,6 +257,7 @@ app.get('/api/employee-spotlight', async (_req, res) => {
 app.get('/api/home-dashboard', async (_req, res) => {
   const now = Date.now();
   if (cache.homeDashboard.data && cache.homeDashboard.expiresAt > now) {
+    setCacheHeader(res, 15);
     res.json(cache.homeDashboard.data);
     return;
   }
@@ -305,6 +318,7 @@ app.get('/api/home-dashboard', async (_req, res) => {
       training: { completed, total, coverage }
     };
     cache.homeDashboard = { data: payload, expiresAt: now + 15000 };
+    setCacheHeader(res, 15);
     res.json(payload);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load home dashboard' });
@@ -505,6 +519,7 @@ app.get('/api/training-assignments', async (_req, res) => {
     const result = await getPoolInstance().query(
       'SELECT * FROM tx_training_assignments ORDER BY created_at DESC'
     );
+    setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load training assignments' });
@@ -592,6 +607,7 @@ app.get('/api/training-responses', async (req, res) => {
       `SELECT * FROM tx_training_responses ${where} ORDER BY submitted_at DESC`,
       values
     );
+    setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load training responses' });
@@ -601,8 +617,11 @@ app.get('/api/training-responses', async (req, res) => {
 app.get('/api/ideas', async (_req, res) => {
   try {
     const result = await getPoolInstance().query(
-      'SELECT * FROM tx_ideas ORDER BY submitted_at DESC'
+      `SELECT id, title, type, summary, manager, submitted_at
+       FROM tx_ideas
+       ORDER BY submitted_at DESC`
     );
+    setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load ideas' });
@@ -627,8 +646,11 @@ app.post('/api/ideas', async (req, res) => {
 app.get('/api/leaves', async (_req, res) => {
   try {
     const result = await getPoolInstance().query(
-      'SELECT * FROM tx_leave_requests ORDER BY created_at DESC'
+      `SELECT id, employee_name, type, start_date, end_date, range, status, notes
+       FROM tx_leave_requests
+       ORDER BY created_at DESC`
     );
+    setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load leave requests' });
@@ -676,8 +698,11 @@ app.patch('/api/leaves/:id', async (req, res) => {
 app.get('/api/reimbursements', async (_req, res) => {
   try {
     const result = await getPoolInstance().query(
-      'SELECT * FROM tx_reimbursements ORDER BY created_at DESC'
+      `SELECT id, title, amount, category, date, notes, status, employee
+       FROM tx_reimbursements
+       ORDER BY created_at DESC`
     );
+    setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load reimbursements' });
@@ -717,8 +742,12 @@ app.patch('/api/reimbursements/:id', async (req, res) => {
 app.get('/api/requisitions', async (_req, res) => {
   try {
     const result = await getPoolInstance().query(
-      'SELECT * FROM tx_requisitions ORDER BY submitted_at DESC'
+      `SELECT id, title, department, location, headcount, level, hire_type, start_date,
+              justification, budget_impact, manager, cost_center, approval, submitted_at
+       FROM tx_requisitions
+       ORDER BY submitted_at DESC`
     );
+    setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load requisitions' });
@@ -771,8 +800,9 @@ app.patch('/api/requisitions/:id', async (req, res) => {
 app.get('/api/tasks', async (_req, res) => {
   try {
     const result = await getPoolInstance().query(
-      'SELECT * FROM tx_tasks ORDER BY created_at DESC'
+      'SELECT id, title, owner, due, source FROM tx_tasks ORDER BY created_at DESC'
     );
+    setCacheHeader(res, 5);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load tasks' });
@@ -807,8 +837,11 @@ app.delete('/api/tasks/:id', async (req, res) => {
 app.get('/api/approvals/completed', async (_req, res) => {
   try {
     const result = await getPoolInstance().query(
-      'SELECT * FROM tx_approvals_completed ORDER BY decided_at DESC'
+      `SELECT id, source, source_id, title, submitted_by, summary, status, note, decided_at
+       FROM tx_approvals_completed
+       ORDER BY decided_at DESC`
     );
+    setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load completed approvals' });
