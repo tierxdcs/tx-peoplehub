@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
 const { getPool, secrets } = require('./db');
+const { warmup } = require('./warmup');
 
 const app = express();
 app.use(cors({ origin: true }));
@@ -484,6 +485,73 @@ app.get('/api/home-dashboard', async (req, res) => {
       training: { completed, total, coverage }
     };
     cache.homeDashboard.dataByEmail[emailKey] = { data: payload, expiresAt: now + 60000 };
+    setCacheHeader(res, 60);
+    res.json(payload);
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to load home dashboard' });
+  }
+});
+
+app.get('/api/home-dashboard-lite', async (req, res) => {
+  const now = Date.now();
+  const emailKey = String(req.query.employeeEmail ?? '')
+    .trim()
+    .toLowerCase() || 'all';
+  const cacheKey = `lite:${emailKey}`;
+  const cached = cache.homeDashboard.dataByEmail[cacheKey];
+  if (cached && cached.expiresAt > now) {
+    setCacheHeader(res, 60);
+    res.json(cached.data);
+    return;
+  }
+  try {
+    const pool = getPoolInstance();
+    const profileResult = emailKey !== 'all'
+      ? await pool.query(
+          `SELECT full_name, employee_id, email, location, department, job_title, status,
+                  manager, photo_url, survey_score, checkins_score, participation_score,
+                  risk_adjusted_score
+           FROM tx_employee_profiles
+           WHERE LOWER(email) = $1
+           ORDER BY updated_at DESC NULLS LAST
+           LIMIT 1`,
+          [emailKey]
+        )
+      : await pool.query(
+          `SELECT full_name, employee_id, email, location, department, job_title, status,
+                  manager, photo_url, survey_score, checkins_score, participation_score,
+                  risk_adjusted_score
+           FROM tx_employee_profiles
+           ORDER BY updated_at DESC NULLS LAST
+           LIMIT 1`
+        );
+    const profile = profileResult.rows[0] ?? null;
+    const activeUsersResult = await pool.query(
+      'SELECT COUNT(*) AS count FROM tx_users WHERE status = $1',
+      ['Active']
+    );
+    let completed = 0;
+    if (profile?.full_name) {
+      const responsesResult = await pool.query(
+        'SELECT COUNT(*) AS count FROM tx_training_responses WHERE employee = $1',
+        [profile.full_name]
+      );
+      completed = Number(responsesResult.rows[0]?.count ?? 0);
+    }
+    const assignmentsResult = await pool.query('SELECT COUNT(*) AS count FROM tx_training_assignments');
+    const total = Number(assignmentsResult.rows[0]?.count ?? 0);
+    const coverage = total ? Math.round((completed / total) * 100) : 0;
+
+    const payload = {
+      activeUserCount: Number(activeUsersResult.rows[0]?.count ?? 0),
+      profile,
+      tasks: [],
+      pendingLeaves: [],
+      ideas: [],
+      reimbursements: { pending: 0 },
+      training: { completed, total, coverage }
+    };
+    cache.homeDashboard.dataByEmail[cacheKey] = { data: payload, expiresAt: now + 60000 };
     setCacheHeader(res, 60);
     res.json(payload);
   } catch (error) {
@@ -1208,7 +1276,10 @@ exports.api = onRequest(
   {
     cors: true,
     invoker: 'public',
-    secrets
+    secrets,
+    minInstances: 1
   },
   app
 );
+
+exports.warmup = warmup;
