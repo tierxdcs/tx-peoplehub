@@ -765,6 +765,7 @@ app.patch('/api/leaves/:id', async (req, res) => {
 
 app.get('/api/reimbursements', async (req, res) => {
   const employeeEmail = String(req.query.employeeEmail ?? '').trim().toLowerCase();
+  const employeeName = String(req.query.employeeName ?? '').trim();
   const scope = String(req.query.scope ?? '').trim().toLowerCase();
   try {
     const result = scope === 'all'
@@ -778,8 +779,9 @@ app.get('/api/reimbursements', async (req, res) => {
           `SELECT id, title, amount, category, date, notes, status, employee, employee_email
            FROM tx_reimbursements
            WHERE employee_email = $1
+              OR ((employee_email IS NULL OR employee_email = '') AND employee = $2)
            ORDER BY created_at DESC`,
-          [employeeEmail]
+          [employeeEmail, employeeName]
         )
       : { rows: [] };
     setCacheHeader(res, 10);

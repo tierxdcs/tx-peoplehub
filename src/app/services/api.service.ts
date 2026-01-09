@@ -405,10 +405,17 @@ export class ApiService {
     );
   }
 
-  getReimbursements(params?: { employeeEmail?: string; scope?: 'all' }): Observable<ReimbursementRecord[]> {
+  getReimbursements(params?: {
+    employeeEmail?: string;
+    employeeName?: string;
+    scope?: 'all';
+  }): Observable<ReimbursementRecord[]> {
     let httpParams = new HttpParams();
     if (params?.employeeEmail) {
       httpParams = httpParams.set('employeeEmail', params.employeeEmail);
+    }
+    if (params?.employeeName) {
+      httpParams = httpParams.set('employeeName', params.employeeName);
     }
     if (params?.scope === 'all') {
       httpParams = httpParams.set('scope', 'all');
