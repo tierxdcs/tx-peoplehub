@@ -16,6 +16,7 @@ export class ReimbursementComponent {
   employeeEmail = '';
   employeeName = '';
   statusMessage = '';
+  showSuccessModal = false;
   form = {
     title: '',
     amount: '',
@@ -110,6 +111,7 @@ export class ReimbursementComponent {
     firstValueFrom(this.api.createReimbursement(payload))
       .then((saved) => {
         this.statusMessage = 'Reimbursement submitted for approval.';
+        this.showSuccessModal = true;
         const submitted = saved.date
           ? new Date(saved.date).toLocaleDateString(undefined, {
               month: 'short',
@@ -130,5 +132,9 @@ export class ReimbursementComponent {
       .catch(() => {
         this.statusMessage = 'Unable to submit reimbursement.';
       });
+  }
+
+  closeSuccessModal() {
+    this.showSuccessModal = false;
   }
 }
