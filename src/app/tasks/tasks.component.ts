@@ -59,7 +59,7 @@ export class TasksComponent {
           })
         ),
         firstValueFrom(this.api.getLeaves()),
-        firstValueFrom(this.api.getReimbursements()),
+        firstValueFrom(this.api.getReimbursements({ scope: 'all' })),
         firstValueFrom(this.api.getRequisitions()),
         firstValueFrom(this.api.getCompletedApprovals())
       ]);
