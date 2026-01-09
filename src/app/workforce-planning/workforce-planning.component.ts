@@ -3,7 +3,7 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { ApiService, RequisitionRecord } from '../services/api.service';
+import { ApiService, DepartmentRecord, RequisitionRecord } from '../services/api.service';
 
 @Component({
   selector: 'app-workforce-planning',
@@ -16,6 +16,7 @@ export class WorkforcePlanningComponent {
   status = '';
   sessionEmail = '';
   sessionDepartment = 'Operations';
+  departments: DepartmentRecord[] = [];
   requests: {
     id: string;
     title: string;
@@ -50,7 +51,7 @@ export class WorkforcePlanningComponent {
 
   async ngOnInit() {
     this.loadSession();
-    await Promise.all([this.loadRequests(), this.loadProfile()]);
+    await Promise.all([this.loadRequests(), this.loadDepartments()]);
   }
 
   loadSession() {
@@ -80,8 +81,21 @@ export class WorkforcePlanningComponent {
     }
   }
 
-  async loadProfile() {
-    return;
+  async loadDepartments() {
+    try {
+      this.departments = await firstValueFrom(this.api.getDepartments());
+      if (!this.form.department) {
+        const match = this.departments.find(
+          (dept) => dept.name === this.sessionDepartment
+        );
+        this.form.department = match?.name ?? this.departments[0]?.name ?? 'Operations';
+      }
+    } catch {
+      this.departments = [];
+      if (!this.form.department) {
+        this.form.department = this.sessionDepartment || 'Operations';
+      }
+    }
   }
 
   submitRequest() {

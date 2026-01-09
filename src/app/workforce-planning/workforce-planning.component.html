@@ -26,11 +26,13 @@
       <label>
         Department
         <select [(ngModel)]="form.department" name="department">
-          <option>Operations</option>
-          <option>Facilities</option>
-          <option>Security</option>
-          <option>HR & People Ops</option>
-          <option>Finance</option>
+          @if (departments.length) {
+            @for (dept of departments; track dept.id) {
+              <option [value]="dept.name">{{ dept.name }}</option>
+            }
+          } @else {
+            <option>{{ form.department || 'Operations' }}</option>
+          }
         </select>
       </label>
       <label>
