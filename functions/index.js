@@ -293,6 +293,7 @@ app.get('/api/home-dashboard', async (req, res) => {
       tasksResult,
       leavesResult,
       ideasResult,
+      reimbursementsResult,
       assignmentsResult
     ] = await Promise.all([
       pool.query('SELECT COUNT(*) AS count FROM tx_users WHERE status = $1', ['Active']),
@@ -337,6 +338,19 @@ app.get('/api/home-dashboard', async (req, res) => {
              ORDER BY submitted_at DESC
              LIMIT 6`
           ),
+      emailKey !== 'all'
+        ? pool.query(
+            `SELECT COUNT(*) AS count
+             FROM tx_reimbursements
+             WHERE employee_email = $1
+               AND LOWER(status) LIKE '%pending%'`,
+            [emailKey]
+          )
+        : pool.query(
+            `SELECT COUNT(*) AS count
+             FROM tx_reimbursements
+             WHERE LOWER(status) LIKE '%pending%'`
+          ),
       pool.query('SELECT COUNT(*) AS count FROM tx_training_assignments')
     ]);
 
@@ -357,6 +371,7 @@ app.get('/api/home-dashboard', async (req, res) => {
       tasks: tasksResult.rows ?? [],
       pendingLeaves: leavesResult.rows ?? [],
       ideas: ideasResult.rows ?? [],
+      reimbursements: { pending: Number(reimbursementsResult.rows[0]?.count ?? 0) },
       training: { completed, total, coverage }
     };
     cache.homeDashboard.dataByEmail[emailKey] = { data: payload, expiresAt: now + 15000 };

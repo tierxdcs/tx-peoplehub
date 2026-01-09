@@ -24,6 +24,7 @@ export class HomeComponent {
   todayTasks: { title: string }[] = [];
   complianceCoverage = 0;
   trainingsCompleted = 0;
+  pendingReimbursements = 0;
   ideaHistory: IdeaRecord[] = [];
   pendingRequests: { id: string; type: string; range: string; status: string; employee?: string }[] = [];
   leaveForm = {
@@ -85,6 +86,7 @@ export class HomeComponent {
         employee: leave.employeeName
       }));
       this.ideaHistory = payload.ideas;
+      this.pendingReimbursements = payload.reimbursements?.pending ?? 0;
       this.trainingsCompleted = payload.training.completed;
       this.complianceCoverage = payload.training.coverage;
     } catch {
@@ -96,6 +98,7 @@ export class HomeComponent {
       this.todayTasks = [];
       this.pendingRequests = [];
       this.ideaHistory = [];
+      this.pendingReimbursements = 0;
       this.trainingsCompleted = 0;
       this.complianceCoverage = 0;
     }

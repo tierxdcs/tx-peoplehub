@@ -133,6 +133,7 @@ export type HomeDashboard = {
   tasks: { title: string }[];
   pendingLeaves: LeaveRecord[];
   ideas: IdeaRecord[];
+  reimbursements: { pending: number };
   training: { completed: number; total: number; coverage: number };
 };
 
@@ -306,6 +307,7 @@ export class ApiService {
           ? payload.pendingLeaves.map((row) => this.mapLeave(row))
           : [],
         ideas: Array.isArray(payload.ideas) ? payload.ideas.map((row) => this.mapIdea(row)) : [],
+        reimbursements: payload.reimbursements ?? { pending: 0 },
         training: payload.training ?? { completed: 0, total: 0, coverage: 0 }
       }))
     );
