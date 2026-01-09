@@ -589,20 +589,30 @@ app.get('/api/training-assignments', async (_req, res) => {
 app.post('/api/training-assignments', async (req, res) => {
   const assignment = req.body;
   try {
+    const title = String(assignment.title ?? '').trim();
+    const dueDate = assignment.dueDate ? String(assignment.dueDate) : null;
+    if (!title || !dueDate) {
+      res.status(400).json({ error: 'Title and due date are required' });
+      return;
+    }
+    const audience = String(assignment.audience ?? 'All employees');
+    const department = String(assignment.department ?? 'All departments');
+    const questions = Array.isArray(assignment.questions) ? assignment.questions : [];
+    const participants = Array.isArray(assignment.participants) ? assignment.participants : [];
     const result = await getPoolInstance().query(
       `INSERT INTO tx_training_assignments
        (title, audience, department, due_date, questions, completed, total, participants)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING *`,
       [
-        assignment.title,
-        assignment.audience,
-        assignment.department,
-        assignment.dueDate,
-        assignment.questions ?? [],
+        title,
+        audience,
+        department,
+        dueDate,
+        questions,
         assignment.completed ?? 0,
         assignment.total ?? 0,
-        assignment.participants ?? []
+        participants
       ]
     );
     res.json(result.rows[0]);
