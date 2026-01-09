@@ -13,7 +13,6 @@ import { ApiService } from '../services/api.service';
 export class ReimbursementComponent {
   claims: { title: string; amount: string; status: string; submitted: string }[] = [];
   employeeEmail = '';
-  employeeName = '';
 
   constructor(private readonly api: ApiService) {}
 
@@ -22,30 +21,23 @@ export class ReimbursementComponent {
       const rawSession = localStorage.getItem('tx-peoplehub-session');
       if (rawSession) {
         try {
-          const parsed = JSON.parse(rawSession) as { email?: string; name?: string };
+          const parsed = JSON.parse(rawSession) as { email?: string };
           this.employeeEmail = parsed.email?.trim().toLowerCase() ?? '';
-          this.employeeName = parsed.name?.trim() ?? '';
         } catch {
           this.employeeEmail = '';
-          this.employeeName = '';
         }
+      }
+      if (!this.employeeEmail) {
+        this.claims = [];
+        return;
       }
       const reimbursements = await firstValueFrom(
         this.api.getReimbursements({
-          employeeEmail: this.employeeEmail || undefined,
-          employeeName: this.employeeName || undefined
+          employeeEmail: this.employeeEmail
         })
       );
       this.claims = reimbursements
-        .filter((claim) => {
-          if (this.employeeEmail) {
-            return claim.employeeEmail?.toLowerCase() === this.employeeEmail;
-          }
-          if (this.employeeName) {
-            return claim.employee === this.employeeName;
-          }
-          return false;
-        })
+        .filter((claim) => claim.employeeEmail?.toLowerCase() === this.employeeEmail)
         .map((claim) => ({
           title: claim.title,
           amount: claim.amount,
