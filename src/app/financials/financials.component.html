@@ -20,7 +20,36 @@
       </div>
       <div class="detail">
         <span class="label">Annual salary</span>
-        <span class="value">₹85,000</span>
+        <span class="value-group">
+          <span class="value">
+            {{ showAnnualSalary ? annualSalary : 'Hidden' }}
+          </span>
+          <button
+            class="ghost icon-button"
+            type="button"
+            (click)="toggleAnnualSalary()"
+            [attr.aria-pressed]="showAnnualSalary"
+          >
+            @if (showAnnualSalary) {
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 5.25c4.88 0 8.86 2.88 10.5 6.75-1.64 3.87-5.62 6.75-10.5 6.75S3.14 15.87 1.5 12C3.14 8.13 7.12 5.25 12 5.25zm0 2.25c-3.7 0-6.78 2.03-8.25 4.5 1.47 2.47 4.55 4.5 8.25 4.5s6.78-2.03 8.25-4.5c-1.47-2.47-4.55-4.5-8.25-4.5zm0 1.75a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"
+                />
+                <path
+                  d="M3.3 2.4a1 1 0 0 1 1.4 0l16.9 16.9a1 1 0 0 1-1.4 1.4L3.3 3.8a1 1 0 0 1 0-1.4z"
+                />
+              </svg>
+              <span class="sr-only">Hide annual salary</span>
+            } @else {
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 5.25c4.88 0 8.86 2.88 10.5 6.75-1.64 3.87-5.62 6.75-10.5 6.75S3.14 15.87 1.5 12C3.14 8.13 7.12 5.25 12 5.25zm0 2.25c-3.7 0-6.78 2.03-8.25 4.5 1.47 2.47 4.55 4.5 8.25 4.5s6.78-2.03 8.25-4.5c-1.47-2.47-4.55-4.5-8.25-4.5zm0 1.75a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"
+                />
+              </svg>
+              <span class="sr-only">Show annual salary</span>
+            }
+          </button>
+        </span>
       </div>
       <div class="detail">
         <span class="label">Pay schedule</span>
@@ -72,7 +101,6 @@
         <span class="label">Vision</span>
         <span class="value">N/A</span>
       </div>
-      <button class="ghost full" type="button">View benefits</button>
     </article>
 
     <article class="panel">
