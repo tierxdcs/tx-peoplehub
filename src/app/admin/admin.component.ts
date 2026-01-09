@@ -414,6 +414,7 @@ export class AdminComponent {
       .map((task) => ({
         title: `Onboarding: ${task.key}`,
         owner: task.owner as string,
+        ownerEmail: this.lookupOwnerEmail(task.owner as string),
         due: 'This week',
         source: 'onboarding'
       }));
@@ -428,6 +429,10 @@ export class AdminComponent {
     } catch {
       return { assigned: 0, message: 'Unable to assign tasks.' };
     }
+  }
+
+  lookupOwnerEmail(ownerName: string) {
+    return this.users.find((user) => user.fullName === ownerName)?.email ?? '';
   }
 
   addChecklistItem() {

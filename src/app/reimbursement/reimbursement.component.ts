@@ -22,7 +22,7 @@ export class ReimbursementComponent {
       if (rawSession) {
         try {
           const parsed = JSON.parse(rawSession) as { email?: string };
-          this.employeeEmail = parsed.email?.trim() ?? '';
+          this.employeeEmail = parsed.email?.trim().toLowerCase() ?? '';
         } catch {
           this.employeeEmail = '';
         }

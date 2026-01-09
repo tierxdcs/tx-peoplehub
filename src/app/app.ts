@@ -70,7 +70,13 @@ export class App {
   }
 
   loadNotifications() {
-    forkJoin([this.api.getTasks(), this.api.getTrainingAssignments()]).subscribe({
+    forkJoin([
+      this.api.getTasks({
+        ownerEmail: this.session.email?.trim().toLowerCase() || undefined,
+        ownerName: this.session.name
+      }),
+      this.api.getTrainingAssignments()
+    ]).subscribe({
       next: ([tasks, trainings]) => {
         this.notifications = [
           ...tasks.map((task) => ({

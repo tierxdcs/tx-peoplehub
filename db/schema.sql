@@ -147,12 +147,17 @@ CREATE TABLE IF NOT EXISTS tx_ideas (
   type TEXT,
   summary TEXT,
   manager TEXT,
+  employee_email TEXT,
   submitted_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE tx_ideas
+  ADD COLUMN IF NOT EXISTS employee_email TEXT;
 
 CREATE TABLE IF NOT EXISTS tx_leave_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   employee_name TEXT,
+  employee_email TEXT,
   type TEXT,
   start_date DATE,
   end_date DATE,
@@ -161,6 +166,9 @@ CREATE TABLE IF NOT EXISTS tx_leave_requests (
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE tx_leave_requests
+  ADD COLUMN IF NOT EXISTS employee_email TEXT;
 
 CREATE TABLE IF NOT EXISTS tx_reimbursements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -192,17 +200,25 @@ CREATE TABLE IF NOT EXISTS tx_requisitions (
   manager TEXT,
   cost_center TEXT,
   approval TEXT,
+  requester_email TEXT,
   submitted_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE tx_requisitions
+  ADD COLUMN IF NOT EXISTS requester_email TEXT;
 
 CREATE TABLE IF NOT EXISTS tx_tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
   owner TEXT,
+  owner_email TEXT,
   due TEXT,
   source TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE tx_tasks
+  ADD COLUMN IF NOT EXISTS owner_email TEXT;
 
 CREATE TABLE IF NOT EXISTS tx_approvals_completed (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -222,11 +238,15 @@ CREATE INDEX IF NOT EXISTS idx_tx_teams_name ON tx_teams (name);
 CREATE INDEX IF NOT EXISTS idx_tx_departments_name ON tx_departments (name);
 CREATE INDEX IF NOT EXISTS idx_tx_employee_profiles_updated_at ON tx_employee_profiles (updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tx_tasks_created_at ON tx_tasks (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_tasks_owner_email ON tx_tasks (owner_email);
 CREATE INDEX IF NOT EXISTS idx_tx_leave_requests_status ON tx_leave_requests (status);
 CREATE INDEX IF NOT EXISTS idx_tx_leave_requests_created_at ON tx_leave_requests (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_leave_requests_employee_email ON tx_leave_requests (employee_email);
 CREATE INDEX IF NOT EXISTS idx_tx_ideas_submitted_at ON tx_ideas (submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_ideas_employee_email ON tx_ideas (employee_email);
 CREATE INDEX IF NOT EXISTS idx_tx_training_assignments_created_at ON tx_training_assignments (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tx_training_responses_employee ON tx_training_responses (employee);
 CREATE INDEX IF NOT EXISTS idx_tx_reimbursements_created_at ON tx_reimbursements (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_requisitions_requester_email ON tx_requisitions (requester_email);
 CREATE INDEX IF NOT EXISTS idx_tx_requisitions_submitted_at ON tx_requisitions (submitted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tx_approvals_completed_decided_at ON tx_approvals_completed (decided_at DESC);

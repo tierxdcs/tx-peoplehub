@@ -142,12 +142,14 @@ export type IdeaRecord = {
   type: string;
   summary: string;
   manager: string;
+  employeeEmail: string;
   submittedAt: string;
 };
 
 export type LeaveRecord = {
   id: string;
   employeeName: string;
+  employeeEmail: string;
   type: string;
   startDate: string;
   endDate: string;
@@ -182,6 +184,7 @@ export type RequisitionRecord = {
   manager: string;
   costCenter: string;
   approval: string;
+  requesterEmail: string;
   submittedAt: string;
 };
 
@@ -189,6 +192,7 @@ export type TaskRecord = {
   id: string;
   title: string;
   owner: string;
+  ownerEmail: string;
   due: string;
   source: string;
 };
@@ -289,8 +293,11 @@ export class ApiService {
     );
   }
 
-  getHomeDashboard(): Observable<HomeDashboard> {
-    return this.http.get<HomeDashboard>(`${this.baseUrl}/home-dashboard`).pipe(
+  getHomeDashboard(employeeEmail?: string): Observable<HomeDashboard> {
+    const params = employeeEmail
+      ? new HttpParams().set('employeeEmail', employeeEmail)
+      : undefined;
+    return this.http.get<HomeDashboard>(`${this.baseUrl}/home-dashboard`, { params }).pipe(
       map((payload) => ({
         activeUserCount: Number(payload.activeUserCount ?? 0),
         profile: payload.profile ? this.mapProfile(payload.profile) : null,
@@ -358,8 +365,11 @@ export class ApiService {
     );
   }
 
-  getIdeas(): Observable<IdeaRecord[]> {
-    return this.http.get<IdeaRecord[]>(`${this.baseUrl}/ideas`).pipe(
+  getIdeas(employeeEmail?: string): Observable<IdeaRecord[]> {
+    const params = employeeEmail
+      ? new HttpParams().set('employeeEmail', employeeEmail)
+      : undefined;
+    return this.http.get<IdeaRecord[]>(`${this.baseUrl}/ideas`, { params }).pipe(
       map((rows) => rows.map((row) => this.mapIdea(row)))
     );
   }
@@ -370,8 +380,15 @@ export class ApiService {
     );
   }
 
-  getLeaves(): Observable<LeaveRecord[]> {
-    return this.http.get<LeaveRecord[]>(`${this.baseUrl}/leaves`).pipe(
+  getLeaves(params?: { employeeEmail?: string; employeeName?: string }): Observable<LeaveRecord[]> {
+    let httpParams = new HttpParams();
+    if (params?.employeeEmail) {
+      httpParams = httpParams.set('employeeEmail', params.employeeEmail);
+    }
+    if (params?.employeeName) {
+      httpParams = httpParams.set('employeeName', params.employeeName);
+    }
+    return this.http.get<LeaveRecord[]>(`${this.baseUrl}/leaves`, { params: httpParams }).pipe(
       map((rows) => rows.map((row) => this.mapLeave(row)))
     );
   }
@@ -409,8 +426,11 @@ export class ApiService {
     );
   }
 
-  getRequisitions(): Observable<RequisitionRecord[]> {
-    return this.http.get<RequisitionRecord[]>(`${this.baseUrl}/requisitions`).pipe(
+  getRequisitions(requesterEmail?: string): Observable<RequisitionRecord[]> {
+    const params = requesterEmail
+      ? new HttpParams().set('requesterEmail', requesterEmail)
+      : undefined;
+    return this.http.get<RequisitionRecord[]>(`${this.baseUrl}/requisitions`, { params }).pipe(
       map((rows) => rows.map((row) => this.mapRequisition(row)))
     );
   }
@@ -427,8 +447,15 @@ export class ApiService {
     );
   }
 
-  getTasks(): Observable<TaskRecord[]> {
-    return this.http.get<TaskRecord[]>(`${this.baseUrl}/tasks`).pipe(
+  getTasks(params?: { ownerEmail?: string; ownerName?: string }): Observable<TaskRecord[]> {
+    let httpParams = new HttpParams();
+    if (params?.ownerEmail) {
+      httpParams = httpParams.set('ownerEmail', params.ownerEmail);
+    }
+    if (params?.ownerName) {
+      httpParams = httpParams.set('ownerName', params.ownerName);
+    }
+    return this.http.get<TaskRecord[]>(`${this.baseUrl}/tasks`, { params: httpParams }).pipe(
       map((rows) => rows.map((row) => this.mapTask(row)))
     );
   }
@@ -593,6 +620,7 @@ export class ApiService {
       type: row.type ?? '',
       summary: row.summary ?? '',
       manager: row.manager ?? '',
+      employeeEmail: row.employee_email ?? row.employeeEmail ?? '',
       submittedAt: row.submitted_at ?? row.submittedAt ?? ''
     };
   }
@@ -601,6 +629,7 @@ export class ApiService {
     return {
       id: row.id,
       employeeName: row.employee_name ?? row.employeeName ?? '',
+      employeeEmail: row.employee_email ?? row.employeeEmail ?? '',
       type: row.type ?? '',
       startDate: row.start_date ?? row.startDate ?? '',
       endDate: row.end_date ?? row.endDate ?? '',
@@ -639,6 +668,7 @@ export class ApiService {
       manager: row.manager ?? '',
       costCenter: row.cost_center ?? row.costCenter ?? '',
       approval: row.approval ?? '',
+      requesterEmail: row.requester_email ?? row.requesterEmail ?? '',
       submittedAt: row.submitted_at ?? row.submittedAt ?? ''
     };
   }
@@ -648,6 +678,7 @@ export class ApiService {
       id: row.id,
       title: row.title ?? '',
       owner: row.owner ?? '',
+      ownerEmail: row.owner_email ?? row.ownerEmail ?? '',
       due: row.due ?? '',
       source: row.source ?? ''
     };
