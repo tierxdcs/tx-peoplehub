@@ -223,6 +223,21 @@ app.get('/api/employee-profiles', async (_req, res) => {
   }
 });
 
+app.get('/api/employee-spotlight', async (_req, res) => {
+  try {
+    const result = await getPoolInstance().query(
+      `SELECT full_name, employee_id, email, location, department, job_title, status,
+              photo_url, survey_score, checkins_score, participation_score, risk_adjusted_score
+       FROM tx_employee_profiles
+       ORDER BY updated_at DESC NULLS LAST
+       LIMIT 1`
+    );
+    res.json(result.rows[0] ?? null);
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to load employee spotlight' });
+  }
+});
+
 app.post('/api/employee-profiles', async (req, res) => {
   const profile = req.body;
   const normalizeNumber = (value) => {

@@ -65,7 +65,10 @@ export class HomeComponent {
 
   async loadProfile() {
     try {
-      this.currentProfile = await firstValueFrom(this.api.getEmployeeProfile());
+      this.currentProfile = await firstValueFrom(this.api.getEmployeeSpotlight());
+      if (!this.currentProfile) {
+        this.currentProfile = await firstValueFrom(this.api.getEmployeeProfile());
+      }
       if (this.currentProfile?.manager) {
         this.managerName = this.currentProfile.manager;
       }
