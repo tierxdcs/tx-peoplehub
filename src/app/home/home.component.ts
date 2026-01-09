@@ -20,6 +20,7 @@ export class HomeComponent {
   activeUserCount = 0;
   spotlightScore: number | null = null;
   spotlightProgress = 0;
+  spotlightPhoto = 'assets/people/default-avatar.svg';
   todayTasks: { title: string }[] = [];
   complianceCoverage = 0;
   trainingsCompleted = 0;
@@ -68,11 +69,40 @@ export class HomeComponent {
       if (this.currentProfile?.manager) {
         this.managerName = this.currentProfile.manager;
       }
-      this.spotlightScore = null;
-      this.spotlightProgress = 0;
+      this.spotlightScore = this.calculateEngagementScore(this.currentProfile);
+      this.spotlightProgress = this.spotlightScore ?? 0;
+      this.spotlightPhoto = this.currentProfile?.photoUrl || 'assets/people/default-avatar.svg';
     } catch {
       this.currentProfile = null;
+      this.spotlightScore = null;
+      this.spotlightProgress = 0;
+      this.spotlightPhoto = 'assets/people/default-avatar.svg';
     }
+  }
+
+  private calculateEngagementScore(profile: EmployeeProfile | null): number | null {
+    if (!profile) {
+      return null;
+    }
+    const inputs = [
+      profile.surveyScore,
+      profile.checkinsScore,
+      profile.participationScore,
+      profile.riskAdjustedScore
+    ];
+    const hasValues = inputs.some(
+      (value) => value !== undefined && value !== null && String(value).trim() !== ''
+    );
+    if (!hasValues) {
+      return null;
+    }
+    const survey = Number(profile.surveyScore ?? 0);
+    const checkins = Number(profile.checkinsScore ?? 0);
+    const participation = Number(profile.participationScore ?? 0);
+    const riskAdjusted = Number(profile.riskAdjustedScore ?? 0);
+    const score =
+      0.4 * survey + 0.2 * checkins + 0.2 * participation + 0.2 * riskAdjusted;
+    return Math.min(100, Math.max(0, Math.round(score)));
   }
 
   async loadIdeas() {

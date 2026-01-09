@@ -38,7 +38,7 @@
         </div>
         <div class="spotlight-person">
           <img
-            src="assets/people/default-avatar.svg"
+            [src]="spotlightPhoto"
             [alt]="currentProfile?.fullName || 'Employee'"
           />
           <div>
@@ -52,7 +52,7 @@
         </div>
         <div class="spotlight-footer">
           <div>
-            <span class="value">{{ spotlightScore ?? 'N/A' }}</span>
+            <span class="value">{{ spotlightScore === null ? 'N/A' : spotlightScore + '%' }}</span>
             <span class="label">Engagement score</span>
           </div>
           <a class="ghost button-link" [routerLink]="['/people', 'current']">View profile</a>
