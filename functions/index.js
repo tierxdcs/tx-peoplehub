@@ -67,14 +67,20 @@ app.post('/api/users', async (req, res) => {
 
 app.put('/api/users/:id', async (req, res) => {
   const { id } = req.params;
-  const { fullName, email, department, status, director } = req.body;
+  const { fullName, email, department, status, director, password } = req.body;
   try {
     const result = await getPoolInstance().query(
       `UPDATE tx_users
-       SET full_name = $1, email = $2, department = $3, status = $4, director = $5, updated_at = NOW()
-       WHERE id = $6
+       SET full_name = $1,
+           email = $2,
+           department = $3,
+           status = $4,
+           director = $5,
+           password = COALESCE($6, password),
+           updated_at = NOW()
+       WHERE id = $7
        RETURNING id, full_name, email, department, role, status, director`,
-      [fullName, email, department, status, director, id]
+      [fullName, email, department, status, director, password ?? null, id]
     );
     res.json(result.rows[0]);
   } catch (error) {

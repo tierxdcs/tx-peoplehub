@@ -264,6 +264,35 @@ export class AdminComponent {
     this.users = this.users.map((item) => (item.id === updated.id ? updated : item));
   }
 
+  async resetPassword(index: number) {
+    const user = this.users[index];
+    if (!user) {
+      return;
+    }
+    const nextPassword = window.prompt(
+      `Set a new temporary password for ${user.fullName}.`
+    );
+    if (!nextPassword) {
+      return;
+    }
+    try {
+      await firstValueFrom(
+        this.api.updateUser(user.id, {
+          fullName: user.fullName,
+          email: user.email,
+          department: user.department,
+          role: user.role,
+          status: user.status,
+          director: user.director,
+          password: nextPassword
+        })
+      );
+      this.userStatus = 'Password reset.';
+    } catch {
+      this.userStatus = 'Unable to reset password.';
+    }
+  }
+
   async deactivateUser(index: number) {
     const user = this.users[index];
     if (!user) {
@@ -324,7 +353,8 @@ export class AdminComponent {
           department: this.editUser.department,
           role: target.role,
           status: this.editUser.status,
-          director: this.editUser.director
+          director: this.editUser.director,
+          password: this.editPassword || undefined
         })
       );
       this.users = this.users.map((user) => (user.id === updated.id ? updated : user));

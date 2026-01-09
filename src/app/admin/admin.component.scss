@@ -84,6 +84,10 @@ button:hover,
   gap: 20px;
 }
 
+.full-span {
+  grid-column: 1 / -1;
+}
+
 .form-footer {
   display: flex;
   justify-content: flex-end;
@@ -258,6 +262,11 @@ select:focus {
   margin: 0;
   color: var(--brand-green);
   font-weight: 600;
+}
+
+.empty {
+  margin: 0;
+  color: var(--ink-500);
 }
 
 .user-list {

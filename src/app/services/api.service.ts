@@ -29,6 +29,10 @@ export type CreateUserPayload = Omit<UserRecord, 'id'> & {
   password?: string;
 };
 
+export type UpdateUserPayload = Omit<UserRecord, 'id'> & {
+  password?: string;
+};
+
 export type DepartmentRecord = { id: string; name: string; head: string };
 
 export type TeamRecord = {
@@ -217,7 +221,7 @@ export class ApiService {
     );
   }
 
-  updateUser(id: string, payload: Omit<UserRecord, 'id'>): Observable<UserRecord> {
+  updateUser(id: string, payload: UpdateUserPayload): Observable<UserRecord> {
     return this.http.put<UserRecord>(`${this.baseUrl}/users/${id}`, payload).pipe(
       map((row) => this.mapUser(row))
     );
