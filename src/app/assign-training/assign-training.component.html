@@ -37,8 +37,8 @@
         Department
         <select [(ngModel)]="form.department" name="department">
           <option>All departments</option>
-          @for (department of departments; track department.name) {
-            <option [value]="department.name">{{ department.name }}</option>
+          @for (team of teams; track team.id) {
+            <option [value]="team.name">{{ team.name }}</option>
           }
         </select>
       </label>

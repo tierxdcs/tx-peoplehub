@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { ApiService, DepartmentRecord, TrainingAssignment, UserRecord } from '../services/api.service';
+import { ApiService, TeamRecord, TrainingAssignment, UserRecord } from '../services/api.service';
 
 @Component({
   selector: 'app-assign-training',
@@ -12,7 +12,7 @@ import { ApiService, DepartmentRecord, TrainingAssignment, UserRecord } from '..
   styleUrl: './assign-training.component.scss'
 })
 export class AssignTrainingComponent {
-  departments: DepartmentRecord[] = [];
+  teams: TeamRecord[] = [];
   users: UserRecord[] = [];
   form = {
     title: '',
@@ -35,17 +35,17 @@ export class AssignTrainingComponent {
   constructor(private readonly api: ApiService) {}
 
   async ngOnInit() {
-    await Promise.all([this.loadDepartments(), this.loadUsers(), this.loadAssignments()]);
-    if (this.departments.length && this.form.department === 'All departments') {
-      this.form.department = this.departments[0].name;
+    await Promise.all([this.loadTeams(), this.loadUsers(), this.loadAssignments()]);
+    if (this.teams.length && this.form.department === 'All departments') {
+      this.form.department = this.teams[0].name;
     }
   }
 
-  async loadDepartments() {
+  async loadTeams() {
     try {
-      this.departments = await firstValueFrom(this.api.getDepartments());
+      this.teams = await firstValueFrom(this.api.getTeams());
     } catch {
-      this.departments = [];
+      this.teams = [];
     }
   }
 
@@ -118,12 +118,12 @@ export class AssignTrainingComponent {
     };
     try {
       const saved = await firstValueFrom(this.api.createTrainingAssignment(newAssignment));
-      this.assignments = [saved, ...this.assignments];
-      this.status = 'Training assigned.';
+    this.assignments = [saved, ...this.assignments];
+    this.status = 'Training assigned.';
     this.form = {
       title: '',
       audience: 'All employees',
-      department: this.departments[0]?.name ?? 'All departments',
+      department: this.teams[0]?.name ?? 'All departments',
       dueDate: '',
       questions: [
         {
