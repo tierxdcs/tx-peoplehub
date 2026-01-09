@@ -29,7 +29,6 @@ export class ReimbursementComponent {
 
   async ngOnInit() {
     this.loadSession();
-    await this.loadProfile();
     await this.loadClaims();
   }
 
@@ -41,20 +40,9 @@ export class ReimbursementComponent {
     try {
       const parsed = JSON.parse(rawSession) as { email?: string; name?: string };
       this.employeeEmail = parsed.email?.trim().toLowerCase() ?? '';
-      this.employeeName = parsed.name?.trim() || this.employeeName;
+      this.employeeName = parsed.name?.trim() || 'Employee';
     } catch {
       this.employeeEmail = '';
-    }
-  }
-
-  async loadProfile() {
-    try {
-      const profile = await firstValueFrom(this.api.getEmployeeProfile());
-      if (!this.employeeName && profile?.fullName) {
-        this.employeeName = profile.fullName;
-      }
-    } catch {
-      return;
     }
   }
 

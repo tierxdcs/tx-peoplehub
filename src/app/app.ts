@@ -19,7 +19,8 @@ export class App {
     name: 'Alex Taylor',
     role: 'HR Operations',
     email: 'hr@tierx.com',
-    director: 'No'
+    director: 'No',
+    department: 'Operations'
   };
 
   constructor(private readonly router: Router, private readonly api: ApiService) {}
@@ -107,12 +108,14 @@ export class App {
         role?: string;
         email?: string;
         director?: string;
+        department?: string;
       };
       this.session = {
         name: parsed.name?.trim() || this.session.name,
         role: parsed.role?.trim() || this.session.role,
         email: parsed.email?.trim() || this.session.email,
-        director: parsed.director?.trim() || this.session.director
+        director: parsed.director?.trim() || this.session.director,
+        department: parsed.department?.trim() || this.session.department
       };
     } catch {
       // Keep defaults if session data is malformed.

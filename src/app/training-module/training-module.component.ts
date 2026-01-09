@@ -35,10 +35,22 @@ export class TrainingModuleComponent {
       return;
     }
 
-    const profile = await firstValueFrom(this.api.getEmployeeProfile());
-    this.employeeName = profile?.fullName ?? 'Employee';
+    this.employeeName = this.loadSessionName();
     await this.loadAssignments();
     await this.loadStatus();
+  }
+
+  loadSessionName() {
+    const raw = localStorage.getItem('tx-peoplehub-session');
+    if (!raw) {
+      return 'Employee';
+    }
+    try {
+      const parsed = JSON.parse(raw) as { name?: string };
+      return parsed.name?.trim() || 'Employee';
+    } catch {
+      return 'Employee';
+    }
   }
 
   async loadAssignments() {

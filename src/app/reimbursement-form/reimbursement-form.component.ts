@@ -30,26 +30,15 @@ export class ReimbursementFormComponent {
   ) {}
 
   async ngOnInit() {
-    try {
-      const rawSession = localStorage.getItem('tx-peoplehub-session');
-      if (rawSession) {
-        try {
-          const parsed = JSON.parse(rawSession) as { name?: string; email?: string };
-          this.employeeName = parsed.name?.trim() || this.employeeName;
-          this.employeeEmail = parsed.email?.trim().toLowerCase() || '';
-        } catch {
-          this.employeeEmail = '';
-        }
+    const rawSession = localStorage.getItem('tx-peoplehub-session');
+    if (rawSession) {
+      try {
+        const parsed = JSON.parse(rawSession) as { name?: string; email?: string };
+        this.employeeName = parsed.name?.trim() || this.employeeName;
+        this.employeeEmail = parsed.email?.trim().toLowerCase() || '';
+      } catch {
+        this.employeeEmail = '';
       }
-      const profile = await firstValueFrom(this.api.getEmployeeProfile());
-      if (profile?.fullName) {
-        this.employeeName = profile.fullName;
-      }
-      if (profile?.email) {
-        this.employeeEmail = profile.email;
-      }
-    } catch {
-      return;
     }
   }
 

@@ -20,13 +20,15 @@ export class ComplianceTrainingComponent {
     completedAt?: string;
   }[] = [];
   completedTrainings: { title: string; completedAt: string }[] = [];
+  sessionDepartment = 'Operations';
+  sessionName = 'Employee';
 
   constructor(private readonly api: ApiService) {}
 
   async ngOnInit() {
-    const profile = await firstValueFrom(this.api.getEmployeeProfile());
-    const department = profile?.department ?? 'Operations';
-    const employeeName = profile?.fullName ?? 'Employee';
+    this.loadSession();
+    const department = this.sessionDepartment;
+    const employeeName = this.sessionName;
 
     const [assignments, responses] = await Promise.all([
       firstValueFrom(this.api.getTrainingAssignments()),
@@ -36,6 +38,20 @@ export class ComplianceTrainingComponent {
     this.loadAssignments(department, assignments);
     this.applyCompletionStatus(responses);
     this.splitCompleted();
+  }
+
+  loadSession() {
+    const raw = localStorage.getItem('tx-peoplehub-session');
+    if (!raw) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as { name?: string; department?: string };
+      this.sessionName = parsed.name?.trim() || this.sessionName;
+      this.sessionDepartment = parsed.department?.trim() || this.sessionDepartment;
+    } catch {
+      return;
+    }
   }
 
   loadAssignments(department: string, assignments: TrainingAssignment[]) {
