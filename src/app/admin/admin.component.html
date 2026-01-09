@@ -15,10 +15,6 @@
       </div>
     </header>
 
-    <div class="save-banner" [class.show]="savedMessage" role="status">
-      {{ savedMessage || 'Changes saved to draft.' }}
-    </div>
-
     <section class="admin-grid">
     <article class="panel equal-card">
       <div class="panel-header">
@@ -747,6 +743,25 @@
     <div class="modal-actions">
       <button class="ghost" type="button" (click)="closeEditUser()">Cancel</button>
       <button class="primary" type="button" (click)="saveEditUser()">Save user</button>
+    </div>
+  </div>
+}
+
+@if (showOnboardModal && savedMessage) {
+  <div class="modal-backdrop" (click)="closeOnboardModal()"></div>
+  <div class="modal" role="dialog" aria-modal="true">
+    <header>
+      <div>
+        <p class="eyebrow">Onboarding complete</p>
+        <h3>Employee onboarded</h3>
+      </div>
+      <button class="ghost" type="button" (click)="closeOnboardModal()">Close</button>
+    </header>
+    <div class="modal-body">
+      <p class="success-message">{{ savedMessage }}</p>
+    </div>
+    <div class="modal-actions">
+      <button class="primary" type="button" (click)="closeOnboardModal()">Done</button>
     </div>
   </div>
 }
