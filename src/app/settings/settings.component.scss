@@ -180,9 +180,17 @@ select:focus {
 
 .integrations {
   display: grid;
-  grid-template-columns: 1fr auto;
   gap: 12px;
+}
+
+.integration-row {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
 }
 
 .integrations strong {
