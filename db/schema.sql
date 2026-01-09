@@ -247,6 +247,9 @@ CREATE INDEX IF NOT EXISTS idx_tx_ideas_employee_email ON tx_ideas (employee_ema
 CREATE INDEX IF NOT EXISTS idx_tx_training_assignments_created_at ON tx_training_assignments (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tx_training_responses_employee ON tx_training_responses (employee);
 CREATE INDEX IF NOT EXISTS idx_tx_reimbursements_created_at ON tx_reimbursements (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_reimbursements_status_lower ON tx_reimbursements (LOWER(status));
+CREATE INDEX IF NOT EXISTS idx_tx_leave_requests_status_lower ON tx_leave_requests (LOWER(status));
+CREATE INDEX IF NOT EXISTS idx_tx_requisitions_approval_lower ON tx_requisitions (LOWER(approval));
 CREATE INDEX IF NOT EXISTS idx_tx_requisitions_requester_email ON tx_requisitions (requester_email);
 CREATE INDEX IF NOT EXISTS idx_tx_requisitions_submitted_at ON tx_requisitions (submitted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tx_approvals_completed_decided_at ON tx_approvals_completed (decided_at DESC);
