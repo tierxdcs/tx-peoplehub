@@ -48,11 +48,11 @@ export class PeopleDirectoryComponent {
       );
       const mapped = users.map((user) => ({
         id: user.id,
-        name: user.fullName,
-        role: user.role,
+        name: user.fullName || '',
+        role: user.role || '',
         location: 'Unspecified',
-        department: user.department,
-        status: user.status
+        department: user.department || '',
+        status: user.status || ''
       }));
       this.people = reset ? mapped : [...this.people, ...mapped];
       this.hasMore = users.length === this.pageSize;
@@ -76,9 +76,9 @@ export class PeopleDirectoryComponent {
     return this.people.filter((person) => {
       const matchesSearch =
         !search ||
-        person.name.toLowerCase().includes(search) ||
-        person.role.toLowerCase().includes(search) ||
-        person.department.toLowerCase().includes(search);
+        (person.name || '').toLowerCase().includes(search) ||
+        (person.role || '').toLowerCase().includes(search) ||
+        (person.department || '').toLowerCase().includes(search);
       const matchesDepartment =
         this.selectedDepartment === 'All departments' ||
         person.department === this.selectedDepartment;
