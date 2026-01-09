@@ -49,6 +49,7 @@ export class AdminComponent {
     director: 'No',
     costCenter: '',
     baseSalary: '',
+    variablePayPercent: '',
     paySchedule: 'Bi-weekly',
     bonusEligible: 'Yes',
     equityPlan: 'Not eligible',

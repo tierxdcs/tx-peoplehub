@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS tx_employee_profiles (
   status TEXT,
   cost_center TEXT,
   base_salary NUMERIC,
+  variable_pay_percent NUMERIC,
   pay_schedule TEXT,
   bonus_eligible TEXT,
   equity_plan TEXT,
@@ -97,6 +98,8 @@ CREATE TABLE IF NOT EXISTS tx_employee_profiles (
 
 ALTER TABLE tx_employee_profiles
   ADD COLUMN IF NOT EXISTS role TEXT;
+ALTER TABLE tx_employee_profiles
+  ADD COLUMN IF NOT EXISTS variable_pay_percent NUMERIC;
 ALTER TABLE tx_employee_profiles
   ADD COLUMN IF NOT EXISTS checklist_custom JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE tx_employee_profiles
