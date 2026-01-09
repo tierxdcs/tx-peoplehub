@@ -14,7 +14,7 @@ import { ApiService, DepartmentRecord, UserRecord } from '../services/api.servic
 export class PeopleDirectoryComponent {
   search = '';
   selectedDepartment = 'All departments';
-  selectedStatus = 'Any status';
+  selectedStatus = 'Active';
   people: Array<{
     id: string;
     name: string;
@@ -44,7 +44,7 @@ export class PeopleDirectoryComponent {
       }
       this.isLoadingMore = true;
       const users = await firstValueFrom(
-        this.api.getUsers({ limit: this.pageSize, offset: this.offset })
+        this.api.getUsers({ status: 'Active', limit: this.pageSize, offset: this.offset })
       );
       const mapped = users.map((user) => ({
         id: user.id,
@@ -82,9 +82,7 @@ export class PeopleDirectoryComponent {
       const matchesDepartment =
         this.selectedDepartment === 'All departments' ||
         person.department === this.selectedDepartment;
-      const matchesStatus =
-        this.selectedStatus === 'Any status' ||
-        person.status === this.selectedStatus;
+      const matchesStatus = person.status === 'Active';
       return matchesSearch && matchesDepartment && matchesStatus;
     });
   }
