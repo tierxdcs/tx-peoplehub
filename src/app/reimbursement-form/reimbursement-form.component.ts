@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../services/api.service';
 
@@ -20,9 +20,13 @@ export class ReimbursementFormComponent {
     notes: ''
   };
   statusMessage = '';
+  toastMessage = '';
   employeeName = 'Current user';
 
-  constructor(private readonly api: ApiService) {}
+  constructor(
+    private readonly api: ApiService,
+    private readonly router: Router
+  ) {}
 
   async ngOnInit() {
     try {
@@ -54,8 +58,13 @@ export class ReimbursementFormComponent {
     };
     firstValueFrom(this.api.createReimbursement(newClaim))
       .then(() => {
-        this.statusMessage = 'Reimbursement submitted for approval.';
+        this.statusMessage = '';
+        this.toastMessage = 'Reimbursement submitted successfully.';
         this.form = { title: '', amount: '', category: 'Travel', date: '', notes: '' };
+        window.setTimeout(() => {
+          this.toastMessage = '';
+          void this.router.navigate(['/reimbursement']);
+        }, 900);
       })
       .catch(() => {
         this.statusMessage = 'Unable to submit reimbursement.';

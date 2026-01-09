@@ -50,4 +50,7 @@
       <p class="status">{{ statusMessage }}</p>
     }
   </section>
+  @if (toastMessage) {
+    <div class="toast success">{{ toastMessage }}</div>
+  }
 </main>
