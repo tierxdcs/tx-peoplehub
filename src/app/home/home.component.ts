@@ -185,7 +185,7 @@ export class HomeComponent {
         ]);
       })
       .then(([idea]) => {
-        this.ideaHistory = [idea, ...this.ideaHistory];
+        this.ideaHistory = [idea as IdeaRecord, ...this.ideaHistory];
         this.ideaStatus = `Idea sent to ${this.managerName}.`;
         this.ideaForm = {
           title: '',
