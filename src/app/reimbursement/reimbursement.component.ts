@@ -32,17 +32,23 @@ export class ReimbursementComponent {
           employeeEmail: this.employeeEmail || undefined
         })
       );
-      this.claims = reimbursements.map((claim) => ({
-        title: claim.title,
-        amount: claim.amount,
-        status: claim.status,
-        submitted: claim.date
-          ? new Date(claim.date).toLocaleDateString(undefined, {
-              month: 'short',
-              day: 'numeric'
-            })
-          : ''
-      }));
+      this.claims = reimbursements
+        .filter(
+          (claim) =>
+            this.employeeEmail &&
+            claim.employeeEmail?.toLowerCase() === this.employeeEmail
+        )
+        .map((claim) => ({
+          title: claim.title,
+          amount: claim.amount,
+          status: claim.status,
+          submitted: claim.date
+            ? new Date(claim.date).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric'
+              })
+            : ''
+        }));
     } catch {
       this.claims = [];
     }
