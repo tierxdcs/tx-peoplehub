@@ -303,9 +303,10 @@ app.get('/api/home-dashboard', async (req, res) => {
   const emailKey = String(req.query.employeeEmail ?? '')
     .trim()
     .toLowerCase() || 'all';
+  const light = String(req.query.light ?? '').trim() === '1';
   const cached = cache.homeDashboard.dataByEmail[emailKey];
   if (cached && cached.expiresAt > now) {
-    setCacheHeader(res, 15);
+    setCacheHeader(res, 60);
     res.json(cached.data);
     return;
   }
@@ -365,38 +366,42 @@ app.get('/api/home-dashboard', async (req, res) => {
             [emailKey, displayName]
           )
         : pool.query('SELECT title FROM tx_tasks ORDER BY created_at DESC LIMIT 3'),
-      emailKey !== 'all'
-        ? pool.query(
-            `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
-             FROM tx_leave_requests
-             WHERE LOWER(status) LIKE 'pending%'
-               AND (employee_email = $1 OR employee_name = $2)
-             ORDER BY created_at DESC
-             LIMIT 6`,
-            [emailKey, profile?.full_name ?? '']
-          )
-        : pool.query(
-            `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
-             FROM tx_leave_requests
-             WHERE LOWER(status) LIKE 'pending%'
-             ORDER BY created_at DESC
-             LIMIT 6`
-          ),
-      emailKey !== 'all'
-        ? pool.query(
-            `SELECT id, title, type, summary, manager, employee_email, submitted_at
-             FROM tx_ideas
-             WHERE employee_email = $1
-             ORDER BY submitted_at DESC
-             LIMIT 6`,
-            [emailKey]
-          )
-        : pool.query(
-            `SELECT id, title, type, summary, manager, employee_email, submitted_at
-             FROM tx_ideas
-             ORDER BY submitted_at DESC
-             LIMIT 6`
-          ),
+      !light
+        ? emailKey !== 'all'
+          ? pool.query(
+              `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
+               FROM tx_leave_requests
+               WHERE LOWER(status) LIKE 'pending%'
+                 AND (employee_email = $1 OR employee_name = $2)
+               ORDER BY created_at DESC
+               LIMIT 6`,
+              [emailKey, profile?.full_name ?? '']
+            )
+          : pool.query(
+              `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
+               FROM tx_leave_requests
+               WHERE LOWER(status) LIKE 'pending%'
+               ORDER BY created_at DESC
+               LIMIT 6`
+            )
+        : Promise.resolve({ rows: [] }),
+      !light
+        ? emailKey !== 'all'
+          ? pool.query(
+              `SELECT id, title, type, summary, manager, employee_email, submitted_at
+               FROM tx_ideas
+               WHERE employee_email = $1
+               ORDER BY submitted_at DESC
+               LIMIT 6`,
+              [emailKey]
+            )
+          : pool.query(
+              `SELECT id, title, type, summary, manager, employee_email, submitted_at
+               FROM tx_ideas
+               ORDER BY submitted_at DESC
+               LIMIT 6`
+            )
+        : Promise.resolve({ rows: [] }),
       emailKey !== 'all'
         ? pool.query(
             `SELECT COUNT(*) AS count
@@ -412,7 +417,7 @@ app.get('/api/home-dashboard', async (req, res) => {
           ),
       pool.query('SELECT COUNT(*) AS count FROM tx_training_assignments')
       ,
-      isDirector
+      !light && isDirector
         ? pool.query(
             `SELECT id, type, range
              FROM tx_leave_requests
@@ -421,7 +426,7 @@ app.get('/api/home-dashboard', async (req, res) => {
              LIMIT 3`
           )
         : Promise.resolve({ rows: [] }),
-      isDirector
+      !light && isDirector
         ? pool.query(
             `SELECT id, category, amount
              FROM tx_reimbursements
@@ -430,7 +435,7 @@ app.get('/api/home-dashboard', async (req, res) => {
              LIMIT 3`
           )
         : Promise.resolve({ rows: [] }),
-      isDirector
+      !light && isDirector
         ? pool.query(
             `SELECT id, title, headcount
              FROM tx_requisitions
@@ -451,7 +456,7 @@ app.get('/api/home-dashboard', async (req, res) => {
     }
     const total = Number(assignmentsResult.rows[0]?.count ?? 0);
     const coverage = total ? Math.round((completed / total) * 100) : 0;
-    const approvals = isDirector
+    const approvals = !light && isDirector
       ? [
           ...(approvalsLeavesResult.rows ?? []).map((row) => ({
             title: `Leave request · ${row.type ?? 'Leave'}`
@@ -478,8 +483,8 @@ app.get('/api/home-dashboard', async (req, res) => {
       reimbursements: { pending: Number(reimbursementsResult.rows[0]?.count ?? 0) },
       training: { completed, total, coverage }
     };
-    cache.homeDashboard.dataByEmail[emailKey] = { data: payload, expiresAt: now + 15000 };
-    setCacheHeader(res, 15);
+    cache.homeDashboard.dataByEmail[emailKey] = { data: payload, expiresAt: now + 60000 };
+    setCacheHeader(res, 60);
     res.json(payload);
   } catch (error) {
     res.status(500).json({ error: 'Unable to load home dashboard' });
