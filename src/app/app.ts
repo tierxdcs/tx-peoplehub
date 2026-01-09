@@ -18,7 +18,8 @@ export class App {
   session = {
     name: 'Alex Taylor',
     role: 'HR Operations',
-    email: 'hr@tierx.com'
+    email: 'hr@tierx.com',
+    director: 'No'
   };
 
   constructor(private readonly router: Router, private readonly api: ApiService) {}
@@ -101,11 +102,17 @@ export class App {
       return;
     }
     try {
-      const parsed = JSON.parse(raw) as { name?: string; role?: string; email?: string };
+      const parsed = JSON.parse(raw) as {
+        name?: string;
+        role?: string;
+        email?: string;
+        director?: string;
+      };
       this.session = {
         name: parsed.name?.trim() || this.session.name,
         role: parsed.role?.trim() || this.session.role,
-        email: parsed.email?.trim() || this.session.email
+        email: parsed.email?.trim() || this.session.email,
+        director: parsed.director?.trim() || this.session.director
       };
     } catch {
       // Keep defaults if session data is malformed.

@@ -13,6 +13,7 @@ import { ApiService } from '../services/api.service';
 })
 export class ApprovalsComponent {
   private readonly route = inject(ActivatedRoute);
+  isDirector = false;
   requests: {
     id: string;
     title: string;
@@ -35,6 +36,12 @@ export class ApprovalsComponent {
   constructor(private readonly api: ApiService) {}
 
   async ngOnInit() {
+    this.loadSession();
+    if (!this.isDirector) {
+      this.requests = [];
+      this.completed = [];
+      return;
+    }
     await this.loadRequests();
     const openId = this.route.snapshot.queryParamMap.get('open');
     if (openId) {
@@ -42,6 +49,20 @@ export class ApprovalsComponent {
       if (match) {
         this.openRequest(match);
       }
+    }
+  }
+
+  loadSession() {
+    const raw = localStorage.getItem('tx-peoplehub-session');
+    if (!raw) {
+      this.isDirector = false;
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as { director?: string };
+      this.isDirector = parsed.director === 'Yes';
+    } catch {
+      this.isDirector = false;
     }
   }
 
