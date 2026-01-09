@@ -22,6 +22,7 @@ export class ReimbursementFormComponent {
   statusMessage = '';
   toastMessage = '';
   employeeName = 'Current user';
+  employeeEmail = '';
 
   constructor(
     private readonly api: ApiService,
@@ -30,9 +31,22 @@ export class ReimbursementFormComponent {
 
   async ngOnInit() {
     try {
+      const rawSession = localStorage.getItem('tx-peoplehub-session');
+      if (rawSession) {
+        try {
+          const parsed = JSON.parse(rawSession) as { name?: string; email?: string };
+          this.employeeName = parsed.name?.trim() || this.employeeName;
+          this.employeeEmail = parsed.email?.trim() || '';
+        } catch {
+          this.employeeEmail = '';
+        }
+      }
       const profile = await firstValueFrom(this.api.getEmployeeProfile());
       if (profile?.fullName) {
         this.employeeName = profile.fullName;
+      }
+      if (profile?.email) {
+        this.employeeEmail = profile.email;
       }
     } catch {
       return;
@@ -54,7 +68,8 @@ export class ReimbursementFormComponent {
       date: this.form.date,
       notes: this.form.notes,
       status: 'Pending',
-      employee: this.employeeName
+      employee: this.employeeName,
+      employeeEmail: this.employeeEmail
     };
     firstValueFrom(this.api.createReimbursement(newClaim))
       .then(() => {
