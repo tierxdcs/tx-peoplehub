@@ -161,13 +161,35 @@ export class PeopleProfileComponent {
       manager: profile.manager || '',
       managerChain,
       status: profile.status || '',
-      tenure: profile.startDate || '',
+      tenure: this.calculateTenureYears(profile.startDate),
       engagementScore,
       engagementProgress: engagementScore ?? 0,
       photoUrl: profile.photoUrl || EMPTY_PROFILE.photoUrl,
       certifications,
       teamMembers: []
     };
+  }
+
+  private calculateTenureYears(startDate?: string): string {
+    const raw = String(startDate ?? '').trim();
+    if (!raw) {
+      return 'Not set';
+    }
+    const start = new Date(raw);
+    if (Number.isNaN(start.getTime())) {
+      return 'Not set';
+    }
+    const now = new Date();
+    if (now.getTime() < start.getTime()) {
+      return '00:00';
+    }
+    const totalMonths =
+      (now.getFullYear() - start.getFullYear()) * 12 +
+      (now.getMonth() - start.getMonth());
+    const normalizedMonths = Math.max(0, totalMonths);
+    const years = Math.floor(normalizedMonths / 12);
+    const months = normalizedMonths % 12;
+    return `${String(years).padStart(2, '0')}:${String(months).padStart(2, '0')}`;
   }
 
   private calculateEngagementScore(profile: EmployeeProfile): number | null {

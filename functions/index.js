@@ -267,6 +267,17 @@ app.get('/api/home-dashboard', async (req, res) => {
   }
   try {
     const pool = getPoolInstance();
+    const userResult = emailKey !== 'all'
+      ? await pool.query(
+          `SELECT full_name, director
+           FROM tx_users
+           WHERE LOWER(email) = $1
+           LIMIT 1`,
+          [emailKey]
+        )
+      : { rows: [] };
+    const user = userResult.rows[0];
+    const isDirector = user?.director === 'Yes';
     const profileResult = emailKey !== 'all'
       ? await pool.query(
           `SELECT full_name, employee_id, email, location, department, job_title, status,
@@ -287,6 +298,7 @@ app.get('/api/home-dashboard', async (req, res) => {
            LIMIT 1`
         );
     const profile = profileResult.rows[0] ?? null;
+    const displayName = user?.full_name ?? profile?.full_name ?? '';
 
     const [
       activeUsersResult,
@@ -294,7 +306,10 @@ app.get('/api/home-dashboard', async (req, res) => {
       leavesResult,
       ideasResult,
       reimbursementsResult,
-      assignmentsResult
+      assignmentsResult,
+      approvalsLeavesResult,
+      approvalsReimbursementsResult,
+      approvalsRequisitionsResult
     ] = await Promise.all([
       pool.query('SELECT COUNT(*) AS count FROM tx_users WHERE status = $1', ['Active']),
       emailKey !== 'all'
@@ -303,7 +318,7 @@ app.get('/api/home-dashboard', async (req, res) => {
              WHERE owner_email = $1 OR owner = $2
              ORDER BY created_at DESC
              LIMIT 3`,
-            [emailKey, profile?.full_name ?? '']
+            [emailKey, displayName]
           )
         : pool.query('SELECT title FROM tx_tasks ORDER BY created_at DESC LIMIT 3'),
       emailKey !== 'all'
@@ -352,6 +367,34 @@ app.get('/api/home-dashboard', async (req, res) => {
              WHERE LOWER(status) LIKE '%pending%'`
           ),
       pool.query('SELECT COUNT(*) AS count FROM tx_training_assignments')
+      ,
+      isDirector
+        ? pool.query(
+            `SELECT id, type, range
+             FROM tx_leave_requests
+             WHERE LOWER(status) LIKE '%pending%'
+             ORDER BY created_at DESC
+             LIMIT 3`
+          )
+        : Promise.resolve({ rows: [] }),
+      isDirector
+        ? pool.query(
+            `SELECT id, category, amount
+             FROM tx_reimbursements
+             WHERE LOWER(status) LIKE '%pending%'
+             ORDER BY created_at DESC
+             LIMIT 3`
+          )
+        : Promise.resolve({ rows: [] }),
+      isDirector
+        ? pool.query(
+            `SELECT id, title, headcount
+             FROM tx_requisitions
+             WHERE LOWER(approval) LIKE '%pending%'
+             ORDER BY submitted_at DESC
+             LIMIT 3`
+          )
+        : Promise.resolve({ rows: [] })
     ]);
 
     let completed = 0;
@@ -364,11 +407,28 @@ app.get('/api/home-dashboard', async (req, res) => {
     }
     const total = Number(assignmentsResult.rows[0]?.count ?? 0);
     const coverage = total ? Math.round((completed / total) * 100) : 0;
+    const approvals = isDirector
+      ? [
+          ...(approvalsLeavesResult.rows ?? []).map((row) => ({
+            title: `Leave request · ${row.type ?? 'Leave'}`
+          })),
+          ...(approvalsReimbursementsResult.rows ?? []).map((row) => ({
+            title: `Reimbursement · ${row.category ?? 'Expense'}`
+          })),
+          ...(approvalsRequisitionsResult.rows ?? []).map((row) => ({
+            title: `Resource requisition · ${row.title ?? 'Request'}`
+          }))
+        ]
+      : [];
+    const dashboardTasks = [
+      ...(tasksResult.rows ?? []),
+      ...approvals
+    ].slice(0, 3);
 
     const payload = {
       activeUserCount: Number(activeUsersResult.rows[0]?.count ?? 0),
       profile,
-      tasks: tasksResult.rows ?? [],
+      tasks: dashboardTasks,
       pendingLeaves: leavesResult.rows ?? [],
       ideas: ideasResult.rows ?? [],
       reimbursements: { pending: Number(reimbursementsResult.rows[0]?.count ?? 0) },
