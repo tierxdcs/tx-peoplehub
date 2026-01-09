@@ -14,7 +14,7 @@ import { ApiService } from '../services/api.service';
 export class ReimbursementComponent {
   claims: { title: string; amount: string; status: string; submitted: string }[] = [];
   employeeEmail = '';
-  employeeName = 'Current user';
+  employeeName = '';
   statusMessage = '';
   form = {
     title: '',
@@ -49,11 +49,8 @@ export class ReimbursementComponent {
   async loadProfile() {
     try {
       const profile = await firstValueFrom(this.api.getEmployeeProfile());
-      if (profile?.fullName) {
+      if (!this.employeeName && profile?.fullName) {
         this.employeeName = profile.fullName;
-      }
-      if (profile?.email) {
-        this.employeeEmail = profile.email.trim().toLowerCase();
       }
     } catch {
       return;
