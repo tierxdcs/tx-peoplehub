@@ -644,6 +644,42 @@
         <p class="user-status">{{ taskStatus }}</p>
       }
     </article>
+
+    <article class="panel full-span">
+      <div class="panel-header">
+        <h2>User management</h2>
+        <span class="pill soft">{{ users.length }} users</span>
+      </div>
+      @if (users.length) {
+        <div class="user-list">
+          @for (user of users; track user.id; let i = $index) {
+            <div class="user-row">
+              <div>
+                <strong>{{ user.fullName }}</strong>
+                <span>{{ user.email }} · {{ user.department }}</span>
+              </div>
+              <div class="user-actions">
+                <span class="status-pill" [class.off]="user.status === 'Deactivated'">
+                  {{ user.status }}
+                </span>
+                <button class="ghost small" type="button" (click)="openEditUser(i)">Edit</button>
+                <button class="ghost small" type="button" (click)="resetPassword(i)">
+                  Reset password
+                </button>
+                <button class="ghost small" type="button" (click)="deactivateUser(i)">
+                  Offboard
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="empty">No users onboarded yet.</p>
+      }
+      @if (userStatus) {
+        <p class="user-status">{{ userStatus }}</p>
+      }
+    </article>
     </section>
 
     <div class="form-footer">
