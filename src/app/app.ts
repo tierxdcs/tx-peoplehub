@@ -1,6 +1,7 @@
 import { Component, HostListener, OnDestroy } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, takeUntil, firstValueFrom } from 'rxjs';
+import { ApiService, TaskRecord } from './services/api.service';
 import { LoadingService } from './services/loading.service';
 
 @Component({
@@ -15,6 +16,8 @@ export class App implements OnDestroy {
   showChrome = true;
   avatarOpen = false;
   isLoading = false;
+  notifications: TaskRecord[] = [];
+  notificationsCount = 0;
   private readonly destroy$ = new Subject<void>();
   session = {
     name: 'Alex Taylor',
@@ -24,17 +27,23 @@ export class App implements OnDestroy {
     department: 'Operations'
   };
 
-  constructor(private readonly router: Router, private readonly loading: LoadingService) {}
+  constructor(
+    private readonly router: Router,
+    private readonly loading: LoadingService,
+    private readonly api: ApiService
+  ) {}
 
   ngOnInit() {
     this.loadSession();
     this.loading.isLoading$.pipe(takeUntil(this.destroy$)).subscribe((state) => {
       this.isLoading = state;
     });
+    void this.loadNotifications();
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
         this.showChrome = !event.urlAfterRedirects.startsWith('/login');
         this.loadSession();
+        void this.loadNotifications();
       }
     });
   }
@@ -50,6 +59,31 @@ export class App implements OnDestroy {
     this.avatarOpen = !this.avatarOpen;
     if (this.avatarOpen) {
       this.notificationsOpen = false;
+    }
+  }
+
+  toggleNotifications() {
+    this.notificationsOpen = !this.notificationsOpen;
+    if (this.notificationsOpen) {
+      this.avatarOpen = false;
+    }
+  }
+
+  async loadNotifications() {
+    if (!this.session.email || !this.showChrome) {
+      this.notifications = [];
+      this.notificationsCount = 0;
+      return;
+    }
+    try {
+      const tasks = await firstValueFrom(
+        this.api.getTasks({ ownerEmail: this.session.email.toLowerCase(), limit: 6 })
+      );
+      this.notifications = tasks;
+      this.notificationsCount = tasks.length;
+    } catch {
+      this.notifications = [];
+      this.notificationsCount = 0;
     }
   }
 

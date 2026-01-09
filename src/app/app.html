@@ -13,6 +13,39 @@
         <a routerLink="/settings" routerLinkActive="active">Settings</a>
       </nav>
       <div class="actions">
+        <button class="icon-button" type="button" aria-label="Notifications" (click)="toggleNotifications()">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 22a2.5 2.5 0 0 0 2.3-1.5h-4.6A2.5 2.5 0 0 0 12 22Zm7-6.5V11a7 7 0 1 0-14 0v4.5l-1.6 1.6a1 1 0 0 0 .7 1.7h16.8a1 1 0 0 0 .7-1.7L19 15.5Z"
+            />
+          </svg>
+          @if (notificationsCount > 0) {
+            <span class="badge">{{ notificationsCount }}</span>
+          }
+        </button>
+        @if (notificationsOpen) {
+          <div class="notification-panel" role="dialog" aria-label="Notifications">
+            <div class="panel-header">
+              <strong>Alerts</strong>
+              <span>{{ notificationsCount }} new</span>
+            </div>
+            @if (notifications.length) {
+              <ul>
+                @for (notice of notifications; track notice.id) {
+                  <li>
+                    <div>
+                      <strong>{{ notice.title }}</strong>
+                      <span>{{ notice.source }}</span>
+                    </div>
+                    <span class="meta">{{ notice.due }}</span>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="empty">No approvals to address.</p>
+            }
+          </div>
+        }
         <button class="avatar" type="button" aria-label="Account" (click)="toggleAvatarMenu()">
           {{ avatarInitials }}
         </button>
