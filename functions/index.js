@@ -354,6 +354,7 @@ app.post('/api/employee-profiles', async (req, res) => {
     policyEffective: normalizeDate(profile.policyEffective),
     nextAuditDate: normalizeDate(profile.nextAuditDate),
     baseSalary: normalizeNumber(profile.baseSalary),
+    variablePayPercent: normalizeNumber(profile.variablePayPercent),
     annualPto: normalizeInt(profile.annualPto),
     sickLeave: normalizeInt(profile.sickLeave),
     floatingHolidays: normalizeInt(profile.floatingHolidays),
@@ -370,7 +371,7 @@ app.post('/api/employee-profiles', async (req, res) => {
         full_name, employee_id, email, location, department, start_date, job_title, role,
         manager, manager_level2, manager_level3, manager_level4, ceo, director,
         employment_type, status, cost_center, base_salary, pay_schedule, bonus_eligible,
-        equity_plan, benefits_tier, compensation_effective_date, offer_letter_name,
+        variable_pay_percent, equity_plan, benefits_tier, compensation_effective_date, offer_letter_name,
         offer_letter_data, comp_band, comp_positioning, annual_pto, sick_leave,
         floating_holidays, parental_leave, carryover_cap, policy_effective,
         certifications, background_check, safety_training, work_authorization,
@@ -391,7 +392,7 @@ app.post('/api/employee-profiles', async (req, res) => {
         $39,$40,$41,$42,$43,
         $44,$45,$46,$47,$48,
         $49,$50,$51,$52,$53,
-        $54,$55,NOW()
+        $54,$55,$56,NOW()
       )
       ON CONFLICT (email) DO UPDATE SET
         full_name = EXCLUDED.full_name,
@@ -411,6 +412,7 @@ app.post('/api/employee-profiles', async (req, res) => {
         status = EXCLUDED.status,
         cost_center = EXCLUDED.cost_center,
         base_salary = EXCLUDED.base_salary,
+        variable_pay_percent = EXCLUDED.variable_pay_percent,
         pay_schedule = EXCLUDED.pay_schedule,
         bonus_eligible = EXCLUDED.bonus_eligible,
         equity_plan = EXCLUDED.equity_plan,
@@ -469,6 +471,7 @@ app.post('/api/employee-profiles', async (req, res) => {
         cleaned.status,
         cleaned.costCenter,
         cleaned.baseSalary,
+        cleaned.variablePayPercent,
         cleaned.paySchedule,
         cleaned.bonusEligible,
         cleaned.equityPlan,

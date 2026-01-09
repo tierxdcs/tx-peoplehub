@@ -65,6 +65,7 @@ export type EmployeeProfile = {
   status: string;
   costCenter: string;
   baseSalary: string;
+  variablePayPercent: string;
   paySchedule: string;
   bonusEligible: string;
   equityPlan: string;
@@ -505,6 +506,10 @@ export class ApiService {
       status: row.status ?? '',
       costCenter: row.cost_center ?? '',
       baseSalary: row.base_salary ?? '',
+      variablePayPercent:
+        row.variable_pay_percent !== undefined && row.variable_pay_percent !== null
+          ? String(row.variable_pay_percent)
+          : '',
       paySchedule: row.pay_schedule ?? '',
       bonusEligible: row.bonus_eligible ?? '',
       equityPlan: row.equity_plan ?? '',

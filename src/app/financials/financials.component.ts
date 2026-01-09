@@ -14,6 +14,7 @@ export class FinancialsComponent {
   offerLetterName = '';
   offerLetterData = '';
   annualSalary = '₹85,000';
+  variablePayPercent = '';
   showAnnualSalary = false;
 
   constructor(private readonly api: ApiService) {}
@@ -23,9 +24,11 @@ export class FinancialsComponent {
       const profile = await firstValueFrom(this.api.getEmployeeProfile());
       this.offerLetterName = profile?.offerLetterName ?? '';
       this.offerLetterData = profile?.offerLetterData ?? '';
+      this.variablePayPercent = profile?.variablePayPercent ?? '';
     } catch {
       this.offerLetterName = '';
       this.offerLetterData = '';
+      this.variablePayPercent = '';
     }
   }
 
