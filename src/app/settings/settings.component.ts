@@ -62,12 +62,16 @@ export class SettingsComponent {
   async loadTeams() {
     try {
       this.teams = await firstValueFrom(this.api.getTeams());
+      if (!this.teams.length) {
+        this.teamStatus = 'No teams found yet.';
+      }
     } catch {
       this.teams = [];
+      this.teamStatus = 'Unable to load teams from the server.';
     }
   }
 
-  createTeam() {
+  async createTeam() {
     const name = this.teamForm.name.trim();
     const head = this.teamForm.head.trim();
     const summary = this.teamForm.summary.trim();
@@ -83,15 +87,18 @@ export class SettingsComponent {
       coverage: 'Business hours',
       sites: 'Austin'
     };
-    firstValueFrom(this.api.createTeam(payload))
-      .then((saved: TeamRecord) => {
-        this.teamStatus = 'Team created.';
-        this.teamForm = { name: '', head: '', summary: '' };
-        this.teams = [saved, ...this.teams];
-      })
-      .catch(() => {
-        this.teamStatus = 'Unable to create team.';
-      });
+    try {
+      const saved: TeamRecord = await firstValueFrom(this.api.createTeam(payload));
+      this.teamStatus = 'Team created.';
+      this.teamForm = { name: '', head: '', summary: '' };
+      await this.loadTeams();
+      const exists = this.teams.some((team) => team.id === saved.id);
+      if (!exists) {
+        this.teamStatus = 'Team saved, but refresh failed. Please reload.';
+      }
+    } catch {
+      this.teamStatus = 'Unable to create team.';
+    }
   }
 
   removeTeam(index: number) {
