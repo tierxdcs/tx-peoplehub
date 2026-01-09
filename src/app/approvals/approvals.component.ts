@@ -109,7 +109,7 @@ export class ApprovalsComponent {
           firstValueFrom(this.api.getTasks()),
           firstValueFrom(this.api.getLeaves()),
           firstValueFrom(this.api.getReimbursements({ scope: 'all' })),
-          firstValueFrom(this.api.getRequisitions()),
+          firstValueFrom(this.api.getRequisitions({ scope: 'all' })),
           firstValueFrom(this.api.getCompletedApprovals()),
           firstValueFrom(this.api.getUsers())
         ]);

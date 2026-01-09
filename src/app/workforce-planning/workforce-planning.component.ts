@@ -101,7 +101,9 @@ export class WorkforcePlanningComponent {
   async loadRequests() {
     try {
       this.requests = await firstValueFrom(
-        this.api.getRequisitions(this.sessionEmail || undefined)
+        this.api.getRequisitions({
+          requesterEmail: this.sessionEmail || undefined
+        })
       );
     } catch {
       this.requests = [];

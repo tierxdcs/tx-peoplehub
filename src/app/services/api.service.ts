@@ -441,11 +441,20 @@ export class ApiService {
     );
   }
 
-  getRequisitions(requesterEmail?: string): Observable<RequisitionRecord[]> {
-    const params = requesterEmail
-      ? new HttpParams().set('requesterEmail', requesterEmail)
-      : undefined;
-    return this.http.get<RequisitionRecord[]>(`${this.baseUrl}/requisitions`, { params }).pipe(
+  getRequisitions(params?: {
+    requesterEmail?: string;
+    scope?: 'all';
+  }): Observable<RequisitionRecord[]> {
+    let httpParams = new HttpParams();
+    if (params?.requesterEmail) {
+      httpParams = httpParams.set('requesterEmail', params.requesterEmail);
+    }
+    if (params?.scope === 'all') {
+      httpParams = httpParams.set('scope', 'all');
+    }
+    return this.http
+      .get<RequisitionRecord[]>(`${this.baseUrl}/requisitions`, { params: httpParams })
+      .pipe(
       map((rows) => rows.map((row) => this.mapRequisition(row)))
     );
   }
