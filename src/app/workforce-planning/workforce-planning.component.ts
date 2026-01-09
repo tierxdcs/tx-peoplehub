@@ -46,6 +46,7 @@ export class WorkforcePlanningComponent {
     manager: '',
     costCenter: ''
   };
+  managerOptions: string[] = [];
   readonly locationOptions = [
     'Bengaluru',
     'Chennai',
@@ -73,7 +74,7 @@ export class WorkforcePlanningComponent {
 
   async ngOnInit() {
     this.loadSession();
-    await Promise.all([this.loadRequests(), this.loadDepartments()]);
+    await Promise.all([this.loadRequests(), this.loadDepartments(), this.loadManagers()]);
   }
 
   loadSession() {
@@ -126,6 +127,21 @@ export class WorkforcePlanningComponent {
       if (!this.form.location) {
         this.form.location = 'Bengaluru';
       }
+    }
+  }
+
+  async loadManagers() {
+    try {
+      const users = await firstValueFrom(this.api.getUsers());
+      this.managerOptions = users
+        .filter((user) => user.director === 'Yes')
+        .map((user) => user.fullName)
+        .filter(Boolean);
+      if (!this.form.manager && this.managerOptions.length) {
+        this.form.manager = this.managerOptions[0];
+      }
+    } catch {
+      this.managerOptions = [];
     }
   }
 

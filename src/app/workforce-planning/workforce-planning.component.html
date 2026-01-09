@@ -71,7 +71,15 @@
       </label>
       <label>
         Hiring manager
-        <input type="text" [(ngModel)]="form.manager" name="manager" />
+        <select [(ngModel)]="form.manager" name="manager">
+          @if (managerOptions.length) {
+            @for (manager of managerOptions; track manager) {
+              <option [value]="manager">{{ manager }}</option>
+            }
+          } @else {
+            <option>{{ form.manager || 'Director' }}</option>
+          }
+        </select>
       </label>
       <label>
         Cost center
