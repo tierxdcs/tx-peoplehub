@@ -369,7 +369,7 @@ app.get('/api/home-dashboard', async (req, res) => {
         ? pool.query(
             `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
              FROM tx_leave_requests
-             WHERE LOWER(status) LIKE '%pending%'
+             WHERE LOWER(status) LIKE 'pending%'
                AND (employee_email = $1 OR employee_name = $2)
              ORDER BY created_at DESC
              LIMIT 6`,
@@ -378,7 +378,7 @@ app.get('/api/home-dashboard', async (req, res) => {
         : pool.query(
             `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
              FROM tx_leave_requests
-             WHERE LOWER(status) LIKE '%pending%'
+             WHERE LOWER(status) LIKE 'pending%'
              ORDER BY created_at DESC
              LIMIT 6`
           ),
@@ -402,13 +402,13 @@ app.get('/api/home-dashboard', async (req, res) => {
             `SELECT COUNT(*) AS count
              FROM tx_reimbursements
              WHERE employee_email = $1
-               AND LOWER(status) LIKE '%pending%'`,
+               AND LOWER(status) LIKE 'pending%'`,
             [emailKey]
           )
         : pool.query(
             `SELECT COUNT(*) AS count
              FROM tx_reimbursements
-             WHERE LOWER(status) LIKE '%pending%'`
+             WHERE LOWER(status) LIKE 'pending%'`
           ),
       pool.query('SELECT COUNT(*) AS count FROM tx_training_assignments')
       ,
@@ -416,7 +416,7 @@ app.get('/api/home-dashboard', async (req, res) => {
         ? pool.query(
             `SELECT id, type, range
              FROM tx_leave_requests
-             WHERE LOWER(status) LIKE '%pending%'
+             WHERE LOWER(status) LIKE 'pending%'
              ORDER BY created_at DESC
              LIMIT 3`
           )
@@ -425,7 +425,7 @@ app.get('/api/home-dashboard', async (req, res) => {
         ? pool.query(
             `SELECT id, category, amount
              FROM tx_reimbursements
-             WHERE LOWER(status) LIKE '%pending%'
+             WHERE LOWER(status) LIKE 'pending%'
              ORDER BY created_at DESC
              LIMIT 3`
           )
@@ -434,7 +434,7 @@ app.get('/api/home-dashboard', async (req, res) => {
         ? pool.query(
             `SELECT id, title, headcount
              FROM tx_requisitions
-             WHERE LOWER(approval) LIKE '%pending%'
+             WHERE LOWER(approval) LIKE 'pending%'
              ORDER BY submitted_at DESC
              LIMIT 3`
           )
