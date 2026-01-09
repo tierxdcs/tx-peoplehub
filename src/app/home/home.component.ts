@@ -167,18 +167,23 @@ export class HomeComponent {
       manager: this.managerName,
       employeeEmail: this.sessionEmail
     };
-    Promise.all([
-      firstValueFrom(this.api.createIdea(payload)),
-      firstValueFrom(
-        this.api.createTask({
-          title: `Idea review: ${payload.title}`,
-          owner: this.managerName,
-          ownerEmail: '',
-          due: 'This week',
-          source: 'ideas'
-        })
-      )
-    ])
+    firstValueFrom(this.api.getUsers())
+      .then((users) => {
+        const managerEmail =
+          users.find((user) => user.fullName === this.managerName)?.email ?? '';
+        return Promise.all([
+          firstValueFrom(this.api.createIdea(payload)),
+          firstValueFrom(
+            this.api.createTask({
+              title: `Idea review: ${payload.title}`,
+              owner: this.managerName,
+              ownerEmail: managerEmail,
+              due: 'This week',
+              source: 'ideas'
+            })
+          )
+        ]);
+      })
       .then(([idea]) => {
         this.ideaHistory = [idea, ...this.ideaHistory];
         this.ideaStatus = `Idea sent to ${this.managerName}.`;
