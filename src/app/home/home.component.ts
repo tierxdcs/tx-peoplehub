@@ -3,7 +3,7 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { ApiService, EmployeeProfile, IdeaRecord, LeaveRecord } from '../services/api.service';
+import { ApiService, EmployeeProfile, IdeaRecord } from '../services/api.service';
 
 @Component({
   selector: 'app-home',
@@ -44,42 +44,42 @@ export class HomeComponent {
   constructor(private readonly api: ApiService) {}
 
   async ngOnInit() {
-    await Promise.all([
-      this.loadActiveUsers(),
-      this.loadProfile(),
-      this.loadIdeas(),
-      this.loadPendingLeaves(),
-      this.loadTasks()
-    ]);
-    await this.loadTrainingStats();
+    await this.loadDashboard();
   }
 
-  async loadActiveUsers() {
+  async loadDashboard() {
     try {
-      const users = await firstValueFrom(this.api.getUsers());
-      this.activeUserCount = users.filter((user) => user.status === 'Active').length;
-    } catch {
-      this.activeUserCount = 0;
-    }
-  }
-
-  async loadProfile() {
-    try {
-      this.currentProfile = await firstValueFrom(this.api.getEmployeeSpotlight());
-      if (!this.currentProfile) {
-        this.currentProfile = await firstValueFrom(this.api.getEmployeeProfile());
-      }
+      const payload = await firstValueFrom(this.api.getHomeDashboard());
+      this.activeUserCount = payload.activeUserCount;
+      this.currentProfile = payload.profile;
       if (this.currentProfile?.manager) {
         this.managerName = this.currentProfile.manager;
       }
       this.spotlightScore = this.calculateEngagementScore(this.currentProfile);
       this.spotlightProgress = this.spotlightScore ?? 0;
       this.spotlightPhoto = this.currentProfile?.photoUrl || 'assets/people/default-avatar.svg';
+      this.todayTasks = payload.tasks.slice(0, 3).map((task) => ({ title: task.title }));
+      this.pendingRequests = payload.pendingLeaves.map((leave) => ({
+        id: leave.id,
+        type: leave.type,
+        range: leave.range,
+        status: leave.status,
+        employee: leave.employeeName
+      }));
+      this.ideaHistory = payload.ideas;
+      this.trainingsCompleted = payload.training.completed;
+      this.complianceCoverage = payload.training.coverage;
     } catch {
       this.currentProfile = null;
+      this.activeUserCount = 0;
       this.spotlightScore = null;
       this.spotlightProgress = 0;
       this.spotlightPhoto = 'assets/people/default-avatar.svg';
+      this.todayTasks = [];
+      this.pendingRequests = [];
+      this.ideaHistory = [];
+      this.trainingsCompleted = 0;
+      this.complianceCoverage = 0;
     }
   }
 
@@ -108,56 +108,11 @@ export class HomeComponent {
     return Math.min(100, Math.max(0, Math.round(score)));
   }
 
-  async loadIdeas() {
+  async refreshIdeas() {
     try {
       this.ideaHistory = await firstValueFrom(this.api.getIdeas());
     } catch {
-      this.ideaHistory = [];
-    }
-  }
-
-  async loadPendingLeaves() {
-    try {
-      const leaves = await firstValueFrom(this.api.getLeaves());
-      this.pendingRequests = leaves
-        .filter((leave) => leave.status?.toLowerCase().includes('pending'))
-        .map((leave) => ({
-          id: leave.id,
-          type: leave.type,
-          range: leave.range,
-          status: leave.status,
-          employee: leave.employeeName
-        }));
-    } catch {
-      this.pendingRequests = [];
-    }
-  }
-
-  async loadTasks() {
-    try {
-      const tasks = await firstValueFrom(this.api.getTasks());
-      this.todayTasks = tasks.slice(0, 3).map((task) => ({ title: task.title }));
-    } catch {
-      this.todayTasks = [];
-    }
-  }
-
-  async loadTrainingStats() {
-    try {
-      const employeeName = this.currentProfile?.fullName ?? '';
-      const [assignments, responses] = await Promise.all([
-        firstValueFrom(this.api.getTrainingAssignments()),
-        employeeName
-          ? firstValueFrom(this.api.getTrainingResponses({ employee: employeeName }))
-          : Promise.resolve([])
-      ]);
-      const total = assignments.length;
-      const completed = responses.length;
-      this.trainingsCompleted = completed;
-      this.complianceCoverage = total ? Math.round((completed / total) * 100) : 0;
-    } catch {
-      this.trainingsCompleted = 0;
-      this.complianceCoverage = 0;
+      return;
     }
   }
 

@@ -126,6 +126,15 @@ export type TrainingResponse = {
   submittedAt: string;
 };
 
+export type HomeDashboard = {
+  activeUserCount: number;
+  profile: EmployeeProfile | null;
+  tasks: { title: string }[];
+  pendingLeaves: LeaveRecord[];
+  ideas: IdeaRecord[];
+  training: { completed: number; total: number; coverage: number };
+};
+
 export type IdeaRecord = {
   id: string;
   title: string;
@@ -275,6 +284,21 @@ export class ApiService {
   getEmployeeSpotlight(): Observable<EmployeeProfile | null> {
     return this.http.get<EmployeeProfile | null>(`${this.baseUrl}/employee-spotlight`).pipe(
       map((row) => (row ? this.mapProfile(row) : null))
+    );
+  }
+
+  getHomeDashboard(): Observable<HomeDashboard> {
+    return this.http.get<HomeDashboard>(`${this.baseUrl}/home-dashboard`).pipe(
+      map((payload) => ({
+        activeUserCount: Number(payload.activeUserCount ?? 0),
+        profile: payload.profile ? this.mapProfile(payload.profile) : null,
+        tasks: Array.isArray(payload.tasks) ? payload.tasks : [],
+        pendingLeaves: Array.isArray(payload.pendingLeaves)
+          ? payload.pendingLeaves.map((row) => this.mapLeave(row))
+          : [],
+        ideas: Array.isArray(payload.ideas) ? payload.ideas.map((row) => this.mapIdea(row)) : [],
+        training: payload.training ?? { completed: 0, total: 0, coverage: 0 }
+      }))
     );
   }
 
