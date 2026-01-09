@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "tierx-peoplehub",
     "public": "dist/tx-peoplehub/browser",
     "ignore": [
       "firebase.json",
