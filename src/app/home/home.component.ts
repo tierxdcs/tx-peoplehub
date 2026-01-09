@@ -69,28 +69,11 @@ export class HomeComponent {
 
   async loadDashboard() {
     try {
-      const payload = await firstValueFrom(this.api.getHomeDashboard(this.sessionEmail || undefined));
-      this.activeUserCount = payload.activeUserCount;
-      this.currentProfile = payload.profile;
-      if (this.currentProfile?.manager) {
-        this.managerName = this.currentProfile.manager;
-      }
-      this.spotlightScore = this.calculateEngagementScore(this.currentProfile);
-      this.spotlightProgress = this.spotlightScore ?? 0;
-      this.spotlightPhoto = this.currentProfile?.photoUrl || 'assets/people/default-avatar.svg';
-      this.todayTasks = payload.tasks.slice(0, 3).map((task) => ({ title: task.title }));
-      this.pendingRequests = payload.pendingLeaves.map((leave) => ({
-        id: leave.id,
-        type: leave.type,
-        range: leave.range,
-        status: leave.status,
-        employee: leave.employeeName
-      }));
-      this.ideaHistory = payload.ideas;
-      this.pendingReimbursements = payload.reimbursements?.pending ?? 0;
-      this.trainingsCompleted = payload.training.completed;
-      this.complianceCoverage = payload.training.coverage;
-      this.trainingsAssigned = payload.training.total;
+      const payload = await firstValueFrom(
+        this.api.getHomeDashboardLight(this.sessionEmail || undefined)
+      );
+      this.applyDashboardPayload(payload);
+      void this.loadDashboardDetails();
     } catch {
       this.currentProfile = null;
       this.activeUserCount = 0;
@@ -105,6 +88,49 @@ export class HomeComponent {
       this.complianceCoverage = 0;
       this.trainingsAssigned = 0;
     }
+  }
+
+  async loadDashboardDetails() {
+    try {
+      const payload = await firstValueFrom(
+        this.api.getHomeDashboard(this.sessionEmail || undefined)
+      );
+      this.applyDashboardPayload(payload);
+    } catch {
+      return;
+    }
+  }
+
+  private applyDashboardPayload(payload: {
+    activeUserCount: number;
+    profile: EmployeeProfile | null;
+    tasks: { title: string }[];
+    pendingLeaves: LeaveRecord[];
+    ideas: IdeaRecord[];
+    reimbursements: { pending: number };
+    training: { completed: number; total: number; coverage: number };
+  }) {
+    this.activeUserCount = payload.activeUserCount;
+    this.currentProfile = payload.profile;
+    if (this.currentProfile?.manager) {
+      this.managerName = this.currentProfile.manager;
+    }
+    this.spotlightScore = this.calculateEngagementScore(this.currentProfile);
+    this.spotlightProgress = this.spotlightScore ?? 0;
+    this.spotlightPhoto = this.currentProfile?.photoUrl || 'assets/people/default-avatar.svg';
+    this.todayTasks = payload.tasks.slice(0, 3).map((task) => ({ title: task.title }));
+    this.pendingRequests = payload.pendingLeaves.map((leave) => ({
+      id: leave.id,
+      type: leave.type,
+      range: leave.range,
+      status: leave.status,
+      employee: leave.employeeName
+    }));
+    this.ideaHistory = payload.ideas;
+    this.pendingReimbursements = payload.reimbursements?.pending ?? 0;
+    this.trainingsCompleted = payload.training.completed;
+    this.complianceCoverage = payload.training.coverage;
+    this.trainingsAssigned = payload.training.total;
   }
 
   private calculateEngagementScore(profile: EmployeeProfile | null): number | null {

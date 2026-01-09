@@ -371,9 +371,20 @@ export class ApiService {
   }
 
   getHomeDashboard(employeeEmail?: string): Observable<HomeDashboard> {
-    const params = employeeEmail
+    return this.getHomeDashboardPayload(employeeEmail, false);
+  }
+
+  getHomeDashboardLight(employeeEmail?: string): Observable<HomeDashboard> {
+    return this.getHomeDashboardPayload(employeeEmail, true);
+  }
+
+  private getHomeDashboardPayload(employeeEmail?: string, light = false): Observable<HomeDashboard> {
+    let params = employeeEmail
       ? new HttpParams().set('employeeEmail', employeeEmail)
       : new HttpParams();
+    if (light) {
+      params = params.set('light', '1');
+    }
     const key = this.cacheKey('home-dashboard', params);
     return this.cacheFor(
       key,
