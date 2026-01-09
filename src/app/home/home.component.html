@@ -211,21 +211,35 @@
           <strong>PTO</strong>
           <span>Available</span>
         </div>
-        <span class="value">12 days</span>
+        <span class="value">{{ formatLeaveValue(currentProfile?.annualPto) }}</span>
       </div>
       <div class="balance-row">
         <div>
           <strong>Sick</strong>
           <span>Available</span>
         </div>
-        <span class="value">8 days</span>
+        <span class="value">{{ formatLeaveValue(currentProfile?.sickLeave) }}</span>
       </div>
       <div class="balance-row">
         <div>
-          <strong>Personal</strong>
+          <strong>Floating holidays</strong>
           <span>Available</span>
         </div>
-        <span class="value">3 days</span>
+        <span class="value">{{ formatLeaveValue(currentProfile?.floatingHolidays) }}</span>
+      </div>
+      <div class="balance-row">
+        <div>
+          <strong>Parental leave</strong>
+          <span>Available</span>
+        </div>
+        <span class="value">{{ formatLeaveValue(currentProfile?.parentalLeave) }}</span>
+      </div>
+      <div class="balance-row">
+        <div>
+          <strong>Carryover cap</strong>
+          <span>Available</span>
+        </div>
+        <span class="value">{{ formatLeaveValue(currentProfile?.carryoverCap) }}</span>
       </div>
     </div>
   </div>
