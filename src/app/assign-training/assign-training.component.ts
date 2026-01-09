@@ -31,6 +31,7 @@ export class AssignTrainingComponent {
   status = '';
   assignments: TrainingAssignment[] = [];
   expandedIndex: number | null = null;
+  showSuccessModal = false;
 
   constructor(private readonly api: ApiService) {}
 
@@ -120,6 +121,7 @@ export class AssignTrainingComponent {
       const saved = await firstValueFrom(this.api.createTrainingAssignment(newAssignment));
       this.assignments = [saved, ...this.assignments];
       this.status = 'Training assigned.';
+      this.showSuccessModal = true;
     this.form = {
       title: '',
       audience: 'All employees',
@@ -142,6 +144,10 @@ export class AssignTrainingComponent {
         '';
       this.status = apiMessage ? `Unable to assign training: ${apiMessage}` : 'Unable to assign training.';
     }
+  }
+
+  closeSuccessModal() {
+    this.showSuccessModal = false;
   }
 
   addQuestion() {

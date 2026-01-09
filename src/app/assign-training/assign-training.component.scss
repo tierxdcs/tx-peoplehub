@@ -191,6 +191,41 @@ textarea {
   font-size: 0.85rem;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 30;
+}
+
+.modal {
+  position: fixed;
+  top: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(480px, 90vw);
+  background: #fff;
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.24);
+  z-index: 40;
+  display: grid;
+  gap: 16px;
+}
+
+.modal header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .assignment-questions {
   padding: 12px;
   border-radius: 12px;
