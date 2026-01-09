@@ -14,6 +14,7 @@ export type UserRecord = {
   role: UserRole;
   status: UserStatus;
   director: string;
+  employeeId?: string;
 };
 
 export type LoginResponse = {
@@ -742,7 +743,8 @@ export class ApiService {
       department: row.department ?? '',
       role: row.role ?? 'Employee',
       status: row.status ?? 'Active',
-      director: row.director ?? 'No'
+      director: row.director ?? 'No',
+      employeeId: row.employee_id ?? row.employeeId ?? ''
     };
   }
 

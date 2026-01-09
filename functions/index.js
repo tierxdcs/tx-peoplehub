@@ -91,10 +91,12 @@ app.get('/api/users', async (req, res) => {
       limitClause = ` LIMIT $${values.length - 1} OFFSET $${values.length}`;
     }
     const result = await getPoolInstance().query(
-      `SELECT id, full_name, email, department, role, status, director
-       FROM tx_users
+      `SELECT u.id, u.full_name, u.email, u.department, u.role, u.status, u.director,
+              p.employee_id
+       FROM tx_users u
+       LEFT JOIN tx_employee_profiles p ON LOWER(p.email) = LOWER(u.email)
        ${where}
-       ORDER BY created_at DESC${limitClause}`,
+       ORDER BY u.created_at DESC${limitClause}`,
       values
     );
     setCacheHeader(res, 10);

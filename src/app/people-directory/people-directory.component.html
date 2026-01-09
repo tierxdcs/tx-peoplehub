@@ -43,18 +43,23 @@
   <section class="directory-list">
     @for (person of filteredPeople; track person.id) {
       <article class="person-card">
-        <div>
-          <strong>{{ person.name }}</strong>
-          <p>{{ person.role }}</p>
+        <div class="card-header">
+          <div class="avatar">
+            <span>{{ getInitials(person.name) }}</span>
+            <span class="status-dot" [class.active]="person.status === 'Active'"></span>
+          </div>
+          <div class="title">
+            <strong>{{ person.name }}</strong>
+            <span>{{ person.role }}</span>
+          </div>
         </div>
-        <div class="meta">
-          <span>{{ person.department }}</span>
-          <span>{{ person.location }}</span>
-          <span class="status">{{ person.status }}</span>
+        <div class="card-meta">
+          <span>Employee ID: {{ person.employeeId || 'Not set' }}</span>
+          <span>{{ person.email || 'Not set' }}</span>
+          <span class="pill">{{ person.department }}</span>
+          <span class="pill soft">{{ person.status }}</span>
         </div>
-        <a class="ghost button-link" [routerLink]="['/people', person.id]"
-          >View profile</a
-        >
+        <a class="ghost button-link" [routerLink]="['/people', person.id]">View profile</a>
       </article>
     }
   </section>
