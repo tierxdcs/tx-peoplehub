@@ -38,7 +38,8 @@ export class LoginComponent {
           JSON.stringify({
             email: user.email,
             role: user.role,
-            name: user.fullName
+            name: user.fullName,
+            director: user.director ?? 'No'
           })
         );
         this.router.navigateByUrl('/');
@@ -54,7 +55,8 @@ export class LoginComponent {
       JSON.stringify({
         email: 'hradmin@tierxdcs.com',
         role: 'Admin',
-        name: 'HR Admin'
+        name: 'HR Admin',
+        director: 'Yes'
       })
     );
     this.router.navigateByUrl('/');

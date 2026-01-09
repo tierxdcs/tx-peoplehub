@@ -15,7 +15,9 @@
       <h2>Pending approvals</h2>
       <span class="pill">{{ approvals.length }} open</span>
     </div>
-    @if (approvals.length) {
+    @if (!isDirector) {
+      <p class="empty">Approvals are available to Directors only.</p>
+    } @else if (approvals.length) {
       @for (task of approvals; track task.id) {
         <button
           class="task-card"
@@ -42,7 +44,9 @@
       <h2>Completed approvals</h2>
       <span class="pill soft">{{ completed.length }} done</span>
     </div>
-    @if (completed.length) {
+    @if (!isDirector) {
+      <p class="empty">No completed approvals to show.</p>
+    } @else if (completed.length) {
       @for (task of completed; track task.id) {
         <div class="task-card done">
           <div>

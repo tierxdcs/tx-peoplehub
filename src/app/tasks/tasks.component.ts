@@ -13,6 +13,7 @@ import { ApiService } from '../services/api.service';
 export class TasksComponent {
   sessionEmail = '';
   sessionName = '';
+  isDirector = false;
   approvals: {
     id: string;
     title: string;
@@ -35,13 +36,20 @@ export class TasksComponent {
       const raw = localStorage.getItem('tx-peoplehub-session');
       if (raw) {
         try {
-          const parsed = JSON.parse(raw) as { email?: string; name?: string };
+          const parsed = JSON.parse(raw) as { email?: string; name?: string; director?: string };
           this.sessionEmail = parsed.email?.trim().toLowerCase() || '';
           this.sessionName = parsed.name?.trim() || '';
+          this.isDirector = parsed.director === 'Yes';
         } catch {
           this.sessionEmail = '';
           this.sessionName = '';
+          this.isDirector = false;
         }
+      }
+      if (!this.isDirector) {
+        this.approvals = [];
+        this.completed = [];
+        return;
       }
       const [tasks, leaves, reimbursements, requisitions, completed] = await Promise.all([
         firstValueFrom(

@@ -15,9 +15,13 @@
       <h2>Approval details</h2>
       <span class="pill">{{ requests.length }} open</span>
     </div>
-    <p class="empty">
-      Open a task from the Open tasks list to review and approve it.
-    </p>
+    @if (!isDirector) {
+      <p class="empty">Approvals are available to Directors only.</p>
+    } @else {
+      <p class="empty">
+        Open a task from the Open tasks list to review and approve it.
+      </p>
+    }
   </section>
 </main>
 
