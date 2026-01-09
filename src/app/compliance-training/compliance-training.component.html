@@ -34,7 +34,10 @@
               </div>
               <div class="row-actions">
                 <span class="status">{{ training.status }}</span>
-                <a class="ghost small button-link" [routerLink]="['/compliance-training', training.title]">
+                <a
+                  class="ghost small button-link"
+                  [routerLink]="['/compliance-training', training.assignmentId]"
+                >
                   Start
                 </a>
               </div>

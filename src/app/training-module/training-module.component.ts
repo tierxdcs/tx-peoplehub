@@ -13,6 +13,7 @@ import { ApiService, TrainingAssignment } from '../services/api.service';
 })
 export class TrainingModuleComponent {
   moduleTitle = '';
+  moduleKey = '';
   moduleDue = '';
   questions: { text: string; type: string; options?: string[] }[] = [];
   status = '';
@@ -23,6 +24,7 @@ export class TrainingModuleComponent {
   private assignment: TrainingAssignment | null = null;
   private employeeName = 'Employee';
   private sessionRole = 'Employee';
+  private sessionDepartment = 'Operations';
   scorePercent = 0;
   minScore = 80;
 
@@ -30,8 +32,9 @@ export class TrainingModuleComponent {
 
   async ngOnInit() {
     const rawTitle = this.route.snapshot.paramMap.get('title') ?? '';
-    this.moduleTitle = decodeURIComponent(rawTitle);
-    if (!this.moduleTitle) {
+    this.moduleKey = decodeURIComponent(rawTitle);
+    this.moduleTitle = this.moduleKey;
+    if (!this.moduleKey) {
       this.status = 'Training module not found.';
       return;
     }
@@ -46,29 +49,44 @@ export class TrainingModuleComponent {
     if (!raw) {
       this.employeeName = 'Employee';
       this.sessionRole = 'Employee';
+      this.sessionDepartment = 'Operations';
       return;
     }
     try {
-      const parsed = JSON.parse(raw) as { name?: string; role?: string };
+      const parsed = JSON.parse(raw) as { name?: string; role?: string; department?: string };
       this.employeeName = parsed.name?.trim() || 'Employee';
       this.sessionRole = parsed.role?.trim() || 'Employee';
+      this.sessionDepartment = parsed.department?.trim() || 'Operations';
     } catch {
       this.employeeName = 'Employee';
       this.sessionRole = 'Employee';
+      this.sessionDepartment = 'Operations';
     }
   }
 
   async loadAssignments() {
     try {
       const assignments = await firstValueFrom(this.api.getTrainingAssignments());
-      const match = assignments.find((assignment) => assignment.title === this.moduleTitle);
+      const looksLikeId = this.moduleKey.includes('-');
+      const match = looksLikeId
+        ? assignments.find((assignment) => assignment.id === this.moduleKey)
+        : assignments.find((assignment) => assignment.title === this.moduleKey);
       if (!match) {
         this.status = 'Training module not found.';
         return;
       }
+      this.moduleTitle = match.title;
       const assignedAudience = match.audience ?? 'All employees';
+      const assignedDepartment = match.department ?? 'All departments';
       if (assignedAudience !== 'All employees' && assignedAudience !== this.sessionRole) {
         this.status = 'Training module not assigned to your role.';
+        return;
+      }
+      if (
+        assignedDepartment !== 'All departments' &&
+        assignedDepartment !== this.sessionDepartment
+      ) {
+        this.status = 'Training module not assigned to your department.';
         return;
       }
       this.assignment = match;
@@ -96,7 +114,7 @@ export class TrainingModuleComponent {
           this.submitted = true;
         }
         this.scorePercent = last.score ?? 0;
-        this.responses[this.moduleTitle] = last.responses ?? {};
+        this.responses[this.moduleKey] = last.responses ?? {};
       }
     } catch {
       return;
@@ -104,30 +122,30 @@ export class TrainingModuleComponent {
   }
 
   setResponse(index: number, value: string) {
-    this.responses[this.moduleTitle] = {
-      ...(this.responses[this.moduleTitle] ?? {}),
+    this.responses[this.moduleKey] = {
+      ...(this.responses[this.moduleKey] ?? {}),
       [index]: value
     };
   }
 
   getSingleResponse(index: number) {
-    const response = this.responses[this.moduleTitle]?.[index];
+    const response = this.responses[this.moduleKey]?.[index];
     return typeof response === 'string' ? response : '';
   }
 
   toggleMultiResponse(index: number, option: string) {
-    const current = this.responses[this.moduleTitle]?.[index];
+    const current = this.responses[this.moduleKey]?.[index];
     const next = Array.isArray(current) ? [...current] : [];
     const exists = next.includes(option);
     const updated = exists ? next.filter((value) => value !== option) : [...next, option];
-    this.responses[this.moduleTitle] = {
-      ...(this.responses[this.moduleTitle] ?? {}),
+    this.responses[this.moduleKey] = {
+      ...(this.responses[this.moduleKey] ?? {}),
       [index]: updated
     };
   }
 
   isMultiSelected(index: number, option: string) {
-    const current = this.responses[this.moduleTitle]?.[index];
+    const current = this.responses[this.moduleKey]?.[index];
     return Array.isArray(current) && current.includes(option);
   }
 
@@ -142,7 +160,7 @@ export class TrainingModuleComponent {
   }
 
   submitModule() {
-    if (!this.moduleTitle || !this.assignment) {
+    if (!this.moduleKey || !this.assignment) {
       return;
     }
     if (this.submitted) {
@@ -159,7 +177,7 @@ export class TrainingModuleComponent {
     const responsePayload = {
       assignmentId: assignment.id,
       employee: this.employeeName,
-      responses: this.responses[this.moduleTitle] ?? {},
+      responses: this.responses[this.moduleKey] ?? {},
       score,
       passed
     };
@@ -198,7 +216,7 @@ export class TrainingModuleComponent {
   }
 
   calculateScore(assignment: TrainingAssignment) {
-    const responses = this.responses[this.moduleTitle] ?? {};
+    const responses = this.responses[this.moduleKey] ?? {};
     const gradable = assignment.questions.filter((question) => question.correctAnswers !== undefined);
     if (!gradable.length) {
       return { score: 0, passed: false };
