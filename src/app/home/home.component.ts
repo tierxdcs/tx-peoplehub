@@ -51,6 +51,7 @@ export class HomeComponent {
 
   async ngOnInit() {
     this.loadSession();
+    await this.refreshDirectorStatus();
     await this.loadDashboard();
   }
 
@@ -68,6 +69,38 @@ export class HomeComponent {
       this.sessionEmail = '';
       this.sessionName = '';
       this.isDirector = false;
+    }
+  }
+
+  async refreshDirectorStatus() {
+    if (!this.sessionEmail) {
+      this.isDirector = false;
+      return;
+    }
+    try {
+      const users = await firstValueFrom(
+        this.api.getUsers({ search: this.sessionEmail, limit: 5 })
+      );
+      const match = users.find(
+        (user) => user.email?.trim().toLowerCase() === this.sessionEmail
+      );
+      if (!match) {
+        return;
+      }
+      const isDirector = match.director?.trim().toLowerCase() === 'yes';
+      this.isDirector = isDirector;
+      const raw = localStorage.getItem('tx-peoplehub-session');
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as { director?: string };
+          parsed.director = isDirector ? 'Yes' : 'No';
+          localStorage.setItem('tx-peoplehub-session', JSON.stringify(parsed));
+        } catch {
+          return;
+        }
+      }
+    } catch {
+      return;
     }
   }
 
