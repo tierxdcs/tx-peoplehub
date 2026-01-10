@@ -71,17 +71,17 @@ app.get('/api/users', async (req, res) => {
     const values = [];
     if (status) {
       values.push(status);
-      filters.push(`status = $${values.length}`);
+      filters.push(`u.status = $${values.length}`);
     }
     if (director) {
       values.push(director);
-      filters.push(`director = $${values.length}`);
+      filters.push(`u.director = $${values.length}`);
     }
     if (search) {
       values.push(`%${search}%`);
       const idx = values.length;
       filters.push(
-        `(LOWER(full_name) LIKE $${idx} OR LOWER(email) LIKE $${idx} OR LOWER(department) LIKE $${idx} OR LOWER(role) LIKE $${idx})`
+        `(LOWER(u.full_name) LIKE $${idx} OR LOWER(u.email) LIKE $${idx} OR LOWER(u.department) LIKE $${idx} OR LOWER(u.role) LIKE $${idx})`
       );
     }
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
