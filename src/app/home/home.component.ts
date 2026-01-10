@@ -63,7 +63,7 @@ export class HomeComponent {
       const parsed = JSON.parse(raw) as { email?: string; name?: string; director?: string };
       this.sessionEmail = parsed.email?.trim().toLowerCase() || '';
       this.sessionName = parsed.name?.trim() || '';
-      this.isDirector = parsed.director === 'Yes';
+      this.isDirector = parsed.director?.trim().toLowerCase() === 'yes';
     } catch {
       this.sessionEmail = '';
       this.sessionName = '';
