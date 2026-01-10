@@ -111,7 +111,7 @@ export class AdminComponent {
 
     try {
       const saved = await firstValueFrom(this.api.saveEmployeeProfile(this.adminData as EmployeeProfile));
-      this.adminData = { ...this.adminData, ...saved };
+      this.adminData = { ...this.adminData, ...this.normalizeProfileDates(saved) };
       this.saved = true;
       const name = this.adminData.fullName?.trim() || 'Employee';
       const employeeId = this.adminData.employeeId?.trim() || 'N/A';
@@ -274,7 +274,7 @@ export class AdminComponent {
     try {
       const profile = await firstValueFrom(this.api.getEmployeeProfile());
       if (profile) {
-        this.adminData = { ...this.adminData, ...profile };
+        this.adminData = { ...this.adminData, ...this.normalizeProfileDates(profile) };
         if (!this.adminData.department && this.teams.length) {
           this.adminData.department = this.teams[0].name;
         }
@@ -282,6 +282,29 @@ export class AdminComponent {
     } catch {
       return;
     }
+  }
+
+  private normalizeProfileDates(profile: Partial<EmployeeProfile>) {
+    const toInputDate = (value: string | undefined) => {
+      if (!value) {
+        return '';
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return value;
+      }
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) {
+        return '';
+      }
+      return parsed.toISOString().slice(0, 10);
+    };
+    return {
+      ...profile,
+      startDate: toInputDate(profile.startDate),
+      compensationEffectiveDate: toInputDate(profile.compensationEffectiveDate),
+      policyEffective: toInputDate(profile.policyEffective),
+      nextAuditDate: toInputDate(profile.nextAuditDate)
+    };
   }
 
   async createUserFromProfile() {
