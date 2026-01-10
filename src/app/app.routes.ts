@@ -1,6 +1,8 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Routes, Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { HomeComponent } from './home/home.component';
+import { ApiService } from './services/api.service';
 
 const authGuard: CanActivateFn = () => {
   const router = inject(Router);
@@ -38,20 +40,30 @@ const directorGuard: CanActivateFn = () => {
 
 const adminGuard: CanActivateFn = () => {
   const router = inject(Router);
+  const api = inject(ApiService);
   const raw = localStorage.getItem('tx-peoplehub-session');
   if (!raw) {
     return router.parseUrl('/login');
   }
   try {
-    const parsed = JSON.parse(raw) as { role?: string };
-    const role = parsed.role?.trim().toLowerCase();
-    if (role !== 'admin' && role !== 'superadmin') {
-      return router.parseUrl('/');
+    const parsed = JSON.parse(raw) as { role?: string; email?: string };
+    const email = parsed.email?.trim().toLowerCase();
+    if (!email) {
+      return router.parseUrl('/login');
     }
+    return firstValueFrom(api.getUsers({ search: email, limit: 5 }))
+      .then((users) => {
+        const match = users.find((user) => user.email?.trim().toLowerCase() === email);
+        const role = match?.role?.trim().toLowerCase();
+        if (role === 'admin' || role === 'superadmin') {
+          return true;
+        }
+        return router.parseUrl('/');
+      })
+      .catch(() => router.parseUrl('/'));
   } catch {
     return router.parseUrl('/');
   }
-  return true;
 };
 
 export const routes: Routes = [

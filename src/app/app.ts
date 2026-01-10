@@ -46,12 +46,14 @@ export class App implements OnDestroy {
     this.loading.isLoading$.pipe(takeUntil(this.destroy$)).subscribe((state) => {
       this.isLoading = state;
     });
+    this.isAdmin = false;
     await this.refreshSessionFromDb();
     void this.loadNotifications();
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
         this.showChrome = !event.urlAfterRedirects.startsWith('/login');
         this.loadSession();
+        this.isAdmin = false;
         void this.refreshSessionFromDb().then(() => this.loadNotifications());
       }
     });
@@ -194,8 +196,7 @@ export class App implements OnDestroy {
         director: parsed.director?.trim() || this.session.director,
         department: parsed.department?.trim() || this.session.department
       };
-      const role = this.session.role.trim().toLowerCase();
-      this.isAdmin = role === 'admin' || role === 'superadmin';
+      this.isAdmin = false;
     } catch {
       // Keep defaults if session data is malformed.
     }
@@ -238,6 +239,7 @@ export class App implements OnDestroy {
       const users = await firstValueFrom(this.api.getUsers({ search: email, limit: 5 }));
       const match = users.find((user) => user.email?.trim().toLowerCase() === email);
       if (!match) {
+        this.isAdmin = false;
         return;
       }
       this.session = {
@@ -268,6 +270,7 @@ export class App implements OnDestroy {
         }
       }
     } catch {
+      this.isAdmin = false;
       return;
     }
   }
