@@ -321,7 +321,9 @@ export class PeopleProfileComponent {
     const normalizedMonths = Math.max(0, totalMonths);
     const years = Math.floor(normalizedMonths / 12);
     const months = normalizedMonths % 12;
-    return `${String(years).padStart(2, '0')}:${String(months).padStart(2, '0')}`;
+    const yearLabel = years === 1 ? 'yr' : 'yrs';
+    const monthLabel = months === 1 ? 'mo' : 'mos';
+    return `${years} ${yearLabel} ${months} ${monthLabel}`;
   }
 
   private calculateEngagementScore(profile: EmployeeProfile, ideaCount = 0): number | null {
