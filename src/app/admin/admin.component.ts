@@ -123,11 +123,15 @@ export class AdminComponent {
             fullName: this.adminData.fullName.trim(),
             email: this.adminData.email.trim(),
             department: this.adminData.department,
-            role: this.adminData.role as 'Employee' | 'Manager' | 'Admin' | 'Superadmin',
-            status: (this.adminData.status === 'Active' ? 'Active' : 'Deactivated') as
-              | 'Active'
-              | 'Deactivated',
-            director: this.adminData.director,
+            role: (this.adminData.role || 'Employee') as
+              | 'Employee'
+              | 'Manager'
+              | 'Admin'
+              | 'Superadmin',
+            status: (this.adminData.status === 'Active' || !this.adminData.status
+              ? 'Active'
+              : 'Deactivated') as 'Active' | 'Deactivated',
+            director: this.adminData.director || 'No',
             password: this.createPassword || undefined
           };
           const userSaved = await firstValueFrom(this.api.createUser(userPayload));
