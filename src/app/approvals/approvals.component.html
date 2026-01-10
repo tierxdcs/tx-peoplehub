@@ -37,6 +37,9 @@
             {{ selectedRequest.submittedBy }} ·
           }
           {{ selectedRequest.summary }}
+          @if (selectedRequest.requestNote) {
+            · Note: {{ selectedRequest.requestNote }}
+          }
         </p>
       </div>
       <button class="ghost" type="button" (click)="closeRequest()">Close</button>
