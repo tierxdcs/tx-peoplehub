@@ -97,6 +97,9 @@ export class PeopleProfileComponent {
         )
       );
       if (!profile) {
+        this.employeeProfile = null;
+        this.profile = { ...EMPTY_PROFILE };
+        await this.loadIdeaCount();
         return;
       }
       this.employeeProfile = profile;
@@ -165,6 +168,9 @@ export class PeopleProfileComponent {
       team: match.department,
       status: match.status
     };
+    if (!this.employeeProfile || this.employeeProfile.email?.toLowerCase() !== this.targetEmail) {
+      this.profile.photoUrl = EMPTY_PROFILE.photoUrl;
+    }
   }
 
   buildTeamMembers() {
