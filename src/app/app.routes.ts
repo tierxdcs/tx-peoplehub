@@ -36,6 +36,24 @@ const directorGuard: CanActivateFn = () => {
   return true;
 };
 
+const adminGuard: CanActivateFn = () => {
+  const router = inject(Router);
+  const raw = localStorage.getItem('tx-peoplehub-session');
+  if (!raw) {
+    return router.parseUrl('/login');
+  }
+  try {
+    const parsed = JSON.parse(raw) as { role?: string };
+    const role = parsed.role?.trim().toLowerCase();
+    if (role !== 'admin' && role !== 'superadmin') {
+      return router.parseUrl('/');
+    }
+  } catch {
+    return router.parseUrl('/');
+  }
+  return true;
+};
+
 export const routes: Routes = [
   { path: '', component: HomeComponent, canActivate: [authGuard] },
   {
@@ -142,12 +160,12 @@ export const routes: Routes = [
   {
     path: 'admin',
     loadComponent: () => import('./admin/admin.component').then((m) => m.AdminComponent),
-    canActivate: [authGuard]
+    canActivate: [authGuard, adminGuard]
   },
   {
     path: 'settings',
     loadComponent: () => import('./settings/settings.component').then((m) => m.SettingsComponent),
-    canActivate: [authGuard]
+    canActivate: [authGuard, adminGuard]
   },
   { path: '**', redirectTo: '' }
 ];
