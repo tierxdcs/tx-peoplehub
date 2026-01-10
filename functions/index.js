@@ -616,6 +616,12 @@ app.post('/api/employee-profiles', async (req, res) => {
     }
     return parsed.toISOString().slice(0, 10);
   };
+  const normalizeText = (value) => {
+    if (value === '' || value === null || value === undefined) {
+      return null;
+    }
+    return String(value);
+  };
   const cleaned = {
     ...profile,
     startDate: normalizeDate(profile.startDate),
@@ -632,7 +638,10 @@ app.post('/api/employee-profiles', async (req, res) => {
     surveyScore: normalizeNumber(profile.surveyScore),
     checkinsScore: normalizeNumber(profile.checkinsScore),
     participationScore: normalizeNumber(profile.participationScore),
-    riskAdjustedScore: normalizeNumber(profile.riskAdjustedScore)
+    riskAdjustedScore: normalizeNumber(profile.riskAdjustedScore),
+    offerLetterData: normalizeText(profile.offerLetterData),
+    photoUrl: normalizeText(profile.photoUrl),
+    checklistCustom: Array.isArray(profile.checklistCustom) ? profile.checklistCustom : []
   };
   try {
     const result = await getPoolInstance().query(
@@ -782,7 +791,10 @@ app.post('/api/employee-profiles', async (req, res) => {
     );
     res.json(result.rows[0]);
   } catch (error) {
-    res.status(500).json({ error: 'Unable to save employee profile' });
+    res.status(500).json({
+      error: 'Unable to save employee profile',
+      detail: error?.message ?? 'Unknown error'
+    });
   }
 });
 
