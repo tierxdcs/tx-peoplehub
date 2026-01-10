@@ -435,9 +435,12 @@ app.get('/api/home-dashboard', async (req, res) => {
         ? pool.query(
             `SELECT COUNT(*) AS count
              FROM tx_reimbursements
-             WHERE employee_email = $1
-               AND LOWER(status) LIKE 'pending%'`,
-            [emailKey]
+             WHERE LOWER(status) LIKE 'pending%'
+               AND (
+                 employee_email = $1
+                 OR ((employee_email IS NULL OR employee_email = '') AND employee = $2)
+               )`,
+            [emailKey, displayName]
           )
         : pool.query(
             `SELECT COUNT(*) AS count
