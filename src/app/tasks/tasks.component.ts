@@ -14,6 +14,7 @@ export class TasksComponent {
   sessionEmail = '';
   sessionName = '';
   isDirector = false;
+  isCfo = false;
   approvals: {
     id: string;
     title: string;
@@ -40,16 +41,13 @@ export class TasksComponent {
           this.sessionEmail = parsed.email?.trim().toLowerCase() || '';
           this.sessionName = parsed.name?.trim() || '';
           this.isDirector = parsed.director === 'Yes';
+          this.isCfo = this.sessionName.toLowerCase() === 'ravi kulal';
         } catch {
           this.sessionEmail = '';
           this.sessionName = '';
           this.isDirector = false;
+          this.isCfo = false;
         }
-      }
-      if (!this.isDirector) {
-        this.approvals = [];
-        this.completed = [];
-        return;
       }
       const [tasks, leaves, reimbursements, requisitions, completed] = await Promise.all([
         firstValueFrom(
@@ -58,9 +56,15 @@ export class TasksComponent {
             ownerName: this.sessionName || undefined
           })
         ),
-        firstValueFrom(this.api.getLeaves()),
-        firstValueFrom(this.api.getReimbursements({ scope: 'all' })),
-        firstValueFrom(this.api.getRequisitions({ scope: 'all' })),
+        this.sessionName
+          ? firstValueFrom(this.api.getLeaves({ managerName: this.sessionName }))
+          : Promise.resolve([]),
+        this.isCfo
+          ? firstValueFrom(this.api.getReimbursements({ scope: 'all' }))
+          : Promise.resolve([]),
+        this.isDirector
+          ? firstValueFrom(this.api.getRequisitions({ scope: 'all' }))
+          : Promise.resolve([]),
         firstValueFrom(this.api.getCompletedApprovals())
       ]);
 
@@ -95,7 +99,7 @@ export class TasksComponent {
           .map((request) => ({
             id: request.id,
             title: `Resource requisition · ${request.title}`,
-            owner: request.department ?? '',
+            owner: request.manager || request.requesterEmail || '',
             due: `${request.headcount} headcount`,
             source: 'requisition' as const
           }))

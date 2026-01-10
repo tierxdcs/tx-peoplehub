@@ -60,6 +60,16 @@
         <span>Details</span>
         <strong>{{ selectedRequest.summary }}</strong>
       </div>
+      <div class="detail-row">
+        <span>Requestor note</span>
+        <strong>
+          @if (selectedRequest.requestNote) {
+            {{ selectedRequest.requestNote }}
+          } @else {
+            Not provided
+          }
+        </strong>
+      </div>
       <div class="notes">
         <label>
           Reviewer notes
