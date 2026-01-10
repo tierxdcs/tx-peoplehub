@@ -28,7 +28,7 @@
             type="text"
             name="fullName"
             placeholder="First and last name"
-            required
+           
             [(ngModel)]="adminData.fullName"
           />
         </label>
@@ -38,7 +38,7 @@
             type="text"
             name="employeeId"
             placeholder="TX-24819"
-            required
+           
             [(ngModel)]="adminData.employeeId"
           />
         </label>
@@ -48,13 +48,13 @@
             type="email"
             name="email"
             placeholder="name@tierx.com"
-            required
+           
             [(ngModel)]="adminData.email"
           />
         </label>
         <label>
           Location
-          <select name="location" required [(ngModel)]="adminData.location">
+          <select name="location" [(ngModel)]="adminData.location">
             <option>Bengaluru</option>
             <option>Hyderabad</option>
             <option>Chennai</option>
@@ -73,7 +73,7 @@
           Department
           <select
             name="department"
-            required
+           
             [(ngModel)]="adminData.department"
           >
             @if (teams.length) {
@@ -90,13 +90,13 @@
           <input
             type="date"
             name="startDate"
-            required
+           
             [(ngModel)]="adminData.startDate"
           />
         </label>
         <label>
           Role
-          <select name="role" required [(ngModel)]="adminData.role">
+          <select name="role" [(ngModel)]="adminData.role">
             <option>Employee</option>
             <option>Manager</option>
             <option>Admin</option>
@@ -227,7 +227,7 @@
             type="number"
             name="baseSalary"
             placeholder="₹85,000"
-            required
+           
             [(ngModel)]="adminData.baseSalary"
           />
         </label>
@@ -240,7 +240,7 @@
             min="0"
             max="100"
             step="0.01"
-            required
+           
             [(ngModel)]="adminData.variablePayPercent"
           />
         </label>
@@ -248,7 +248,7 @@
           Pay schedule
           <select
             name="paySchedule"
-            required
+           
             [(ngModel)]="adminData.paySchedule"
           >
             <option>Bi-weekly</option>
@@ -260,7 +260,7 @@
           Bonus eligibility
           <select
             name="bonusEligible"
-            required
+           
             [(ngModel)]="adminData.bonusEligible"
           >
             <option>Yes</option>
@@ -271,7 +271,7 @@
           Equity plan
           <select
             name="equityPlan"
-            required
+           
             [(ngModel)]="adminData.equityPlan"
           >
             <option>Not eligible</option>
@@ -282,7 +282,7 @@
           Benefits tier
           <select
             name="benefitsTier"
-            required
+           
             [(ngModel)]="adminData.benefitsTier"
           >
             <option>Standard</option>
@@ -295,7 +295,7 @@
           <input
             type="date"
             name="compensationEffectiveDate"
-            required
+           
             [(ngModel)]="adminData.compensationEffectiveDate"
           />
         </label>
@@ -305,7 +305,7 @@
             type="text"
             name="compBand"
             placeholder="Ops-4"
-            required
+           
             [(ngModel)]="adminData.compBand"
           />
         </label>
@@ -313,7 +313,7 @@
           Positioning
           <select
             name="compPositioning"
-            required
+           
             [(ngModel)]="adminData.compPositioning"
           >
             <option>Mid-senior</option>
@@ -327,7 +327,7 @@
           <input
             type="file"
             name="offerLetter"
-            [required]="!adminData.offerLetterName"
+           
             (change)="onOfferLetterSelected($event)"
           />
         </label>
@@ -349,7 +349,7 @@
             type="number"
             name="annualPto"
             placeholder="15"
-            required
+           
             [(ngModel)]="adminData.annualPto"
           />
         </label>
@@ -359,7 +359,7 @@
             type="number"
             name="sickLeave"
             placeholder="10"
-            required
+           
             [(ngModel)]="adminData.sickLeave"
           />
         </label>
@@ -369,7 +369,7 @@
             type="number"
             name="floatingHolidays"
             placeholder="3"
-            required
+           
             [(ngModel)]="adminData.floatingHolidays"
           />
         </label>
@@ -379,7 +379,7 @@
             type="number"
             name="parentalLeave"
             placeholder="6"
-            required
+           
             [(ngModel)]="adminData.parentalLeave"
           />
         </label>
@@ -389,7 +389,7 @@
             type="number"
             name="carryoverCap"
             placeholder="5"
-            required
+           
             [(ngModel)]="adminData.carryoverCap"
           />
         </label>
@@ -398,7 +398,7 @@
           <input
             type="date"
             name="policyEffective"
-            required
+           
             [(ngModel)]="adminData.policyEffective"
           />
         </label>
@@ -417,7 +417,7 @@
             type="text"
             name="certifications"
             placeholder="OSHA, Network+, Security+"
-            required
+           
             [(ngModel)]="adminData.certifications"
           />
         </label>
@@ -425,19 +425,19 @@
           Background check
           <select
             name="backgroundCheck"
-            required
+           
             [(ngModel)]="adminData.backgroundCheck"
           >
             <option>Verified</option>
             <option>Pending</option>
-            <option>Not required</option>
+            <option>Not</option>
           </select>
         </label>
         <label>
           Safety training
           <select
             name="safetyTraining"
-            required
+           
             [(ngModel)]="adminData.safetyTraining"
           >
             <option>Completed</option>
@@ -449,7 +449,7 @@
           Work authorization
           <select
             name="workAuthorization"
-            required
+           
             [(ngModel)]="adminData.workAuthorization"
           >
             <option>Valid</option>
@@ -462,7 +462,7 @@
           <input
             type="file"
             name="complianceDocument"
-            [required]="!adminData.complianceDocumentName"
+           
             (change)="onFileSelected($event)"
           />
         </label>
@@ -476,7 +476,7 @@
           <input
             type="date"
             name="nextAuditDate"
-            required
+           
             [(ngModel)]="adminData.nextAuditDate"
           />
         </label>
@@ -494,14 +494,14 @@
             <input
               type="checkbox"
               name="checklistOffer"
-              required
+             
               [(ngModel)]="adminData.checklistOffer"
             />
             Offer letter signed
           </label>
           <select
             name="checklistOfferOwner"
-            required
+           
             [(ngModel)]="adminData.checklistOfferOwner"
           >
             <option value="" disabled>Select manager</option>
@@ -515,14 +515,14 @@
             <input
               type="checkbox"
               name="checklistEquipment"
-              required
+             
               [(ngModel)]="adminData.checklistEquipment"
             />
             Equipment provisioned
           </label>
           <select
             name="checklistEquipmentOwner"
-            required
+           
             [(ngModel)]="adminData.checklistEquipmentOwner"
           >
             <option value="" disabled>Select manager</option>
@@ -536,14 +536,14 @@
             <input
               type="checkbox"
               name="checklistBadges"
-              required
+             
               [(ngModel)]="adminData.checklistBadges"
             />
             Access badges issued
           </label>
           <select
             name="checklistBadgesOwner"
-            required
+           
             [(ngModel)]="adminData.checklistBadgesOwner"
           >
             <option value="" disabled>Select manager</option>
@@ -557,14 +557,14 @@
             <input
               type="checkbox"
               name="checklistOrientation"
-              required
+             
               [(ngModel)]="adminData.checklistOrientation"
             />
             Orientation scheduled
           </label>
           <select
             name="checklistOrientationOwner"
-            required
+           
             [(ngModel)]="adminData.checklistOrientationOwner"
           >
             <option value="" disabled>Select manager</option>
@@ -578,14 +578,14 @@
             <input
               type="checkbox"
               name="checklistBusinessCard"
-              required
+             
               [(ngModel)]="adminData.checklistBusinessCard"
             />
             Provide business card
           </label>
           <select
             name="checklistBusinessCardOwner"
-            required
+           
             [(ngModel)]="adminData.checklistBusinessCardOwner"
           >
             <option value="" disabled>Select manager</option>
@@ -606,7 +606,7 @@
             </label>
             <select
               name="checklistCustomOwner-{{ $index }}"
-              required
+             
               [(ngModel)]="item.owner"
               (ngModelChange)="persistProfile()"
             >
