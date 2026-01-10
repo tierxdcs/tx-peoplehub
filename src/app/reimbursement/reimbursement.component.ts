@@ -47,32 +47,7 @@ export class ReimbursementComponent {
   }
 
   async loadClaims() {
-    if (!this.employeeEmail) {
-      this.claims = [];
-      return;
-    }
-    try {
-      const reimbursements = await firstValueFrom(
-        this.api.getReimbursements({
-          employeeEmail: this.employeeEmail
-        })
-      );
-      this.claims = reimbursements
-        .filter((claim) => claim.employeeEmail?.toLowerCase() === this.employeeEmail)
-        .map((claim) => ({
-          title: claim.title,
-          amount: claim.amount,
-          status: claim.status,
-          submitted: claim.date
-            ? new Date(claim.date).toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric'
-              })
-            : ''
-        }));
-    } catch {
-      this.claims = [];
-    }
+    this.claims = [];
   }
 
   submit() {
