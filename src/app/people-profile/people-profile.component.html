@@ -132,27 +132,19 @@
       <div class="panel-header">
         <h2>Recent activity</h2>
       </div>
-      <div class="activity">
-        <span class="time">Today</span>
-        <div>
-          <strong>Submitted Q4 review</strong>
-          <p>Focus on network uptime and site readiness.</p>
-        </div>
-      </div>
-      <div class="activity">
-        <span class="time">Yesterday</span>
-        <div>
-          <strong>Completed training</strong>
-          <p>Leadership essentials and escalation paths.</p>
-        </div>
-      </div>
-      <div class="activity">
-        <span class="time">Mon</span>
-        <div>
-          <strong>Approved time-off</strong>
-          <p>3 requests for Austin operations.</p>
-        </div>
-      </div>
+      @if (activityItems.length) {
+        @for (item of activityItems; track item.title + item.sortDate) {
+          <div class="activity">
+            <span class="time">{{ item.label }}</span>
+            <div>
+              <strong>{{ item.title }}</strong>
+              <p>{{ item.description }}</p>
+            </div>
+          </div>
+        }
+      } @else {
+        <p class="empty">No recent activity yet.</p>
+      }
     </article>
 
     <article class="panel">
