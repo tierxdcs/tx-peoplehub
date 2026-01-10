@@ -45,6 +45,7 @@ export class HomeComponent {
   currentProfile: EmployeeProfile | null = null;
   sessionEmail = '';
   sessionName = '';
+  isDirector = false;
 
   constructor(private readonly api: ApiService) {}
 
@@ -59,12 +60,14 @@ export class HomeComponent {
       return;
     }
     try {
-      const parsed = JSON.parse(raw) as { email?: string; name?: string };
+      const parsed = JSON.parse(raw) as { email?: string; name?: string; director?: string };
       this.sessionEmail = parsed.email?.trim().toLowerCase() || '';
       this.sessionName = parsed.name?.trim() || '';
+      this.isDirector = parsed.director === 'Yes';
     } catch {
       this.sessionEmail = '';
       this.sessionName = '';
+      this.isDirector = false;
     }
   }
 

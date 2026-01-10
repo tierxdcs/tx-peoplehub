@@ -61,6 +61,7 @@ export class PeopleProfileComponent {
   ideaCount = 0;
   targetEmail = '';
   activityItems: { label: string; title: string; description: string; sortDate: number }[] = [];
+  hideRecentActivity = false;
 
   constructor(private readonly api: ApiService) {}
 
@@ -83,10 +84,16 @@ export class PeopleProfileComponent {
   }
 
   async ngOnInit() {
+    this.hideRecentActivity =
+      this.route.snapshot.queryParamMap.get('from') === 'directory';
     await this.loadUsers();
     this.resolveTargetEmail();
     await this.loadProfile();
-    await this.loadRecentActivity();
+    if (!this.hideRecentActivity) {
+      await this.loadRecentActivity();
+    } else {
+      this.activityItems = [];
+    }
     this.applyUserOverride();
     this.buildTeamMembers();
   }

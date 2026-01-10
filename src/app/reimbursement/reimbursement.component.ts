@@ -12,10 +12,11 @@ import { ApiService } from '../services/api.service';
   styleUrl: './reimbursement.component.scss'
 })
 export class ReimbursementComponent {
-  claims: { title: string; amount: string; status: string; submitted: string }[] = [];
+  claims: { title: string; amount: string; status: string; submitted: string; notes: string }[] = [];
   employeeEmail = '';
   employeeName = '';
   statusMessage = '';
+  approvedMessage = '';
   showSuccessModal = false;
   form = {
     title: '',
@@ -47,7 +48,31 @@ export class ReimbursementComponent {
   }
 
   async loadClaims() {
-    this.claims = [];
+    if (!this.employeeEmail) {
+      this.claims = [];
+      return;
+    }
+    try {
+      const reimbursements = await firstValueFrom(
+        this.api.getReimbursements({ employeeEmail: this.employeeEmail, employeeName: this.employeeName })
+      );
+      this.claims = reimbursements.map((claim) => ({
+        title: claim.title,
+        amount: claim.amount,
+        status: claim.status || 'Pending',
+        submitted: claim.date
+          ? new Date(claim.date).toLocaleDateString(undefined, {
+              month: 'short',
+              day: 'numeric'
+            })
+          : '',
+        notes: claim.notes ?? ''
+      }));
+      this.approvedMessage = '';
+    } catch {
+      this.claims = [];
+      this.approvedMessage = '';
+    }
   }
 
   submit() {
@@ -86,10 +111,12 @@ export class ReimbursementComponent {
             title: saved.title,
             amount: saved.amount,
             status: saved.status,
-            submitted
+            submitted,
+            notes: saved.notes ?? ''
           },
           ...this.claims
         ];
+        this.approvedMessage = '';
         this.form = { title: '', amount: '', category: 'Travel', date: '', notes: '' };
       })
       .catch(() => {
@@ -99,5 +126,12 @@ export class ReimbursementComponent {
 
   closeSuccessModal() {
     this.showSuccessModal = false;
+  }
+
+  showApprovedMessage(claim: { status: string }) {
+    if (claim.status.toLowerCase() !== 'approved') {
+      return;
+    }
+    this.approvedMessage = 'Follow up with Accounts team to get your amount reimbursed.';
   }
 }

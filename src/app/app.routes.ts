@@ -19,6 +19,23 @@ const authGuard: CanActivateFn = () => {
   return true;
 };
 
+const directorGuard: CanActivateFn = () => {
+  const router = inject(Router);
+  const raw = localStorage.getItem('tx-peoplehub-session');
+  if (!raw) {
+    return router.parseUrl('/login');
+  }
+  try {
+    const parsed = JSON.parse(raw) as { director?: string };
+    if (parsed.director !== 'Yes') {
+      return router.parseUrl('/');
+    }
+  } catch {
+    return router.parseUrl('/');
+  }
+  return true;
+};
+
 export const routes: Routes = [
   { path: '', component: HomeComponent, canActivate: [authGuard] },
   {
@@ -94,7 +111,7 @@ export const routes: Routes = [
       import('./workforce-planning/workforce-planning.component').then(
         (m) => m.WorkforcePlanningComponent
       ),
-    canActivate: [authGuard]
+    canActivate: [authGuard, directorGuard]
   },
   {
     path: 'approvals',
