@@ -69,9 +69,25 @@ export class HomeComponent {
   }
 
   async loadDashboard() {
+    if (!this.sessionEmail) {
+      this.currentProfile = null;
+      this.activeUserCount = 0;
+      this.spotlightScore = null;
+      this.spotlightPercent = null;
+      this.spotlightProgress = 0;
+      this.spotlightPhoto = 'assets/people/default-avatar.svg';
+      this.todayTasks = [];
+      this.pendingRequests = [];
+      this.ideaHistory = [];
+      this.pendingReimbursements = 0;
+      this.trainingsCompleted = 0;
+      this.complianceCoverage = 0;
+      this.trainingsAssigned = 0;
+      return;
+    }
     try {
       const payload = await firstValueFrom(
-        this.api.getHomeDashboardLight(this.sessionEmail || undefined)
+        this.api.getHomeDashboardLight(this.sessionEmail)
       );
       this.applyDashboardPayload(payload);
       void this.loadDashboardDetails();
