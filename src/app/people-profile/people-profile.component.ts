@@ -60,6 +60,7 @@ export class PeopleProfileComponent {
   users: UserRecord[] = [];
   ideaCount = 0;
   targetEmail = '';
+  activityItems: { label: string; title: string; description: string; sortDate: number }[] = [];
 
   constructor(private readonly api: ApiService) {}
 
@@ -85,6 +86,7 @@ export class PeopleProfileComponent {
     await this.loadUsers();
     this.resolveTargetEmail();
     await this.loadProfile();
+    await this.loadRecentActivity();
     this.applyUserOverride();
     this.buildTeamMembers();
   }
@@ -124,6 +126,81 @@ export class PeopleProfileComponent {
       this.ideaCount = 0;
     }
     this.applyEngagementScore();
+  }
+
+  async loadRecentActivity() {
+    const email = this.employeeProfile?.email?.trim().toLowerCase() || this.targetEmail;
+    const name = this.employeeProfile?.fullName?.trim() || this.profile.name;
+    if (!email && !name) {
+      this.activityItems = [];
+      return;
+    }
+    try {
+      const [leaves, reimbursements, training] = await Promise.all([
+        firstValueFrom(
+          this.api.getLeaves({
+            employeeEmail: email || undefined,
+            employeeName: name || undefined,
+            limit: 6
+          })
+        ),
+        firstValueFrom(
+          this.api.getReimbursements({
+            employeeEmail: email || undefined,
+            employeeName: name || undefined,
+            limit: 6
+          })
+        ),
+        firstValueFrom(this.api.getTrainingResponses({ employee: name || undefined, limit: 6 }))
+      ]);
+      const items: { label: string; title: string; description: string; sortDate: number }[] = [];
+      (leaves ?? []).forEach((leave) => {
+        const date = leave.startDate ? new Date(leave.startDate) : null;
+        items.push({
+          label: this.formatActivityLabel(date),
+          title: `Leave request · ${leave.type}`,
+          description: leave.status ? leave.status : 'Leave submitted',
+          sortDate: date ? date.getTime() : 0
+        });
+      });
+      (reimbursements ?? []).forEach((claim) => {
+        const date = claim.date ? new Date(claim.date) : null;
+        items.push({
+          label: this.formatActivityLabel(date),
+          title: `Reimbursement · ${claim.title}`,
+          description: claim.status ? claim.status : 'Submitted',
+          sortDate: date ? date.getTime() : 0
+        });
+      });
+      (training ?? []).forEach((entry) => {
+        const date = entry.submittedAt ? new Date(entry.submittedAt) : null;
+        items.push({
+          label: this.formatActivityLabel(date),
+          title: 'Completed training',
+          description: entry.passed ? 'Passed' : 'Submitted',
+          sortDate: date ? date.getTime() : 0
+        });
+      });
+      this.activityItems = items.sort((a, b) => b.sortDate - a.sortDate).slice(0, 6);
+    } catch {
+      this.activityItems = [];
+    }
+  }
+
+  private formatActivityLabel(date: Date | null) {
+    if (!date || Number.isNaN(date.getTime())) {
+      return 'Recent';
+    }
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    if (date >= startOfToday) {
+      return 'Today';
+    }
+    if (date >= startOfYesterday) {
+      return 'Yesterday';
+    }
+    return date.toLocaleDateString(undefined, { weekday: 'short' });
   }
 
   resolveTargetEmail() {
@@ -209,7 +286,7 @@ export class PeopleProfileComponent {
       engagementScore === null ? null : Math.round((engagementScore / 5) * 100);
     return {
       name: profile.fullName || 'Employee',
-      title: profile.jobTitle || '',
+      title: profile.jobTitle || profile.role || '',
       location: profile.location || '',
       team: profile.department || '',
       manager: profile.manager || '',
