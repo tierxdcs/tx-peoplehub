@@ -13,13 +13,17 @@ import { ApiService } from '../services/api.service';
 })
 export class ApprovalsComponent {
   private readonly route = inject(ActivatedRoute);
+  sessionEmail = '';
+  sessionName = '';
   isDirector = false;
+  isCfo = false;
   requests: {
     id: string;
     title: string;
     submittedBy: string;
     summary: string;
     status: string;
+    requestNote: string;
     source: 'task' | 'leave' | 'reimbursement' | 'requisition';
   }[] = [];
   completed: {
@@ -37,11 +41,6 @@ export class ApprovalsComponent {
 
   async ngOnInit() {
     this.loadSession();
-    if (!this.isDirector) {
-      this.requests = [];
-      this.completed = [];
-      return;
-    }
     await this.loadRequests();
     const openId = this.route.snapshot.queryParamMap.get('open');
     if (openId) {
@@ -55,14 +54,23 @@ export class ApprovalsComponent {
   loadSession() {
     const raw = localStorage.getItem('tx-peoplehub-session');
     if (!raw) {
+      this.sessionEmail = '';
+      this.sessionName = '';
       this.isDirector = false;
+      this.isCfo = false;
       return;
     }
     try {
-      const parsed = JSON.parse(raw) as { director?: string };
+      const parsed = JSON.parse(raw) as { email?: string; name?: string; director?: string };
+      this.sessionEmail = parsed.email?.trim().toLowerCase() || '';
+      this.sessionName = parsed.name?.trim() || '';
       this.isDirector = parsed.director === 'Yes';
+      this.isCfo = this.sessionName.toLowerCase() === 'ravi kulal';
     } catch {
+      this.sessionEmail = '';
+      this.sessionName = '';
       this.isDirector = false;
+      this.isCfo = false;
     }
   }
 
@@ -104,19 +112,24 @@ export class ApprovalsComponent {
 
   async loadRequests() {
     try {
-      const [tasks, leaves, reimbursements, requisitions, completed, users] =
-        await Promise.all([
-          firstValueFrom(this.api.getTasks()),
-          firstValueFrom(this.api.getLeaves()),
-          firstValueFrom(this.api.getReimbursements({ scope: 'all' })),
-          firstValueFrom(this.api.getRequisitions({ scope: 'all' })),
-          firstValueFrom(this.api.getCompletedApprovals()),
-          firstValueFrom(this.api.getUsers())
-        ]);
-
-      const directorNames = users
-        .filter((user) => user.director === 'Yes')
-        .map((user) => user.fullName);
+      const [tasks, leaves, reimbursements, requisitions, completed] = await Promise.all([
+        firstValueFrom(
+          this.api.getTasks({
+            ownerEmail: this.sessionEmail || undefined,
+            ownerName: this.sessionName || undefined
+          })
+        ),
+        this.sessionName
+          ? firstValueFrom(this.api.getLeaves({ managerName: this.sessionName }))
+          : Promise.resolve([]),
+        this.isCfo
+          ? firstValueFrom(this.api.getReimbursements({ scope: 'all' }))
+          : Promise.resolve([]),
+        this.isDirector
+          ? firstValueFrom(this.api.getRequisitions({ scope: 'all' }))
+          : Promise.resolve([]),
+        firstValueFrom(this.api.getCompletedApprovals())
+      ]);
 
       this.requests = [
         ...tasks.map((task) => ({
@@ -125,6 +138,7 @@ export class ApprovalsComponent {
           submittedBy: task.owner,
           summary: task.due,
           status: 'Pending',
+          requestNote: '',
           source: 'task' as const
         })),
         ...leaves
@@ -135,6 +149,7 @@ export class ApprovalsComponent {
             submittedBy: request.employeeName ?? '',
             summary: request.range,
             status: request.status || 'Pending manager approval',
+            requestNote: request.notes ?? '',
             source: 'leave' as const
           })),
         ...reimbursements
@@ -146,6 +161,7 @@ export class ApprovalsComponent {
             submittedBy: request.employee ?? 'Employee',
             summary: request.amount,
             status: request.status || 'Pending CFO approval',
+            requestNote: request.notes ?? '',
             source: 'reimbursement' as const
           })),
         ...requisitions
@@ -153,9 +169,10 @@ export class ApprovalsComponent {
           .map((request) => ({
             id: request.id,
             title: `Resource requisition · ${request.title}`,
-            submittedBy: directorNames.length ? directorNames.join(', ') : '',
+            submittedBy: request.manager || request.requesterEmail || '',
             summary: `${request.department} · ${request.headcount} headcount`,
             status: request.approval ?? 'Pending Board Directors approval',
+            requestNote: request.justification ?? '',
             source: 'requisition' as const
           }))
       ];

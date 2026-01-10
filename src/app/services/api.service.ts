@@ -541,6 +541,7 @@ export class ApiService {
   getLeaves(params?: {
     employeeEmail?: string;
     employeeName?: string;
+    managerName?: string;
     limit?: number;
     offset?: number;
   }): Observable<LeaveRecord[]> {
@@ -550,6 +551,9 @@ export class ApiService {
     }
     if (params?.employeeName) {
       httpParams = httpParams.set('employeeName', params.employeeName);
+    }
+    if (params?.managerName) {
+      httpParams = httpParams.set('managerName', params.managerName);
     }
     if (params?.limit) {
       httpParams = httpParams.set('limit', String(params.limit));

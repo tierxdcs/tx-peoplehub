@@ -987,24 +987,38 @@ app.post('/api/ideas', async (req, res) => {
 app.get('/api/leaves', async (req, res) => {
   const employeeEmail = String(req.query.employeeEmail ?? '').trim().toLowerCase();
   const employeeName = String(req.query.employeeName ?? '').trim();
+  const managerName = String(req.query.managerName ?? '').trim();
   const limit = parseLimit(req.query.limit, 200);
   const offset = parseOffset(req.query.offset);
   try {
-    const result = employeeEmail || employeeName
-      ? await getPoolInstance().query(
-          `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
-           FROM tx_leave_requests
-           WHERE (${employeeEmail ? 'employee_email = $1' : '$1 = \'\' OR employee_email = $1'})
-             AND (${employeeName ? 'employee_name = $2' : '$2 = \'\' OR employee_name = $2'})
-           ORDER BY created_at DESC${buildLimitClause([employeeEmail, employeeName], limit, offset)}`,
-          [employeeEmail, employeeName, ...(limit ? [limit, offset] : [])]
-        )
-      : await getPoolInstance().query(
-          `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
-           FROM tx_leave_requests
-           ORDER BY created_at DESC${buildLimitClause([], limit, offset)}`,
-          limit ? [limit, offset] : []
-        );
+    let result;
+    if (managerName) {
+      const params = [managerName.toLowerCase()];
+      result = await getPoolInstance().query(
+        `SELECT l.id, l.employee_name, l.employee_email, l.type, l.start_date, l.end_date, l.range, l.status, l.notes
+         FROM tx_leave_requests l
+         LEFT JOIN tx_employee_profiles p ON LOWER(p.email) = LOWER(l.employee_email)
+         WHERE LOWER(p.manager) = $1
+         ORDER BY l.created_at DESC${buildLimitClause(params, limit, offset)}`,
+        [...params, ...(limit ? [limit, offset] : [])]
+      );
+    } else if (employeeEmail || employeeName) {
+      result = await getPoolInstance().query(
+        `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
+         FROM tx_leave_requests
+         WHERE (${employeeEmail ? 'employee_email = $1' : '$1 = \'\' OR employee_email = $1'})
+           AND (${employeeName ? 'employee_name = $2' : '$2 = \'\' OR employee_name = $2'})
+         ORDER BY created_at DESC${buildLimitClause([employeeEmail, employeeName], limit, offset)}`,
+        [employeeEmail, employeeName, ...(limit ? [limit, offset] : [])]
+      );
+    } else {
+      result = await getPoolInstance().query(
+        `SELECT id, employee_name, employee_email, type, start_date, end_date, range, status, notes
+         FROM tx_leave_requests
+         ORDER BY created_at DESC${buildLimitClause([], limit, offset)}`,
+        limit ? [limit, offset] : []
+      );
+    }
     setCacheHeader(res, 10);
     res.json(result.rows);
   } catch (error) {
@@ -1015,6 +1029,7 @@ app.get('/api/leaves', async (req, res) => {
 app.post('/api/leaves', async (req, res) => {
   const leave = req.body;
   const employeeEmail = String(leave.employeeEmail ?? '').trim().toLowerCase() || null;
+  const status = leave.status || 'Pending manager approval';
   try {
     const result = await getPoolInstance().query(
       `INSERT INTO tx_leave_requests
@@ -1028,7 +1043,7 @@ app.post('/api/leaves', async (req, res) => {
         leave.startDate,
         leave.endDate,
         leave.range,
-        leave.status,
+        status,
         leave.notes
       ]
     );
@@ -1091,6 +1106,7 @@ app.get('/api/reimbursements', async (req, res) => {
 app.post('/api/reimbursements', async (req, res) => {
   const item = req.body;
   try {
+    const status = item.status || 'Pending CFO approval';
     const result = await getPoolInstance().query(
       `INSERT INTO tx_reimbursements
        (title, amount, category, date, notes, status, employee, employee_email)
@@ -1102,7 +1118,7 @@ app.post('/api/reimbursements', async (req, res) => {
         item.category,
         item.date,
         item.notes,
-        item.status,
+        status,
         item.employee,
         item.employeeEmail ?? null
       ]
@@ -1162,6 +1178,7 @@ app.post('/api/requisitions', async (req, res) => {
   const item = req.body;
   const requesterEmail = String(item.requesterEmail ?? '').trim().toLowerCase() || null;
   try {
+    const approval = item.approval || 'Pending Board Directors approval';
     const result = await getPoolInstance().query(
       `INSERT INTO tx_requisitions
        (title, department, location, headcount, level, hire_type, start_date, justification, budget_impact, manager, cost_center, approval, requester_email)
@@ -1179,7 +1196,7 @@ app.post('/api/requisitions', async (req, res) => {
         item.budgetImpact,
         item.manager,
         item.costCenter,
-        item.approval,
+        approval,
         requesterEmail
       ]
     );
