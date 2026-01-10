@@ -113,8 +113,26 @@ export class HomeComponent {
         this.api.getHomeDashboard(this.sessionEmail || undefined)
       );
       this.applyDashboardPayload(payload);
+      await this.refreshPendingReimbursements();
     } catch {
       return;
+    }
+  }
+
+  async refreshPendingReimbursements() {
+    if (!this.sessionEmail) {
+      this.pendingReimbursements = 0;
+      return;
+    }
+    try {
+      const reimbursements = await firstValueFrom(
+        this.api.getReimbursements({ employeeEmail: this.sessionEmail })
+      );
+      this.pendingReimbursements = reimbursements.filter((claim) =>
+        String(claim.status ?? '').toLowerCase().startsWith('pending')
+      ).length;
+    } catch {
+      this.pendingReimbursements = 0;
     }
   }
 
