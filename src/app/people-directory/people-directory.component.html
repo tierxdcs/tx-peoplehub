@@ -59,7 +59,13 @@
           <span class="pill">{{ person.department }}</span>
           <span class="pill soft">{{ person.status }}</span>
         </div>
-        <a class="ghost button-link" [routerLink]="['/people', person.id]">View profile</a>
+        <a
+          class="ghost button-link"
+          [routerLink]="['/people', person.id]"
+          [queryParams]="{ from: 'directory' }"
+        >
+          View profile
+        </a>
       </article>
     }
   </section>

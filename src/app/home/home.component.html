@@ -95,11 +95,13 @@
           <p>Submit and track expense reimbursements.</p>
           <span class="tag">{{ pendingReimbursements }} pending</span>
         </article>
-        <article class="module-card" routerLink="/workforce-planning">
-          <h3>Workforce Planning</h3>
-          <p>Scenario planning for growth, churn, and staffing.</p>
-          <span class="tag">6 forecasts</span>
-        </article>
+        @if (isDirector) {
+          <article class="module-card" routerLink="/workforce-planning">
+            <h3>Workforce Planning</h3>
+            <p>Scenario planning for growth, churn, and staffing.</p>
+            <span class="tag">6 forecasts</span>
+          </article>
+        }
         <article class="module-card" routerLink="/compliance-training">
           <h3>Compliance and Training</h3>
           <p>Keep audits, training, and certifications current.</p>

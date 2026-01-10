@@ -128,24 +128,26 @@
       </div>
     </article>
 
-    <article class="panel">
-      <div class="panel-header">
-        <h2>Recent activity</h2>
-      </div>
-      @if (activityItems.length) {
-        @for (item of activityItems; track item.title + item.sortDate) {
-          <div class="activity">
-            <span class="time">{{ item.label }}</span>
-            <div>
-              <strong>{{ item.title }}</strong>
-              <p>{{ item.description }}</p>
+    @if (!hideRecentActivity) {
+      <article class="panel">
+        <div class="panel-header">
+          <h2>Recent activity</h2>
+        </div>
+        @if (activityItems.length) {
+          @for (item of activityItems; track item.title + item.sortDate) {
+            <div class="activity">
+              <span class="time">{{ item.label }}</span>
+              <div>
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.description }}</p>
+              </div>
             </div>
-          </div>
+          }
+        } @else {
+          <p class="empty">No recent activity yet.</p>
         }
-      } @else {
-        <p class="empty">No recent activity yet.</p>
-      }
-    </article>
+      </article>
+    }
 
     <article class="panel">
       <div class="panel-header">

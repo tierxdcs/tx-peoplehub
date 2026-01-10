@@ -61,10 +61,13 @@
       </div>
       <div class="claim-list">
         @for (claim of claims; track claim.title) {
-          <div class="claim-row">
+          <div class="claim-row" (click)="showApprovedMessage(claim)">
             <div>
               <strong>{{ claim.title }}</strong>
               <span>{{ claim.submitted }}</span>
+              @if (claim.notes) {
+                <small>{{ claim.notes }}</small>
+              }
             </div>
             <div class="meta">
               <span class="amount">{{ claim.amount }}</span>
@@ -73,6 +76,9 @@
           </div>
         } @empty {
           <p class="empty">No reimbursements submitted yet.</p>
+        }
+        @if (approvedMessage) {
+          <p class="status">{{ approvedMessage }}</p>
         }
       </div>
     </article>

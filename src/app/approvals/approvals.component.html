@@ -61,15 +61,10 @@
       </div>
       <div class="detail-row">
         <span>Details</span>
-        <strong>{{ selectedRequest.summary }}</strong>
-      </div>
-      <div class="detail-row">
-        <span>Requestor note</span>
         <strong>
+          {{ selectedRequest.summary }}
           @if (selectedRequest.requestNote) {
-            {{ selectedRequest.requestNote }}
-          } @else {
-            Not provided
+            <small>Note: {{ selectedRequest.requestNote }}</small>
           }
         </strong>
       </div>
