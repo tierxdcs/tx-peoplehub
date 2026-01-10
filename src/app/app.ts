@@ -41,17 +41,18 @@ export class App implements OnDestroy {
     private readonly api: ApiService
   ) {}
 
-  ngOnInit() {
+  async ngOnInit() {
     this.loadSession();
     this.loading.isLoading$.pipe(takeUntil(this.destroy$)).subscribe((state) => {
       this.isLoading = state;
     });
+    await this.refreshSessionFromDb();
     void this.loadNotifications();
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
         this.showChrome = !event.urlAfterRedirects.startsWith('/login');
         this.loadSession();
-        void this.loadNotifications();
+        void this.refreshSessionFromDb().then(() => this.loadNotifications());
       }
     });
   }
@@ -175,6 +176,7 @@ export class App implements OnDestroy {
   loadSession() {
     const raw = localStorage.getItem('tx-peoplehub-session');
     if (!raw) {
+      this.isAdmin = false;
       return;
     }
     try {
@@ -224,6 +226,50 @@ export class App implements OnDestroy {
       const audienceMatch = assignedAudience === 'All employees' || assignedAudience === role;
       return departmentMatch && audienceMatch;
     });
+  }
+
+  private async refreshSessionFromDb() {
+    const email = this.session.email?.trim().toLowerCase();
+    if (!email) {
+      this.isAdmin = false;
+      return;
+    }
+    try {
+      const users = await firstValueFrom(this.api.getUsers({ search: email, limit: 5 }));
+      const match = users.find((user) => user.email?.trim().toLowerCase() === email);
+      if (!match) {
+        return;
+      }
+      this.session = {
+        ...this.session,
+        name: match.fullName || this.session.name,
+        role: match.role || this.session.role,
+        director: match.director || this.session.director,
+        department: match.department || this.session.department
+      };
+      const role = this.session.role.trim().toLowerCase();
+      this.isAdmin = role === 'admin' || role === 'superadmin';
+      const raw = localStorage.getItem('tx-peoplehub-session');
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as {
+            role?: string;
+            director?: string;
+            department?: string;
+            name?: string;
+          };
+          parsed.role = this.session.role;
+          parsed.director = this.session.director;
+          parsed.department = this.session.department;
+          parsed.name = this.session.name;
+          localStorage.setItem('tx-peoplehub-session', JSON.stringify(parsed));
+        } catch {
+          return;
+        }
+      }
+    } catch {
+      return;
+    }
   }
 
   ngOnDestroy() {
