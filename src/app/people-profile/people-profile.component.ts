@@ -86,8 +86,13 @@ export class PeopleProfileComponent {
   }
 
   async ngOnInit() {
-    this.hideRecentActivity =
-      this.route.snapshot.queryParamMap.get('from') === 'directory';
+    const fromDirectory =
+      this.route.snapshot.queryParamMap.get('from') === 'directory' ||
+      sessionStorage.getItem('tx-peoplehub-from-directory') === 'true';
+    this.hideRecentActivity = fromDirectory;
+    if (fromDirectory) {
+      sessionStorage.removeItem('tx-peoplehub-from-directory');
+    }
     this.loadSession();
     await this.loadUsers();
     this.resolveTargetEmail();
