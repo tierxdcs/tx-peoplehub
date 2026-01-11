@@ -109,4 +109,8 @@ export class PeopleDirectoryComponent {
       .map((part) => part[0]?.toUpperCase() ?? '')
       .join('');
   }
+
+  markDirectoryNavigation() {
+    sessionStorage.setItem('tx-peoplehub-from-directory', 'true');
+  }
 }

@@ -63,6 +63,7 @@
           class="ghost button-link"
           [routerLink]="['/people', person.id]"
           [queryParams]="{ from: 'directory' }"
+          (click)="markDirectoryNavigation()"
         >
           View profile
         </a>
