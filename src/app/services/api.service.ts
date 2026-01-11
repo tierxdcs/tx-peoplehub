@@ -352,7 +352,7 @@ export class ApiService {
     );
   }
 
-  getEmployeeProfile(params?: { email?: string; employeeId?: string }): Observable<EmployeeProfile | null> {
+  getEmployeeProfile(params?: { email?: string; employeeId?: string; fresh?: boolean }): Observable<EmployeeProfile | null> {
     let httpParams = new HttpParams();
     if (params?.email) {
       httpParams = httpParams.set('email', params.email);
@@ -360,7 +360,15 @@ export class ApiService {
     if (params?.employeeId) {
       httpParams = httpParams.set('employeeId', params.employeeId);
     }
+    if (params?.fresh) {
+      httpParams = httpParams.set('ts', Date.now().toString());
+    }
     const key = this.cacheKey('employee-profiles', httpParams);
+    if (params?.fresh) {
+      return this.http
+        .get<EmployeeProfile | null>(`${this.baseUrl}/employee-profiles`, { params: httpParams })
+        .pipe(map((row) => (row ? this.mapProfile(row) : null)));
+    }
     return this.cacheFor(
       key,
       () =>

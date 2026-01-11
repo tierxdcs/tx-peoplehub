@@ -21,6 +21,7 @@ export class TasksComponent {
     owner: string;
     due: string;
     source: 'task' | 'leave' | 'reimbursement' | 'requisition';
+    requestNote?: string;
   }[] = [];
   completed: {
     id: string;
@@ -28,7 +29,21 @@ export class TasksComponent {
     owner: string;
     due: string;
     status: string;
+    source: 'task' | 'leave' | 'reimbursement' | 'requisition';
+    sourceId: string;
+    requestNote?: string;
   }[] = [];
+  selectedTask: {
+    id: string;
+    title: string;
+    owner: string;
+    due: string;
+    status: string;
+    source: 'task' | 'leave' | 'reimbursement' | 'requisition';
+    sourceId?: string;
+    requestNote?: string;
+    isCompleted: boolean;
+  } | null = null;
 
   constructor(private readonly api: ApiService) {}
 
@@ -92,7 +107,8 @@ export class TasksComponent {
             title: `Reimbursement · ${request.category}`,
             owner: request.employee ?? '',
             due: request.amount,
-            source: 'reimbursement' as const
+            source: 'reimbursement' as const,
+            requestNote: request.notes ?? ''
           })),
         ...requisitions
           .filter((request) => request.approval?.toLowerCase().includes('pending'))
@@ -110,11 +126,47 @@ export class TasksComponent {
         title: item.title,
         owner: item.submittedBy ?? 'Employee',
         due: item.summary ?? '',
-        status: item.status
+        status: item.status,
+        source: (item.source as 'task' | 'leave' | 'reimbursement' | 'requisition') ?? 'task',
+        sourceId: item.sourceId,
+        requestNote:
+          item.source === 'reimbursement'
+            ? reimbursements.find((claim) => claim.id === item.sourceId)?.notes ?? ''
+            : ''
       }));
     } catch {
       this.approvals = [];
       this.completed = [];
     }
+  }
+
+  openTask(
+    task: {
+      id: string;
+      title: string;
+      owner: string;
+      due: string;
+      status?: string;
+      source: 'task' | 'leave' | 'reimbursement' | 'requisition';
+      sourceId?: string;
+      requestNote?: string;
+    },
+    isCompleted: boolean
+  ) {
+    this.selectedTask = {
+      id: task.id,
+      title: task.title,
+      owner: task.owner,
+      due: task.due,
+      status: isCompleted ? task.status || 'Completed' : 'Pending',
+      source: task.source,
+      sourceId: task.sourceId,
+      requestNote: task.requestNote,
+      isCompleted
+    };
+  }
+
+  closeTask() {
+    this.selectedTask = null;
   }
 }

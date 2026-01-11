@@ -248,7 +248,7 @@ export class AdminComponent {
 
   async loadProfile() {
     try {
-      const profile = await firstValueFrom(this.api.getEmployeeProfile());
+      const profile = await firstValueFrom(this.api.getEmployeeProfile({ fresh: true }));
       if (profile) {
         this.adminData = { ...this.adminData, ...this.normalizeProfileDates(profile) };
         if (!this.adminData.department && this.teams.length) {
@@ -329,7 +329,7 @@ export class AdminComponent {
     this.editingUser = user;
     try {
       const profile = await firstValueFrom(
-        this.api.getEmployeeProfile({ email: user.email })
+        this.api.getEmployeeProfile({ email: user.email, fresh: true })
       );
       if (profile) {
         this.adminData = {

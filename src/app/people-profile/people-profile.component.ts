@@ -114,7 +114,7 @@ export class PeopleProfileComponent {
     try {
       const profile = await firstValueFrom(
         this.api.getEmployeeProfile(
-          this.targetEmail ? { email: this.targetEmail } : undefined
+          this.targetEmail ? { email: this.targetEmail, fresh: true } : { fresh: true }
         )
       );
       if (!profile) {

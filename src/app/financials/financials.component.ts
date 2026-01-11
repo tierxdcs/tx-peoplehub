@@ -33,7 +33,9 @@ export class FinancialsComponent {
     this.loadSession();
     try {
       const profile = await firstValueFrom(
-        this.api.getEmployeeProfile(this.sessionEmail ? { email: this.sessionEmail } : undefined)
+        this.api.getEmployeeProfile(
+          this.sessionEmail ? { email: this.sessionEmail, fresh: true } : { fresh: true }
+        )
       );
       this.offerLetterName = profile?.offerLetterName ?? '';
       this.offerLetterData = profile?.offerLetterData ?? '';
