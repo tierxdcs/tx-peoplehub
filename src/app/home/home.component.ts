@@ -45,6 +45,8 @@ export class HomeComponent {
   currentProfile: EmployeeProfile | null = null;
   sessionEmail = '';
   sessionName = '';
+  sessionRole = '';
+  sessionDepartment = '';
   isDirector = false;
 
   constructor(private readonly api: ApiService) {}
@@ -61,13 +63,23 @@ export class HomeComponent {
       return;
     }
     try {
-      const parsed = JSON.parse(raw) as { email?: string; name?: string; director?: string };
+      const parsed = JSON.parse(raw) as {
+        email?: string;
+        name?: string;
+        director?: string;
+        role?: string;
+        department?: string;
+      };
       this.sessionEmail = parsed.email?.trim().toLowerCase() || '';
       this.sessionName = parsed.name?.trim() || '';
+      this.sessionRole = parsed.role?.trim() || '';
+      this.sessionDepartment = parsed.department?.trim() || '';
       this.isDirector = parsed.director?.trim().toLowerCase() === 'yes';
     } catch {
       this.sessionEmail = '';
       this.sessionName = '';
+      this.sessionRole = '';
+      this.sessionDepartment = '';
       this.isDirector = false;
     }
   }
@@ -149,6 +161,7 @@ export class HomeComponent {
         this.api.getHomeDashboard(this.sessionEmail || undefined)
       );
       this.applyDashboardPayload(payload);
+      await this.refreshComplianceCoverage();
       await this.refreshPendingReimbursements();
     } catch {
       return;
@@ -205,6 +218,39 @@ export class HomeComponent {
     this.trainingsCompleted = payload.training.completed;
     this.complianceCoverage = payload.training.coverage;
     this.trainingsAssigned = payload.training.total;
+  }
+
+  async refreshComplianceCoverage() {
+    const department = this.currentProfile?.department || this.sessionDepartment;
+    const role = this.currentProfile?.role || this.sessionRole;
+    const employeeName = this.currentProfile?.fullName || this.sessionName;
+    if (!department || !role || !employeeName) {
+      return;
+    }
+    try {
+      const [assignments, responses] = await Promise.all([
+        firstValueFrom(this.api.getTrainingAssignments({ limit: 200 })),
+        firstValueFrom(this.api.getTrainingResponses({ employee: employeeName, limit: 200 }))
+      ]);
+      const filtered = assignments.filter((assignment) => {
+        const assignedDepartment = assignment.department ?? 'All departments';
+        const assignedAudience = assignment.audience ?? 'All employees';
+        const departmentMatch =
+          assignedDepartment === 'All departments' || assignedDepartment === department;
+        const audienceMatch = assignedAudience === 'All employees' || assignedAudience === role;
+        return departmentMatch && audienceMatch;
+      });
+      const completedIds = new Set(
+        responses.filter((entry) => entry.passed).map((entry) => entry.assignmentId)
+      );
+      const completedCount = filtered.filter((assignment) => completedIds.has(assignment.id)).length;
+      const total = filtered.length;
+      this.trainingsAssigned = total;
+      this.trainingsCompleted = completedCount;
+      this.complianceCoverage = total ? Math.round((completedCount / total) * 100) : 0;
+    } catch {
+      return;
+    }
   }
 
   private calculateEngagementScore(profile: EmployeeProfile | null, ideaCount = 0): number | null {

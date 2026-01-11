@@ -316,13 +316,16 @@ export class PeopleProfileComponent {
           .map((item) => item.trim())
           .filter(Boolean)
       : [];
-    const managerChain = [
+    const chainValues = [
       profile.ceo,
       profile.managerLevel4,
       profile.managerLevel3,
       profile.managerLevel2,
       profile.manager
     ].filter((value): value is string => Boolean(value));
+    const managerChain = chainValues.length
+      ? ['Board of Directors', ...chainValues]
+      : [];
     const engagementScore = this.calculateEngagementScore(profile, this.ideaCount);
 
     const engagementPercent =

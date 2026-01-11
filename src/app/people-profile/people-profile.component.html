@@ -96,7 +96,7 @@
           @if (profile.managerChain.length) {
             @for (leader of profile.managerChain; track leader) {
               <div class="tree-node manager">
-                <span class="label">@if ($index === 0) {CEO} @else if ($index === profile.managerChain.length - 1) {Manager} @else {Leader}</span>
+                <span class="label">@if ($index === 0) {Board} @else if ($index === 1) {CEO} @else if ($index === profile.managerChain.length - 1) {Manager} @else {Leader}</span>
                 <strong>{{ leader }}</strong>
               </div>
             }
