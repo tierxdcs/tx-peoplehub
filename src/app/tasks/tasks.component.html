@@ -15,15 +15,12 @@
       <h2>Pending approvals</h2>
       <span class="pill">{{ approvals.length }} open</span>
     </div>
-    @if (!isDirector) {
-      <p class="empty">Approvals are available to Directors only.</p>
-    } @else if (approvals.length) {
+    @if (approvals.length) {
       @for (task of approvals; track task.id) {
         <button
           class="task-card"
           type="button"
-          [routerLink]="['/approvals']"
-          [queryParams]="{ open: task.id }"
+          (click)="openTask(task, false)"
         >
           <div>
             <strong>{{ task.title }}</strong>
@@ -44,11 +41,9 @@
       <h2>Completed approvals</h2>
       <span class="pill soft">{{ completed.length }} done</span>
     </div>
-    @if (!isDirector) {
-      <p class="empty">No completed approvals to show.</p>
-    } @else if (completed.length) {
+    @if (completed.length) {
       @for (task of completed; track task.id) {
-        <div class="task-card done">
+        <button class="task-card done" type="button" (click)="openTask(task, true)">
           <div>
             <strong>{{ task.title }}</strong>
             @if (task.owner) {
@@ -56,10 +51,64 @@
             }
           </div>
           <span class="pill">{{ task.status }}</span>
-        </div>
+        </button>
       }
     } @else {
       <p class="empty">No completed approvals yet.</p>
     }
   </section>
 </main>
+
+@if (selectedTask) {
+  <div class="modal-backdrop" (click)="closeTask()"></div>
+  <div class="modal" role="dialog" aria-modal="true">
+    <header>
+      <div>
+        <p class="eyebrow">Approval detail</p>
+        <h3>{{ selectedTask.title }}</h3>
+        <p class="subtitle">
+          @if (selectedTask.owner) {
+            {{ selectedTask.owner }} ·
+          }
+          {{ selectedTask.due }}
+          @if (selectedTask.requestNote) {
+            · Note: {{ selectedTask.requestNote }}
+          }
+        </p>
+      </div>
+      <button class="ghost" type="button" (click)="closeTask()">Close</button>
+    </header>
+    <div class="modal-body">
+      <div class="detail-row">
+        <span>Status</span>
+        <strong>{{ selectedTask.status }}</strong>
+      </div>
+      <div class="detail-row">
+        <span>Requested by</span>
+        <strong>{{ selectedTask.owner || 'Not specified' }}</strong>
+      </div>
+      <div class="detail-row">
+        <span>Details</span>
+        <strong>
+          {{ selectedTask.due }}
+          @if (selectedTask.requestNote) {
+            <small>Note: {{ selectedTask.requestNote }}</small>
+          }
+        </strong>
+      </div>
+    </div>
+    <div class="modal-actions">
+      @if (!selectedTask.isCompleted) {
+        <a
+          class="primary button-link"
+          [routerLink]="['/approvals']"
+          [queryParams]="{ open: selectedTask.id }"
+        >
+          Open approval
+        </a>
+      } @else {
+        <button class="primary" type="button" (click)="closeTask()">Done</button>
+      }
+    </div>
+  </div>
+}
