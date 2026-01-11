@@ -1068,11 +1068,55 @@ app.patch('/api/leaves/:id', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   try {
-    const result = await getPoolInstance().query(
+    const pool = getPoolInstance();
+    const existing = await pool.query(
+      `SELECT id, employee_email, type, start_date, end_date, status
+       FROM tx_leave_requests
+       WHERE id = $1`,
+      [id]
+    );
+    const row = existing.rows[0];
+    if (!row) {
+      res.status(404).json({ error: 'Leave request not found' });
+      return;
+    }
+    const updateResult = await pool.query(
       `UPDATE tx_leave_requests SET status = $1 WHERE id = $2 RETURNING *`,
       [status, id]
     );
-    res.json(result.rows[0]);
+    const nextStatus = String(status || '').toLowerCase();
+    const previousStatus = String(row.status || '').toLowerCase();
+    if (
+      nextStatus === 'approved' &&
+      previousStatus !== 'approved' &&
+      row.employee_email
+    ) {
+      const start = new Date(row.start_date);
+      const end = new Date(row.end_date);
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const diff = Math.floor((end.getTime() - start.getTime()) / msPerDay);
+      const days = Math.max(1, diff + 1);
+      let column = '';
+      if (row.type === 'PTO') {
+        column = 'annual_pto';
+      } else if (row.type === 'Sick') {
+        column = 'sick_leave';
+      } else if (row.type === 'Floating holidays') {
+        column = 'floating_holidays';
+      } else if (row.type === 'Parental leave') {
+        column = 'parental_leave';
+      }
+      if (column) {
+        await pool.query(
+          `UPDATE tx_employee_profiles
+           SET ${column} = GREATEST(COALESCE(${column}, 0) - $1, 0),
+               updated_at = NOW()
+           WHERE LOWER(email) = $2`,
+          [days, String(row.employee_email).toLowerCase()]
+        );
+      }
+    }
+    res.json(updateResult.rows[0]);
   } catch (error) {
     res.status(500).json({ error: 'Unable to update leave request' });
   }

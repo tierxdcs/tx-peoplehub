@@ -160,10 +160,14 @@ export class AdminComponent {
   }
 
   get managerOptions() {
-    const options = this.directors
-      .filter((user) => user.director === 'Yes')
-      .map((user) => user.fullName);
-    const fallback = [this.adminData.manager, this.adminData.managerLevel2, this.adminData.managerLevel3]
+    const options = this.users.map((user) => user.fullName).filter(Boolean);
+    const fallback = [
+      this.adminData.manager,
+      this.adminData.managerLevel2,
+      this.adminData.managerLevel3,
+      this.adminData.managerLevel4,
+      this.adminData.ceo
+    ]
       .filter((name) => !!name)
       .map((name) => name as string);
     return Array.from(new Set([...options, ...fallback]));

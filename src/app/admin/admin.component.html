@@ -142,39 +142,39 @@
         </label>
         <label>
           Manager
-          <input
-            type="text"
-            name="manager"
-            placeholder="Search by name"
-            [(ngModel)]="adminData.manager"
-          />
+          <select name="manager" [(ngModel)]="adminData.manager">
+            <option value="" disabled>Select manager</option>
+            @for (manager of managerOptions; track manager) {
+              <option [value]="manager">{{ manager }}</option>
+            }
+          </select>
         </label>
         <label>
           Manager level 2
-          <input
-            type="text"
-            name="managerLevel2"
-            placeholder="Skip-level manager"
-            [(ngModel)]="adminData.managerLevel2"
-          />
+          <select name="managerLevel2" [(ngModel)]="adminData.managerLevel2">
+            <option value="" disabled>Select manager</option>
+            @for (manager of managerOptions; track manager) {
+              <option [value]="manager">{{ manager }}</option>
+            }
+          </select>
         </label>
         <label>
           Manager level 3
-          <input
-            type="text"
-            name="managerLevel3"
-            placeholder="Division leader"
-            [(ngModel)]="adminData.managerLevel3"
-          />
+          <select name="managerLevel3" [(ngModel)]="adminData.managerLevel3">
+            <option value="" disabled>Select manager</option>
+            @for (manager of managerOptions; track manager) {
+              <option [value]="manager">{{ manager }}</option>
+            }
+          </select>
         </label>
         <label>
           Manager level 4
-          <input
-            type="text"
-            name="managerLevel4"
-            placeholder="Executive sponsor"
-            [(ngModel)]="adminData.managerLevel4"
-          />
+          <select name="managerLevel4" [(ngModel)]="adminData.managerLevel4">
+            <option value="" disabled>Select manager</option>
+            @for (manager of managerOptions; track manager) {
+              <option [value]="manager">{{ manager }}</option>
+            }
+          </select>
         </label>
         <label>
           CEO
