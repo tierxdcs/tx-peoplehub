@@ -161,6 +161,15 @@ export class HomeComponent {
         this.api.getHomeDashboard(this.sessionEmail || undefined)
       );
       this.applyDashboardPayload(payload);
+      if (this.sessionEmail) {
+        const profile = await firstValueFrom(
+          this.api.getEmployeeProfile({ email: this.sessionEmail, fresh: true })
+        );
+        if (profile) {
+          this.currentProfile = profile;
+          this.spotlightPhoto = profile.photoUrl || 'assets/people/default-avatar.svg';
+        }
+      }
       await this.refreshComplianceCoverage();
       await this.refreshPendingReimbursements();
     } catch {
