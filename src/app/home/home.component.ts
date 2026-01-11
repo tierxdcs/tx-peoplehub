@@ -374,6 +374,19 @@ export class HomeComponent {
       this.leaveError = 'End date must be after the start date.';
       return;
     }
+    const requestedDays = this.calculateLeaveDays(
+      this.leaveForm.startDate,
+      this.leaveForm.endDate
+    );
+    const available = this.getLeaveBalance(this.leaveForm.type);
+    if (available === null) {
+      this.leaveError = 'Leave balance not set for this type.';
+      return;
+    }
+    if (requestedDays > available) {
+      this.leaveError = `Not enough balance. Available ${available} days.`;
+      return;
+    }
     const confirmed = window.confirm(
       'Submit this leave request for manager approval?'
     );
@@ -447,5 +460,32 @@ export class HomeComponent {
 
   adminDataName() {
     return this.currentProfile?.fullName || this.sessionName || 'Employee';
+  }
+
+  private calculateLeaveDays(startDate: string, endDate: string) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const diff = Math.floor((end.getTime() - start.getTime()) / msPerDay);
+    return Math.max(1, diff + 1);
+  }
+
+  private getLeaveBalance(type: string) {
+    const profile = this.currentProfile;
+    if (!profile) {
+      return null;
+    }
+    const value =
+      type === 'PTO'
+        ? profile.annualPto
+        : type === 'Sick'
+          ? profile.sickLeave
+          : type === 'Floating holidays'
+            ? profile.floatingHolidays
+            : type === 'Parental leave'
+              ? profile.parentalLeave
+              : '';
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
   }
 }
