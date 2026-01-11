@@ -86,9 +86,12 @@ export class PeopleProfileComponent {
   }
 
   async ngOnInit() {
+    const prevRoute = sessionStorage.getItem('tx-peoplehub-prev-route') || '';
     const fromDirectory =
       this.route.snapshot.queryParamMap.get('from') === 'directory' ||
-      sessionStorage.getItem('tx-peoplehub-from-directory') === 'true';
+      sessionStorage.getItem('tx-peoplehub-from-directory') === 'true' ||
+      prevRoute === '/people' ||
+      prevRoute.startsWith('/people?');
     this.hideRecentActivity = fromDirectory;
     if (fromDirectory) {
       sessionStorage.removeItem('tx-peoplehub-from-directory');
