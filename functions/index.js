@@ -356,7 +356,8 @@ app.get('/api/home-dashboard', async (req, res) => {
       ? await pool.query(
           `SELECT full_name, employee_id, email, location, department, job_title, status,
                   manager, photo_url, survey_score, checkins_score, participation_score,
-                  risk_adjusted_score
+                  risk_adjusted_score, annual_pto, sick_leave, floating_holidays,
+                  parental_leave, carryover_cap
            FROM tx_employee_profiles
            WHERE LOWER(email) = $1
            ORDER BY updated_at DESC NULLS LAST
@@ -366,7 +367,8 @@ app.get('/api/home-dashboard', async (req, res) => {
       : await pool.query(
           `SELECT full_name, employee_id, email, location, department, job_title, status,
                   manager, photo_url, survey_score, checkins_score, participation_score,
-                  risk_adjusted_score
+                  risk_adjusted_score, annual_pto, sick_leave, floating_holidays,
+                  parental_leave, carryover_cap
            FROM tx_employee_profiles
            ORDER BY updated_at DESC NULLS LAST
            LIMIT 1`
@@ -541,7 +543,8 @@ app.get('/api/home-dashboard-lite', async (req, res) => {
       ? await pool.query(
           `SELECT full_name, employee_id, email, location, department, job_title, status,
                   manager, photo_url, survey_score, checkins_score, participation_score,
-                  risk_adjusted_score
+                  risk_adjusted_score, annual_pto, sick_leave, floating_holidays,
+                  parental_leave, carryover_cap
            FROM tx_employee_profiles
            WHERE LOWER(email) = $1
            ORDER BY updated_at DESC NULLS LAST
@@ -551,7 +554,8 @@ app.get('/api/home-dashboard-lite', async (req, res) => {
       : await pool.query(
           `SELECT full_name, employee_id, email, location, department, job_title, status,
                   manager, photo_url, survey_score, checkins_score, participation_score,
-                  risk_adjusted_score
+                  risk_adjusted_score, annual_pto, sick_leave, floating_holidays,
+                  parental_leave, carryover_cap
            FROM tx_employee_profiles
            ORDER BY updated_at DESC NULLS LAST
            LIMIT 1`
@@ -652,8 +656,9 @@ app.post('/api/employee-profiles', async (req, res) => {
         full_name, employee_id, email, location, department, start_date, job_title, role,
         manager, manager_level2, manager_level3, manager_level4, ceo, director,
         employment_type, status, cost_center, base_salary, pay_schedule, bonus_eligible,
-        variable_pay_percent, equity_plan, benefits_tier, compensation_effective_date, offer_letter_name,
-        offer_letter_data, comp_band, comp_positioning, annual_pto, sick_leave,
+        variable_pay_percent, equity_plan, benefits_tier, medical_status, dental_status,
+        vision_status, compensation_effective_date, offer_letter_name, offer_letter_data,
+        comp_band, comp_positioning, annual_pto, sick_leave,
         floating_holidays, parental_leave, carryover_cap, policy_effective,
         certifications, background_check, safety_training, work_authorization,
         survey_score, checkins_score, participation_score, risk_adjusted_score, photo_url,
@@ -666,14 +671,14 @@ app.post('/api/employee-profiles', async (req, res) => {
         $1,$2,$3,$4,$5,$6,$7,$8,
         $9,$10,$11,$12,$13,$14,
         $15,$16,$17,$18,$19,$20,
-        $21,$22,$23,$24,
-        $25,$26,$27,$28,$29,
-        $30,$31,$32,$33,
-        $34,$35,$36,$37,$38,
-        $39,$40,$41,$42,$43,
-        $44,$45,$46,$47,$48,
-        $49,$50,$51,$52,$53,
-        $54,$55,$56,NOW()
+        $21,$22,$23,$24,$25,
+        $26,$27,$28,$29,$30,
+        $31,$32,$33,$34,
+        $35,$36,$37,$38,$39,
+        $40,$41,$42,$43,$44,
+        $45,$46,$47,$48,$49,
+        $50,$51,$52,$53,$54,
+        $55,$56,$57,NOW()
       )
       ON CONFLICT (email) DO UPDATE SET
         full_name = EXCLUDED.full_name,
@@ -698,6 +703,9 @@ app.post('/api/employee-profiles', async (req, res) => {
         bonus_eligible = EXCLUDED.bonus_eligible,
         equity_plan = EXCLUDED.equity_plan,
         benefits_tier = EXCLUDED.benefits_tier,
+        medical_status = EXCLUDED.medical_status,
+        dental_status = EXCLUDED.dental_status,
+        vision_status = EXCLUDED.vision_status,
         compensation_effective_date = EXCLUDED.compensation_effective_date,
         offer_letter_name = EXCLUDED.offer_letter_name,
         offer_letter_data = EXCLUDED.offer_letter_data,
@@ -757,6 +765,9 @@ app.post('/api/employee-profiles', async (req, res) => {
         cleaned.variablePayPercent,
         cleaned.equityPlan,
         cleaned.benefitsTier,
+        cleaned.medicalStatus ?? 'N/A',
+        cleaned.dentalStatus ?? 'N/A',
+        cleaned.visionStatus ?? 'N/A',
         cleaned.compensationEffectiveDate,
         cleaned.offerLetterName,
         cleaned.offerLetterData,

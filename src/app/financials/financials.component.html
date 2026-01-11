@@ -57,11 +57,11 @@
       </div>
       <div class="detail">
         <span class="label">Pay schedule</span>
-        <span class="value">Monthly</span>
+        <span class="value">{{ paySchedule || 'Not set' }}</span>
       </div>
       <div class="detail">
         <span class="label">Next payday</span>
-        <span class="value">Feb 14, 2026</span>
+        <span class="value">Not set</span>
       </div>
     </article>
 
@@ -71,8 +71,11 @@
         <span class="pill soft">Signed</span>
       </div>
       <p class="copy">
-        Offer letter signed on Jan 12, 2024. Includes compensation, title, and
-        employment terms.
+        @if (offerLetterName) {
+          Offer letter on file.
+        } @else {
+          Offer letter has not been uploaded yet.
+        }
       </p>
       @if (offerLetterData) {
         <a
@@ -94,16 +97,20 @@
         <span class="pill">Coverage</span>
       </div>
       <div class="detail">
+        <span class="label">Benefits tier</span>
+        <span class="value">{{ benefitsTier || 'Not set' }}</span>
+      </div>
+      <div class="detail">
         <span class="label">Medical</span>
-        <span class="value">N/A</span>
+        <span class="value">{{ medicalStatus || 'N/A' }}</span>
       </div>
       <div class="detail">
         <span class="label">Dental</span>
-        <span class="value">N/A</span>
+        <span class="value">{{ dentalStatus || 'N/A' }}</span>
       </div>
       <div class="detail">
         <span class="label">Vision</span>
-        <span class="value">N/A</span>
+        <span class="value">{{ visionStatus || 'N/A' }}</span>
       </div>
     </article>
 
@@ -114,30 +121,36 @@
       </div>
       <div class="detail">
         <span class="label">Bonus eligibility</span>
-        <span class="value">No</span>
+        <span class="value">{{ bonusEligible || 'Not set' }}</span>
       </div>
       <div class="detail">
         <span class="label">Target bonus</span>
-        <span class="value">No</span>
+        <span class="value">
+          @if (bonusEligible.toLowerCase() === 'yes' && variablePayPercent) {
+            {{ variablePayPercent + '%' }}
+          } @else {
+            No
+          }
+        </span>
       </div>
       <div class="detail">
         <span class="label">Equity plan</span>
-        <span class="value">Not eligible</span>
+        <span class="value">{{ equityPlan || 'Not set' }}</span>
       </div>
     </article>
 
     <article class="panel">
       <div class="panel-header">
         <h2>Comp band</h2>
-        <span class="pill soft">Operations</span>
+        <span class="pill soft">{{ compBand || 'Not set' }}</span>
       </div>
       <div class="detail">
         <span class="label">Band</span>
-        <span class="value">Ops-4</span>
+        <span class="value">{{ compBand || 'Not set' }}</span>
       </div>
       <div class="detail">
         <span class="label">Positioning</span>
-        <span class="value">Mid-senior</span>
+        <span class="value">{{ compPositioning || 'Not set' }}</span>
       </div>
     </article>
   </section>
