@@ -34,6 +34,7 @@ export class App implements OnDestroy {
     department: 'Operations'
   };
   isAdmin = false;
+  lastRoute = '';
 
   constructor(
     private readonly router: Router,
@@ -42,6 +43,7 @@ export class App implements OnDestroy {
   ) {}
 
   async ngOnInit() {
+    this.lastRoute = sessionStorage.getItem('tx-peoplehub-last-route') || '';
     this.loadSession();
     this.loading.isLoading$.pipe(takeUntil(this.destroy$)).subscribe((state) => {
       this.isLoading = state;
@@ -51,6 +53,9 @@ export class App implements OnDestroy {
     void this.loadNotifications();
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
+        sessionStorage.setItem('tx-peoplehub-prev-route', this.lastRoute);
+        this.lastRoute = event.urlAfterRedirects;
+        sessionStorage.setItem('tx-peoplehub-last-route', this.lastRoute);
         this.showChrome = !event.urlAfterRedirects.startsWith('/login');
         this.loadSession();
         this.isAdmin = false;
