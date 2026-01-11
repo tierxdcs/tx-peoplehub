@@ -284,7 +284,7 @@ export class PeopleProfileComponent {
     this.profile = {
       ...this.profile,
       name: match.fullName,
-      title: match.role,
+      title: this.employeeProfile?.jobTitle || match.role,
       team: match.department,
       status: match.status
     };
