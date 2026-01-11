@@ -62,6 +62,8 @@ export class PeopleProfileComponent {
   targetEmail = '';
   activityItems: { label: string; title: string; description: string; sortDate: number }[] = [];
   hideRecentActivity = false;
+  sessionEmail = '';
+  canEditPhoto = false;
 
   constructor(private readonly api: ApiService) {}
 
@@ -86,6 +88,7 @@ export class PeopleProfileComponent {
   async ngOnInit() {
     this.hideRecentActivity =
       this.route.snapshot.queryParamMap.get('from') === 'directory';
+    this.loadSession();
     await this.loadUsers();
     this.resolveTargetEmail();
     await this.loadProfile();
@@ -96,6 +99,7 @@ export class PeopleProfileComponent {
     }
     this.applyUserOverride();
     this.buildTeamMembers();
+    this.updatePhotoPermission();
   }
 
   async loadProfile() {
@@ -114,8 +118,10 @@ export class PeopleProfileComponent {
       this.employeeProfile = profile;
       this.profile = this.mapProfile(profile);
       await this.loadIdeaCount();
+      this.updatePhotoPermission();
     } catch {
       this.profile = { ...EMPTY_PROFILE };
+      this.updatePhotoPermission();
     }
   }
 
@@ -221,12 +227,34 @@ export class PeopleProfileComponent {
         sessionEmail = '';
       }
     }
+    this.sessionEmail = sessionEmail;
     if (this.profileId === 'current') {
       this.targetEmail = sessionEmail;
       return;
     }
     const match = this.users.find((user) => user.id === this.profileId);
     this.targetEmail = match?.email?.trim().toLowerCase() || sessionEmail;
+  }
+
+  loadSession() {
+    const raw = localStorage.getItem('tx-peoplehub-session');
+    if (!raw) {
+      this.sessionEmail = '';
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as { email?: string };
+      this.sessionEmail = parsed.email?.trim().toLowerCase() || '';
+    } catch {
+      this.sessionEmail = '';
+    }
+  }
+
+  updatePhotoPermission() {
+    const profileEmail = this.employeeProfile?.email?.trim().toLowerCase() || this.targetEmail;
+    this.canEditPhoto =
+      !!this.sessionEmail &&
+      (this.profileId === 'current' || profileEmail === this.sessionEmail);
   }
 
   async loadUsers() {
@@ -377,6 +405,9 @@ export class PeopleProfileComponent {
   }
 
   onPhotoSelected(event: Event) {
+    if (!this.canEditPhoto) {
+      return;
+    }
     const input = event.target as HTMLInputElement | null;
     const file = input?.files?.[0];
     if (!file) {

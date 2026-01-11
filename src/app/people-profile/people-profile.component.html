@@ -23,10 +23,12 @@
         [alt]="profile.name"
         class="profile-image"
       />
-      <label class="upload">
-        Change photo
-        <input type="file" accept="image/*" (change)="onPhotoSelected($event)" />
-      </label>
+      @if (canEditPhoto) {
+        <label class="upload">
+          Change photo
+          <input type="file" accept="image/*" (change)="onPhotoSelected($event)" />
+        </label>
+      }
     </div>
     <div class="summary">
       <p class="eyebrow">Employee profile</p>
