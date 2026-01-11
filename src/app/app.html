@@ -55,7 +55,7 @@
           <div class="account-panel" role="dialog" aria-label="Account options">
             <div class="account-header">
               <strong>{{ session.name }}</strong>
-              <span>{{ session.role }}</span>
+              <span>{{ session.jobTitle || session.role }}</span>
             </div>
             <div class="account-actions">
               <a class="ghost button-link" routerLink="/people/current">My profile</a>

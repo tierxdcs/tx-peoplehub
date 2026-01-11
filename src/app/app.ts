@@ -31,7 +31,8 @@ export class App implements OnDestroy {
     role: 'HR Operations',
     email: 'hr@tierx.com',
     director: 'No',
-    department: 'Operations'
+    department: 'Operations',
+    jobTitle: ''
   };
   isAdmin = false;
   lastRoute = '';
@@ -193,13 +194,15 @@ export class App implements OnDestroy {
         email?: string;
         director?: string;
         department?: string;
+        jobTitle?: string;
       };
       this.session = {
         name: parsed.name?.trim() || this.session.name,
         role: parsed.role?.trim() || this.session.role,
         email: parsed.email?.trim() || this.session.email,
         director: parsed.director?.trim() || this.session.director,
-        department: parsed.department?.trim() || this.session.department
+        department: parsed.department?.trim() || this.session.department,
+        jobTitle: parsed.jobTitle?.trim() || this.session.jobTitle
       };
       this.isAdmin = false;
     } catch {
@@ -241,7 +244,10 @@ export class App implements OnDestroy {
       return;
     }
     try {
-      const users = await firstValueFrom(this.api.getUsers({ search: email, limit: 5 }));
+      const [users, profile] = await Promise.all([
+        firstValueFrom(this.api.getUsers({ search: email, limit: 5 })),
+        firstValueFrom(this.api.getEmployeeProfile({ email }))
+      ]);
       const match = users.find((user) => user.email?.trim().toLowerCase() === email);
       if (!match) {
         this.isAdmin = false;
@@ -252,7 +258,8 @@ export class App implements OnDestroy {
         name: match.fullName || this.session.name,
         role: match.role || this.session.role,
         director: match.director || this.session.director,
-        department: match.department || this.session.department
+        department: match.department || this.session.department,
+        jobTitle: profile?.jobTitle || this.session.jobTitle
       };
       const role = this.session.role.trim().toLowerCase();
       this.isAdmin = role === 'admin' || role === 'superadmin';
@@ -264,11 +271,13 @@ export class App implements OnDestroy {
             director?: string;
             department?: string;
             name?: string;
+            jobTitle?: string;
           };
           parsed.role = this.session.role;
           parsed.director = this.session.director;
           parsed.department = this.session.department;
           parsed.name = this.session.name;
+          parsed.jobTitle = this.session.jobTitle;
           localStorage.setItem('tx-peoplehub-session', JSON.stringify(parsed));
         } catch {
           return;

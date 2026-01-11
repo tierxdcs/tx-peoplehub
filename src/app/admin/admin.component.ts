@@ -25,6 +25,7 @@ export class AdminComponent {
   hasMoreUsers = true;
   isLoadingUsers = false;
   editIndex: number | null = null;
+  editingUser: UserRecord | null = null;
   editUser = {
     fullName: '',
     email: '',
@@ -35,64 +36,7 @@ export class AdminComponent {
   };
   createPassword = '';
   editPassword = '';
-  adminData = {
-    fullName: '',
-    employeeId: '',
-    email: '',
-    location: 'Bengaluru',
-    department: '',
-    startDate: '',
-    jobTitle: '',
-    manager: '',
-    managerLevel2: '',
-    managerLevel3: '',
-    managerLevel4: '',
-    ceo: '',
-    role: 'Employee',
-    employmentType: 'Full-time',
-    status: 'Active',
-    director: 'No',
-    costCenter: '',
-    baseSalary: '',
-    variablePayPercent: '',
-    paySchedule: 'Bi-weekly',
-    bonusEligible: 'Yes',
-    equityPlan: 'Not eligible',
-    benefitsTier: 'Standard',
-    compensationEffectiveDate: '',
-    offerLetterName: '',
-    offerLetterData: '',
-    compBand: '',
-    compPositioning: 'Mid-senior',
-    annualPto: '',
-    sickLeave: '',
-    floatingHolidays: '',
-    parentalLeave: '',
-    carryoverCap: '',
-    policyEffective: '',
-    certifications: '',
-    backgroundCheck: 'Verified',
-    safetyTraining: 'Completed',
-    workAuthorization: 'Valid',
-    surveyScore: '',
-    checkinsScore: '',
-    participationScore: '',
-    riskAdjustedScore: '',
-    photoUrl: '',
-    complianceDocumentName: '',
-    nextAuditDate: '',
-    checklistOffer: false,
-    checklistEquipment: false,
-    checklistBadges: false,
-    checklistOrientation: false,
-    checklistBusinessCard: false,
-    checklistCustom: [] as { title: string; owner: string; done: boolean }[],
-    checklistOfferOwner: '',
-    checklistEquipmentOwner: '',
-    checklistBadgesOwner: '',
-    checklistOrientationOwner: '',
-    checklistBusinessCardOwner: ''
-  };
+  adminData = this.createEmptyAdminData();
   newChecklistItem = { title: '', owner: '' };
 
   constructor(private readonly api: ApiService) {}
@@ -106,6 +50,11 @@ export class AdminComponent {
     const form = event.target as HTMLFormElement | null;
     if (!form || !form.reportValidity()) {
       this.saved = false;
+      return;
+    }
+    if (await this.isDuplicateEmail()) {
+      this.saved = false;
+      this.userStatus = 'Email already exists. Use a different email.';
       return;
     }
 
@@ -151,7 +100,8 @@ export class AdminComponent {
           taskNote = ` ${taskResult.message}`;
         }
       }
-      this.savedMessage = `Onboarding completed for ${name} (ID: ${employeeId}).${accessNote}${taskNote}`;
+      const baseMessage = this.editingUser ? 'Profile updated' : 'Onboarding completed';
+      this.savedMessage = `${baseMessage} for ${name} (ID: ${employeeId}).${accessNote}${taskNote}`;
       this.showOnboardModal = true;
     } catch {
       this.saved = false;
@@ -160,8 +110,30 @@ export class AdminComponent {
     }
   }
 
+  private async isDuplicateEmail() {
+    const email = this.adminData.email?.trim().toLowerCase();
+    if (!email) {
+      return false;
+    }
+    if (this.editingUser && this.editingUser.email?.trim().toLowerCase() === email) {
+      return false;
+    }
+    try {
+      const users = await firstValueFrom(this.api.getUsers({ search: email, limit: 5 }));
+      return users.some((user) => user.email?.trim().toLowerCase() === email);
+    } catch {
+      return false;
+    }
+  }
+
   closeOnboardModal() {
     this.showOnboardModal = false;
+  }
+
+  cancelEditProfile() {
+    this.editingUser = null;
+    this.adminData = this.createEmptyAdminData();
+    this.createPassword = '';
   }
 
   onFileSelected(event: Event) {
@@ -345,6 +317,50 @@ export class AdminComponent {
     return;
   }
 
+  async editEmployeeProfile(index: number) {
+    const user = this.users[index];
+    if (!user) {
+      return;
+    }
+    this.editingUser = user;
+    try {
+      const profile = await firstValueFrom(
+        this.api.getEmployeeProfile({ email: user.email })
+      );
+      if (profile) {
+        this.adminData = {
+          ...this.createEmptyAdminData(),
+          ...this.normalizeProfileDates(profile),
+          role: profile.role || user.role,
+          status: profile.status || user.status,
+          director: profile.director || user.director || 'No'
+        };
+      } else {
+        this.adminData = {
+          ...this.createEmptyAdminData(),
+          fullName: user.fullName,
+          email: user.email,
+          department: user.department,
+          role: user.role,
+          status: user.status,
+          director: user.director || 'No'
+        };
+      }
+    } catch {
+      this.adminData = {
+        ...this.createEmptyAdminData(),
+        fullName: user.fullName,
+        email: user.email,
+        department: user.department,
+        role: user.role,
+        status: user.status,
+        director: user.director || 'No'
+      };
+    }
+    this.createPassword = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   async updateUser(user: UserRecord) {
     const updated = await firstValueFrom(
       this.api.updateUser(user.id, {
@@ -475,32 +491,38 @@ export class AdminComponent {
     const tasks = [
       {
         key: 'Offer letter signed',
-        owner: this.adminData.checklistOfferOwner
+        owner: this.adminData.checklistOfferOwner,
+        enabled: this.adminData.checklistOffer
       },
       {
         key: 'Equipment provisioned',
-        owner: this.adminData.checklistEquipmentOwner
+        owner: this.adminData.checklistEquipmentOwner,
+        enabled: this.adminData.checklistEquipment
       },
       {
         key: 'Access badges issued',
-        owner: this.adminData.checklistBadgesOwner
+        owner: this.adminData.checklistBadgesOwner,
+        enabled: this.adminData.checklistBadges
       },
       {
         key: 'Orientation scheduled',
-        owner: this.adminData.checklistOrientationOwner
+        owner: this.adminData.checklistOrientationOwner,
+        enabled: this.adminData.checklistOrientation
       },
       {
         key: 'Provide business card',
-        owner: this.adminData.checklistBusinessCardOwner
+        owner: this.adminData.checklistBusinessCardOwner,
+        enabled: this.adminData.checklistBusinessCard
       }
     ];
     const customTasks = this.adminData.checklistCustom.map((item) => ({
       key: item.title,
-      owner: item.owner
+      owner: item.owner,
+      enabled: !item.done
     }));
     const payload = tasks
-      .filter((task) => task.owner)
-      .concat(customTasks.filter((task) => task.owner && task.key))
+      .filter((task) => task.owner && task.enabled)
+      .concat(customTasks.filter((task) => task.owner && task.key && task.enabled))
       .map((task) => ({
         title: `Onboarding: ${task.key}`,
         owner: task.owner as string,
@@ -542,5 +564,69 @@ export class AdminComponent {
   removeChecklistItem(index: number) {
     this.adminData.checklistCustom = this.adminData.checklistCustom.filter((_, i) => i !== index);
     this.persistProfile();
+  }
+
+  private createEmptyAdminData() {
+    return {
+      fullName: '',
+      employeeId: '',
+      email: '',
+      location: 'Bengaluru',
+      department: '',
+      startDate: '',
+      jobTitle: '',
+      manager: '',
+      managerLevel2: '',
+      managerLevel3: '',
+      managerLevel4: '',
+      ceo: '',
+      role: 'Employee',
+      employmentType: 'Full-time',
+      status: 'Active',
+      director: 'No',
+      costCenter: '',
+      baseSalary: '',
+      variablePayPercent: '',
+      paySchedule: 'Bi-weekly',
+      bonusEligible: 'Yes',
+      equityPlan: 'Not eligible',
+      benefitsTier: 'Standard',
+      medicalStatus: 'N/A',
+      dentalStatus: 'N/A',
+      visionStatus: 'N/A',
+      compensationEffectiveDate: '',
+      offerLetterName: '',
+      offerLetterData: '',
+      compBand: '',
+      compPositioning: 'Mid-senior',
+      annualPto: '',
+      sickLeave: '',
+      floatingHolidays: '',
+      parentalLeave: '',
+      carryoverCap: '',
+      policyEffective: '',
+      certifications: '',
+      backgroundCheck: 'Verified',
+      safetyTraining: 'Completed',
+      workAuthorization: 'Valid',
+      surveyScore: '',
+      checkinsScore: '',
+      participationScore: '',
+      riskAdjustedScore: '',
+      photoUrl: '',
+      complianceDocumentName: '',
+      nextAuditDate: '',
+      checklistOffer: false,
+      checklistEquipment: false,
+      checklistBadges: false,
+      checklistOrientation: false,
+      checklistBusinessCard: false,
+      checklistCustom: [] as { title: string; owner: string; done: boolean }[],
+      checklistOfferOwner: '',
+      checklistEquipmentOwner: '',
+      checklistBadgesOwner: '',
+      checklistOrientationOwner: '',
+      checklistBusinessCardOwner: ''
+    };
   }
 }

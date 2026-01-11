@@ -71,6 +71,9 @@ export type EmployeeProfile = {
   bonusEligible: string;
   equityPlan: string;
   benefitsTier: string;
+  medicalStatus?: string;
+  dentalStatus?: string;
+  visionStatus?: string;
   compensationEffectiveDate: string;
   offerLetterName: string;
   offerLetterData: string;
@@ -801,6 +804,9 @@ export class ApiService {
       bonusEligible: row.bonus_eligible ?? '',
       equityPlan: row.equity_plan ?? '',
       benefitsTier: row.benefits_tier ?? '',
+      medicalStatus: row.medical_status ?? '',
+      dentalStatus: row.dental_status ?? '',
+      visionStatus: row.vision_status ?? '',
       compensationEffectiveDate: row.compensation_effective_date ?? '',
       offerLetterName: row.offer_letter_name ?? '',
       offerLetterData: row.offer_letter_data ?? '',

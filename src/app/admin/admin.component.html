@@ -15,6 +15,16 @@
       </div>
     </header>
 
+    @if (editingUser) {
+      <div class="edit-banner">
+        <div>
+          <strong>Editing {{ editingUser.fullName }}</strong>
+          <span>{{ editingUser.email }}</span>
+        </div>
+        <button class="ghost small" type="button" (click)="cancelEditProfile()">Cancel edit</button>
+      </div>
+    }
+
     <section class="admin-grid">
     <article class="panel equal-card">
       <div class="panel-header">
@@ -288,6 +298,30 @@
             <option>Standard</option>
             <option>Premium</option>
             <option>Executive</option>
+          </select>
+        </label>
+        <label>
+          Medical status
+          <select name="medicalStatus" [(ngModel)]="adminData.medicalStatus">
+            <option>N/A</option>
+            <option>Eligible</option>
+            <option>Not eligible</option>
+          </select>
+        </label>
+        <label>
+          Dental status
+          <select name="dentalStatus" [(ngModel)]="adminData.dentalStatus">
+            <option>N/A</option>
+            <option>Eligible</option>
+            <option>Not eligible</option>
+          </select>
+        </label>
+        <label>
+          Vision status
+          <select name="visionStatus" [(ngModel)]="adminData.visionStatus">
+            <option>N/A</option>
+            <option>Eligible</option>
+            <option>Not eligible</option>
           </select>
         </label>
         <label>
@@ -670,7 +704,9 @@
                 <span class="status-pill" [class.off]="user.status === 'Deactivated'">
                   {{ user.status }}
                 </span>
-                <button class="ghost small" type="button" (click)="openEditUser(i)">Edit</button>
+                <button class="ghost small" type="button" (click)="editEmployeeProfile(i)">
+                  Edit
+                </button>
                 <button class="ghost small" type="button" (click)="resetPassword(i)">
                   Reset password
                 </button>
