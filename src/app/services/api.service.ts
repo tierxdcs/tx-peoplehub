@@ -297,6 +297,14 @@ export class ApiService {
     );
   }
 
+  changePassword(payload: {
+    email: string;
+    currentPassword: string;
+    newPassword: string;
+  }): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/change-password`, payload);
+  }
+
   getDepartments(): Observable<DepartmentRecord[]> {
     const key = this.cacheKey('departments');
     return this.cacheFor(
