@@ -23,6 +23,7 @@ export class HomeComponent {
   spotlightPercent: number | null = null;
   spotlightPhoto = 'assets/people/default-avatar.svg';
   todayTasks: { title: string }[] = [];
+  pendingApprovalsCount = 0;
   complianceCoverage = 0;
   trainingsCompleted = 0;
   trainingsAssigned = 0;
@@ -125,6 +126,7 @@ export class HomeComponent {
       this.spotlightProgress = 0;
       this.spotlightPhoto = 'assets/people/default-avatar.svg';
       this.todayTasks = [];
+      this.pendingApprovalsCount = 0;
       this.pendingRequests = [];
       this.ideaHistory = [];
       this.pendingReimbursements = 0;
@@ -146,6 +148,7 @@ export class HomeComponent {
       this.spotlightProgress = 0;
       this.spotlightPhoto = 'assets/people/default-avatar.svg';
       this.todayTasks = [];
+      this.pendingApprovalsCount = 0;
       this.pendingRequests = [];
       this.ideaHistory = [];
       this.pendingReimbursements = 0;
@@ -202,6 +205,7 @@ export class HomeComponent {
     ideas: IdeaRecord[];
     reimbursements: { pending: number };
     training: { completed: number; total: number; coverage: number };
+    approvalsPending?: number;
   }) {
     this.activeUserCount = payload.activeUserCount;
     this.currentProfile = payload.profile;
@@ -210,6 +214,7 @@ export class HomeComponent {
     }
     this.spotlightPhoto = this.currentProfile?.photoUrl || 'assets/people/default-avatar.svg';
     this.todayTasks = payload.tasks.slice(0, 3).map((task) => ({ title: task.title }));
+    this.pendingApprovalsCount = payload.approvalsPending ?? this.todayTasks.length;
     this.pendingRequests = payload.pendingLeaves.map((leave) => ({
       id: leave.id,
       type: leave.type,
