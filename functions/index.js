@@ -1199,7 +1199,7 @@ app.get('/api/reimbursements', async (req, res) => {
 app.post('/api/reimbursements', async (req, res) => {
   const item = req.body;
   try {
-    const status = item.status || 'Pending CFO approval';
+    const status = item.status || 'Pending COO approval';
     const result = await getPoolInstance().query(
       `INSERT INTO tx_reimbursements
        (title, amount, category, date, notes, status, employee, employee_email)

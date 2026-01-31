@@ -215,7 +215,7 @@ export class App implements OnDestroy {
           .map((request) => ({
             id: request.id,
             title: `Reimbursement · ${request.category}`,
-            source: 'CFO approval',
+            source: 'COO approval',
             due: request.amount
           })),
         ...requisitions
