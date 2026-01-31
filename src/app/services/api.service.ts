@@ -139,6 +139,7 @@ export type HomeDashboard = {
   ideas: IdeaRecord[];
   reimbursements: { pending: number };
   training: { completed: number; total: number; coverage: number };
+  approvalsPending?: number;
 };
 
 export type IdeaRecord = {
@@ -415,7 +416,8 @@ export class ApiService {
               : [],
             ideas: Array.isArray(payload.ideas) ? payload.ideas.map((row) => this.mapIdea(row)) : [],
             reimbursements: payload.reimbursements ?? { pending: 0 },
-            training: payload.training ?? { completed: 0, total: 0, coverage: 0 }
+            training: payload.training ?? { completed: 0, total: 0, coverage: 0 },
+            approvalsPending: Number(payload.approvalsPending ?? 0)
           }))
         )
     );
@@ -439,7 +441,8 @@ export class ApiService {
               : [],
             ideas: Array.isArray(payload.ideas) ? payload.ideas.map((row) => this.mapIdea(row)) : [],
             reimbursements: payload.reimbursements ?? { pending: 0 },
-            training: payload.training ?? { completed: 0, total: 0, coverage: 0 }
+            training: payload.training ?? { completed: 0, total: 0, coverage: 0 },
+            approvalsPending: Number(payload.approvalsPending ?? 0)
           }))
         )
     );
