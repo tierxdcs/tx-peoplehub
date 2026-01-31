@@ -160,7 +160,7 @@ export class ApprovalsComponent {
             title: `Reimbursement · ${request.category}`,
             submittedBy: request.employee ?? 'Employee',
             summary: request.amount,
-            status: request.status || 'Pending CFO approval',
+            status: request.status || 'Pending COO approval',
             requestNote: request.notes ?? '',
             source: 'reimbursement' as const
           })),
