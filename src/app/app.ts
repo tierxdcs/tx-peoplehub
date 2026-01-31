@@ -163,7 +163,7 @@ export class App implements OnDestroy {
       const sessionEmail = this.session.email.toLowerCase();
       const sessionName = this.session.name.trim();
       const isDirector = this.session.director.trim().toLowerCase() === 'yes';
-      const isCfo = sessionName.toLowerCase() === 'ravi kulal';
+      const isCoo = sessionName.toLowerCase() === 'ravi kulal';
       const [tasks, assignments, responses, leaves, reimbursements, requisitions] =
         await Promise.all([
           firstValueFrom(this.api.getTasks({ ownerEmail: sessionEmail, limit: 6 })),
@@ -172,7 +172,7 @@ export class App implements OnDestroy {
           sessionName
             ? firstValueFrom(this.api.getLeaves({ managerName: sessionName, limit: 10 }))
             : Promise.resolve([]),
-          isCfo
+          isCoo
             ? firstValueFrom(this.api.getReimbursements({ scope: 'all', limit: 10 }))
             : Promise.resolve([]),
           isDirector
