@@ -59,12 +59,67 @@
             </div>
             <div class="account-actions">
               <a class="ghost button-link" routerLink="/people/current">My profile</a>
+              <button class="ghost" type="button" (click)="openPasswordModal()">Change password</button>
               <button class="ghost" type="button" (click)="logout()">Logout</button>
             </div>
           </div>
         }
       </div>
     </header>
+  }
+
+  @if (showPasswordModal) {
+    <div class="modal-backdrop" (click)="closePasswordModal()"></div>
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Change password">
+      <header>
+        <div>
+          <h3>Change password</h3>
+          <p>Update your account password securely.</p>
+        </div>
+        <button class="ghost" type="button" (click)="closePasswordModal()">Close</button>
+      </header>
+      <div class="modal-body">
+        <label>
+          Current password
+          <input
+            type="password"
+            name="currentPassword"
+            [(ngModel)]="passwordForm.current"
+            placeholder="Enter current password"
+          />
+        </label>
+        <label>
+          New password
+          <input
+            type="password"
+            name="newPassword"
+            [(ngModel)]="passwordForm.next"
+            placeholder="Create a new password"
+          />
+        </label>
+        <label>
+          Confirm new password
+          <input
+            type="password"
+            name="confirmPassword"
+            [(ngModel)]="passwordForm.confirm"
+            placeholder="Re-enter new password"
+          />
+        </label>
+        @if (passwordError) {
+          <p class="form-error">{{ passwordError }}</p>
+        }
+        @if (passwordMessage) {
+          <p class="form-success">{{ passwordMessage }}</p>
+        }
+      </div>
+      <div class="modal-actions">
+        <button class="ghost" type="button" (click)="closePasswordModal()">Cancel</button>
+        <button class="primary" type="button" (click)="submitPasswordChange()" [disabled]="passwordSaving">
+          {{ passwordSaving ? 'Updating…' : 'Update password' }}
+        </button>
+      </div>
+    </div>
   }
 
   @if (isLoading) {

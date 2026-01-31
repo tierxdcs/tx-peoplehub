@@ -196,6 +196,44 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+app.post('/api/change-password', async (req, res) => {
+  const { email, currentPassword, newPassword } = req.body ?? {};
+  const normalizedEmail = String(email ?? '').trim().toLowerCase();
+  const current = String(currentPassword ?? '');
+  const next = String(newPassword ?? '');
+  if (!normalizedEmail || !current || !next) {
+    res.status(400).json({ error: 'Email, current password, and new password are required.' });
+    return;
+  }
+  try {
+    const result = await getPoolInstance().query(
+      `SELECT id, password
+       FROM tx_users
+       WHERE LOWER(email) = $1
+         AND LOWER(status) = 'active'
+       LIMIT 1`,
+      [normalizedEmail]
+    );
+    const user = result.rows[0];
+    if (!user) {
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+    const storedPassword = user.password ?? '';
+    if (storedPassword && storedPassword !== current) {
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+    await getPoolInstance().query(
+      'UPDATE tx_users SET password = $1, updated_at = NOW() WHERE id = $2',
+      [next, user.id]
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to update password' });
+  }
+});
+
 app.get('/api/departments', async (_req, res) => {
   try {
     const result = await getPoolInstance().query(

@@ -1,5 +1,6 @@
 import { Component, HostListener, OnDestroy } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil, firstValueFrom } from 'rxjs';
 import { ApiService, TrainingAssignment } from './services/api.service';
 import { LoadingService } from './services/loading.service';
@@ -14,7 +15,7 @@ type NotificationItem = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, FormsModule],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
@@ -25,6 +26,15 @@ export class App implements OnDestroy {
   isLoading = false;
   notifications: NotificationItem[] = [];
   notificationsCount = 0;
+  showPasswordModal = false;
+  passwordSaving = false;
+  passwordForm = {
+    current: '',
+    next: '',
+    confirm: ''
+  };
+  passwordError = '';
+  passwordMessage = '';
   private readonly destroy$ = new Subject<void>();
   session = {
     name: 'Alex Taylor',
@@ -76,6 +86,63 @@ export class App implements OnDestroy {
     this.avatarOpen = !this.avatarOpen;
     if (this.avatarOpen) {
       this.notificationsOpen = false;
+    }
+  }
+
+  openPasswordModal() {
+    this.avatarOpen = false;
+    this.notificationsOpen = false;
+    this.passwordError = '';
+    this.passwordMessage = '';
+    this.passwordForm = {
+      current: '',
+      next: '',
+      confirm: ''
+    };
+    this.showPasswordModal = true;
+  }
+
+  closePasswordModal() {
+    this.showPasswordModal = false;
+    this.passwordSaving = false;
+    this.passwordError = '';
+    this.passwordMessage = '';
+  }
+
+  async submitPasswordChange() {
+    if (this.passwordSaving) {
+      return;
+    }
+    const email = this.session.email?.trim().toLowerCase();
+    if (!email) {
+      this.passwordError = 'Unable to identify your account. Please log in again.';
+      return;
+    }
+    if (!this.passwordForm.current || !this.passwordForm.next || !this.passwordForm.confirm) {
+      this.passwordError = 'Please fill out all password fields.';
+      return;
+    }
+    if (this.passwordForm.next !== this.passwordForm.confirm) {
+      this.passwordError = 'New password entries do not match.';
+      return;
+    }
+    this.passwordSaving = true;
+    this.passwordError = '';
+    this.passwordMessage = '';
+    try {
+      await firstValueFrom(
+        this.api.changePassword({
+          email,
+          currentPassword: this.passwordForm.current,
+          newPassword: this.passwordForm.next
+        })
+      );
+      this.passwordMessage = 'Password updated successfully.';
+      this.passwordForm = { current: '', next: '', confirm: '' };
+    } catch {
+      this.passwordError = 'Unable to update password. Please verify your current password.';
+    } finally {
+      this.passwordSaving = false;
     }
   }
 
