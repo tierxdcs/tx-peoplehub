@@ -390,6 +390,7 @@ app.get('/api/home-dashboard', async (req, res) => {
       : { rows: [] };
     const user = userResult.rows[0];
     const isDirector = user?.director === 'Yes';
+    const isCoo = String(user?.full_name ?? '').trim().toLowerCase() === 'ravi kulal';
     const profileResult = emailKey !== 'all'
       ? await pool.query(
           `SELECT full_name, employee_id, email, location, department, job_title, status,
@@ -498,7 +499,7 @@ app.get('/api/home-dashboard', async (req, res) => {
              LIMIT 3`
           )
         : Promise.resolve({ rows: [] }),
-      !light && isDirector
+      !light && isCoo
         ? pool.query(
             `SELECT id, category, amount
              FROM tx_reimbursements
@@ -528,17 +529,23 @@ app.get('/api/home-dashboard', async (req, res) => {
     }
     const total = Number(assignmentsResult.rows[0]?.count ?? 0);
     const coverage = total ? Math.round((completed / total) * 100) : 0;
-    const approvals = !light && isDirector
+    const approvals = !light
       ? [
-          ...(approvalsLeavesResult.rows ?? []).map((row) => ({
-            title: `Leave request · ${row.type ?? 'Leave'}`
-          })),
-          ...(approvalsReimbursementsResult.rows ?? []).map((row) => ({
-            title: `Reimbursement · ${row.category ?? 'Expense'}`
-          })),
-          ...(approvalsRequisitionsResult.rows ?? []).map((row) => ({
-            title: `Resource requisition · ${row.title ?? 'Request'}`
-          }))
+          ...(isDirector
+            ? (approvalsLeavesResult.rows ?? []).map((row) => ({
+                title: `Leave request · ${row.type ?? 'Leave'}`
+              }))
+            : []),
+          ...(isCoo
+            ? (approvalsReimbursementsResult.rows ?? []).map((row) => ({
+                title: `Reimbursement · ${row.category ?? 'Expense'}`
+              }))
+            : []),
+          ...(isDirector
+            ? (approvalsRequisitionsResult.rows ?? []).map((row) => ({
+                title: `Resource requisition · ${row.title ?? 'Request'}`
+              }))
+            : [])
         ]
       : [];
     const dashboardTasks = [

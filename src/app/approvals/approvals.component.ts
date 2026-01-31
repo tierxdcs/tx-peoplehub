@@ -16,7 +16,7 @@ export class ApprovalsComponent {
   sessionEmail = '';
   sessionName = '';
   isDirector = false;
-  isCfo = false;
+  isCoo = false;
   requests: {
     id: string;
     title: string;
@@ -57,7 +57,7 @@ export class ApprovalsComponent {
       this.sessionEmail = '';
       this.sessionName = '';
       this.isDirector = false;
-      this.isCfo = false;
+      this.isCoo = false;
       return;
     }
     try {
@@ -65,12 +65,12 @@ export class ApprovalsComponent {
       this.sessionEmail = parsed.email?.trim().toLowerCase() || '';
       this.sessionName = parsed.name?.trim() || '';
       this.isDirector = parsed.director === 'Yes';
-      this.isCfo = this.sessionName.toLowerCase() === 'ravi kulal';
+      this.isCoo = this.sessionName.toLowerCase() === 'ravi kulal';
     } catch {
       this.sessionEmail = '';
       this.sessionName = '';
       this.isDirector = false;
-      this.isCfo = false;
+      this.isCoo = false;
     }
   }
 
@@ -122,7 +122,7 @@ export class ApprovalsComponent {
         this.sessionName
           ? firstValueFrom(this.api.getLeaves({ managerName: this.sessionName }))
           : Promise.resolve([]),
-        this.isCfo
+        this.isCoo
           ? firstValueFrom(this.api.getReimbursements({ scope: 'all' }))
           : Promise.resolve([]),
         this.isDirector

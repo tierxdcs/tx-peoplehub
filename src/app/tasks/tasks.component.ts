@@ -14,7 +14,7 @@ export class TasksComponent {
   sessionEmail = '';
   sessionName = '';
   isDirector = false;
-  isCfo = false;
+  isCoo = false;
   approvals: {
     id: string;
     title: string;
@@ -56,12 +56,12 @@ export class TasksComponent {
           this.sessionEmail = parsed.email?.trim().toLowerCase() || '';
           this.sessionName = parsed.name?.trim() || '';
           this.isDirector = parsed.director === 'Yes';
-          this.isCfo = this.sessionName.toLowerCase() === 'ravi kulal';
+          this.isCoo = this.sessionName.toLowerCase() === 'ravi kulal';
         } catch {
           this.sessionEmail = '';
           this.sessionName = '';
           this.isDirector = false;
-          this.isCfo = false;
+          this.isCoo = false;
         }
       }
       const [tasks, leaves, reimbursements, requisitions, completed] = await Promise.all([
@@ -74,7 +74,7 @@ export class TasksComponent {
         this.sessionName
           ? firstValueFrom(this.api.getLeaves({ managerName: this.sessionName }))
           : Promise.resolve([]),
-        this.isCfo
+        this.isCoo
           ? firstValueFrom(this.api.getReimbursements({ scope: 'all' }))
           : Promise.resolve([]),
         this.isDirector
