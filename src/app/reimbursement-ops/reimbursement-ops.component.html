@@ -39,6 +39,12 @@
                     <p>{{ item.notes }}</p>
                   </div>
                 }
+                @if (item.note) {
+                  <div class="note-card completion">
+                    <span>Completion note</span>
+                    <p>{{ item.note }}</p>
+                  </div>
+                }
                 <div class="reimbursement-card__actions">
                   <label>
                     Status
@@ -97,6 +103,12 @@
                   <div class="note-card">
                     <span>Request note</span>
                     <p>{{ item.notes }}</p>
+                  </div>
+                }
+                @if (item.completionNote) {
+                  <div class="note-card completion">
+                    <span>Completion note</span>
+                    <p>{{ item.completionNote }}</p>
                   </div>
                 }
               </button>
