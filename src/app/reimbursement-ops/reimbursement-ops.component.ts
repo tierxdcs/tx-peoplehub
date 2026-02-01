@@ -20,6 +20,7 @@ type ReimbursementRow = ReimbursementRecord & {
 })
 export class ReimbursementOpsComponent {
   approvals: ReimbursementRow[] = [];
+  completed: ReimbursementRow[] = [];
   isAuthorized = false;
   statusMessage = '';
 
@@ -59,20 +60,30 @@ export class ReimbursementOpsComponent {
       const reimbursements = await firstValueFrom(
         this.api.getReimbursements({ scope: 'all' })
       );
-      this.approvals = reimbursements
-        .filter((item) => String(item.status ?? '').toLowerCase().includes('approved'))
-        .map((item) => ({
-          ...item,
-          statusChoice: 'Reimbursement complete',
-          note: ''
-        }));
-      if (!this.approvals.length) {
-        this.statusMessage = 'No approved reimbursements to complete.';
+      const approved = reimbursements.filter((item) =>
+        String(item.status ?? '').toLowerCase().includes('approved')
+      );
+      const completed = reimbursements.filter((item) =>
+        String(item.status ?? '').toLowerCase().includes('reimbursement complete')
+      );
+      this.approvals = approved.map((item) => ({
+        ...item,
+        statusChoice: 'Reimbursement complete',
+        note: ''
+      }));
+      this.completed = completed.map((item) => ({
+        ...item,
+        statusChoice: 'Reimbursement complete',
+        note: ''
+      }));
+      if (!this.approvals.length && !this.completed.length) {
+        this.statusMessage = 'No reimbursement records available.';
       } else {
         this.statusMessage = '';
       }
     } catch {
       this.approvals = [];
+      this.completed = [];
       this.statusMessage = 'Unable to load reimbursement approvals.';
     }
   }
@@ -103,10 +114,7 @@ export class ReimbursementOpsComponent {
           })
         );
       }
-      this.approvals = this.approvals.filter((row) => row.id !== item.id);
-      if (!this.approvals.length) {
-        this.statusMessage = 'No reimbursement approvals to review.';
-      }
+      await this.loadApprovals();
     } catch {
       item.error = 'Unable to update reimbursement.';
     } finally {

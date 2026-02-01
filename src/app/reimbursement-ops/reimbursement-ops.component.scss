@@ -25,6 +25,23 @@
   gap: 16px;
 }
 
+.reimbursement-section {
+  display: grid;
+  gap: 12px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
 .reimbursement-card {
   background: #fff;
   border-radius: 20px;
@@ -32,35 +49,67 @@
   border: 1px solid rgba(148, 163, 184, 0.2);
   box-shadow: 0 18px 30px rgba(15, 23, 42, 0.06);
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
-.reimbursement-card__info {
+.reimbursement-card.done {
+  border-style: dashed;
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.reimbursement-card__top {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
 }
 
-.reimbursement-card__info strong {
+.reimbursement-card__top strong {
   display: block;
   font-size: 1rem;
+  margin-top: 6px;
 }
 
-.reimbursement-card__info span {
+.reimbursement-card__top .meta {
   color: var(--ink-500);
   font-size: 0.9rem;
 }
 
-.note {
-  margin: 0;
-  font-size: 0.9rem;
+.amount {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink-900);
+  background: rgba(15, 23, 42, 0.04);
+  padding: 8px 14px;
+  border-radius: 999px;
+}
+
+.note-card {
+  background: rgba(15, 23, 42, 0.03);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 6px;
   color: var(--ink-600);
+  font-size: 0.9rem;
+}
+
+.note-card span {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.note-card p {
+  margin: 0;
 }
 
 .reimbursement-card__actions {
   display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
   gap: 12px;
+  align-items: start;
 }
 
 .reimbursement-card__actions label {
@@ -81,6 +130,18 @@
 
 .reimbursement-card__actions textarea {
   resize: vertical;
+}
+
+.actions-row {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.actions-row .primary {
+  min-width: 160px;
 }
 
 .error {
@@ -104,7 +165,16 @@
     align-items: flex-start;
   }
 
-  .reimbursement-card__info {
+  .reimbursement-card__top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .reimbursement-card__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .actions-row {
     flex-direction: column;
     align-items: flex-start;
   }
