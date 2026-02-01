@@ -1,0 +1,64 @@
+<main class="reimbursement-ops">
+  <header class="reimbursement-ops__header">
+    <div>
+      <p class="eyebrow">Reimbursement</p>
+      <h1>COO approvals</h1>
+      <p class="subtitle">Close approved reimbursement claims.</p>
+    </div>
+    <div class="actions">
+      <a class="ghost button-link" routerLink="/">Back to home</a>
+    </div>
+  </header>
+
+  @if (!isAuthorized) {
+    <p class="empty">{{ statusMessage }}</p>
+  } @else {
+    @if (statusMessage) {
+      <p class="empty">{{ statusMessage }}</p>
+    } @else {
+      <div class="reimbursement-ops__list">
+        @for (item of approvals; track item.id) {
+          <article class="reimbursement-card">
+            <div class="reimbursement-card__info">
+              <div>
+                <strong>Reimbursement · {{ item.category }}</strong>
+                <span>{{ item.employee || 'Employee' }} · {{ item.amount }}</span>
+              </div>
+              <span class="pill">{{ item.status || 'Pending COO approval' }}</span>
+            </div>
+            @if (item.notes) {
+              <p class="note">Request note: {{ item.notes }}</p>
+            }
+            <div class="reimbursement-card__actions">
+              <label>
+                Status
+                <select [(ngModel)]="item.statusChoice">
+                  <option value="Reimbursement complete">Reimbursement complete</option>
+                </select>
+              </label>
+              <label>
+                Note
+                <textarea
+                  rows="2"
+                  placeholder="Add completion note"
+                  [(ngModel)]="item.note"
+                ></textarea>
+              </label>
+              @if (item.error) {
+                <p class="error">{{ item.error }}</p>
+              }
+              <button
+                class="primary"
+                type="button"
+                (click)="submitDecision(item)"
+                [disabled]="item.saving"
+              >
+                {{ item.saving ? 'Saving…' : 'Update' }}
+              </button>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  }
+</main>

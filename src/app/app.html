@@ -9,6 +9,9 @@
         <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
           >People</a
         >
+        @if (isReimbursementOps) {
+          <a routerLink="/reimbursement-ops" routerLinkActive="active">Reimbursement</a>
+        }
         @if (isAdmin) {
           <a routerLink="/admin" routerLinkActive="active">Admin</a>
           <a routerLink="/settings" routerLinkActive="active">Settings</a>

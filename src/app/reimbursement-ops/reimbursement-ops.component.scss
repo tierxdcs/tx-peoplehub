@@ -1,0 +1,111 @@
+.reimbursement-ops {
+  display: grid;
+  gap: 24px;
+}
+
+.reimbursement-ops__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 28px;
+  border-radius: 28px;
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.08);
+}
+
+.reimbursement-ops__header h1 {
+  margin: 6px 0 8px;
+  font-size: clamp(1.8rem, 1.4rem + 1vw, 2.4rem);
+}
+
+.reimbursement-ops__list {
+  display: grid;
+  gap: 16px;
+}
+
+.reimbursement-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 18px 20px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 18px 30px rgba(15, 23, 42, 0.06);
+  display: grid;
+  gap: 12px;
+}
+
+.reimbursement-card__info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.reimbursement-card__info strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.reimbursement-card__info span {
+  color: var(--ink-500);
+  font-size: 0.9rem;
+}
+
+.note {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ink-600);
+}
+
+.reimbursement-card__actions {
+  display: grid;
+  gap: 12px;
+}
+
+.reimbursement-card__actions label {
+  display: grid;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--ink-600);
+}
+
+.reimbursement-card__actions select,
+.reimbursement-card__actions textarea {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 10px 12px;
+  font: inherit;
+  background: #fff;
+}
+
+.reimbursement-card__actions textarea {
+  resize: vertical;
+}
+
+.error {
+  margin: 0;
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+}
+
+.empty {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 0.95rem;
+}
+
+@media (max-width: 900px) {
+  .reimbursement-ops__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .reimbursement-card__info {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

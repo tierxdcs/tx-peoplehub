@@ -66,6 +66,30 @@ const adminGuard: CanActivateFn = () => {
   }
 };
 
+const reimbursementOpsGuard: CanActivateFn = () => {
+  const router = inject(Router);
+  const raw = localStorage.getItem('tx-peoplehub-session');
+  if (!raw) {
+    return router.parseUrl('/login');
+  }
+  try {
+    const parsed = JSON.parse(raw) as { name?: string; email?: string };
+    const name = parsed.name?.trim().toLowerCase() || '';
+    const email = parsed.email?.trim().toLowerCase() || '';
+    if (
+      name === 'ravi kulal' ||
+      name === 'jeevan s' ||
+      email === 'ravikulal.h@tierxdcs.com' ||
+      email === 'jeevan.s@tierxdcs.com'
+    ) {
+      return true;
+    }
+  } catch {
+    return router.parseUrl('/');
+  }
+  return router.parseUrl('/');
+};
+
 export const routes: Routes = [
   { path: '', component: HomeComponent, canActivate: [authGuard] },
   {
@@ -92,6 +116,14 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./reimbursement/reimbursement.component').then((m) => m.ReimbursementComponent),
     canActivate: [authGuard]
+  },
+  {
+    path: 'reimbursement-ops',
+    loadComponent: () =>
+      import('./reimbursement-ops/reimbursement-ops.component').then(
+        (m) => m.ReimbursementOpsComponent
+      ),
+    canActivate: [authGuard, reimbursementOpsGuard]
   },
   {
     path: 'reimbursement/new',

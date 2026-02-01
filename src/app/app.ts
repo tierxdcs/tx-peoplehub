@@ -45,6 +45,7 @@ export class App implements OnDestroy {
     jobTitle: ''
   };
   isAdmin = false;
+  isReimbursementOps = false;
   lastRoute = '';
 
   constructor(
@@ -60,6 +61,7 @@ export class App implements OnDestroy {
       this.isLoading = state;
     });
     this.isAdmin = false;
+    this.isReimbursementOps = false;
     await this.refreshSessionFromDb();
     void this.loadNotifications();
     this.router.events.subscribe((event) => {
@@ -69,8 +71,9 @@ export class App implements OnDestroy {
         sessionStorage.setItem('tx-peoplehub-last-route', this.lastRoute);
         this.showChrome = !event.urlAfterRedirects.startsWith('/login');
         this.loadSession();
-        this.isAdmin = false;
-        void this.refreshSessionFromDb().then(() => this.loadNotifications());
+      this.isAdmin = false;
+      this.isReimbursementOps = false;
+      void this.refreshSessionFromDb().then(() => this.loadNotifications());
       }
     });
   }
@@ -272,6 +275,7 @@ export class App implements OnDestroy {
         jobTitle: parsed.jobTitle?.trim() || this.session.jobTitle
       };
       this.isAdmin = false;
+      this.isReimbursementOps = false;
     } catch {
       // Keep defaults if session data is malformed.
     }
@@ -330,6 +334,7 @@ export class App implements OnDestroy {
       };
       const role = this.session.role.trim().toLowerCase();
       this.isAdmin = role === 'admin' || role === 'superadmin';
+      this.isReimbursementOps = this.isReimbursementOpsUser(this.session.name, this.session.email);
       const raw = localStorage.getItem('tx-peoplehub-session');
       if (raw) {
         try {
@@ -352,8 +357,20 @@ export class App implements OnDestroy {
       }
     } catch {
       this.isAdmin = false;
+      this.isReimbursementOps = false;
       return;
     }
+  }
+
+  private isReimbursementOpsUser(name?: string, email?: string) {
+    const normalizedName = name?.trim().toLowerCase() || '';
+    const normalizedEmail = email?.trim().toLowerCase() || '';
+    return (
+      normalizedName === 'ravi kulal' ||
+      normalizedName === 'jeevan s' ||
+      normalizedEmail === 'ravikulal.h@tierxdcs.com' ||
+      normalizedEmail === 'jeevan.s@tierxdcs.com'
+    );
   }
 
   ngOnDestroy() {
