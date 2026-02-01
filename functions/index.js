@@ -391,7 +391,6 @@ app.get('/api/home-dashboard', async (req, res) => {
     const user = userResult.rows[0];
     const isDirector = user?.director === 'Yes';
     const isCoo = String(user?.full_name ?? '').trim().toLowerCase() === 'ravi kulal';
-    const isCoo = String(user?.full_name ?? '').trim().toLowerCase() === 'ravi kulal';
     const profileResult = emailKey !== 'all'
       ? await pool.query(
           `SELECT full_name, employee_id, email, location, department, job_title, status,
