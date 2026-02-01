@@ -22,7 +22,7 @@ export class HomeComponent {
   spotlightProgress = 0;
   spotlightPercent: number | null = null;
   spotlightPhoto = 'assets/people/default-avatar.svg';
-  todayTasks: { title: string }[] = [];
+  todayTasks: { title: string; createdAt?: string }[] = [];
   pendingApprovalsCount = 0;
   complianceCoverage = 0;
   trainingsCompleted = 0;
@@ -200,7 +200,7 @@ export class HomeComponent {
   private applyDashboardPayload(payload: {
     activeUserCount: number;
     profile: EmployeeProfile | null;
-    tasks: { title: string }[];
+    tasks: { title: string; createdAt?: string }[];
     pendingLeaves: LeaveRecord[];
     ideas: IdeaRecord[];
     reimbursements: { pending: number };
@@ -213,7 +213,13 @@ export class HomeComponent {
       this.managerName = this.currentProfile.manager;
     }
     this.spotlightPhoto = this.currentProfile?.photoUrl || 'assets/people/default-avatar.svg';
-    this.todayTasks = payload.tasks.slice(0, 3).map((task) => ({ title: task.title }));
+    const sortedTasks = [...payload.tasks].sort(
+      (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+    );
+    this.todayTasks = sortedTasks.slice(0, 3).map((task) => ({
+      title: task.title,
+      createdAt: task.createdAt
+    }));
     this.pendingApprovalsCount = payload.approvalsPending ?? this.todayTasks.length;
     this.pendingRequests = payload.pendingLeaves.map((leave) => ({
       id: leave.id,

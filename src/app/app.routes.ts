@@ -54,8 +54,10 @@ const adminGuard: CanActivateFn = () => {
     return firstValueFrom(api.getUsers({ search: email, limit: 5 }))
       .then((users) => {
         const match = users.find((user) => user.email?.trim().toLowerCase() === email);
-        const role = match?.role?.trim().toLowerCase();
-        if (role === 'admin' || role === 'superadmin') {
+        const name = match?.fullName?.trim().toLowerCase() || '';
+        const allowed =
+          email === 'nithin.gangadhar@tierxdcs.com' || name === 'nithin gangadhar';
+        if (allowed) {
           return true;
         }
         return router.parseUrl('/');

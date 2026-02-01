@@ -105,12 +105,10 @@
                     <p>{{ item.notes }}</p>
                   </div>
                 }
-                @if (item.completionNote) {
-                  <div class="note-card completion">
-                    <span>Completion note</span>
-                    <p>{{ item.completionNote }}</p>
-                  </div>
-                }
+                <div class="note-card completion">
+                  <span>Completion note</span>
+                  <p>{{ item.completionNote || 'No completion note provided.' }}</p>
+                </div>
               </button>
             }
           </div>

@@ -433,13 +433,13 @@ app.get('/api/home-dashboard', async (req, res) => {
       pool.query('SELECT COUNT(*) AS count FROM tx_users WHERE status = $1', ['Active']),
       emailKey !== 'all'
         ? pool.query(
-            `SELECT title FROM tx_tasks
+            `SELECT title, created_at FROM tx_tasks
              WHERE owner_email = $1 OR owner = $2
              ORDER BY created_at DESC
-             LIMIT 3`,
+             LIMIT 8`,
             [emailKey, displayName]
           )
-        : pool.query('SELECT title FROM tx_tasks ORDER BY created_at DESC LIMIT 3'),
+        : pool.query('SELECT title, created_at FROM tx_tasks ORDER BY created_at DESC LIMIT 8'),
       !light
         ? emailKey !== 'all'
           ? pool.query(
@@ -496,32 +496,32 @@ app.get('/api/home-dashboard', async (req, res) => {
       ,
       !light && displayName
         ? pool.query(
-            `SELECT l.id, l.type, l.range
+            `SELECT l.id, l.type, l.range, l.created_at
              FROM tx_leave_requests l
              LEFT JOIN tx_employee_profiles p ON LOWER(p.email) = LOWER(l.employee_email)
              WHERE LOWER(p.manager) = $1
                AND LOWER(l.status) LIKE 'pending%'
              ORDER BY l.created_at DESC
-             LIMIT 3`,
+             LIMIT 6`,
             [displayName.toLowerCase()]
           )
         : Promise.resolve({ rows: [] }),
       !light && isCoo
         ? pool.query(
-            `SELECT id, category, amount
+            `SELECT id, category, amount, created_at
              FROM tx_reimbursements
              WHERE LOWER(status) LIKE 'pending%'
              ORDER BY created_at DESC
-             LIMIT 3`
+             LIMIT 6`
           )
         : Promise.resolve({ rows: [] }),
       !light && isDirector
         ? pool.query(
-            `SELECT id, title, headcount
+            `SELECT id, title, headcount, submitted_at
              FROM tx_requisitions
              WHERE LOWER(approval) LIKE 'pending%'
              ORDER BY submitted_at DESC
-             LIMIT 3`
+             LIMIT 6`
           )
         : Promise.resolve({ rows: [] }),
       emailKey !== 'all'
@@ -571,24 +571,31 @@ app.get('/api/home-dashboard', async (req, res) => {
     const approvals = !light
       ? [
           ...(approvalsLeavesResult.rows ?? []).map((row) => ({
-            title: `Leave request · ${row.type ?? 'Leave'}`
+            title: `Leave request · ${row.type ?? 'Leave'}`,
+            created_at: row.created_at
           })),
           ...(isCoo
             ? (approvalsReimbursementsResult.rows ?? []).map((row) => ({
-                title: `Reimbursement · ${row.category ?? 'Expense'}`
+                title: `Reimbursement · ${row.category ?? 'Expense'}`,
+                created_at: row.created_at
               }))
             : []),
           ...(isDirector
             ? (approvalsRequisitionsResult.rows ?? []).map((row) => ({
-                title: `Resource requisition · ${row.title ?? 'Request'}`
+                title: `Resource requisition · ${row.title ?? 'Request'}`,
+                created_at: row.submitted_at
               }))
             : [])
         ]
       : [];
-    const dashboardTasks = [
+    const mergedTasks = [
       ...(tasksResult.rows ?? []),
       ...approvals
-    ].slice(0, 3);
+    ];
+    mergedTasks.sort(
+      (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
+    );
+    const dashboardTasks = mergedTasks.slice(0, 3);
     const pendingApprovals =
       Number(tasksCountResult.rows[0]?.count ?? 0) +
       Number(approvalsLeavesCountResult.rows[0]?.count ?? 0) +
