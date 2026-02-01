@@ -332,8 +332,10 @@ export class App implements OnDestroy {
         department: match.department || this.session.department,
         jobTitle: profile?.jobTitle || this.session.jobTitle
       };
-      const role = this.session.role.trim().toLowerCase();
-      this.isAdmin = role === 'admin' || role === 'superadmin';
+      const isNamedAdmin =
+        this.session.email?.trim().toLowerCase() === 'nithin.gangadhar@tierxdcs.com' ||
+        this.session.name?.trim().toLowerCase() === 'nithin gangadhar';
+      this.isAdmin = isNamedAdmin;
       this.isReimbursementOps = this.isReimbursementOpsUser(this.session.name, this.session.email);
       const raw = localStorage.getItem('tx-peoplehub-session');
       if (raw) {

@@ -134,7 +134,7 @@ export type TrainingResponse = {
 export type HomeDashboard = {
   activeUserCount: number;
   profile: EmployeeProfile | null;
-  tasks: { title: string }[];
+  tasks: { title: string; createdAt?: string }[];
   pendingLeaves: LeaveRecord[];
   ideas: IdeaRecord[];
   reimbursements: { pending: number };
@@ -410,7 +410,12 @@ export class ApiService {
           map((payload) => ({
             activeUserCount: Number(payload.activeUserCount ?? 0),
             profile: payload.profile ? this.mapProfile(payload.profile) : null,
-            tasks: Array.isArray(payload.tasks) ? payload.tasks : [],
+            tasks: Array.isArray(payload.tasks)
+              ? payload.tasks.map((task: any) => ({
+                  title: task.title ?? '',
+                  createdAt: task.created_at ?? task.createdAt ?? ''
+                }))
+              : [],
             pendingLeaves: Array.isArray(payload.pendingLeaves)
               ? payload.pendingLeaves.map((row) => this.mapLeave(row))
               : [],
@@ -435,7 +440,12 @@ export class ApiService {
           map((payload) => ({
             activeUserCount: Number(payload.activeUserCount ?? 0),
             profile: payload.profile ? this.mapProfile(payload.profile) : null,
-            tasks: Array.isArray(payload.tasks) ? payload.tasks : [],
+            tasks: Array.isArray(payload.tasks)
+              ? payload.tasks.map((task: any) => ({
+                  title: task.title ?? '',
+                  createdAt: task.created_at ?? task.createdAt ?? ''
+                }))
+              : [],
             pendingLeaves: Array.isArray(payload.pendingLeaves)
               ? payload.pendingLeaves.map((row) => this.mapLeave(row))
               : [],
