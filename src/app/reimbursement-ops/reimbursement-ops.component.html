@@ -16,49 +16,96 @@
     @if (statusMessage) {
       <p class="empty">{{ statusMessage }}</p>
     } @else {
-      <div class="reimbursement-ops__list">
-        @for (item of approvals; track item.id) {
-          <article class="reimbursement-card">
-            <div class="reimbursement-card__info">
-              <div>
-                <strong>Reimbursement · {{ item.category }}</strong>
-                <span>{{ item.employee || 'Employee' }} · {{ item.amount }}</span>
-              </div>
-              <span class="pill">{{ item.status || 'Pending COO approval' }}</span>
-            </div>
-            @if (item.notes) {
-              <p class="note">Request note: {{ item.notes }}</p>
+      <section class="reimbursement-section">
+        <div class="section-header">
+          <h2>Approved reimbursements</h2>
+          <span class="pill">{{ approvals.length }}</span>
+        </div>
+        @if (approvals.length) {
+          <div class="reimbursement-ops__list">
+            @for (item of approvals; track item.id) {
+              <article class="reimbursement-card">
+                <div class="reimbursement-card__top">
+                  <div>
+                    <span class="pill soft">Approved</span>
+                    <strong>Reimbursement · {{ item.category }}</strong>
+                    <span class="meta">{{ item.employee || 'Employee' }}</span>
+                  </div>
+                  <div class="amount">₹{{ item.amount }}</div>
+                </div>
+                @if (item.notes) {
+                  <div class="note-card">
+                    <span>Request note</span>
+                    <p>{{ item.notes }}</p>
+                  </div>
+                }
+                <div class="reimbursement-card__actions">
+                  <label>
+                    Status
+                    <select [(ngModel)]="item.statusChoice">
+                      <option value="Reimbursement complete">Reimbursement complete</option>
+                    </select>
+                  </label>
+                  <label>
+                    Completion note
+                    <textarea
+                      rows="2"
+                      placeholder="Add completion note"
+                      [(ngModel)]="item.note"
+                    ></textarea>
+                  </label>
+                  <div class="actions-row">
+                    @if (item.error) {
+                      <p class="error">{{ item.error }}</p>
+                    }
+                    <button
+                      class="primary"
+                      type="button"
+                      (click)="submitDecision(item)"
+                      [disabled]="item.saving"
+                    >
+                      {{ item.saving ? 'Saving…' : 'Mark complete' }}
+                    </button>
+                  </div>
+                </div>
+              </article>
             }
-            <div class="reimbursement-card__actions">
-              <label>
-                Status
-                <select [(ngModel)]="item.statusChoice">
-                  <option value="Reimbursement complete">Reimbursement complete</option>
-                </select>
-              </label>
-              <label>
-                Note
-                <textarea
-                  rows="2"
-                  placeholder="Add completion note"
-                  [(ngModel)]="item.note"
-                ></textarea>
-              </label>
-              @if (item.error) {
-                <p class="error">{{ item.error }}</p>
-              }
-              <button
-                class="primary"
-                type="button"
-                (click)="submitDecision(item)"
-                [disabled]="item.saving"
-              >
-                {{ item.saving ? 'Saving…' : 'Update' }}
-              </button>
-            </div>
-          </article>
+          </div>
+        } @else {
+          <p class="empty">No approved reimbursements awaiting completion.</p>
         }
-      </div>
+      </section>
+
+      <section class="reimbursement-section">
+        <div class="section-header">
+          <h2>Reimbursement updates</h2>
+          <span class="pill soft">{{ completed.length }}</span>
+        </div>
+        @if (completed.length) {
+          <div class="reimbursement-ops__list">
+            @for (item of completed; track item.id) {
+              <article class="reimbursement-card done">
+                <div class="reimbursement-card__top">
+                  <div>
+                    <span class="pill">Reimbursement complete</span>
+                    <strong>Reimbursement · {{ item.category }}</strong>
+                    <span class="meta">{{ item.employee || 'Employee' }}</span>
+                  </div>
+                  <div class="amount">₹{{ item.amount }}</div>
+                </div>
+                @if (item.notes) {
+                  <div class="note-card">
+                    <span>Request note</span>
+                    <p>{{ item.notes }}</p>
+                  </div>
+                }
+              </article>
+            }
+          </div>
+        } @else {
+          <p class="empty">No reimbursement updates logged yet.</p>
+        }
+      </section>
     }
   }
 </main>
