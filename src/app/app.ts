@@ -37,11 +37,11 @@ export class App implements OnDestroy {
   passwordMessage = '';
   private readonly destroy$ = new Subject<void>();
   session = {
-    name: 'Alex Taylor',
-    role: 'HR Operations',
-    email: 'hr@tierx.com',
+    name: '',
+    role: '',
+    email: '',
     director: 'No',
-    department: 'Operations',
+    department: '',
     jobTitle: ''
   };
   isAdmin = false;
@@ -69,11 +69,12 @@ export class App implements OnDestroy {
         sessionStorage.setItem('tx-peoplehub-prev-route', this.lastRoute);
         this.lastRoute = event.urlAfterRedirects;
         sessionStorage.setItem('tx-peoplehub-last-route', this.lastRoute);
-        this.showChrome = !event.urlAfterRedirects.startsWith('/login');
+        this.showChrome =
+          !!this.session.email && !event.urlAfterRedirects.startsWith('/login');
         this.loadSession();
-      this.isAdmin = false;
-      this.isReimbursementOps = false;
-      void this.refreshSessionFromDb().then(() => this.loadNotifications());
+        this.isAdmin = false;
+        this.isReimbursementOps = false;
+        void this.refreshSessionFromDb().then(() => this.loadNotifications());
       }
     });
   }
@@ -254,7 +255,17 @@ export class App implements OnDestroy {
   loadSession() {
     const raw = localStorage.getItem('tx-peoplehub-session');
     if (!raw) {
+      this.session = {
+        name: '',
+        role: '',
+        email: '',
+        director: 'No',
+        department: '',
+        jobTitle: ''
+      };
       this.isAdmin = false;
+      this.isReimbursementOps = false;
+      this.showChrome = false;
       return;
     }
     try {
@@ -276,8 +287,10 @@ export class App implements OnDestroy {
       };
       this.isAdmin = false;
       this.isReimbursementOps = false;
+      this.showChrome = !!this.session.email && !this.lastRoute.startsWith('/login');
     } catch {
       // Keep defaults if session data is malformed.
+      this.showChrome = false;
     }
   }
 
@@ -312,6 +325,7 @@ export class App implements OnDestroy {
     const email = this.session.email?.trim().toLowerCase();
     if (!email) {
       this.isAdmin = false;
+      this.isReimbursementOps = false;
       return;
     }
     try {
