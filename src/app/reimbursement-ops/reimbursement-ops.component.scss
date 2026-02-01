@@ -103,6 +103,11 @@
   font-size: 0.9rem;
 }
 
+.note-card.completion {
+  border: 1px dashed rgba(56, 189, 248, 0.6);
+  background: rgba(14, 116, 144, 0.06);
+}
+
 .note-card span {
   font-size: 0.75rem;
   letter-spacing: 0.08em;
