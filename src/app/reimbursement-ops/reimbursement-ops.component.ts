@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -7,6 +8,8 @@ import { ApiService, ReimbursementRecord } from '../services/api.service';
 type ReimbursementRow = ReimbursementRecord & {
   statusChoice: string;
   note: string;
+  completionNote?: string;
+  decidedAt?: string;
   saving?: boolean;
   error?: string;
 };
@@ -14,13 +17,14 @@ type ReimbursementRow = ReimbursementRecord & {
 @Component({
   selector: 'app-reimbursement-ops',
   standalone: true,
-  imports: [RouterLink, FormsModule],
+  imports: [RouterLink, FormsModule, DatePipe],
   templateUrl: './reimbursement-ops.component.html',
   styleUrl: './reimbursement-ops.component.scss'
 })
 export class ReimbursementOpsComponent {
   approvals: ReimbursementRow[] = [];
   completed: ReimbursementRow[] = [];
+  selectedCompleted: ReimbursementRow | null = null;
   isAuthorized = false;
   statusMessage = '';
 
@@ -57,8 +61,14 @@ export class ReimbursementOpsComponent {
 
   async loadApprovals() {
     try {
-      const reimbursements = await firstValueFrom(
-        this.api.getReimbursements({ scope: 'all' })
+      const [reimbursements, completedApprovals] = await Promise.all([
+        firstValueFrom(this.api.getReimbursements({ scope: 'all' })),
+        firstValueFrom(this.api.getCompletedApprovals({ limit: 200 }))
+      ]);
+      const completionMap = new Map(
+        completedApprovals
+          .filter((entry) => entry.source === 'reimbursement')
+          .map((entry) => [entry.sourceId, entry])
       );
       const approved = reimbursements.filter((item) =>
         String(item.status ?? '').toLowerCase().includes('approved')
@@ -71,11 +81,16 @@ export class ReimbursementOpsComponent {
         statusChoice: 'Reimbursement complete',
         note: ''
       }));
-      this.completed = completed.map((item) => ({
-        ...item,
-        statusChoice: 'Reimbursement complete',
-        note: ''
-      }));
+      this.completed = completed.map((item) => {
+        const completion = completionMap.get(item.id);
+        return {
+          ...item,
+          statusChoice: 'Reimbursement complete',
+          note: '',
+          completionNote: completion?.note ?? '',
+          decidedAt: completion?.decidedAt ?? ''
+        };
+      });
       if (!this.approvals.length && !this.completed.length) {
         this.statusMessage = 'No reimbursement records available.';
       } else {
@@ -120,5 +135,13 @@ export class ReimbursementOpsComponent {
     } finally {
       item.saving = false;
     }
+  }
+
+  openCompleted(item: ReimbursementRow) {
+    this.selectedCompleted = item;
+  }
+
+  closeCompleted() {
+    this.selectedCompleted = null;
   }
 }

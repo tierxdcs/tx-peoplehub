@@ -84,7 +84,7 @@
         @if (completed.length) {
           <div class="reimbursement-ops__list">
             @for (item of completed; track item.id) {
-              <article class="reimbursement-card done">
+              <button class="reimbursement-card done" type="button" (click)="openCompleted(item)">
                 <div class="reimbursement-card__top">
                   <div>
                     <span class="pill">Reimbursement complete</span>
@@ -99,7 +99,7 @@
                     <p>{{ item.notes }}</p>
                   </div>
                 }
-              </article>
+              </button>
             }
           </div>
         } @else {
@@ -109,3 +109,46 @@
     }
   }
 </main>
+
+@if (selectedCompleted) {
+  <div class="modal-backdrop" (click)="closeCompleted()"></div>
+  <div class="modal" role="dialog" aria-modal="true">
+    <header>
+      <div>
+        <p class="eyebrow">Reimbursement update</p>
+        <h3>Reimbursement · {{ selectedCompleted.category }}</h3>
+        <p class="subtitle">
+          {{ selectedCompleted.employee || 'Employee' }} · ₹{{ selectedCompleted.amount }}
+        </p>
+      </div>
+      <button class="ghost" type="button" (click)="closeCompleted()">Close</button>
+    </header>
+    <div class="modal-body">
+      <div class="detail-row">
+        <span>Status</span>
+        <strong>{{ selectedCompleted.status }}</strong>
+      </div>
+      @if (selectedCompleted.notes) {
+        <div class="detail-row">
+          <span>Request note</span>
+          <strong>{{ selectedCompleted.notes }}</strong>
+        </div>
+      }
+      @if (selectedCompleted.completionNote) {
+        <div class="detail-row">
+          <span>Completion note</span>
+          <strong>{{ selectedCompleted.completionNote }}</strong>
+        </div>
+      }
+      @if (selectedCompleted.decidedAt) {
+        <div class="detail-row">
+          <span>Completed on</span>
+          <strong>{{ selectedCompleted.decidedAt | date : 'mediumDate' }}</strong>
+        </div>
+      }
+    </div>
+    <div class="modal-actions">
+      <button class="primary" type="button" (click)="closeCompleted()">Done</button>
+    </div>
+  </div>
+}
