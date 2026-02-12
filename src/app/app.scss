@@ -211,7 +211,7 @@ button:hover {
   position: absolute;
   top: 52px;
   right: 0;
-  width: 220px;
+  width: 240px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(148, 163, 184, 0.2);
@@ -240,7 +240,11 @@ button:hover {
 
 .account-actions .ghost {
   justify-content: flex-start;
-  padding: 8px 12px;
+  width: 100%;
+  padding: 10px 14px;
+  white-space: nowrap;
+  text-align: left;
+  line-height: 1.1;
 }
 
 .avatar {
