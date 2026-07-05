@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { EmployeeStatus, Role } from '@prisma/client';
+import { AccessStatus, EmployeeStatus, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../core/database/prisma.service';
 import { JwtAccessPayload } from './strategies/jwt.strategy';
@@ -25,7 +25,17 @@ export class AuthService {
       where: { email },
     });
 
-    if (!employee || employee.status !== EmployeeStatus.ACTIVE) {
+    // A single generic error covers wrong password, deactivated employment,
+    // and not-yet-activated access (PENDING_ACCESS has no passwordHash) —
+    // deliberately not distinguishing these to avoid leaking which case
+    // applies to a given email.
+    if (
+      !employee ||
+      employee.status !== EmployeeStatus.ACTIVE ||
+      employee.accessStatus !== AccessStatus.ACTIVE ||
+      !employee.passwordHash ||
+      !employee.role
+    ) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -56,7 +66,12 @@ export class AuthService {
     const employee = await this.prisma.employee.findUnique({
       where: { id: payload.sub },
     });
-    if (!employee || employee.status !== EmployeeStatus.ACTIVE) {
+    if (
+      !employee ||
+      employee.status !== EmployeeStatus.ACTIVE ||
+      employee.accessStatus !== AccessStatus.ACTIVE ||
+      !employee.role
+    ) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 

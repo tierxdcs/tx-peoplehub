@@ -19,12 +19,18 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
+import { OnboardEmployeeDto } from './dto/onboard-employee.dto';
+import { GrantAccessDto } from './dto/grant-access.dto';
+import { RosterQueryDto } from './dto/roster-query.dto';
 import { EmployeesService } from './employees.service';
 
 /**
  * Reference module controller for the access-control backbone. Guarded
  * globally by JwtAuthGuard; RolesGuard + @Roles(...) restricts management to
  * admins. Copy this shape for future ERP modules (Sales, HR, Production, ...).
+ *
+ * Route order matters: /onboard, /roster, /pending-access must be declared
+ * before @Get(':id')/@Patch(':id') so they aren't swallowed by the :id param.
  */
 @ApiTags('employees')
 @ApiBearerAuth()
@@ -32,6 +38,38 @@ import { EmployeesService } from './employees.service';
 @Controller('employees')
 export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
+
+  @Post('onboard')
+  @Roles(Role.MANAGER, Role.EMPLOYEE, Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'HR onboarding (step 1 of 2): create the personnel record. Role/login are not set yet.',
+  })
+  onboard(
+    @Body() dto: OnboardEmployeeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.employeesService.onboard(dto, user);
+  }
+
+  @Get('roster')
+  @Roles(Role.MANAGER, Role.EMPLOYEE, Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Company-wide employee roster, shaped by caller role',
+  })
+  getRoster(
+    @Query() query: RosterQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.employeesService.getRoster(query, user);
+  }
+
+  @Get('pending-access')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Employees awaiting an access grant' })
+  getPendingAccess(@Query() query: PaginationQueryDto) {
+    return this.employeesService.getPendingAccess(query);
+  }
 
   @Post()
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
@@ -67,6 +105,16 @@ export class EmployeesController {
     return this.employeesService.deactivate(id);
   }
 
+  @Patch(':id/grant-access')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Admin grant-access (step 2 of 2): assign role/vertical, set password, activate login',
+  })
+  grantAccess(@Param('id') id: string, @Body() dto: GrantAccessDto) {
+    return this.employeesService.grantAccess(id, dto);
+  }
+
   @Get(':id/team')
   @Roles(Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN)
   @ApiOperation({
@@ -74,5 +122,26 @@ export class EmployeesController {
   })
   getTeam(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.employeesService.getTeam(id, user);
+  }
+
+  @Get(':id/compensation')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'View salary/HRA (Admin only)' })
+  getCompensation(@Param('id') id: string) {
+    return this.employeesService.getCompensation(id);
+  }
+
+  @Get(':id/statutory')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'View PAN/PF/ESIC (Admin only, decrypted)' })
+  getStatutory(@Param('id') id: string) {
+    return this.employeesService.getStatutory(id);
+  }
+
+  @Get(':id/bank-details')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'View bank details (Admin only, decrypted)' })
+  getBankDetails(@Param('id') id: string) {
+    return this.employeesService.getBankDetails(id);
   }
 }

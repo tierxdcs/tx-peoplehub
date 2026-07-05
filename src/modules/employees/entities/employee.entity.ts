@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { EmployeeStatus, Role } from '@prisma/client';
+import { AccessStatus, EmployeeStatus, Role } from '@prisma/client';
 
 /**
  * Public shape of an employee returned by the API. Never includes
@@ -21,8 +21,8 @@ export class EmployeeEntity {
   @ApiProperty()
   email!: string;
 
-  @ApiProperty({ enum: Role })
-  role!: Role;
+  @ApiProperty({ enum: Role, nullable: true })
+  role!: Role | null;
 
   @ApiProperty({ nullable: true })
   verticalId!: string | null;
@@ -35,6 +35,12 @@ export class EmployeeEntity {
 
   @ApiProperty({ nullable: true })
   deactivatedAt!: Date | null;
+
+  @ApiProperty({ enum: AccessStatus })
+  accessStatus!: AccessStatus;
+
+  @ApiProperty({ nullable: true })
+  officialEmail!: string | null;
 
   @ApiProperty()
   createdAt!: Date;

@@ -4,7 +4,10 @@ import { Role } from '@prisma/client';
 export interface AuthenticatedUser {
   id: string;
   email: string;
-  role: Role;
+  // Always set for a valid token (login/refresh reject employees whose role
+  // hasn't been assigned yet), but typed nullable since Employee.role is
+  // nullable at the DB level during PENDING_ACCESS.
+  role: Role | null;
   verticalId: string | null;
 }
 

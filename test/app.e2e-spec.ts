@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { AuditLog, Prisma } from '@prisma/client';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
@@ -19,6 +20,29 @@ describe('App (e2e)', () => {
 
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@peoplehub.local';
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'ChangeMe123!';
+
+  /**
+   * AuditInterceptor writes are fire-and-forget (never block the response
+   * — see audit.interceptor.ts), so a query issued immediately after a
+   * request can race ahead of the write. Poll until `predicate` accepts a
+   * matching row rather than asserting on the first read.
+   */
+  async function waitForAuditLog(
+    where: Prisma.AuditLogWhereInput,
+    predicate: (row: AuditLog) => boolean = () => true,
+  ) {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const row = await prisma.auditLog.findFirst({
+        where,
+        orderBy: { createdAt: 'desc' },
+      });
+      if (row && predicate(row)) {
+        return row;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return null;
+  }
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -106,30 +130,36 @@ describe('App (e2e)', () => {
       .expect(201);
 
     const createdId = res.body.data.id;
-    expect(createdId).toBeDefined();
-    expect(res.body.data.employeeId).toMatch(/^EMP-\d{4,}$/);
+    try {
+      expect(createdId).toBeDefined();
+      expect(res.body.data.employeeId).toMatch(/^EMP-\d{4,}$/);
 
-    const createAudit = await prisma.auditLog.findFirst({
-      where: { entity: 'Employee', action: { contains: 'POST' } },
-      orderBy: { createdAt: 'desc' },
-    });
-    expect(createAudit).not.toBeNull();
+      const createAudit = await waitForAuditLog({
+        entity: 'Employee',
+        entityId: createdId,
+        action: { contains: 'POST' },
+      });
+      expect(createAudit).not.toBeNull();
 
-    await request(app.getHttpServer())
-      .patch(`/employees/${createdId}`)
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({ firstName: 'Updated' })
-      .expect(200);
+      await request(app.getHttpServer())
+        .patch(`/employees/${createdId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ firstName: 'Updated' })
+        .expect(200);
 
-    const updateAudit = await prisma.auditLog.findFirst({
-      where: { entity: 'Employee', action: { contains: 'PATCH' } },
-      orderBy: { createdAt: 'desc' },
-    });
-    expect(updateAudit).not.toBeNull();
-    expect((updateAudit?.before as any)?.firstName).toBe('E2E');
-    expect((updateAudit?.after as any)?.firstName).toBe('Updated');
-
-    // cleanup
-    await prisma.employee.delete({ where: { id: createdId } });
+      const updateAudit = await waitForAuditLog(
+        {
+          entity: 'Employee',
+          entityId: createdId,
+          action: { contains: 'PATCH' },
+        },
+        (row) => (row.after as any)?.firstName === 'Updated',
+      );
+      expect(updateAudit).not.toBeNull();
+      expect((updateAudit?.before as any)?.firstName).toBe('E2E');
+      expect((updateAudit?.after as any)?.firstName).toBe('Updated');
+    } finally {
+      await prisma.employee.delete({ where: { id: createdId } });
+    }
   });
 });

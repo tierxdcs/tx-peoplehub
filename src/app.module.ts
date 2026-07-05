@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import {
   APP_FILTER,
   APP_GUARD,
@@ -10,6 +11,7 @@ import configuration from './core/config/configuration';
 import { envValidationSchema } from './core/config/env.validation';
 import { PrismaModule } from './core/database/prisma.module';
 import { PrismaService } from './core/database/prisma.service';
+import { EncryptionModule } from './core/crypto/encryption.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -17,6 +19,9 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { VerticalsModule } from './modules/verticals/verticals.module';
+import { LeaveModule } from './modules/leave/leave.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
+import { PayrollModule } from './modules/payroll/payroll.module';
 import { HealthModule } from './modules/health/health.module';
 
 @Module({
@@ -26,10 +31,15 @@ import { HealthModule } from './modules/health/health.module';
       load: [configuration],
       validationSchema: envValidationSchema,
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
+    EncryptionModule,
     AuthModule,
     EmployeesModule,
     VerticalsModule,
+    LeaveModule,
+    AttendanceModule,
+    PayrollModule,
     HealthModule,
   ],
   providers: [

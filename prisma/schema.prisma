@@ -25,6 +25,55 @@ enum EmployeeStatus {
   INACTIVE
 }
 
+/// Login/system-access lifecycle, independent of the employment `status`
+/// soft-delete above. PENDING_ACCESS employees exist as HR records but
+/// cannot authenticate.
+enum AccessStatus {
+  PENDING_ACCESS
+  ACTIVE
+  INACTIVE
+}
+
+enum EmploymentType {
+  FULL_TIME_PERMANENT
+  CONTRACT
+  INTERN
+  PART_TIME
+}
+
+enum LeaveAccrualType {
+  FIXED_ANNUAL
+  MONTHLY_ACCRUAL
+  UNTRACKED
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum StatutoryConfigType {
+  PF
+  ESI
+  PROFESSIONAL_TAX
+  TDS_SLAB
+  STANDARD_DEDUCTION
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  PROCESSING
+  COMPLETED
+  LOCKED
+}
+
+enum PayslipStatus {
+  GENERATED
+  PAID
+}
+
 /// Business vertical (Sales, HR, Production, ...). A table, not an enum, so
 /// new verticals can be added by the business without a code deploy.
 model Vertical {
@@ -42,29 +91,299 @@ model Vertical {
 /// Internal employee. Authenticates via email + bcrypt password hash.
 /// verticalId/reportingManagerId are required for every role except
 /// SUPER_ADMIN — enforced in the service layer, not expressible as a plain
-/// NOT NULL constraint here.
+/// NOT NULL constraint here. role/passwordHash are nullable to support
+/// two-step HR onboarding: HR creates the personnel record first
+/// (accessStatus = PENDING_ACCESS, no role/login yet); Admin grants system
+/// access afterward (assigns role, sets password, activates login).
 model Employee {
   id                 String         @id @default(uuid())
   employeeId         String         @unique
   firstName          String
   lastName           String
   email              String         @unique
-  passwordHash       String
+  passwordHash       String?
   verticalId         String?
   vertical           Vertical?      @relation(fields: [verticalId], references: [id], onDelete: Restrict)
-  role               Role
+  role               Role?
   reportingManagerId String?
   reportingManager   Employee?      @relation("ReportingChain", fields: [reportingManagerId], references: [id], onDelete: SetNull)
   reports            Employee[]     @relation("ReportingChain")
   status             EmployeeStatus @default(ACTIVE)
   deactivatedAt      DateTime?
-  auditLogs          AuditLog[]     @relation("AuditActor")
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  accessStatus       AccessStatus   @default(PENDING_ACCESS)
+
+  // HR onboarding fields — populated by POST /employees/onboard.
+  dateOfBirth              DateTime?
+  gender                   String?
+  personalEmail            String?
+  mobile                   String?
+  designation              String?
+  employmentType           EmploymentType?
+  dateOfJoining            DateTime?
+  workLocation             String?
+  officialEmail            String?         @unique
+  emergencyContactName     String?
+  emergencyContactRelation String?
+  emergencyContactPhone    String?
+
+  statutoryInfo EmployeeStatutoryInfo?
+  bankDetails   EmployeeBankDetails?
+
+  salaryStructures        SalaryStructure[] @relation("SalaryStructureOwner")
+  salaryStructuresEntered SalaryStructure[] @relation("SalaryStructureEnteredBy")
+  payrollRunsInitiated    PayrollRun[]
+  payslips                Payslip[]
+
+  leaveBalances          LeaveBalance[]
+  leaveRequestsSubmitted LeaveRequest[] @relation("LeaveRequester")
+  leaveRequestsApproved  LeaveRequest[] @relation("LeaveApprover")
+  attendanceRecords      Attendance[]
+
+  auditLogs AuditLog[] @relation("AuditActor")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
   @@index([verticalId])
   @@index([reportingManagerId])
+  @@index([accessStatus])
   @@map("employees")
+}
+
+/// Effective-dated salary breakdown — replaces the old single-row
+/// EmployeeCompensation. Multiple rows per employee over time; the
+/// "current" structure is whichever row has the latest effectiveFrom <=
+/// today (see SalaryStructuresService.getCurrent). History is append-only
+/// — a change creates a new row rather than editing a prior one, so past
+/// payroll runs remain reproducible. Decimal, never Float — these are
+/// monetary amounts. Restricted to ADMIN/SUPER_ADMIN reads regardless of
+/// who entered them (same access rule as the table it replaces).
+model SalaryStructure {
+  id               String    @id @default(uuid())
+  employeeId       String
+  employee         Employee  @relation("SalaryStructureOwner", fields: [employeeId], references: [id], onDelete: Cascade)
+  effectiveFrom    DateTime
+  basic            Decimal   @db.Decimal(14, 2)
+  hra              Decimal   @db.Decimal(14, 2)
+  specialAllowance Decimal   @default(0) @db.Decimal(14, 2)
+  otherAllowances  Decimal?  @db.Decimal(14, 2)
+  ctcAnnual        Decimal   @db.Decimal(14, 2)
+  createdById      String?
+  createdBy        Employee? @relation("SalaryStructureEnteredBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([employeeId, effectiveFrom])
+  @@map("salary_structures")
+}
+
+/// Government IDs. panNumber/pfAccountNumber/esicNumber are stored as
+/// application-layer ciphertext (AES-256-GCM, see core/crypto) — never
+/// plaintext. aadhaarLast4 stores only the last 4 digits, never the full
+/// number, so it isn't sensitive enough to need encryption.
+model EmployeeStatutoryInfo {
+  id              String   @id @default(uuid())
+  employeeId      String   @unique
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  panNumber       String
+  aadhaarLast4    String
+  pfAccountNumber String
+  esicNumber      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("employee_statutory_info")
+}
+
+/// bankAccountNumber is stored as application-layer ciphertext (see
+/// core/crypto) — never plaintext.
+model EmployeeBankDetails {
+  id                String   @id @default(uuid())
+  employeeId        String   @unique
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  bankAccountNumber String
+  ifscCode          String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("employee_bank_details")
+}
+
+/// Leave type (Casual, Sick, Earned, Unpaid, ...). A table, not an enum, so
+/// new leave types can be added by the business without a code deploy —
+/// same philosophy as Vertical.
+model LeaveType {
+  id              String           @id @default(uuid())
+  code            String           @unique
+  name            String
+  accrualType     LeaveAccrualType
+  annualQuota     Decimal?         @db.Decimal(5, 1)
+  carryForwardCap Decimal?         @db.Decimal(5, 1)
+  isActive        Boolean          @default(true)
+  balances        LeaveBalance[]
+  requests        LeaveRequest[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@map("leave_types")
+}
+
+/// Per-employee, per-year balance for a tracked leave type. `remaining` is
+/// deliberately not stored (= allocated + carriedForward - used, computed
+/// in the entity layer) to avoid drift — same rationale as other computed
+/// fields in this schema.
+model LeaveBalance {
+  id               String    @id @default(uuid())
+  employeeId       String
+  employee         Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId      String
+  leaveType        LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  year             Int
+  allocated        Decimal   @default(0) @db.Decimal(5, 1)
+  used             Decimal   @default(0) @db.Decimal(5, 1)
+  carriedForward   Decimal   @default(0) @db.Decimal(5, 1)
+  /// "YYYY-MM" of the last month this balance was credited by the EL
+  /// accrual job — idempotency guard against double-crediting on rerun.
+  lastAccrualMonth String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([employeeId, leaveTypeId, year])
+  @@map("leave_balances")
+}
+
+/// A single leave request, routed for approval through the requester's
+/// existing reportingManagerId hierarchy (no separate approver-assignment
+/// model needed).
+model LeaveRequest {
+  id               String             @id @default(uuid())
+  employeeId       String
+  employee         Employee           @relation("LeaveRequester", fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId      String
+  leaveType        LeaveType          @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  startDate        DateTime
+  endDate          DateTime
+  numberOfDays     Decimal            @db.Decimal(4, 1)
+  reason           String
+  status           LeaveRequestStatus @default(PENDING)
+  approverId       String?
+  approver         Employee?          @relation("LeaveApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  approvedAt       DateTime?
+  approverComments String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@map("leave_requests")
+}
+
+/// Daily attendance record. `status` (PRESENT/ABSENT/ON_LEAVE/HALF_DAY) is
+/// deliberately not a column — it's derived on read from
+/// checkInTime/checkOutTime plus approved-leave lookups, so there is one
+/// source of truth for how status is computed (Admin corrections set times
+/// directly, never status).
+model Attendance {
+  id           String    @id @default(uuid())
+  employeeId   String
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date         DateTime
+  checkInTime  DateTime?
+  checkOutTime DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([employeeId, date])
+  @@map("attendance")
+}
+
+/// Versioned, effective-dated statutory rate/threshold configuration
+/// (PF, ESI, Professional Tax, TDS slabs, standard deduction). Every rate
+/// used in a payroll computation must come from a row here, never be
+/// hardcoded in service logic — India's wage-definition and tax rules
+/// change independently of this codebase's release cycle, and a payroll
+/// run must reproduce the exact calculation that was correct on its own
+/// period even after rates change going forward.
+///
+/// DELIBERATELY NOT SEEDED. This table starts empty and must stay empty
+/// until a CA / payroll-compliance specialist has verified real rates
+/// against primary sources (EPFO/ESIC circulars, Income Tax Department
+/// notifications, state Professional Tax departments) — see the Payroll
+/// module's README. PayrollRunsService.processRun() refuses to run
+/// against missing config rather than silently computing zero deductions.
+model StatutoryConfig {
+  id            String              @id @default(uuid())
+  configType    StatutoryConfigType
+  /// Only meaningful for PROFESSIONAL_TAX (varies by state).
+  state         String?
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  /// Shape varies by configType — e.g. PF: {employeeRate, employerRate,
+  /// epsRate, wageCeiling, adminCharge}; TDS_SLAB: [{slabFrom, slabTo,
+  /// rate}, ...]. Validated per-configType in StatutoryConfigService, not
+  /// at the schema level (Prisma has no discriminated-JSON support).
+  configData    Json
+  /// Where this rate came from / who approved it — required for audit
+  /// traceability, not optional metadata.
+  sourceNote    String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([configType, state, effectiveFrom])
+  @@map("statutory_configs")
+}
+
+/// One payroll period for the whole company. Lifecycle: DRAFT (created,
+/// no payslips yet) -> PROCESSING (computation in flight) -> COMPLETED
+/// (payslips generated) -> LOCKED (immutable; corrections require a new
+/// period's adjustment, never a retroactive edit).
+model PayrollRun {
+  id            String           @id @default(uuid())
+  month         Int
+  year          Int
+  status        PayrollRunStatus @default(DRAFT)
+  initiatedById String
+  initiatedBy   Employee         @relation(fields: [initiatedById], references: [id], onDelete: Restrict)
+  processedAt   DateTime?
+  lockedAt      DateTime?
+  payslips      Payslip[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([month, year])
+  @@map("payroll_runs")
+}
+
+/// One per employee per PayrollRun. `statutoryConfigSnapshot` freezes the
+/// exact StatutoryConfig row contents used at generation time — a later
+/// StatutoryConfig update must never retroactively change what an already-
+/// generated payslip's numbers mean.
+model Payslip {
+  id                      String        @id @default(uuid())
+  payrollRunId            String
+  payrollRun              PayrollRun    @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employeeId              String
+  employee                Employee      @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  grossEarnings           Decimal       @db.Decimal(14, 2)
+  basicPaid               Decimal       @db.Decimal(14, 2)
+  hraPaid                 Decimal       @db.Decimal(14, 2)
+  specialAllowancePaid    Decimal       @db.Decimal(14, 2)
+  otherAllowancesPaid     Decimal       @db.Decimal(14, 2)
+  pfEmployee              Decimal       @db.Decimal(14, 2)
+  pfEmployer              Decimal       @db.Decimal(14, 2)
+  esiEmployee             Decimal?      @db.Decimal(14, 2)
+  esiEmployer             Decimal?      @db.Decimal(14, 2)
+  professionalTax         Decimal?      @db.Decimal(14, 2)
+  tdsDeducted             Decimal       @db.Decimal(14, 2)
+  unpaidLeaveDeduction    Decimal       @default(0) @db.Decimal(14, 2)
+  netPay                  Decimal       @db.Decimal(14, 2)
+  statutoryConfigSnapshot Json
+  status                  PayslipStatus @default(GENERATED)
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  @@unique([payrollRunId, employeeId])
+  @@map("payslips")
 }
 
 /// Append-only audit trail of mutating actions. Written by AuditInterceptor.
