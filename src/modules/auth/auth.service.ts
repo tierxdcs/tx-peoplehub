@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { EmployeeStatus, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../core/database/prisma.service';
 import { JwtAccessPayload } from './strategies/jwt.strategy';
@@ -20,24 +21,24 @@ export class AuthService {
 
   /** Verify credentials and issue an access + refresh token pair. */
   async login(email: string, password: string): Promise<TokenPair> {
-    const user = await this.prisma.user.findUnique({
+    const employee = await this.prisma.employee.findUnique({
       where: { email },
-      include: { roles: true },
     });
 
-    if (!user || !user.isActive) {
+    if (!employee || employee.status !== EmployeeStatus.ACTIVE) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
+    const valid = await bcrypt.compare(password, employee.passwordHash);
     if (!valid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
     return this.issueTokens(
-      user.id,
-      user.email,
-      user.roles.map((r) => r.name),
+      employee.id,
+      employee.email,
+      employee.role,
+      employee.verticalId,
     );
   }
 
@@ -52,27 +53,33 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    const user = await this.prisma.user.findUnique({
+    const employee = await this.prisma.employee.findUnique({
       where: { id: payload.sub },
-      include: { roles: true },
     });
-    if (!user || !user.isActive) {
+    if (!employee || employee.status !== EmployeeStatus.ACTIVE) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
     return this.issueTokens(
-      user.id,
-      user.email,
-      user.roles.map((r) => r.name),
+      employee.id,
+      employee.email,
+      employee.role,
+      employee.verticalId,
     );
   }
 
   private async issueTokens(
-    userId: string,
+    employeeId: string,
     email: string,
-    roles: string[],
+    role: Role,
+    verticalId: string | null,
   ): Promise<TokenPair> {
-    const payload: JwtAccessPayload = { sub: userId, email, roles };
+    const payload: JwtAccessPayload = {
+      sub: employeeId,
+      email,
+      role,
+      verticalId,
+    };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(payload, {

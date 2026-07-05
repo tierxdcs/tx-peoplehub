@@ -14,6 +14,8 @@ describe('App (e2e)', () => {
   let prisma: PrismaService;
   let accessToken: string;
   let refreshCookie: string;
+  let verticalId: string;
+  let superAdminId: string;
 
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@peoplehub.local';
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'ChangeMe123!';
@@ -34,6 +36,13 @@ describe('App (e2e)', () => {
     );
     await app.init();
     prisma = app.get(PrismaService);
+
+    const vertical = await prisma.vertical.findFirstOrThrow();
+    verticalId = vertical.id;
+    const superAdmin = await prisma.employee.findUniqueOrThrow({
+      where: { email: adminEmail },
+    });
+    superAdminId = superAdmin.id;
   });
 
   afterAll(async () => {
@@ -45,8 +54,8 @@ describe('App (e2e)', () => {
     expect(res.body.data.status).toBe('ok');
   });
 
-  it('GET /users without token → 401', async () => {
-    await request(app.getHttpServer()).get('/users').expect(401);
+  it('GET /employees without token → 401', async () => {
+    await request(app.getHttpServer()).get('/employees').expect(401);
   });
 
   it('POST /auth/login returns access token + sets refresh cookie', async () => {
@@ -72,32 +81,55 @@ describe('App (e2e)', () => {
     expect(res.body.data.accessToken).toBeDefined();
   });
 
-  it('GET /users with admin token → 200 list', async () => {
+  it('GET /employees with super admin token → 200 list', async () => {
     const res = await request(app.getHttpServer())
-      .get('/users')
+      .get('/employees')
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200);
     expect(Array.isArray(res.body.data.items)).toBe(true);
   });
 
-  it('POST /users creates a user and writes an audit log', async () => {
+  it('POST /employees creates an employee and writes an audit log with before/after', async () => {
     const email = `e2e-${Date.now()}@peoplehub.local`;
     const res = await request(app.getHttpServer())
-      .post('/users')
+      .post('/employees')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ email, password: 'S3curePass!', firstName: 'E2E' })
+      .send({
+        firstName: 'E2E',
+        lastName: 'Employee',
+        email,
+        password: 'S3curePass!',
+        role: 'MANAGER',
+        verticalId,
+        reportingManagerId: superAdminId,
+      })
       .expect(201);
 
     const createdId = res.body.data.id;
     expect(createdId).toBeDefined();
+    expect(res.body.data.employeeId).toMatch(/^EMP-\d{4,}$/);
 
-    const audit = await prisma.auditLog.findFirst({
-      where: { entity: 'User', action: { contains: 'POST' } },
+    const createAudit = await prisma.auditLog.findFirst({
+      where: { entity: 'Employee', action: { contains: 'POST' } },
       orderBy: { createdAt: 'desc' },
     });
-    expect(audit).not.toBeNull();
+    expect(createAudit).not.toBeNull();
+
+    await request(app.getHttpServer())
+      .patch(`/employees/${createdId}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ firstName: 'Updated' })
+      .expect(200);
+
+    const updateAudit = await prisma.auditLog.findFirst({
+      where: { entity: 'Employee', action: { contains: 'PATCH' } },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(updateAudit).not.toBeNull();
+    expect((updateAudit?.before as any)?.firstName).toBe('E2E');
+    expect((updateAudit?.after as any)?.firstName).toBe('Updated');
 
     // cleanup
-    await prisma.user.delete({ where: { id: createdId } });
+    await prisma.employee.delete({ where: { id: createdId } });
   });
 });

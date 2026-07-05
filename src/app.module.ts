@@ -15,7 +15,8 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { AuthModule } from './modules/auth/auth.module';
-import { UsersModule } from './modules/users/users.module';
+import { EmployeesModule } from './modules/employees/employees.module';
+import { VerticalsModule } from './modules/verticals/verticals.module';
 import { HealthModule } from './modules/health/health.module';
 
 @Module({
@@ -27,7 +28,8 @@ import { HealthModule } from './modules/health/health.module';
     }),
     PrismaModule,
     AuthModule,
-    UsersModule,
+    EmployeesModule,
+    VerticalsModule,
     HealthModule,
   ],
   providers: [

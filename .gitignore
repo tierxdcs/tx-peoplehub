@@ -1,9 +1,12 @@
 # dependencies
 /node_modules
+/web/node_modules
 
 # build
 /dist
 *.tsbuildinfo
+/web/.next
+/web/next-env.d.ts
 
 # env
 .env

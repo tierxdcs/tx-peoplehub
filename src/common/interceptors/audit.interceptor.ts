@@ -45,21 +45,58 @@ export class AuditInterceptor implements NestInterceptor {
 
     const user = (request as any).user as AuthenticatedUser | undefined;
     const action = `${method} ${request.route?.path ?? request.url}`;
+    const entity = this.deriveEntity(request.url);
     const body = this.sanitize(request.body);
     const ip = request.ip;
+    const rawRouteId = request.params?.id;
+    const routeId =
+      (method === 'PATCH' || method === 'PUT') && typeof rawRouteId === 'string'
+        ? rawRouteId
+        : undefined;
+
+    const beforePromise = routeId
+      ? this.fetchBefore(entity, routeId)
+      : Promise.resolve(undefined);
 
     return next.handle().pipe(
       tap((result) => {
-        void this.write({
-          actorId: user?.id,
-          action,
-          entity: this.deriveEntity(request.url),
-          entityId: this.deriveEntityId(result),
-          after: body,
-          ip,
-        });
+        void beforePromise.then((before) =>
+          this.write({
+            actorId: user?.id,
+            action,
+            entity,
+            entityId: this.deriveEntityId(result) ?? routeId,
+            before,
+            after: body,
+            ip,
+          }),
+        );
       }),
     );
+  }
+
+  /** Best-effort fetch of the current row before it's mutated, for the audit diff. */
+  private async fetchBefore(
+    entity: string | undefined,
+    id: string,
+  ): Promise<unknown> {
+    if (!entity) {
+      return undefined;
+    }
+    const accessor = entity.charAt(0).toLowerCase() + entity.slice(1);
+    const model = (this.prisma as any)[accessor];
+    if (!model?.findUnique) {
+      return undefined;
+    }
+    try {
+      const row = await model.findUnique({ where: { id } });
+      return this.sanitize(row);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to fetch pre-mutation state: ${(err as Error).message}`,
+      );
+      return undefined;
+    }
   }
 
   private async write(data: {
@@ -67,6 +104,7 @@ export class AuditInterceptor implements NestInterceptor {
     action: string;
     entity?: string;
     entityId?: string;
+    before?: unknown;
     after?: unknown;
     ip?: string;
   }) {
@@ -77,6 +115,7 @@ export class AuditInterceptor implements NestInterceptor {
           action: data.action,
           entity: data.entity ?? null,
           entityId: data.entityId ?? null,
+          before: (data.before as any) ?? undefined,
           after: (data.after as any) ?? undefined,
           ip: data.ip ?? null,
         },

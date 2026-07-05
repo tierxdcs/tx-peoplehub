@@ -10,46 +10,75 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Application user. Authenticates via email + bcrypt password hash.
-model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  firstName    String?
-  lastName     String?
-  isActive     Boolean  @default(true)
-  roles        Role[]   @relation("UserRoles")
-  auditLogs    AuditLog[] @relation("AuditActor")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@map("users")
+/// RBAC role. SUPER_ADMIN manages ADMIN accounts; ADMIN manages employee
+/// identity/access only (no operational data visibility); MANAGER sees their
+/// own vertical plus their downstream reports; EMPLOYEE sees only their own.
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  EMPLOYEE
 }
 
-/// RBAC role. Seeded with at least `admin`. Attach roles to users.
-model Role {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String?
-  users       User[]   @relation("UserRoles")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+}
 
-  @@map("roles")
+/// Business vertical (Sales, HR, Production, ...). A table, not an enum, so
+/// new verticals can be added by the business without a code deploy.
+model Vertical {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  code      String     @unique
+  isActive  Boolean    @default(true)
+  employees Employee[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("verticals")
+}
+
+/// Internal employee. Authenticates via email + bcrypt password hash.
+/// verticalId/reportingManagerId are required for every role except
+/// SUPER_ADMIN — enforced in the service layer, not expressible as a plain
+/// NOT NULL constraint here.
+model Employee {
+  id                 String         @id @default(uuid())
+  employeeId         String         @unique
+  firstName          String
+  lastName           String
+  email              String         @unique
+  passwordHash       String
+  verticalId         String?
+  vertical           Vertical?      @relation(fields: [verticalId], references: [id], onDelete: Restrict)
+  role               Role
+  reportingManagerId String?
+  reportingManager   Employee?      @relation("ReportingChain", fields: [reportingManagerId], references: [id], onDelete: SetNull)
+  reports            Employee[]     @relation("ReportingChain")
+  status             EmployeeStatus @default(ACTIVE)
+  deactivatedAt      DateTime?
+  auditLogs          AuditLog[]     @relation("AuditActor")
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([verticalId])
+  @@index([reportingManagerId])
+  @@map("employees")
 }
 
 /// Append-only audit trail of mutating actions. Written by AuditInterceptor.
 model AuditLog {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   actorId   String?
-  actor     User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
-  action    String // HTTP method + route, e.g. "POST /users"
-  entity    String? // logical entity name, e.g. "User"
+  actor     Employee? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action    String // HTTP method + route, e.g. "POST /employees"
+  entity    String? // logical entity name, e.g. "Employee"
   entityId  String?
   before    Json?
   after     Json?
   ip        String?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([actorId])
   @@index([entity, entityId])
