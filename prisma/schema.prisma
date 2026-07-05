@@ -1,0 +1,58 @@
+// Prisma schema for tx-peoplehub ERP foundation.
+// Single-company (no tenant scoping). Add ERP domain models as new modules.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Application user. Authenticates via email + bcrypt password hash.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String?
+  lastName     String?
+  isActive     Boolean  @default(true)
+  roles        Role[]   @relation("UserRoles")
+  auditLogs    AuditLog[] @relation("AuditActor")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
+/// RBAC role. Seeded with at least `admin`. Attach roles to users.
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  users       User[]   @relation("UserRoles")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("roles")
+}
+
+/// Append-only audit trail of mutating actions. Written by AuditInterceptor.
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action    String // HTTP method + route, e.g. "POST /users"
+  entity    String? // logical entity name, e.g. "User"
+  entityId  String?
+  before    Json?
+  after     Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
