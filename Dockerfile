@@ -14,6 +14,13 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+# `prisma migrate deploy` finishes its work but the CLI then hangs on a
+# background telemetry/checkpoint network call that never completes in a
+# restricted-network container — so the chained `node dist/main.js` never runs
+# and the health check times out. Disabling the checkpoint call lets the CLI
+# exit cleanly. Baked into the image so every environment inherits it (rather
+# than depending on a per-environment env var being set).
+ENV CHECKPOINT_DISABLE=1
 
 # Alpine ships without timezone data. The leave-accrual @Cron job pins a
 # named zone (Asia/Kolkata) and the app does IST calendar-day math — both

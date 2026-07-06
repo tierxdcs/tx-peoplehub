@@ -117,6 +117,7 @@ It inserts **no** employee/statutory data — testers create their own via the r
 
 - **Prisma CLI in the runtime image** — `prisma` was moved from `devDependencies` to `dependencies`, so in-container `migrate deploy` uses the bundled CLI instead of downloading it on every boot.
 - **Seed can't run in-container** — dev deps are stripped from the runtime image, so the seed runs from your laptop (documented above). This is intentional, not a bug.
+- **Prisma CLI hang on boot** — `migrate deploy` finishes its work but the CLI can hang on a background telemetry/checkpoint call in a restricted-network container, blocking the chained app start. `ENV CHECKPOINT_DISABLE=1` is baked into the runtime stage of the `Dockerfile`, so **every** environment (staging, a future production Railway service, CI image builds) inherits it automatically — do **not** re-add `CHECKPOINT_DISABLE` as a per-environment Railway env var.
 
 ## Not included (flag if you want them)
 
