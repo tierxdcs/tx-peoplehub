@@ -53,8 +53,7 @@ export class BidAssessmentQuestionsController {
     @Query('includeInactive') includeInactive?: string,
   ) {
     // Only Admins may see inactive questions; a rep always gets the active set.
-    const isAdmin =
-      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
+    const isAdmin = user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     return this.service.findAll(isAdmin && includeInactive === 'true');
   }
 

@@ -15,6 +15,12 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Alpine ships without timezone data. The leave-accrual @Cron job pins a
+# named zone (Asia/Kolkata) and the app does IST calendar-day math — both
+# need the IANA tz database present, or named-zone resolution can throw /
+# misbehave at runtime. Cheap insurance against a tz-related boot failure.
+RUN apk add --no-cache tzdata
+
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
@@ -22,5 +28,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 
 EXPOSE 3000
-# Run migrations on release, then start.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+# Run migrations on release, then start. `set -e` makes a non-zero exit from
+# migrate deploy abort the boot loudly instead of being masked; the echo makes
+# the migrate→start handoff explicit in the deploy logs (so "migrations ran but
+# app never logged" is unambiguous rather than silent).
+CMD ["sh", "-c", "set -e; npx prisma migrate deploy; echo 'Migrations complete — starting app'; node dist/main.js"]

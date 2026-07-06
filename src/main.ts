@@ -7,6 +7,11 @@ import { AppModule } from './app.module';
 import { PrismaService } from './core/database/prisma.service';
 
 async function bootstrap() {
+  // First line of output — if THIS doesn't appear in the deploy logs, the
+  // process died before bootstrap even ran (an import-time throw), not here.
+  // eslint-disable-next-line no-console
+  console.log(`Booting tx-peoplehub API (PORT=${process.env.PORT ?? '3000'})`);
+
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
 
@@ -44,9 +49,23 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document);
 
   const port = config.get<number>('port') ?? 3000;
-  await app.listen(port);
+  // Bind to 0.0.0.0 (all interfaces), not the Nest default of localhost —
+  // Railway/containers route external traffic to the container's public
+  // interface, and a localhost-only bind would pass health checks never.
+  await app.listen(port, '0.0.0.0');
   // eslint-disable-next-line no-console
-  console.log(`tx-peoplehub API listening on http://localhost:${port}`);
+  console.log(`tx-peoplehub API listening on port ${port}`);
 }
 
-void bootstrap();
+// A rejection anywhere in bootstrap() (Joi env-validation failure, a provider
+// that throws during DI, a bad DB connect) must surface with a full stack and
+// a non-zero exit — otherwise Node exits 0 silently and the platform just sees
+// "process gone, health check failing" with no clue why. This is exactly the
+// failure mode that produced silent post-migration crashes on Railway.
+bootstrap().catch((err) => {
+  // eslint-disable-next-line no-console
+  console.error('FATAL: application failed to start');
+  // eslint-disable-next-line no-console
+  console.error(err);
+  process.exit(1);
+});
