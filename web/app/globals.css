@@ -1,0 +1,217 @@
+@import 'tailwindcss';
+@plugin 'tailwindcss-animate';
+
+/*
+ * Dark-mode selector strategy: shadcn toggles a `.dark` class on <html>.
+ * (This app is light-only for now, but the tokens are defined for both so a
+ * theme toggle is a small later change.)
+ */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * ---------------------------------------------------------------------------
+ * Design tokens. The RAW palette lives in :root as HSL triplets; everything
+ * else references these. To rebrand, change the values here (or the accent
+ * in theme.ts) — components never hardcode colors. See app/lib/theme.ts for
+ * the app-name / logo / accent config counterpart.
+ * ---------------------------------------------------------------------------
+ */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+
+  /* Primary = calm professional blue (placeholder brand accent). */
+  --primary: 217 91% 45%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+
+  --accent: 210 40% 96%;
+  --accent-foreground: 222 47% 11%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 217 91% 45%;
+
+  --radius: 0.5rem;
+
+  /* Semantic status colors, referenced by the badge utility (lib/status.ts). */
+  --success: 142 71% 40%;
+  --success-foreground: 0 0% 100%;
+  --warning: 32 95% 44%;
+  --warning-foreground: 0 0% 100%;
+  --info: 217 91% 45%;
+  --info-foreground: 0 0% 100%;
+}
+
+.dark {
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --card: 222 47% 13%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 47% 13%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 217 33% 20%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217 33% 20%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 217 33% 20%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 63% 45%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217 33% 24%;
+  --input: 217 33% 24%;
+  --ring: 217 91% 60%;
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
+  --warning: 32 95% 50%;
+  --warning-foreground: 0 0% 100%;
+  --info: 217 91% 60%;
+  --info-foreground: 0 0% 100%;
+}
+
+/*
+ * Map the CSS variables into Tailwind's theme so utilities like `bg-primary`,
+ * `text-muted-foreground`, `border-border`, `rounded-lg` resolve. (Tailwind
+ * v4 @theme inline reads the :root vars above.)
+ */
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family:
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      sans-serif;
+  }
+
+  /*
+   * TRANSITIONAL: Tailwind's preflight resets all borders to 0, which makes
+   * bare native form controls on not-yet-converted (inline-styled) pages
+   * render borderless. Give unstyled native inputs/selects/textareas a
+   * visible default so those pages stay usable mid-migration. shadcn's own
+   * Input/Select/Textarea set their border via utility classes (higher
+   * specificity than this base rule), so converted pages are unaffected.
+   * This block can be deleted once every page is migrated.
+   */
+  input:not([class*='border']):not([type='checkbox']):not([type='radio']),
+  select:not([class*='border']),
+  textarea:not([class*='border']) {
+    border: 1px solid hsl(var(--input));
+    border-radius: var(--radius-md);
+    padding: 0.375rem 0.5rem;
+    background-color: hsl(var(--background));
+  }
+}
+
+/*
+ * Print / Save-as-PDF. A `.print-document` block is hidden on screen and
+ * revealed only when printing; everything else in the app (chrome + the
+ * normal screen view) is hidden. This turns Ctrl/Cmd-P into a clean
+ * single-document export with no sidebar, nav, or buttons. Screen rendering
+ * is completely unaffected. Used by the Bid detail print layout; reusable by
+ * any future printable document.
+ */
+.print-document {
+  display: none;
+}
+
+@media print {
+  /* Hide the entire on-screen app; show only the print document. */
+  body * {
+    visibility: hidden;
+  }
+  .print-document,
+  .print-document * {
+    visibility: visible;
+  }
+  .print-document {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+    color: #000;
+    background: #fff;
+    font-size: 12px;
+  }
+
+  /* Belt-and-suspenders: anything explicitly marked no-print is removed. */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Never split a line-item row (or other marked block) across pages. */
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Repeat the table header on each page for multi-page bids. */
+  thead {
+    display: table-header-group;
+  }
+
+  /* Reasonable page margins for A4/Letter. */
+  @page {
+    margin: 16mm 14mm;
+  }
+
+  a {
+    text-decoration: none;
+    color: #000;
+  }
+}

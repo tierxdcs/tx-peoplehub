@@ -20,10 +20,10 @@ export default function ProfilePage() {
         setEmployee(me);
 
         if (me.verticalId) {
-          const verticals = await apiFetch<Vertical[]>('/verticals');
-          setVerticalName(
-            verticals.find((v) => v.id === me.verticalId)?.name ?? null,
-          );
+          // /verticals/me (own vertical) rather than the ADMIN-only
+          // /verticals list — this page is reached by non-admins too.
+          const vertical = await apiFetch<Vertical | null>('/verticals/me');
+          setVerticalName(vertical?.name ?? null);
         }
 
         if (me.reportingManagerId) {

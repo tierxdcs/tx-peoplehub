@@ -20,6 +20,7 @@ export interface Employee {
   status: EmployeeStatus;
   deactivatedAt: string | null;
   accessStatus: AccessStatus;
+  isSalesHead: boolean;
   officialEmail: string | null;
   designation?: string | null;
   employmentType?: EmploymentType | null;
@@ -208,4 +209,224 @@ export interface Payslip {
   statutoryConfigSnapshot: Record<string, unknown>;
   status: PayslipStatus;
   createdAt: string;
+}
+
+// ---- Sales module ----
+
+export type CustomerStatus = 'ACTIVE' | 'INACTIVE';
+export type LeadPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+export type LeadSource =
+  | 'REFERRAL'
+  | 'WEBSITE'
+  | 'COLD_OUTREACH'
+  | 'EVENT'
+  | 'OTHER';
+export type LeadStatus =
+  | 'NEW'
+  | 'CONTACTED'
+  | 'QUALIFIED'
+  | 'DISQUALIFIED'
+  | 'CONVERTED';
+export type OpportunityStage =
+  | 'PROSPECTING'
+  | 'QUALIFICATION'
+  | 'PROPOSAL'
+  | 'NEGOTIATION'
+  | 'CLOSED_WON'
+  | 'CLOSED_LOST';
+export type BidStatus =
+  | 'DRAFT'
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'SENT'
+  | 'ACCEPTED'
+  | 'EXPIRED';
+export type OrderStatus =
+  | 'CONFIRMED'
+  | 'IN_PRODUCTION'
+  | 'READY_TO_SHIP'
+  | 'SHIPPED'
+  | 'DELIVERED'
+  | 'CANCELLED';
+export type SalesTaxType = 'CGST_SGST' | 'IGST';
+
+/** Address is free-form JSON or a plain string (backend accepts either). */
+export type Address = Record<string, unknown> | string;
+
+export interface CustomerContact {
+  id: string;
+  customerId: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  designation: string | null;
+  isPrimary: boolean;
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  gstin: string | null;
+  billingAddress: Address;
+  shippingAddress: Address | null;
+  industry: string | null;
+  ownerId: string;
+  status: CustomerStatus;
+  contacts?: CustomerContact[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  description: string | null;
+  unitPrice: string;
+  unitOfMeasure: string;
+  hsnCode: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Lead {
+  id: string;
+  leadNumber: string;
+  companyName: string;
+  contactName: string;
+  email: string | null;
+  phone: string | null;
+  requirement: string;
+  priority: LeadPriority;
+  source: LeadSource;
+  status: LeadStatus;
+  ownerId: string;
+  disqualifiedReason: string | null;
+  convertedToOpportunityId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Opportunity {
+  id: string;
+  leadId: string | null;
+  customerId: string | null;
+  name: string;
+  stage: OpportunityStage;
+  estimatedValue: string;
+  expectedCloseDate: string;
+  ownerId: string;
+  lostReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BidLineItem {
+  id: string;
+  bidId: string;
+  productId: string;
+  productName: string;
+  productSku: string;
+  quantity: string;
+  unitPrice: string;
+  lineDiscountPercent: string | null;
+  lineTotal: string;
+}
+
+export interface Bid {
+  id: string;
+  bidNumber: string;
+  opportunityId: string;
+  customerId: string;
+  status: BidStatus;
+  validUntil: string;
+  tenderReferenceNumber: string | null;
+  technicalSpecification: string | null;
+  attachments: Array<Record<string, unknown>> | null;
+  subtotal: string;
+  discountPercent: string;
+  discountAmount: string;
+  taxType: SalesTaxType | null;
+  taxRate: string | null;
+  taxAmount: string;
+  totalAmount: string;
+  createdById: string;
+  approverId: string | null;
+  approvedAt: string | null;
+  approverComments: string | null;
+  lineItems?: BidLineItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrderLineItem {
+  id: string;
+  orderId: string;
+  productId: string;
+  productName: string;
+  productSku: string;
+  quantity: string;
+  unitPrice: string;
+  lineTotal: string;
+}
+
+export interface Order {
+  id: string;
+  orderNumber: string;
+  bidId: string | null;
+  customerId: string;
+  status: OrderStatus;
+  totalAmount: string;
+  productionRunId: string | null;
+  shipmentId: string | null;
+  ownerId: string;
+  lineItems?: OrderLineItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---- Bid/No-Bid decision gate ----
+
+export type BidAssessmentQuestionType =
+  | 'BOOLEAN'
+  | 'TEXT'
+  | 'SCALE'
+  | 'SELECT';
+
+export type BidAssessmentStatus =
+  | 'PENDING_REVIEW'
+  | 'APPROVED'
+  | 'REJECTED';
+
+export interface BidAssessmentQuestion {
+  id: string;
+  text: string;
+  type: BidAssessmentQuestionType;
+  options: string[] | null;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BidAssessmentResponse {
+  id: string;
+  questionId: string;
+  questionTextSnapshot: string;
+  answerValue: string;
+}
+
+export interface BidDecisionAssessment {
+  id: string;
+  opportunityId: string;
+  submittedById: string;
+  status: BidAssessmentStatus;
+  reviewedById: string | null;
+  reviewedAt: string | null;
+  reviewerComments: string | null;
+  responses?: BidAssessmentResponse[];
+  createdAt: string;
+  updatedAt: string;
 }

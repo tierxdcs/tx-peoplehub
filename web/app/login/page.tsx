@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, roleHome } from '../lib/auth-context';
+import { useAuth } from '../lib/auth-context';
+import { Button } from '../components/ui/button';
 
 export default function LoginPage() {
   const { user, loading, login } = useAuth();
@@ -13,8 +14,10 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    // Redirect through "/" which resolves the module-aware landing route
+    // (needs the vertical hooks) — avoids duplicating that logic here.
     if (!loading && user) {
-      router.replace(roleHome(user.role));
+      router.replace('/');
     }
   }, [loading, user, router]);
 
@@ -65,9 +68,9 @@ export default function LoginPage() {
           />
         </div>
         {error && <p style={{ color: 'crimson' }}>{error}</p>}
-        <button type="submit" disabled={submitting} style={{ padding: 8 }}>
+        <Button type="submit" disabled={submitting}>
           {submitting ? 'Signing in…' : 'Sign in'}
-        </button>
+        </Button>
       </form>
     </main>
   );

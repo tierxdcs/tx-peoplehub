@@ -41,6 +41,7 @@ describe('PayrollComputationService', () => {
     status: EmployeeStatus.ACTIVE,
     deactivatedAt: null,
     accessStatus: 'ACTIVE' as any,
+    isSalesHead: false,
     dateOfBirth: null,
     gender: null,
     personalEmail: null,

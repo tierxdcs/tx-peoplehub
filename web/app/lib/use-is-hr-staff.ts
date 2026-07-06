@@ -9,6 +9,11 @@ import { Vertical } from './types';
  * Client-side-only convenience check mirroring the backend's isHrStaff()
  * (see employees.service.ts) — used purely for nav/route gating. The
  * backend remains the actual enforcement boundary regardless of this hook.
+ *
+ * Uses GET /verticals/me (readable by any authenticated user) rather than
+ * the ADMIN-only GET /verticals list — otherwise this 403s for the very
+ * HR-vertical Manager/Employee it's meant to detect, silently hiding the
+ * HR nav from real HR staff.
  */
 export function useIsHrStaff(): { isHrStaff: boolean; loading: boolean } {
   const { user, loading: authLoading } = useAuth();
@@ -26,9 +31,8 @@ export function useIsHrStaff(): { isHrStaff: boolean; loading: boolean } {
       return;
     }
 
-    apiFetch<Vertical[]>('/verticals')
-      .then((verticals) => {
-        const vertical = verticals.find((v) => v.id === user.verticalId);
+    apiFetch<Vertical | null>('/verticals/me')
+      .then((vertical) => {
         setIsHrStaff(vertical?.code === 'HR');
       })
       .catch(() => setIsHrStaff(false))

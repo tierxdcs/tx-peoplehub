@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { Employee, PayrollRun, Payslip } from '../../../../lib/types';
+import { useConfirm } from '../../../../components/ui/confirm';
 
 const MONTH_NAMES = [
   'January',
@@ -23,6 +24,7 @@ const MONTH_NAMES = [
 
 export default function PayrollRunDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const confirm = useConfirm();
   const [run, setRun] = useState<PayrollRun | null>(null);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [employeeNames, setEmployeeNames] = useState<Record<string, string>>(
@@ -73,6 +75,13 @@ export default function PayrollRunDetailPage() {
   }, [load]);
 
   async function handleProcess() {
+    const ok = await confirm({
+      title: 'Process this payroll run?',
+      description:
+        'This generates payslips for all active employees using the current statutory config.',
+      confirmLabel: 'Process',
+    });
+    if (!ok) return;
     setProcessing(true);
     setProcessError(null);
     try {
@@ -97,19 +106,22 @@ export default function PayrollRunDetailPage() {
   }
 
   async function handleLock() {
-    if (
-      !confirm(
-        'Once locked, this run cannot be edited — corrections require a new adjustment in a future period. Continue?',
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Lock this payroll run?',
+      description:
+        'Once locked, this run cannot be edited — corrections require a new adjustment in a future period.',
+      confirmLabel: 'Lock',
+      destructive: true,
+    });
+    if (!ok) return;
     setLocking(true);
     try {
       await apiFetch(`/payroll-runs/${id}/lock`, { method: 'PATCH' });
       await load();
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Failed to lock run');
+      setProcessError(
+        err instanceof ApiError ? err.message : 'Failed to lock run',
+      );
     } finally {
       setLocking(false);
     }

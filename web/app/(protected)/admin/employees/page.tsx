@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../../lib/api';
 import { Employee, PaginatedResult, Vertical } from '../../../lib/types';
+import { useConfirm } from '../../../components/ui/confirm';
 
 export default function EmployeesListPage() {
+  const confirm = useConfirm();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [verticals, setVerticals] = useState<Vertical[]>([]);
   const [page, setPage] = useState(1);
@@ -42,9 +44,13 @@ export default function EmployeesListPage() {
   }, [load]);
 
   async function handleDeactivate(id: string) {
-    if (!confirm('Deactivate this employee? They will lose login access.')) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Deactivate this employee?',
+      description: 'They will lose login access.',
+      confirmLabel: 'Deactivate',
+      destructive: true,
+    });
+    if (!ok) return;
     await apiFetch(`/employees/${id}/deactivate`, { method: 'PATCH' });
     await load();
   }
@@ -132,6 +138,21 @@ export default function EmployeesListPage() {
                     <Link href={`/admin/employees/${e.id}`}>
                       {e.firstName} {e.lastName}
                     </Link>
+                    {e.isSalesHead && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: '#1d4ed8',
+                          background: '#dbeafe',
+                          borderRadius: 10,
+                          padding: '1px 8px',
+                        }}
+                      >
+                        Sales Head
+                      </span>
+                    )}
                   </td>
                   <td>{e.email}</td>
                   <td>{verticalName(e.verticalId)}</td>

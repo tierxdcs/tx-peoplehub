@@ -1,19 +1,33 @@
 'use client';
 
 import { useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../lib/auth-context';
 import { useIsHrStaff } from '../lib/use-is-hr-staff';
+import { useIsSalesStaff } from '../lib/use-is-sales-staff';
+import { useIsSalesHead } from '../lib/use-is-sales-head';
+import {
+  activeModule as resolveActiveModule,
+  availableModules,
+  moduleHome,
+  sidebarNav,
+  type ModuleKey,
+} from '../lib/nav';
+import { AppTopBar } from '../components/shell/app-top-bar';
+import { Sidebar } from '../components/shell/sidebar';
 
 export default function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading, logout } = useAuth();
-  const { isHrStaff } = useIsHrStaff();
+  const { user, loading } = useAuth();
+  // These hooks resolve the SALES/HR vertical membership (same gating as before).
+  const { isHrStaff, loading: hrLoading } = useIsHrStaff();
+  const { isSalesStaff, loading: salesLoading } = useIsSalesStaff();
+  const { isSalesHead, loading: salesHeadLoading } = useIsSalesHead();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -21,77 +35,45 @@ export default function ProtectedLayout({
     }
   }, [loading, user, router]);
 
-  if (loading || !user) {
+  // Wait for auth + vertical checks so the sidebar doesn't briefly render
+  // the wrong items on first paint.
+  if (loading || hrLoading || salesLoading || salesHeadLoading || !user) {
     return null;
   }
 
-  const isAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
-  const isManager = user.role === 'MANAGER';
-  const isEmployee = user.role === 'EMPLOYEE';
-  // Payroll module spec §5: employee-facing payslip access stays off until
-  // StatutoryConfig rates have CA/compliance sign-off.
   const payslipsEnabled = process.env.NEXT_PUBLIC_PAYSLIPS_ENABLED === 'true';
+  const access = {
+    user,
+    isHrStaff,
+    isSalesStaff,
+    isSalesHead,
+    payslipsEnabled,
+  };
+
+  const modules = availableModules(access);
+  // Single-module users always see their module (pathname-independent), so a
+  // Sales rep sees the Sales nav even on shared pages like /leave. Only
+  // multi-module users (SuperAdmin) resolve the active module from the path.
+  const currentModule = resolveActiveModule(pathname, modules);
+  const groups = sidebarNav(access, currentModule);
+
+  function switchModule(m: ModuleKey) {
+    const target = moduleHome(m, access);
+    if (target) router.push(target);
+  }
 
   return (
-    <div>
-      <nav
-        style={{
-          display: 'flex',
-          gap: 16,
-          padding: '12px 20px',
-          borderBottom: '1px solid #ddd',
-          alignItems: 'center',
-        }}
-      >
-        {isAdmin && (
-          <>
-            <Link href="/admin/employees">Employees</Link>
-            <Link href="/admin/verticals">Verticals</Link>
-            <Link href="/hr/roster">Roster</Link>
-            <Link href="/admin/pending-access">Pending Access</Link>
-          </>
-        )}
-        {isManager && <Link href="/team">My Team</Link>}
-        {isEmployee && <Link href="/profile">My Profile</Link>}
-        {isHrStaff && (
-          <>
-            <Link href="/hr/roster">Roster</Link>
-            <Link href="/hr/onboard">Onboard Employee</Link>
-          </>
-        )}
-        <Link href="/leave">My Leave</Link>
-        <Link href="/attendance">My Attendance</Link>
-        {isManager && (
-          <>
-            <Link href="/team/leave-approvals">Team Leave Approvals</Link>
-            <Link href="/team/attendance">Team Attendance</Link>
-          </>
-        )}
-        {isAdmin && (
-          <>
-            <Link href="/admin/leave-approvals">All Pending Approvals</Link>
-            <Link href="/admin/attendance-corrections">
-              Attendance Corrections
-            </Link>
-            <Link href="/admin/salary-structures">Salary Structures</Link>
-            <Link href="/admin/payroll-runs">Payroll Runs</Link>
-            <Link href="/admin/statutory-config">Statutory Config</Link>
-          </>
-        )}
-        {payslipsEnabled && <Link href="/payslips">My Payslips</Link>}
-        <span style={{ marginLeft: 'auto', color: '#666' }}>
-          {user.email} ({user.role})
-        </span>
-        <button
-          onClick={async () => {
-            await logout();
-            router.replace('/login');
-          }}
-        >
-          Log out
-        </button>
-      </nav>
-      <main style={{ padding: 20 }}>{children}</main>
+    <div className="flex min-h-screen flex-col">
+      <AppTopBar
+        user={user}
+        modules={modules}
+        activeModule={currentModule}
+        onSwitchModule={switchModule}
+      />
+      <div className="flex flex-1">
+        <Sidebar groups={groups} />
+        <main className="flex-1 overflow-x-auto p-6">{children}</main>
+      </div>
     </div>
   );
 }

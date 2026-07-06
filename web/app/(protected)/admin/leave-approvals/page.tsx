@@ -9,6 +9,8 @@ import {
   PaginatedResult,
   Vertical,
 } from '../../../lib/types';
+import { useToast } from '../../../components/ui/toaster';
+import { useConfirm } from '../../../components/ui/confirm';
 
 /**
  * Same /leave-requests/pending-approval endpoint as the Manager screen —
@@ -17,6 +19,8 @@ import {
  * The vertical filter here is client-side only, over that full result set.
  */
 export default function AdminLeaveApprovalsPage() {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [verticals, setVerticals] = useState<Vertical[]>([]);
@@ -76,6 +80,16 @@ export default function AdminLeaveApprovalsPage() {
   });
 
   async function act(id: string, action: 'approve' | 'reject') {
+    const ok = await confirm(
+      action === 'approve'
+        ? { title: 'Approve this leave request?' }
+        : {
+            title: 'Reject this leave request?',
+            description: 'The employee will be notified of the rejection.',
+            destructive: true,
+          },
+    );
+    if (!ok) return;
     setActing(id);
     try {
       await apiFetch(`/leave-requests/${id}/${action}`, {
@@ -84,7 +98,7 @@ export default function AdminLeaveApprovalsPage() {
       });
       await load();
     } catch (err) {
-      alert(
+      toast.error(
         err instanceof ApiError ? err.message : `Failed to ${action} request`,
       );
     } finally {

@@ -1,5 +1,6 @@
 import {
   AccessStatus,
+  BidAssessmentQuestionType,
   LeaveAccrualType,
   PrismaClient,
   Role,
@@ -55,6 +56,66 @@ const LEAVE_TYPES: Array<{
   },
 ];
 
+/**
+ * Starting Bid/No-Bid questionnaire. A reasonable default set — Admin can
+ * edit/add/deactivate afterward via /bid-assessment-questions. Seeded only
+ * when the table is empty (no natural unique key to upsert on), so it never
+ * clobbers Admin edits on re-seed.
+ */
+const BID_ASSESSMENT_QUESTIONS: Array<{
+  text: string;
+  type: BidAssessmentQuestionType;
+  options?: string[];
+  displayOrder: number;
+}> = [
+  {
+    text: 'Is the customer budget confirmed for this requirement?',
+    type: BidAssessmentQuestionType.BOOLEAN,
+    displayOrder: 1,
+  },
+  {
+    text: 'How technically feasible is the requirement for us to deliver?',
+    type: BidAssessmentQuestionType.SCALE,
+    displayOrder: 2,
+  },
+  {
+    text: 'Estimated gross margin on this deal (%)',
+    type: BidAssessmentQuestionType.TEXT,
+    displayOrder: 3,
+  },
+  {
+    text: 'What is the competitive situation?',
+    type: BidAssessmentQuestionType.SELECT,
+    options: [
+      'Sole vendor',
+      'Few competitors',
+      'Crowded / commoditised',
+      'Unknown',
+    ],
+    displayOrder: 4,
+  },
+  {
+    text: 'Do we have the resources (people/capacity) available to deliver?',
+    type: BidAssessmentQuestionType.BOOLEAN,
+    displayOrder: 5,
+  },
+  {
+    text: 'How well does this opportunity fit our strategic direction?',
+    type: BidAssessmentQuestionType.SCALE,
+    displayOrder: 6,
+  },
+  {
+    text: 'Is the customer creditworthy (payment history / references)?',
+    type: BidAssessmentQuestionType.BOOLEAN,
+    displayOrder: 7,
+  },
+  {
+    text: 'Is the requested delivery timeline feasible?',
+    type: BidAssessmentQuestionType.BOOLEAN,
+    displayOrder: 8,
+  },
+];
+
 async function nextEmployeeId(): Promise<string> {
   const [{ nextval }] = await prisma.$queryRaw<
     [{ nextval: bigint }]
@@ -77,6 +138,22 @@ async function main() {
       update: {},
       create: leaveType,
     });
+  }
+
+  // Seed the Bid/No-Bid questionnaire only when empty (no unique key to
+  // upsert on) — preserves any Admin edits on re-seed.
+  const questionCount = await prisma.bidAssessmentQuestion.count();
+  if (questionCount === 0) {
+    for (const q of BID_ASSESSMENT_QUESTIONS) {
+      await prisma.bidAssessmentQuestion.create({
+        data: {
+          text: q.text,
+          type: q.type,
+          options: q.options ?? undefined,
+          displayOrder: q.displayOrder,
+        },
+      });
+    }
   }
 
   const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@peoplehub.local';

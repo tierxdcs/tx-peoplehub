@@ -1,9 +1,13 @@
 import type { Metadata } from 'next';
+import './globals.css';
 import { AuthProvider } from './lib/auth-context';
+import { BRAND } from './lib/theme';
+import { ToasterProvider } from './components/ui/toaster';
+import { ConfirmProvider } from './components/ui/confirm';
 
 export const metadata: Metadata = {
-  title: 'tx-peoplehub',
-  description: 'Employee & Access Management — thin UI',
+  title: `${BRAND.appName} — ${BRAND.tagline}`,
+  description: 'HR & Sales management',
 };
 
 export default function RootLayout({
@@ -13,8 +17,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body style={{ fontFamily: 'system-ui, sans-serif', margin: 0 }}>
-        <AuthProvider>{children}</AuthProvider>
+      <body className="min-h-screen bg-background text-foreground antialiased">
+        <AuthProvider>
+          <ToasterProvider>
+            <ConfirmProvider>{children}</ConfirmProvider>
+          </ToasterProvider>
+        </AuthProvider>
       </body>
     </html>
   );

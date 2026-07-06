@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { todayDateStr } from '../../../lib/date';
 import { Attendance, Employee, PaginatedResult } from '../../../lib/types';
+import { useConfirm } from '../../../components/ui/confirm';
 
 function toLocalInputValue(iso: string | null): string {
   if (!iso) return '';
@@ -15,6 +16,7 @@ function toLocalInputValue(iso: string | null): string {
 }
 
 export default function AttendanceCorrectionsPage() {
+  const confirm = useConfirm();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [search, setSearch] = useState('');
   const [employeeId, setEmployeeId] = useState('');
@@ -65,13 +67,13 @@ export default function AttendanceCorrectionsPage() {
 
   async function handleSave() {
     if (!employeeId || !date) return;
-    if (
-      !confirm(
-        'This will be recorded as an admin correction and audited. Continue?',
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Save attendance correction?',
+      description:
+        'This will be recorded as an admin correction and audited.',
+      confirmLabel: 'Save correction',
+    });
+    if (!ok) return;
     setSaving(true);
     setError(null);
     try {

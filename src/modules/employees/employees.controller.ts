@@ -115,6 +115,16 @@ export class EmployeesController {
     return this.employeesService.grantAccess(id, dto);
   }
 
+  @Patch(':id/designate-sales-head')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Designate this employee as the Sales Head (unsets any previous holder atomically)',
+  })
+  designateSalesHead(@Param('id') id: string) {
+    return this.employeesService.designateSalesHead(id);
+  }
+
   @Get(':id/team')
   @Roles(Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN)
   @ApiOperation({

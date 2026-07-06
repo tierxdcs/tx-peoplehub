@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CalendarOff, CalendarDays } from 'lucide-react';
 import { apiFetch, ApiError } from '../../lib/api';
-import { addDaysStr, inclusiveDaySpan, todayDateStr } from '../../lib/date';
+import { inclusiveDaySpan, todayDateStr } from '../../lib/date';
 import {
   Employee,
   LeaveBalance,
@@ -10,14 +11,38 @@ import {
   LeaveType,
   PaginatedResult,
 } from '../../lib/types';
-
-const fieldStyle: React.CSSProperties = {
-  width: '100%',
-  padding: 8,
-  boxSizing: 'border-box',
-};
+import { PageContainer } from '../../components/ui/page-container';
+import { PageHeader } from '../../components/ui/page-header';
+import { Card, CardContent } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Field } from '../../components/ui/field';
+import { Input } from '../../components/ui/input';
+import { Select } from '../../components/ui/select';
+import { Textarea } from '../../components/ui/textarea';
+import { Skeleton } from '../../components/ui/skeleton';
+import { StatusBadge } from '../../components/ui/status-badge';
+import { EmptyState } from '../../components/ui/empty-state';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../components/ui/dialog';
+import { useToast } from '../../components/ui/toaster';
+import { useConfirm } from '../../components/ui/confirm';
 
 export default function MyLeavePage() {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
@@ -83,137 +108,172 @@ export default function MyLeavePage() {
   const today = todayDateStr();
 
   async function handleCancel(id: string) {
-    if (!confirm('Cancel this leave request?')) return;
+    const ok = await confirm({
+      title: 'Cancel this leave request?',
+      description: 'This withdraws the request.',
+      confirmLabel: 'Cancel request',
+      cancelLabel: 'Keep',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await apiFetch(`/leave-requests/${id}/cancel`, { method: 'PATCH' });
       await load();
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Failed to cancel');
+      toast.error(err instanceof ApiError ? err.message : 'Failed to cancel');
     }
   }
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <h1>My Leave</h1>
-        <button style={{ padding: '8px 16px' }} onClick={() => setShowForm(true)}>
-          Request Leave
-        </button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="My Leave"
+        action={<Button onClick={() => setShowForm(true)}>Request Leave</Button>}
+      />
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
-      {loading ? (
-        <p>Loading…</p>
-      ) : (
-        <>
-          <div
-            style={{
-              display: 'flex',
-              gap: 12,
-              marginBottom: 24,
-              flexWrap: 'wrap',
-            }}
-          >
-            {leaveTypes.map((t) => {
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
+      {/* Balance summary — one card per leave type */}
+      <div className="mb-6 flex flex-wrap gap-3">
+        {loading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 w-40" />
+            ))
+          : leaveTypes.map((t) => {
               const balance = balances.find((b) => b.leaveTypeId === t.id);
               const unlimited = t.accrualType === 'UNTRACKED';
               return (
-                <div
-                  key={t.id}
-                  style={{
-                    border: '1px solid #ccc',
-                    borderRadius: 6,
-                    padding: 12,
-                    minWidth: 160,
-                  }}
-                >
-                  <div style={{ fontWeight: 'bold' }}>
-                    {t.name} ({t.code})
-                  </div>
-                  {unlimited ? (
-                    <div style={{ marginTop: 8, color: '#666' }}>
-                      Unlimited
+                <Card key={t.id} className="min-w-[160px] flex-1">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <CalendarDays className="size-4" />
+                      {t.name} ({t.code})
                     </div>
-                  ) : balance ? (
-                    <div style={{ marginTop: 8 }}>
-                      <div>Allocated: {balance.allocated}</div>
-                      <div>Used: {balance.used}</div>
-                      <div style={{ fontWeight: 'bold' }}>
-                        Remaining: {balance.remaining}
+                    {unlimited ? (
+                      <div className="mt-2 text-lg font-medium text-muted-foreground">
+                        Unlimited
                       </div>
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: 8, color: '#666' }}>—</div>
-                  )}
-                </div>
+                    ) : balance ? (
+                      <div className="mt-2">
+                        <span className="text-2xl font-semibold">
+                          {balance.remaining}
+                        </span>
+                        <span className="ml-1 text-sm text-muted-foreground">
+                          / {balance.allocated} left
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-sm text-muted-foreground">—</div>
+                    )}
+                  </CardContent>
+                </Card>
               );
             })}
-          </div>
+      </div>
 
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
-                <th>Type</th>
-                <th>Dates</th>
-                <th>Days</th>
-                <th>Status</th>
-                <th>Approver</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((r) => {
-                const canCancel =
-                  r.status === 'PENDING' ||
-                  (r.status === 'APPROVED' && r.startDate.slice(0, 10) > today);
-                return (
-                  <tr key={r.id} style={{ borderBottom: '1px solid #eee' }}>
-                    <td>{leaveTypeName(r.leaveTypeId)}</td>
-                    <td>
-                      {r.startDate.slice(0, 10)} → {r.endDate.slice(0, 10)}
-                    </td>
-                    <td>{r.numberOfDays}</td>
-                    <td>{r.status}</td>
-                    <td>
-                      {r.approverId
-                        ? approverNames[r.approverId] ?? '…'
-                        : '—'}
-                    </td>
-                    <td>
-                      {canCancel && (
-                        <button onClick={() => handleCancel(r.id)}>
-                          Cancel
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* Request history */}
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Type</TableHead>
+                <TableHead>Dates</TableHead>
+                <TableHead className="text-right">Days</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Approver</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    {Array.from({ length: 6 }).map((__, j) => (
+                      <TableCell key={j}>
+                        <Skeleton className="h-4 w-20" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : requests.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="p-0">
+                    <EmptyState
+                      icon={CalendarOff}
+                      title="No leave requests yet"
+                      description="When you request leave, it'll show up here with its status."
+                    />
+                  </TableCell>
+                </TableRow>
+              ) : (
+                requests.map((r) => {
+                  const canCancel =
+                    r.status === 'PENDING' ||
+                    (r.status === 'APPROVED' &&
+                      r.startDate.slice(0, 10) > today);
+                  return (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-medium">
+                        {leaveTypeName(r.leaveTypeId)}
+                      </TableCell>
+                      <TableCell>
+                        {r.startDate.slice(0, 10)} → {r.endDate.slice(0, 10)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {r.numberOfDays}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge value={r.status} />
+                      </TableCell>
+                      <TableCell>
+                        {r.approverId
+                          ? approverNames[r.approverId] ?? '…'
+                          : '—'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {canCancel ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCancel(r.id)}
+                          >
+                            Cancel
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-          <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Prev
-            </button>
-            <span>
-              Page {page} of {Math.max(1, Math.ceil(total / limit))}
-            </span>
-            <button
-              disabled={page * limit >= total}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </button>
-          </div>
-        </>
-      )}
+      <div className="mt-4 flex items-center gap-3">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => setPage((p) => p - 1)}
+        >
+          Prev
+        </Button>
+        <span className="text-sm text-muted-foreground">
+          Page {page} of {Math.max(1, Math.ceil(total / limit))}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page * limit >= total}
+          onClick={() => setPage((p) => p + 1)}
+        >
+          Next
+        </Button>
+      </div>
 
       {showForm && (
         <RequestLeaveForm
@@ -225,7 +285,7 @@ export default function MyLeavePage() {
           }}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }
 
@@ -295,106 +355,83 @@ function RequestLeaveForm({
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-      onClick={onClose}
-    >
-      <form
-        onSubmit={handleSubmit}
-        style={{ background: '#fff', padding: 24, borderRadius: 6, width: 400 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2>Request Leave</h2>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Request Leave</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Field label="Leave type" htmlFor="leaveType" required>
+            <Select
+              id="leaveType"
+              value={leaveTypeId}
+              onChange={(e) => setLeaveTypeId(e.target.value)}
+            >
+              {leaveTypes.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.code})
+                </option>
+              ))}
+            </Select>
+          </Field>
 
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Leave type
-          </label>
-          <select
-            value={leaveTypeId}
-            onChange={(e) => setLeaveTypeId(e.target.value)}
-            style={fieldStyle}
-          >
-            {leaveTypes.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name} ({t.code})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Start date
-          </label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => {
-              setStartDate(e.target.value);
-              if (e.target.value > endDate) setEndDate(e.target.value);
-            }}
-            style={fieldStyle}
-          />
-        </div>
-
-        {!halfDay && (
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', marginBottom: 4 }}>
-              End date
-            </label>
-            <input
+          <Field label="Start date" htmlFor="startDate" required>
+            <Input
+              id="startDate"
               type="date"
-              value={endDate}
-              min={startDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              style={fieldStyle}
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                if (e.target.value > endDate) setEndDate(e.target.value);
+              }}
             />
-          </div>
-        )}
+          </Field>
 
-        <div style={{ marginBottom: 12 }}>
-          <label>
+          {!halfDay && (
+            <Field label="End date" htmlFor="endDate" required>
+              <Input
+                id="endDate"
+                type="date"
+                value={endDate}
+                min={startDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </Field>
+          )}
+
+          <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={halfDay}
               onChange={(e) => setHalfDay(e.target.checked)}
-            />{' '}
+            />
             Half day
           </label>
-        </div>
 
-        <div style={{ marginBottom: 12, color: '#666' }}>
-          Number of days: {numberOfDays}
-        </div>
+          <p className="text-sm text-muted-foreground">
+            Number of days: {numberOfDays}
+          </p>
 
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Reason</label>
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            style={{ ...fieldStyle, minHeight: 60 }}
-          />
-        </div>
+          <Field label="Reason" htmlFor="reason" required>
+            <Textarea
+              id="reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </Field>
 
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="submit" disabled={submitting} style={{ padding: 8 }}>
-            {submitting ? 'Submitting…' : 'Submit'}
-          </button>
-          <button type="button" onClick={onClose} style={{ padding: 8 }}>
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Submitting…' : 'Submit'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

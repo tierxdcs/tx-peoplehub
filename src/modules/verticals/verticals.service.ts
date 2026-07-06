@@ -1,5 +1,11 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { CreateVerticalDto } from './dto/create-vertical.dto';
 import { VerticalEntity } from './entities/vertical.entity';
 
@@ -31,5 +37,47 @@ export class VerticalsService {
       orderBy: { name: 'asc' },
     });
     return verticals.map((v) => new VerticalEntity(v));
+  }
+
+  /**
+   * The full vertical list is readable by Admin/SuperAdmin and by HR-vertical
+   * staff — HR onboarding lets HR create employees into ANY vertical, so the
+   * onboarding/roster screens genuinely need every vertical (a plain
+   * role-based @Roles guard can't express "or HR-vertical", so it's enforced
+   * here, same pattern as EmployeesService.isHrStaff). Everyone else is
+   * denied; they can still read their own vertical via findMine().
+   */
+  async assertCanListAll(user: AuthenticatedUser): Promise<void> {
+    if (user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN) {
+      return;
+    }
+    const isHrStaff =
+      (user.role === Role.MANAGER || user.role === Role.EMPLOYEE) &&
+      !!user.verticalId &&
+      (
+        await this.prisma.vertical.findUnique({
+          where: { id: user.verticalId },
+        })
+      )?.code === 'HR';
+    if (!isHrStaff) {
+      throw new ForbiddenException(
+        'Only Admins or HR-vertical staff may list all verticals',
+      );
+    }
+  }
+
+  /**
+   * The caller's own vertical, or null if they have none (e.g. SUPER_ADMIN).
+   * Lets any authenticated employee resolve their own vertical code for
+   * client-side nav gating without exposing the full ADMIN-only list.
+   */
+  async findMine(verticalId: string | null): Promise<VerticalEntity | null> {
+    if (!verticalId) {
+      return null;
+    }
+    const vertical = await this.prisma.vertical.findUnique({
+      where: { id: verticalId },
+    });
+    return vertical ? new VerticalEntity(vertical) : null;
   }
 }

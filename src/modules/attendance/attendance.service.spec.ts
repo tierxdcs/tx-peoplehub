@@ -2,7 +2,16 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../core/database/prisma.service';
+import { todayInTimezone } from '../../common/utils/date.util';
 import { AttendanceService } from './attendance.service';
+
+// "Today" as the service computes it (ConfigService is mocked to this tz).
+// Derive the expected date the same way the service does, so a check-in-only
+// record reads as today (optimistic PRESENT) regardless of the UTC-vs-IST
+// wall-clock window the test runs in — never `new Date()`, which lands on a
+// different calendar day than IST-today during the UTC evening.
+const TEST_TZ = 'Asia/Kolkata';
+const todayIst = () => todayInTimezone(TEST_TZ);
 
 describe('AttendanceService', () => {
   let service: AttendanceService;
@@ -42,7 +51,7 @@ describe('AttendanceService', () => {
       prisma.attendance.create.mockResolvedValue({
         id: 'a1',
         employeeId: 'emp-1',
-        date: new Date(),
+        date: todayIst(),
         checkInTime: new Date(),
         checkOutTime: null,
       });
@@ -95,7 +104,7 @@ describe('AttendanceService', () => {
       prisma.attendance.update.mockResolvedValue({
         id: 'a1',
         employeeId: 'emp-1',
-        date: new Date(),
+        date: todayIst(),
         checkInTime: new Date(),
         checkOutTime: new Date(),
       });

@@ -39,6 +39,11 @@ export class EmployeeEntity {
   @ApiProperty({ enum: AccessStatus })
   accessStatus!: AccessStatus;
 
+  @ApiProperty({
+    description: 'Whether this employee is the current Sales Head',
+  })
+  isSalesHead!: boolean;
+
   @ApiProperty({ nullable: true })
   officialEmail!: string | null;
 

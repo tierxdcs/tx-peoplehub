@@ -22,6 +22,7 @@ import { VerticalsModule } from './modules/verticals/verticals.module';
 import { LeaveModule } from './modules/leave/leave.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
+import { SalesModule } from './modules/sales/sales.module';
 import { HealthModule } from './modules/health/health.module';
 
 @Module({
@@ -40,6 +41,7 @@ import { HealthModule } from './modules/health/health.module';
     LeaveModule,
     AttendanceModule,
     PayrollModule,
+    SalesModule,
     HealthModule,
   ],
   providers: [

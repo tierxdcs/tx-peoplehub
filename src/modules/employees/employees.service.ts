@@ -442,6 +442,37 @@ export class EmployeesService {
   }
 
   /**
+   * Designate this employee as the (single) Sales Head. Atomic: unset any
+   * existing holder and set the new one in one transaction, so there is
+   * never a window with two holders or none. Idempotent if the target is
+   * already the holder. The Sales Head is a designation, not a Role — it
+   * gates the Bid/No-Bid assessment review queue, nothing in RBAC.
+   */
+  async designateSalesHead(id: string): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (target.status !== EmployeeStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Only an active employee can be designated as Sales Head',
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Unset every current holder except the target (there should be at
+      // most one, but clear defensively in case data ever drifted).
+      await tx.employee.updateMany({
+        where: { isSalesHead: true, id: { not: id } },
+        data: { isSalesHead: false },
+      });
+      return tx.employee.update({
+        where: { id },
+        data: { isSalesHead: true },
+      });
+    });
+
+    return this.toEntity(updated);
+  }
+
+  /**
    * Reads the latest-effective SalaryStructure row (the table that
    * replaced EmployeeCompensation) but keeps returning the same response
    * shape as before, since existing consumers (e.g. the web UI's sensitive
@@ -652,6 +683,7 @@ export class EmployeesService {
       status: employee.status,
       deactivatedAt: employee.deactivatedAt,
       accessStatus: employee.accessStatus,
+      isSalesHead: employee.isSalesHead,
       officialEmail: employee.officialEmail,
       createdAt: employee.createdAt,
       updatedAt: employee.updatedAt,
