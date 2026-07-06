@@ -55,11 +55,15 @@ Exactly two:
 
 ## Migrations & seed
 
-**Migrations run automatically** on every deploy: the container `CMD` is
-`npx prisma migrate deploy && node dist/main.js` (see `Dockerfile` /
-`railway.json`). `migrate deploy` (never `migrate dev`) applies committed
-migrations against the target DB. `prisma` is a production dependency, so the
-CLI is present in the runtime image — no per-boot download.
+**Migrations run automatically** on every deploy: the container `CMD` (in the
+`Dockerfile`) runs `prisma migrate deploy` and then `node dist/main.js`. The
+start command lives **only** in the Dockerfile — `railway.json` deliberately
+has **no** `startCommand`, because Railway's `startCommand` overrides the image
+`CMD` and would silently mask any Dockerfile change. `migrate deploy` (never
+`migrate dev`) applies committed migrations against the target DB. `prisma` is
+a production dependency, so the CLI is present in the runtime image — the CMD
+calls the local `./node_modules/.bin/prisma` binary directly (not via `npx`,
+which can hang on an external registry call in Railway's restricted network).
 
 **Seed must run from your local machine**, not inside the container — the
 runtime image is dev-dependency-stripped, so `ts-node` (which runs the seed)
@@ -117,7 +121,7 @@ It inserts **no** employee/statutory data — testers create their own via the r
 
 - **Prisma CLI in the runtime image** — `prisma` was moved from `devDependencies` to `dependencies`, so in-container `migrate deploy` uses the bundled CLI instead of downloading it on every boot.
 - **Seed can't run in-container** — dev deps are stripped from the runtime image, so the seed runs from your laptop (documented above). This is intentional, not a bug.
-- **Prisma CLI hang on boot** — `migrate deploy` finishes its work but the CLI can hang on a background telemetry/checkpoint call in a restricted-network container, blocking the chained app start. `ENV CHECKPOINT_DISABLE=1` is baked into the runtime stage of the `Dockerfile`, so **every** environment (staging, a future production Railway service, CI image builds) inherits it automatically — do **not** re-add `CHECKPOINT_DISABLE` as a per-environment Railway env var.
+- **Prisma CLI hang on boot** — in Railway's restricted-network container the migrate step could hang before the app started, blocking boot until the healthcheck timed out. The suspected culprit was an external network call (`npx`'s registry resolution, and/or Prisma telemetry). Addressed defensively at the image level: the `Dockerfile` calls the local `prisma` binary directly instead of via `npx`, wraps it in `timeout 30` so any residual hang fails fast with a clear log, echoes each boot step, and sets `ENV CHECKPOINT_DISABLE=1` + `ENV DO_NOT_TRACK=1` (telemetry opt-outs). All baked into the image, so **every** environment (staging, a future production Railway service, CI image builds) inherits it — do **not** re-add these as per-environment Railway env vars, and do **not** add a `startCommand` to `railway.json` (it would override the image `CMD` and mask all of this).
 
 ## Not included (flag if you want them)
 
