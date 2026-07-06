@@ -9,7 +9,7 @@
  */
 export const BRAND = {
   /** Shown in the top bar and browser title. */
-  appName: 'PeopleHub',
+  appName: 'WorkCore',
   tagline: 'HR & Sales',
   /**
    * Logo is a placeholder glyph (a lucide icon name) until a real logo asset
