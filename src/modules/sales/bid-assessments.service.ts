@@ -134,15 +134,31 @@ export class BidAssessmentsService {
    * all PENDING_REVIEW assessments; SUPER_ADMIN always does (fallback +
    * override). Anyone else gets a 403 — this is a reviewer-only queue.
    */
+  /** Shared where-clause for the pending-review queue (list + count). */
+  private static readonly PENDING_REVIEW_WHERE: Prisma.BidDecisionAssessmentWhereInput =
+    { status: BidAssessmentStatus.PENDING_REVIEW };
+
+  /**
+   * Count of assessments awaiting review. Reuses the list where-clause and the
+   * same Sales-Head/SuperAdmin gate — but returns 0 for non-reviewers instead
+   * of throwing, so the unified notifications endpoint can call it for anyone.
+   */
+  async countPendingForReviewer(user: AuthenticatedUser): Promise<number> {
+    if (!(await this.isReviewer(user))) {
+      return 0;
+    }
+    return this.prisma.bidDecisionAssessment.count({
+      where: BidAssessmentsService.PENDING_REVIEW_WHERE,
+    });
+  }
+
   async findPendingApproval(
     query: PaginationQueryDto,
     user: AuthenticatedUser,
   ): Promise<PaginatedResult<BidDecisionAssessmentEntity>> {
     await this.assertCanReview(user);
 
-    const where: Prisma.BidDecisionAssessmentWhereInput = {
-      status: BidAssessmentStatus.PENDING_REVIEW,
-    };
+    const where = BidAssessmentsService.PENDING_REVIEW_WHERE;
     const [items, total] = await this.prisma.$transaction([
       this.prisma.bidDecisionAssessment.findMany({
         where,
@@ -277,20 +293,24 @@ export class BidAssessmentsService {
    * no Sales Head exists, routing falls through to SUPER_ADMIN so the
    * process is never fully blocked.
    */
-  private async assertCanReview(user: AuthenticatedUser): Promise<void> {
+  /** True if the caller may review (Sales Head, or SUPER_ADMIN fallback). */
+  private async isReviewer(user: AuthenticatedUser): Promise<boolean> {
     if (isSuperAdmin(user)) {
-      return;
+      return true;
     }
     const me = await this.prisma.employee.findUnique({
       where: { id: user.id },
       select: { isSalesHead: true },
     });
-    if (me?.isSalesHead) {
-      return;
+    return !!me?.isSalesHead;
+  }
+
+  private async assertCanReview(user: AuthenticatedUser): Promise<void> {
+    if (!(await this.isReviewer(user))) {
+      throw new ForbiddenException(
+        'Only the designated Sales Head or a SUPER_ADMIN may review Bid/No-Bid assessments',
+      );
     }
-    throw new ForbiddenException(
-      'Only the designated Sales Head or a SUPER_ADMIN may review Bid/No-Bid assessments',
-    );
   }
 
   private async findRawOrThrow(id: string): Promise<AssessmentWithResponses> {

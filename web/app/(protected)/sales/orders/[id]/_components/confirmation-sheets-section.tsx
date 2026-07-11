@@ -364,12 +364,16 @@ export function ConfirmationSheetsSection({
   }
 
   /**
-   * The row-level "PDF" action. If the sheet has an uploaded signed copy, open
-   * that actual scan; otherwise print the generated confirmation-sheet doc.
-   * One button, unambiguous per row.
+   * The row-level "PDF" action.
+   * - EXECUTED sheets should show the generated executed sheet with the Sales
+   *   Head signature block.
+   * - Otherwise, if a customer-signed copy exists, open that scan.
+   * - If no scan exists, print the generated confirmation-sheet doc.
    */
   function openSheetPdf(sheet: OrderConfirmationSheet) {
-    if (sheet.hasSignedCopy) {
+    if (sheet.status === 'EXECUTED') {
+      printSheetById(sheet.id);
+    } else if (sheet.hasSignedCopy) {
       viewSignedCopy(sheet.id);
     } else {
       printSheetById(sheet.id);
@@ -524,6 +528,12 @@ export function ConfirmationSheetsSection({
                   ))}
                 </TableBody>
               </Table>
+              <p className="text-xs text-muted-foreground">
+                The row-level PDF button opens the uploaded signed scan if the
+                sheet is still pending. For an EXECUTED sheet, it opens the
+                generated executed confirmation document with the Sales Head
+                signature block.
+              </p>
 
               {latest && (
                 <LatestSheetPanel

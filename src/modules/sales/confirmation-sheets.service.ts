@@ -31,6 +31,13 @@ const REVISABLE: OrderConfirmationStatus[] = [
   OrderConfirmationStatus.REJECTED,
 ];
 
+/**
+ * The single where-clause for "awaiting the Sales Head's countersignature",
+ * shared by the pending list and its count so the two can never drift.
+ */
+const PENDING_INTERNAL_SIGNATURE_WHERE: Prisma.OrderConfirmationSheetWhereInput =
+  { status: OrderConfirmationStatus.AWAITING_INTERNAL_SIGNATURE };
+
 @Injectable()
 export class ConfirmationSheetsService {
   constructor(
@@ -363,6 +370,38 @@ export class ConfirmationSheetsService {
     return this.toEntity(revision);
   }
 
+  /**
+   * Every sheet AWAITING_INTERNAL_SIGNATURE across all orders — the Sales
+   * Head's / SuperAdmin's countersignature queue. A discovery surface; the
+   * actual sign/reject still happens on the order's OCS section. Gated by
+   * assertCanReview (the same Sales-Head/SuperAdmin check as sign/reject).
+   */
+  async findPendingApproval(
+    user: AuthenticatedUser,
+  ): Promise<ConfirmationSheetEntity[]> {
+    await this.assertCanReview(user);
+    const sheets = await this.prisma.orderConfirmationSheet.findMany({
+      where: PENDING_INTERNAL_SIGNATURE_WHERE,
+      orderBy: { createdAt: 'asc' },
+    });
+    return sheets.map((s) => this.toEntity(s));
+  }
+
+  /**
+   * Count of sheets awaiting the caller's countersignature — reuses the EXACT
+   * same where-clause as findPendingApproval (no drift). Returns 0 for a
+   * caller who isn't a reviewer, rather than throwing, so the unified
+   * notifications endpoint can call it uniformly for any role.
+   */
+  async countPendingForReviewer(user: AuthenticatedUser): Promise<number> {
+    if (!(await this.isReviewer(user))) {
+      return 0;
+    }
+    return this.prisma.orderConfirmationSheet.count({
+      where: PENDING_INTERNAL_SIGNATURE_WHERE,
+    });
+  }
+
   /** All sheets for an order, newest revision first (full history, §7). */
   async listForOrder(
     orderId: string,
@@ -453,20 +492,24 @@ export class ConfirmationSheetsService {
   }
 
   /** Sales Head or SUPER_ADMIN — same routing as the Bid/No-Bid gate. */
-  private async assertCanReview(user: AuthenticatedUser): Promise<void> {
+  /** True if the caller may review (Sales Head, or SUPER_ADMIN fallback). */
+  private async isReviewer(user: AuthenticatedUser): Promise<boolean> {
     if (isSuperAdmin(user)) {
-      return;
+      return true;
     }
     const me = await this.prisma.employee.findUnique({
       where: { id: user.id },
       select: { isSalesHead: true },
     });
-    if (me?.isSalesHead) {
-      return;
+    return !!me?.isSalesHead;
+  }
+
+  private async assertCanReview(user: AuthenticatedUser): Promise<void> {
+    if (!(await this.isReviewer(user))) {
+      throw new ForbiddenException(
+        'Only the designated Sales Head or a SUPER_ADMIN may sign or reject a confirmation sheet',
+      );
     }
-    throw new ForbiddenException(
-      'Only the designated Sales Head or a SUPER_ADMIN may sign or reject a confirmation sheet',
-    );
   }
 
   /**

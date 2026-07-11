@@ -150,16 +150,34 @@ export class LeaveRequestsService {
     };
   }
 
-  async getPendingApproval(
+  /**
+   * The scoped where-clause for the caller's pending-approval queue: Admins see
+   * every PENDING request company-wide; everyone else sees only their DIRECT
+   * reports' requests. Shared by the list and its count so they can't drift.
+   */
+  private pendingApprovalWhere(
     currentUser: AuthenticatedUser,
-    query: PaginationQueryDto,
-  ): Promise<PaginatedResult<LeaveRequestEntity>> {
-    const where = isAdmin(currentUser)
+  ): Prisma.LeaveRequestWhereInput {
+    return isAdmin(currentUser)
       ? { status: LeaveRequestStatus.PENDING }
       : {
           status: LeaveRequestStatus.PENDING,
           employee: { reportingManagerId: currentUser.id },
         };
+  }
+
+  /** Count of requests awaiting the caller's approval (reuses the same scope). */
+  async countPendingApproval(currentUser: AuthenticatedUser): Promise<number> {
+    return this.prisma.leaveRequest.count({
+      where: this.pendingApprovalWhere(currentUser),
+    });
+  }
+
+  async getPendingApproval(
+    currentUser: AuthenticatedUser,
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<LeaveRequestEntity>> {
+    const where = this.pendingApprovalWhere(currentUser);
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.leaveRequest.findMany({

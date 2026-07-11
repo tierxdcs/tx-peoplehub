@@ -59,6 +59,16 @@ export class ConfirmationSheetsController {
     return this.service.listForOrder(orderId, user);
   }
 
+  // Static route BEFORE :id so 'pending-approval' isn't captured as an :id.
+  @Get('confirmation-sheets/pending-approval')
+  @ApiOperation({
+    summary:
+      'Sheets awaiting internal countersignature across all orders (Sales Head / SUPER_ADMIN)',
+  })
+  findPendingApproval(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.findPendingApproval(user);
+  }
+
   @Get('confirmation-sheets/:id')
   @ApiOperation({ summary: 'Get one confirmation sheet' })
   findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {

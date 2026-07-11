@@ -562,11 +562,27 @@ export class EmployeesService {
     );
   }
 
+  /** Shared where-clause for employees awaiting an access grant. */
+  private static readonly PENDING_ACCESS_WHERE = {
+    accessStatus: AccessStatus.PENDING_ACCESS,
+  };
+
+  /**
+   * Count of employees awaiting access (company-wide, same where-clause as the
+   * list). Role gating (ADMIN/SUPER_ADMIN) is applied by the caller — the
+   * notifications endpoint returns 0 for other roles.
+   */
+  async countPendingAccess(): Promise<number> {
+    return this.prisma.employee.count({
+      where: EmployeesService.PENDING_ACCESS_WHERE,
+    });
+  }
+
   /** Employees still awaiting an Admin's grant-access decision. */
   async getPendingAccess(
     query: PaginationQueryDto,
   ): Promise<PaginatedResult<EmployeeEntity>> {
-    const where = { accessStatus: AccessStatus.PENDING_ACCESS };
+    const where = EmployeesService.PENDING_ACCESS_WHERE;
     const [items, total] = await this.prisma.$transaction([
       this.prisma.employee.findMany({
         where,

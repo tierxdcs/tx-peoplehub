@@ -20,7 +20,11 @@ import {
 import { CreateBidDto } from './dto/create-bid.dto';
 import { BidActionDto } from './dto/bid-action.dto';
 import { BidEntity, BidLineItemEntity } from './entities/bid.entity';
-import { SalesAccessService, isAdmin } from './common/sales-access.service';
+import {
+  SalesAccessService,
+  isAdmin,
+  isSuperAdmin,
+} from './common/sales-access.service';
 import { SalesNumberingService } from './common/sales-numbering.service';
 import { ApprovalRoutingService } from './common/approval-routing.service';
 import { TaxConfigService } from './tax-config.service';
@@ -195,14 +199,35 @@ export class BidsService {
    * approverId is the creator's manager, so a manager's own submitted bid
    * never lands in their own queue — same self-exclusion as leave approvals.
    */
+  /**
+   * Scoped where-clause for the caller's bid-approval queue: Admin/SuperAdmin
+   * see all PENDING_APPROVAL; everyone else sees only bids routed to them
+   * (approverId === caller). Shared by list + count so they can't drift.
+   */
+  private pendingApprovalWhere(user: AuthenticatedUser): Prisma.BidWhereInput {
+    return isAdmin(user)
+      ? { status: BidStatus.PENDING_APPROVAL }
+      : { status: BidStatus.PENDING_APPROVAL, approverId: user.id };
+  }
+
+  /**
+   * Count of bids awaiting the caller's approval. Reuses the list scope. Non-
+   * Sales callers get 0 (not a thrown error) so the unified notifications
+   * endpoint can call this for any role.
+   */
+  async countPendingApproval(user: AuthenticatedUser): Promise<number> {
+    if (!isSuperAdmin(user) && !(await this.access.isSalesStaff(user))) {
+      return 0;
+    }
+    return this.prisma.bid.count({ where: this.pendingApprovalWhere(user) });
+  }
+
   async findPendingApproval(
     query: PaginationQueryDto,
     user: AuthenticatedUser,
   ): Promise<PaginatedResult<BidEntity>> {
     await this.access.assertSalesAccess(user);
-    const where: Prisma.BidWhereInput = isAdmin(user)
-      ? { status: BidStatus.PENDING_APPROVAL }
-      : { status: BidStatus.PENDING_APPROVAL, approverId: user.id };
+    const where = this.pendingApprovalWhere(user);
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.bid.findMany({
