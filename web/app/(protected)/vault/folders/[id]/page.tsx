@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
@@ -13,7 +13,6 @@ import {
   FolderLock,
   History,
   Link2,
-  MoreVertical,
   Share2,
   Trash2,
   Upload,
@@ -24,16 +23,13 @@ import type {
   VaultDownloadUrlResponse,
   VaultFile,
   VaultFolder,
-  VaultUploadUrlResponse,
 } from '../../../../lib/types';
 import { useAuth } from '../../../../lib/auth-context';
-import { uploadToPresignedUrl } from '../../../../lib/vault-api';
 import { PageContainer } from '../../../../components/ui/page-container';
 import { PageHeader } from '../../../../components/ui/page-header';
 import { Card, CardContent } from '../../../../components/ui/card';
 import { Badge } from '../../../../components/ui/badge';
 import { Button } from '../../../../components/ui/button';
-import { Progress } from '../../../../components/ui/progress';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { EmptyState } from '../../../../components/ui/empty-state';
 import {
@@ -51,6 +47,7 @@ import { InternalShareDialog } from '../../_components/internal-share-dialog';
 import { ExternalShareDialog } from '../../_components/external-share-dialog';
 import { PreviewModal } from '../../_components/preview-modal';
 import { VersionPanel } from '../../_components/version-panel';
+import { UploadQueueDialog } from '../../_components/upload-queue-dialog';
 import {
   folderScopeLabel,
   folderScopeVariant,
@@ -60,6 +57,7 @@ import {
 
 type Dialog =
   | { kind: 'newSubfolder' }
+  | { kind: 'upload' }
   | { kind: 'shareFolder' }
   | { kind: 'linkFolder' }
   | { kind: 'preview'; file: VaultFile }
@@ -87,8 +85,6 @@ export default function FolderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
@@ -116,37 +112,6 @@ export default function FolderDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  async function handleUploadFile(picked: File) {
-    if (!folder) return;
-    setUploadProgress(0);
-    try {
-      // Presign a PUT for a brand-new file, stream bytes to R2, then confirm.
-      const presign = await apiFetch<VaultUploadUrlResponse>(
-        '/vault/files/upload-url',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            folderId: folder.id,
-            name: picked.name,
-            mimeType: picked.type || 'application/octet-stream',
-            sizeBytes: picked.size,
-          }),
-        },
-      );
-      await uploadToPresignedUrl(presign.uploadUrl, picked, setUploadProgress);
-      await apiFetch(`/vault/files/${presign.file.id}/confirm-upload`, {
-        method: 'POST',
-      });
-      toast.success(`Uploaded “${picked.name}”.`);
-      await load();
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to upload file');
-    } finally {
-      setUploadProgress(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
 
   async function handleDownload(file: VaultFile) {
     try {
@@ -224,7 +189,6 @@ export default function FolderDetailPage() {
   }
 
   const { access } = folder;
-  const uploading = uploadProgress !== null;
   const subfolders = folder.children ?? [];
   // External links aren't allowed on PERSONAL folders (backend rule), so hide
   // the action there rather than surface a guaranteed error.
@@ -275,10 +239,7 @@ export default function FolderDetailPage() {
               </Button>
             )}
             {access.canWrite && (
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-              >
+              <Button onClick={() => setDialog({ kind: 'upload' })}>
                 <Upload /> Upload
               </Button>
             )}
@@ -290,25 +251,6 @@ export default function FolderDetailPage() {
           </div>
         }
       />
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        hidden
-        onChange={(e) => {
-          const picked = e.target.files?.[0];
-          if (picked) handleUploadFile(picked);
-        }}
-      />
-
-      {uploading && (
-        <div className="mb-4 space-y-1">
-          <Progress value={(uploadProgress ?? 0) * 100} />
-          <p className="text-xs text-muted-foreground">
-            Uploading… {Math.round((uploadProgress ?? 0) * 100)}%
-          </p>
-        </div>
-      )}
 
       {subfolders.length > 0 && (
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -444,6 +386,14 @@ export default function FolderDetailPage() {
             </TableBody>
           </Table>
         </Card>
+      )}
+
+      {dialog?.kind === 'upload' && (
+        <UploadQueueDialog
+          folderId={folder.id}
+          onClose={() => setDialog(null)}
+          onUploaded={load}
+        />
       )}
 
       {dialog?.kind === 'newSubfolder' && (

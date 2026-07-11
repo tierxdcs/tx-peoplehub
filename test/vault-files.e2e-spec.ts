@@ -5,6 +5,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/core/database/prisma.service';
 import { VaultStorageService } from '../src/modules/vault/vault-storage.service';
+import { PERSONAL_FOLDER_QUOTA_BYTES } from '../src/modules/vault/vault-guardrails';
 
 /**
  * Vault Phase 2 e2e: presigned-URL upload flow, write-permission gating,
@@ -68,6 +69,7 @@ describe('Vault files (e2e)', () => {
   let salesVerticalId: string;
 
   let ownerToken: string; // manager who owns folders
+  let ownerId: string;
   let outsiderToken: string; // different vertical, no access
 
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@peoplehub.local';
@@ -206,6 +208,7 @@ describe('Vault files (e2e)', () => {
       reportingManagerId: superAdminId,
     });
 
+    ownerId = owner.id;
     ownerToken = await login(owner.email, 'S3curePass!');
     outsiderToken = await login(outsider.email, 'S3curePass!');
   });
@@ -262,6 +265,83 @@ describe('Vault files (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .expect(201);
     expect(confirmRes.body.data.status).toBe('ACTIVE');
+  });
+
+  it('quota race: concurrent uploads to a near-full personal folder cannot collectively exceed the cap', async () => {
+    // A PERSONAL folder owned by `owner`, pre-seeded with ACTIVE usage that
+    // leaves only ~900MB of headroom under the 5GB quota.
+    const headroom = 900 * 1024 * 1024;
+    const seededUsage = PERSONAL_FOLDER_QUOTA_BYTES - headroom;
+    const personal = await prisma.vaultFolder.create({
+      data: {
+        name: 'Race Personal',
+        type: 'PERSONAL',
+        ownerId,
+        visibilityScope: 'PRIVATE',
+      },
+    });
+    createdFolderIds.push(personal.id);
+    // Seed usage with one ACTIVE file + version whose size = seededUsage.
+    const seedFile = await prisma.vaultFile.create({
+      data: {
+        folderId: personal.id,
+        name: 'seed.bin',
+        uploadedById: ownerId,
+        status: 'ACTIVE',
+      },
+    });
+    await prisma.vaultFileVersion.create({
+      data: {
+        fileId: seedFile.id,
+        versionNumber: 1,
+        mimeType: 'application/octet-stream',
+        sizeBytes: BigInt(seededUsage),
+        storageKey: `vault/files/${seedFile.id}/v1`,
+        previewStatus: 'NOT_APPLICABLE',
+        uploadedById: ownerId,
+      },
+    });
+
+    // Each upload is 400MB (under the 500MB per-file cap). With only 900MB of
+    // headroom, at most TWO can fit (2×400 = 800 ≤ 900; a 3rd would hit 1200).
+    const each = 400 * 1024 * 1024;
+    const maxThatFit = Math.floor(headroom / each); // 2
+    const attempts = 6;
+
+    // Fire them concurrently — this is the race the fix must close.
+    const results = await Promise.all(
+      Array.from({ length: attempts }, (_, i) =>
+        request(app.getHttpServer())
+          .post('/vault/files/upload-url')
+          .set('Authorization', `Bearer ${ownerToken}`)
+          .send({
+            folderId: personal.id,
+            name: `race-${i}.bin`,
+            mimeType: 'application/octet-stream',
+            sizeBytes: each,
+          })
+          .then((r) => r.status),
+      ),
+    );
+
+    const accepted = results.filter((s) => s === 201).length;
+    const rejected = results.filter((s) => s === 400).length;
+
+    // The core property: not all succeeded, and no more than the quota allows.
+    expect(accepted).toBeLessThanOrEqual(maxThatFit);
+    expect(accepted + rejected).toBe(attempts);
+
+    // And the DB reflects reality — total reserved (seed + accepted PENDING)
+    // never exceeded the quota.
+    const agg = await prisma.vaultFileVersion.aggregate({
+      _sum: { sizeBytes: true },
+      where: {
+        file: { folderId: personal.id, status: { not: 'DELETED' } },
+      },
+    });
+    expect(Number(agg._sum.sizeBytes ?? 0)).toBeLessThanOrEqual(
+      PERSONAL_FOLDER_QUOTA_BYTES,
+    );
   });
 
   it('a PENDING (never-confirmed) file does NOT appear in the folder listing', async () => {

@@ -80,6 +80,13 @@ export class VaultFilesService {
     );
 
     const created = await this.prisma.$transaction(async (tx) => {
+      // Atomic quota check-and-reserve: locks the folder row, reads usage
+      // (incl. already-PENDING reservations), and throws if this upload would
+      // exceed the cap — all before the insert below, so concurrent requests
+      // to the same personal folder can't all pass a stale check. Rolls back
+      // (no row created) on rejection; the pre-minted presign URL is harmless.
+      await this.assertPersonalQuotaWithinTx(tx, folder, dto.sizeBytes);
+
       const file = await tx.vaultFile.create({
         data: {
           id: fileId,
@@ -195,6 +202,10 @@ export class VaultFilesService {
     );
 
     const created = await this.prisma.$transaction(async (tx) => {
+      // Versions count toward the same personal-folder quota — reserve
+      // atomically here too (no-op for non-PERSONAL folders).
+      await this.assertPersonalQuotaWithinTx(tx, folder, dto.sizeBytes);
+
       const version = await tx.vaultFileVersion.create({
         data: {
           fileId: file.id,
@@ -481,22 +492,53 @@ export class VaultFilesService {
         'This folder is archived and can no longer accept uploads',
       );
     }
+    // Stateless, single-file guardrails only (no DB, no race). The cumulative
+    // personal-folder quota is NOT checked here — it must be checked-and-
+    // reserved atomically inside the creating transaction (see
+    // assertPersonalQuotaWithinTx), or concurrent uploads race on stale usage.
     assertExtensionAllowed(name);
     assertSizeWithinCap(sizeBytes);
+  }
 
-    if (folder.type === VaultFolderType.PERSONAL) {
-      const agg = await this.prisma.vaultFileVersion.aggregate({
-        _sum: { sizeBytes: true },
-        where: {
-          file: {
-            folderId: folder.id,
-            status: { not: VaultFileStatus.DELETED },
-          },
+  /**
+   * Atomic personal-folder quota check-and-reserve. MUST run inside the same
+   * transaction that then inserts the PENDING file/version row, so the read and
+   * the reservation are indivisible.
+   *
+   * The race it closes: several concurrent multi-file upload-url requests each
+   * read the same "current usage" before any inserts its PENDING row, so all
+   * pass a check they'd collectively fail. We serialize per-folder by taking a
+   * row lock on the folder (SELECT … FOR UPDATE): concurrent transactions
+   * targeting the same personal folder queue up, and each one reads usage only
+   * AFTER the previous one's PENDING reservation is committed. The usage sum
+   * already counts PENDING versions (status ≠ DELETED), so a burst of pending
+   * uploads is fully accounted for before any of them confirm — exactly the
+   * "reserved but not yet confirmed" accounting the spec asks for, made
+   * correct under concurrency by the lock.
+   *
+   * No-op for non-PERSONAL folders (no cumulative quota there).
+   */
+  private async assertPersonalQuotaWithinTx(
+    tx: Prisma.TransactionClient,
+    folder: VaultFolder,
+    sizeBytes: number,
+  ): Promise<void> {
+    if (folder.type !== VaultFolderType.PERSONAL) return;
+
+    // Serialization point: lock this folder's row for the rest of the tx.
+    await tx.$queryRaw`SELECT id FROM vault_folders WHERE id = ${folder.id} FOR UPDATE`;
+
+    const agg = await tx.vaultFileVersion.aggregate({
+      _sum: { sizeBytes: true },
+      where: {
+        file: {
+          folderId: folder.id,
+          status: { not: VaultFileStatus.DELETED },
         },
-      });
-      const current = agg._sum.sizeBytes ?? BigInt(0);
-      assertWithinPersonalQuota(current, sizeBytes);
-    }
+      },
+    });
+    const current = agg._sum.sizeBytes ?? BigInt(0);
+    assertWithinPersonalQuota(current, sizeBytes);
   }
 
   private async pruneOldVersions(fileId: string): Promise<void> {
