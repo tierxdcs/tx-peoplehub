@@ -80,7 +80,7 @@ export function activeModule(
  * role only, never by module.
  */
 export function sharedNav(access: Access): NavGroup[] {
-  const { isManager, isEmployee } = flags(access.user);
+  const { isManager, isEmployee, isAdmin } = flags(access.user);
   const groups: NavGroup[] = [];
 
   const me: NavItem[] = [
@@ -88,7 +88,12 @@ export function sharedNav(access: Access): NavGroup[] {
     { label: 'My Attendance', href: '/attendance' },
   ];
   if (isEmployee) me.unshift({ label: 'My Profile', href: '/profile' });
-  if (isManager) me.unshift({ label: 'My Team', href: '/team' });
+  // "My Team" (the downstream-reports view at /team) is shown to anyone the
+  // page itself allows: MANAGER plus ADMIN/SUPER_ADMIN (isAdmin covers both).
+  // A SUPER_ADMIN/CEO sits atop the reporting tree, so the link must not be
+  // manager-only — that left the CEO able to reach /team by URL but with no
+  // nav entry to it.
+  if (isManager || isAdmin) me.unshift({ label: 'My Team', href: '/team' });
   if (access.payslipsEnabled) me.push({ label: 'My Payslips', href: '/payslips' });
   groups.push({ heading: 'Me', items: me });
 

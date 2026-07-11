@@ -185,6 +185,32 @@ export class EmployeesService {
   }
 
   /**
+   * Reverse of deactivate() — a direct restore, NOT a re-hire. Login is gated
+   * on BOTH status === ACTIVE and accessStatus === ACTIVE (see AuthService), and
+   * deactivate() only ever flipped `status`; it never touched accessStatus,
+   * role, verticalId, or reportingManagerId. So restoring `status` to ACTIVE and
+   * clearing deactivatedAt is all that's needed to let a previously-granted
+   * employee log in again with their existing credentials and assignments.
+   *
+   * accessStatus is deliberately left untouched: a granted employee's is still
+   * ACTIVE (so they can log in immediately), while a PENDING_ACCESS employee who
+   * was deactivated returns to PENDING_ACCESS — they still must go through
+   * grant-access before login, which is correct (they never had access to
+   * restore). We do NOT force accessStatus to ACTIVE here.
+   */
+  async reactivate(id: string): Promise<EmployeeEntity> {
+    const current = await this.findRawOrThrow(id);
+    if (current.status === EmployeeStatus.ACTIVE) {
+      throw new BadRequestException('Employee is already active');
+    }
+    const employee = await this.prisma.employee.update({
+      where: { id },
+      data: { status: EmployeeStatus.ACTIVE, deactivatedAt: null },
+    });
+    return this.toEntity(employee);
+  }
+
+  /**
    * PERMANENT delete (SUPER_ADMIN only, guarded at the route). This is for
    * genuinely empty accounts — a mistaken/duplicate record — NOT for normal
    * offboarding, which is deactivate() (soft). We refuse if the employee is

@@ -103,6 +103,24 @@ describe('sidebarNav — the reported bug', () => {
     expect(shown).not.toContain('Leads');
   });
 
+  it('a SUPER_ADMIN sees the My Team link (sits atop the reporting tree)', () => {
+    const a = access('SUPER_ADMIN');
+    const shown = labels(a, activeModule('/admin/employees', availableModules(a)));
+    expect(shown).toContain('My Team');
+  });
+
+  it('a plain ADMIN sees the My Team link too', () => {
+    const a = access('ADMIN');
+    const shown = labels(a, activeModule('/admin/employees', availableModules(a)));
+    expect(shown).toContain('My Team');
+  });
+
+  it('an EMPLOYEE does NOT see My Team', () => {
+    const a = access('EMPLOYEE');
+    const shown = labels(a, activeModule('/leave', availableModules(a)));
+    expect(shown).not.toContain('My Team');
+  });
+
   it('a module-less EMPLOYEE (Production) sees only shared items', () => {
     const a = access('EMPLOYEE');
     const shown = labels(a, activeModule('/leave', availableModules(a)));

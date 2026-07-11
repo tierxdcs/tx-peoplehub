@@ -122,6 +122,16 @@ export class EmployeesController {
     return this.employeesService.deactivate(id);
   }
 
+  @Patch(':id/reactivate')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Reactivate a deactivated employee — restores login with existing role/vertical/manager (not a re-hire)',
+  })
+  reactivate(@Param('id') id: string) {
+    return this.employeesService.reactivate(id);
+  }
+
   @Delete(':id')
   @Roles(Role.SUPER_ADMIN)
   @HttpCode(204)

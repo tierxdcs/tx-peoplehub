@@ -68,6 +68,25 @@ export default function EmployeesListPage() {
     }
   }
 
+  async function handleReactivate(e: Employee) {
+    const ok = await confirm({
+      title: `Activate ${e.firstName} ${e.lastName}?`,
+      description:
+        'This restores their login access with their existing role, vertical, and manager. It is not a re-hire — no onboarding needed.',
+      confirmLabel: 'Activate',
+    });
+    if (!ok) return;
+    try {
+      await apiFetch(`/employees/${e.id}/reactivate`, { method: 'PATCH' });
+      toast.success('Employee activated.');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to activate',
+      );
+    }
+  }
+
   async function handleDelete(e: Employee) {
     const ok = await confirm({
       title: `Permanently delete ${e.firstName} ${e.lastName}?`,
@@ -198,9 +217,13 @@ export default function EmployeesListPage() {
                       <Link href={`/admin/employees/${e.id}`}>
                         <button>Edit</button>
                       </Link>
-                      {e.status === 'ACTIVE' && (
+                      {e.status === 'ACTIVE' ? (
                         <button onClick={() => handleDeactivate(e)}>
                           Deactivate
+                        </button>
+                      ) : (
+                        <button onClick={() => handleReactivate(e)}>
+                          Activate
                         </button>
                       )}
                       {isSuperAdmin && (

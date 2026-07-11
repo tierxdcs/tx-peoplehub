@@ -197,6 +197,89 @@ describe('Employees (e2e)', () => {
     expect(deactivateAudit).not.toBeNull();
   });
 
+  it('reactivate restores login with unchanged role/vertical/manager; blocked while inactive', async () => {
+    const suffix = Date.now();
+    const target = await createEmployee({
+      firstName: 'Rehire',
+      lastName: 'Cycle',
+      email: `reactivate-${suffix}@peoplehub.local`,
+      password: 'S3curePass!',
+      role: 'MANAGER',
+      verticalId,
+      reportingManagerId: superAdminId,
+    });
+
+    // Baseline: can log in.
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: target.email, password: 'S3curePass!' })
+      .expect(200);
+
+    // Deactivate → login now blocked.
+    await request(app.getHttpServer())
+      .patch(`/employees/${target.id}/deactivate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: target.email, password: 'S3curePass!' })
+      .expect(401);
+
+    // Reactivate → status ACTIVE, deactivatedAt cleared, assignments intact.
+    const res = await request(app.getHttpServer())
+      .patch(`/employees/${target.id}/reactivate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(res.body.data.status).toBe('ACTIVE');
+
+    const reloaded = await prisma.employee.findUniqueOrThrow({
+      where: { id: target.id },
+    });
+    expect(reloaded.status).toBe(EmployeeStatus.ACTIVE);
+    expect(reloaded.deactivatedAt).toBeNull();
+    expect(reloaded.role).toBe('MANAGER');
+    expect(reloaded.verticalId).toBe(verticalId);
+    expect(reloaded.reportingManagerId).toBe(superAdminId);
+
+    // Login works again with the same credentials.
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: target.email, password: 'S3curePass!' })
+      .expect(200);
+  });
+
+  it('a non-Admin (EMPLOYEE) cannot reactivate (403)', async () => {
+    const suffix = Date.now();
+    const actor = await createEmployee({
+      firstName: 'Plain',
+      lastName: 'Emp',
+      email: `noreactivate-${suffix}@peoplehub.local`,
+      password: 'S3curePass!',
+      role: 'EMPLOYEE',
+      verticalId,
+      reportingManagerId: superAdminId,
+    });
+    const actorToken = await login(actor.email, 'S3curePass!');
+    const target = await createEmployee({
+      firstName: 'Inactive',
+      lastName: 'Target',
+      email: `inactive-target-${suffix}@peoplehub.local`,
+      password: 'S3curePass!',
+      role: 'EMPLOYEE',
+      verticalId,
+      reportingManagerId: superAdminId,
+    });
+    await request(app.getHttpServer())
+      .patch(`/employees/${target.id}/deactivate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .patch(`/employees/${target.id}/reactivate`)
+      .set('Authorization', `Bearer ${actorToken}`)
+      .expect(403);
+  });
+
   it('EMPLOYEE cannot use the team endpoint at all', async () => {
     const suffix = Date.now();
     const employee = await createEmployee({
