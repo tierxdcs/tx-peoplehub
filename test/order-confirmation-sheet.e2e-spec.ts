@@ -395,11 +395,13 @@ describe('Order Confirmation Sheet (e2e)', () => {
       .set('Authorization', `Bearer ${salesHeadToken}`)
       .expect(200);
 
-    // Snapshot captured with the values that were current at sign time.
+    // Snapshot captured with the values that were current at sign time,
+    // including the signer's name (for the printed internal-signature line).
     expect(signed.body.data.approverSignatureTextSnapshot).toBe('S. Head');
     expect(signed.body.data.approverSignatureFontSnapshot).toBe(
       'DANCING_SCRIPT',
     );
+    expect(signed.body.data.internalSignedByName).toBe('Oc Head');
 
     // Sales Head later CHANGES their signature.
     await request(app.getHttpServer())
@@ -460,9 +462,11 @@ describe('Order Confirmation Sheet (e2e)', () => {
       .set('Authorization', `Bearer ${bareHeadToken}`)
       .expect(200);
 
-    // Approval succeeded (not blocked) and the snapshot is null (UI falls back).
+    // Approval succeeded (not blocked); signature snapshot is null (UI falls
+    // back) but the signer NAME is still captured so the doc shows who signed.
     expect(signed.body.data.status).toBe('EXECUTED');
     expect(signed.body.data.approverSignatureTextSnapshot).toBeNull();
     expect(signed.body.data.approverSignatureFontSnapshot).toBeNull();
+    expect(signed.body.data.internalSignedByName).toBe('Bare Head');
   });
 });

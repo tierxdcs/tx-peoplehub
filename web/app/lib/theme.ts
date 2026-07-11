@@ -25,7 +25,7 @@ export const BRAND = {
  * from this one object. `addressLines` renders one line each in the header.
  */
 export const COMPANY = {
-  name: '[Your Company Name]',
+  name: 'Phaze Dynamics Inc.',
   addressLines: [
     '[Company Address Line 1]',
     '[City, State, PIN]',

@@ -921,8 +921,12 @@ model OrderConfirmationSheet {
   internalSignedBy              Employee?      @relation("OcInternalSigner", fields: [internalSignedById], references: [id], onDelete: SetNull)
   internalSignedAt              DateTime?
   internalReviewComments        String?        @db.Text
-  /// Snapshot of the Sales Head's e-signature at countersignature time —
-  /// rendered onto the internal-signature line of the printed sheet.
+  /// Snapshot of the Sales Head's name + e-signature at countersignature time —
+  /// rendered onto the internal-signature line of the printed sheet. Name is
+  /// snapshotted (not live-joined) so the executed document is stable even if
+  /// the signer is later renamed. Signature fields stay null if the signer had
+  /// none configured (the printed line then shows just the name + date).
+  internalSignedByName          String?
   approverSignatureTextSnapshot String?
   approverSignatureFontSnapshot SignatureFont?
 

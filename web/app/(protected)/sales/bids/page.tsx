@@ -101,7 +101,11 @@ export default function BidsPage() {
                   <td>{formatINR(b.totalAmount)}</td>
                   <td>{b.validUntil.slice(0, 10)}</td>
                   <td>
-                    <Link href={`/sales/bids/${b.id}`}>View</Link>
+                    <Link href={`/sales/bids/${b.id}`}>
+                      <Button variant="outline" size="sm">
+                        View
+                      </Button>
+                    </Link>
                   </td>
                 </tr>
               ))}

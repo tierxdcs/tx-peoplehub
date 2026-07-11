@@ -323,10 +323,10 @@ export function ConfirmationSheetPrintDocument({
           </div>
         </div>
         <div style={{ flex: 1 }}>
-          {/* When executed, render the Sales Head's e-signature snapshot above
-              the line so the printed document reads as signed. */}
-          {sheet.status === 'EXECUTED' &&
-          sheet.approverSignatureTextSnapshot ? (
+          {/* When executed, render the Sales Head's e-signature (if configured)
+              above the line, and always show WHO signed + the date so the
+              document reads as signed even without a typed signature. */}
+          {sheet.status === 'EXECUTED' ? (
             <>
               <div
                 style={{
@@ -336,13 +336,17 @@ export function ConfirmationSheetPrintDocument({
                   ...signatureStyle(sheet.approverSignatureFontSnapshot),
                 }}
               >
-                {sheet.approverSignatureTextSnapshot}
+                {sheet.approverSignatureTextSnapshot ?? ''}
               </div>
               <div style={{ borderTop: '1px solid #000', paddingTop: 6 }}>
                 <div style={{ fontSize: 11, fontWeight: 600 }}>
                   For {COMPANY.name} (Sales Head)
                 </div>
                 <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
+                  {sheet.internalSignedByName ?? ''}
+                  {sheet.internalSignedByName && sheet.internalSignedAt
+                    ? ' · '
+                    : ''}
                   {sheet.internalSignedAt
                     ? sheet.internalSignedAt.slice(0, 10)
                     : ''}

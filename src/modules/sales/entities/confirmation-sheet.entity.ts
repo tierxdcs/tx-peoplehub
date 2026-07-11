@@ -55,6 +55,7 @@ export class ConfirmationSheetEntity {
   @ApiProperty({ nullable: true }) signedCopyUploadedAt!: string | null;
 
   @ApiProperty({ nullable: true }) internalSignedById!: string | null;
+  @ApiProperty({ nullable: true }) internalSignedByName!: string | null;
   @ApiProperty({ nullable: true }) internalSignedAt!: string | null;
   @ApiProperty({ nullable: true }) internalReviewComments!: string | null;
   @ApiProperty({ nullable: true })

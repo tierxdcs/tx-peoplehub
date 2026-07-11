@@ -90,10 +90,16 @@ interface DraftForm {
   customerContactEmail: string;
 }
 
+/** Epoch sentinel the backend stores for an unset DRAFT deliveryDate. */
+const EPOCH_DATE = '1970-01-01';
+
 function toForm(sheet: OrderConfirmationSheet): DraftForm {
+  const deliveryDay = sheet.deliveryDate ? sheet.deliveryDate.slice(0, 10) : '';
   return {
     requirementsOverview: sheet.requirementsOverview ?? '',
-    deliveryDate: sheet.deliveryDate ? sheet.deliveryDate.slice(0, 10) : '',
+    // Treat the unset-DRAFT epoch sentinel as blank so the picker shows empty,
+    // not a bogus past date.
+    deliveryDate: deliveryDay === EPOCH_DATE ? '' : deliveryDay,
     deliveryLocation: sheet.deliveryLocation ?? '',
     deliveryType: sheet.deliveryType ?? '',
     qualityReportsExpected: sheet.qualityReportsExpected ?? [],
@@ -760,6 +766,8 @@ function DraftEditor({
           <Input
             type="date"
             value={form.deliveryDate}
+            // Forward-looking: delivery can't be scheduled in the past.
+            min={todayDateStr()}
             onChange={(e) => setField('deliveryDate', e.target.value)}
             disabled={disabled}
           />

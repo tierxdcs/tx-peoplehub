@@ -604,6 +604,7 @@ export interface OrderConfirmationSheet {
   signedCopyUploadedById: string | null;
   signedCopyUploadedAt: string | null;
   internalSignedById: string | null;
+  internalSignedByName: string | null;
   internalSignedAt: string | null;
   internalReviewComments: string | null;
   approverSignatureTextSnapshot: string | null;

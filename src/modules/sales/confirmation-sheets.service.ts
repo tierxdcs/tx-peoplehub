@@ -224,12 +224,22 @@ export class ConfirmationSheetsService {
         'Only a sheet awaiting internal signature can be countersigned',
       );
     }
-    // Snapshot the Sales Head's e-signature at countersignature time — this is
-    // what renders onto the printed sheet's internal-signature line. Null-safe.
+    // Snapshot the Sales Head's name + e-signature at countersignature time —
+    // this is what renders onto the printed sheet's internal-signature line.
+    // Name is snapshotted too so the executed doc shows who signed even when
+    // they had no typed signature configured. Null-safe.
     const emp = await this.prisma.employee.findUnique({
       where: { id: user.id },
-      select: { signatureText: true, signatureFont: true },
+      select: {
+        firstName: true,
+        lastName: true,
+        signatureText: true,
+        signatureFont: true,
+      },
     });
+    const signerName = emp
+      ? `${emp.firstName} ${emp.lastName}`.trim()
+      : null;
     const updated = await this.prisma.orderConfirmationSheet.update({
       where: { id },
       data: {
@@ -237,6 +247,7 @@ export class ConfirmationSheetsService {
         internalSignedById: user.id,
         internalSignedAt: new Date(),
         internalReviewComments: null,
+        internalSignedByName: signerName,
         approverSignatureTextSnapshot: emp?.signatureText ?? null,
         approverSignatureFontSnapshot: emp?.signatureFont ?? null,
       },
@@ -573,6 +584,7 @@ export class ConfirmationSheetsService {
         ? s.internalSignedAt.toISOString()
         : null,
       internalReviewComments: s.internalReviewComments,
+      internalSignedByName: s.internalSignedByName,
       approverSignatureTextSnapshot: s.approverSignatureTextSnapshot,
       approverSignatureFontSnapshot: s.approverSignatureFontSnapshot,
       createdById: s.createdById,
