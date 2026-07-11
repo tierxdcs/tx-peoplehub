@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../../lib/api';
 import {
-  Bid,
   Lead,
   LeadPriority,
   LeadSource,
@@ -14,6 +13,7 @@ import {
 } from '../../../lib/types';
 import { formatINR, leadDisplayStatus } from '../../../lib/sales';
 import { statusVariant } from '../../../lib/status';
+import { todayDateStr } from '../../../lib/date';
 import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
 import { Card, CardContent } from '../../../components/ui/card';
@@ -61,7 +61,6 @@ export default function LeadsPage() {
   const confirm = useConfirm();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [bids, setBids] = useState<Bid[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,15 +73,13 @@ export default function LeadsPage() {
     setError(null);
     try {
       // Everything needed for the blended pipeline view + summary cards.
-      const [leadsRes, oppsRes, bidsRes, ordersRes] = await Promise.all([
+      const [leadsRes, oppsRes, ordersRes] = await Promise.all([
         apiFetch<PaginatedResult<Lead>>('/leads?page=1&limit=100'),
         apiFetch<PaginatedResult<Opportunity>>('/opportunities?page=1&limit=100'),
-        apiFetch<PaginatedResult<Bid>>('/bids?page=1&limit=100'),
         apiFetch<PaginatedResult<Order>>('/orders?page=1&limit=100'),
       ]);
       setLeads(leadsRes.items);
       setOpportunities(oppsRes.items);
-      setBids(bidsRes.items);
       setOrders(ordersRes.items);
     } catch {
       setError('Failed to load leads');
@@ -100,15 +97,6 @@ export default function LeadsPage() {
     opportunities.forEach((o) => m.set(o.id, o));
     return m;
   }, [opportunities]);
-
-  // A bid exists for a lead if its linked opportunity has any bid.
-  const bidByOpportunity = useMemo(() => {
-    const m = new Map<string, Bid>();
-    bids.forEach((b) => {
-      if (!m.has(b.opportunityId)) m.set(b.opportunityId, b);
-    });
-    return m;
-  }, [bids]);
 
   const summary = useMemo(() => {
     const newLeads = leads.filter((l) => l.status === 'NEW').length;
@@ -178,28 +166,21 @@ export default function LeadsPage() {
       );
     }
     if (lead.status === 'CONVERTED' && lead.convertedToOpportunityId) {
-      const bid = bidByOpportunity.get(lead.convertedToOpportunityId);
-      if (bid) {
-        return (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => router.push(`/sales/bids/${bid.id}`)}
-          >
-            View Bid
-          </Button>
-        );
-      }
+      // Once converted, always link to the Opportunity — its detail page owns
+      // the bid-gate decision (deriveBidGate: Submit / Pending / Rejected /
+      // Approved+Create Bid). The Lead Register must NOT predict that state
+      // itself, so no bid-gate lookup happens here.
       return (
         <Button
           size="sm"
+          variant="outline"
           onClick={() =>
             router.push(
-              `/sales/bids/new?opportunityId=${lead.convertedToOpportunityId}`,
+              `/sales/opportunities/${lead.convertedToOpportunityId}`,
             )
           }
         >
-          Create Bid
+          View Opportunity
         </Button>
       );
     }
@@ -555,6 +536,8 @@ function ConvertLeadForm({
             <Input
               type="date"
               value={expectedCloseDate}
+              // Forward-looking: an expected close date can't be in the past.
+              min={todayDateStr()}
               onChange={(e) => setExpectedCloseDate(e.target.value)}
               aria-invalid={!!errors.expectedCloseDate}
             />

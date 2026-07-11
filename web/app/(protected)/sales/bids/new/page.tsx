@@ -10,6 +10,7 @@ import {
   Product,
 } from '../../../../lib/types';
 import { formatINR } from '../../../../lib/sales';
+import { todayDateStr } from '../../../../lib/date';
 import { Button } from '../../../../components/ui/button';
 import { useConfirm } from '../../../../components/ui/confirm';
 
@@ -192,6 +193,8 @@ export default function NewBidPage() {
           <input
             type="date"
             value={validUntil}
+            // Forward-looking: a bid's validity can't expire in the past.
+            min={todayDateStr()}
             onChange={(e) => setValidUntil(e.target.value)}
             required
             style={fieldStyle}
