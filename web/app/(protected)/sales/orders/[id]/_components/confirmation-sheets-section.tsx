@@ -175,6 +175,9 @@ export function ConfirmationSheetsSection({
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [form, setForm] = useState<DraftForm | null>(null);
+  // Which sheet the (hidden) print document renders. Defaults to the latest,
+  // but any row can be printed — e.g. an EXECUTED sheet that isn't the latest.
+  const [printSheetId, setPrintSheetId] = useState<string | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectComments, setRejectComments] = useState('');
   const [hasSignature, setHasSignature] = useState(true);
@@ -211,8 +214,19 @@ export function ConfirmationSheetsSection({
     load();
   }, [load]);
 
-  // Newest revision first (backend already sorts, but be explicit for render).
+  // Newest first (backend sorts by createdAt desc).
   const latest = sheets[0] ?? null;
+  // The sheet the print document currently renders: an explicitly-selected row
+  // (any status) or, by default, the latest.
+  const printSheet =
+    (printSheetId && sheets.find((s) => s.id === printSheetId)) || latest;
+
+  /** Print a specific sheet: point the print doc at it, then invoke print. */
+  function printSheetById(id: string) {
+    setPrintSheetId(id);
+    // Let the print-doc re-render with the chosen sheet before printing.
+    setTimeout(() => window.print(), 0);
+  }
   // An in-progress sheet blocks creating a new one; REJECTED/EXECUTED don't.
   const hasActiveSheet =
     latest !== null &&
@@ -413,10 +427,10 @@ export function ConfirmationSheetsSection({
 
   return (
     <>
-      {/* Hidden on screen; shown only when printing the actionable sheet. */}
-      {latest && (
+      {/* Hidden on screen; shown only when printing the selected sheet. */}
+      {printSheet && (
         <ConfirmationSheetPrintDocument
-          sheet={latest}
+          sheet={printSheet}
           customer={customer}
           generatedOn={todayDateStr()}
         />
@@ -452,6 +466,7 @@ export function ConfirmationSheetsSection({
                     <TableHead>Status</TableHead>
                     <TableHead>Signed copy</TableHead>
                     <TableHead>Executed</TableHead>
+                    <TableHead className="text-right">PDF</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -476,6 +491,19 @@ export function ConfirmationSheetsSection({
                           ? s.internalSignedAt.slice(0, 10)
                           : '—'}
                       </TableCell>
+                      <TableCell className="text-right">
+                        {/* Print any sheet — notably the EXECUTED one, which
+                            carries the signature and may not be the latest. */}
+                        {s.status !== 'DRAFT' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => printSheetById(s.id)}
+                          >
+                            <Download /> PDF
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -494,7 +522,7 @@ export function ConfirmationSheetsSection({
                   toggleQualityReport={toggleQualityReport}
                   onSave={saveDraft}
                   onGenerate={generatePdf}
-                  onPrint={() => window.print()}
+                  onPrint={() => latest && printSheetById(latest.id)}
                   onUploadClick={() => fileInputRef.current?.click()}
                   onViewSigned={viewSignedCopy}
                   onCountersign={countersign}

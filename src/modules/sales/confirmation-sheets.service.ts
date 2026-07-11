@@ -70,6 +70,27 @@ export class ConfirmationSheetsService {
       );
     }
 
+    // Only one sheet may be in-flight at a time. A DRAFT / AWAITING_* sheet is
+    // still being worked; use it (or Request Revision) rather than spawning a
+    // parallel one. REJECTED/EXECUTED are terminal, so a fresh sheet is fine.
+    const inFlight = await this.prisma.orderConfirmationSheet.findFirst({
+      where: {
+        orderId,
+        status: {
+          in: [
+            OrderConfirmationStatus.DRAFT,
+            OrderConfirmationStatus.AWAITING_CUSTOMER_SIGNATURE,
+            OrderConfirmationStatus.AWAITING_INTERNAL_SIGNATURE,
+          ],
+        },
+      },
+    });
+    if (inFlight) {
+      throw new BadRequestException(
+        'This order already has a confirmation sheet in progress — edit it or request a revision instead of creating another',
+      );
+    }
+
     const overview =
       dto.requirementsOverview ?? order.bid?.technicalSpecification ?? '';
 
@@ -352,9 +373,12 @@ export class ConfirmationSheetsService {
     if (!order) {
       throw new NotFoundException('Order not found');
     }
+    // Newest first by creation time. revisionNumber alone ties across
+    // independent sheet cycles (each starts at rev 1), so it can't order the
+    // list; createdAt is the stable "latest" the UI relies on.
     const sheets = await this.prisma.orderConfirmationSheet.findMany({
       where: { orderId },
-      orderBy: { revisionNumber: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
     return sheets.map((s) => this.toEntity(s));
   }
@@ -389,9 +413,11 @@ export class ConfirmationSheetsService {
    * OrdersService to hard-block CONFIRMED → IN_PRODUCTION.
    */
   async latestIsExecutedFor(orderId: string): Promise<boolean> {
+    // "Latest" = most recently created (stable across independent sheet cycles,
+    // which each restart revisionNumber at 1).
     const latest = await this.prisma.orderConfirmationSheet.findFirst({
       where: { orderId },
-      orderBy: { revisionNumber: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
     return latest?.status === OrderConfirmationStatus.EXECUTED;
   }

@@ -230,6 +230,29 @@ describe('Order Confirmation Sheet (e2e)', () => {
     await app.close();
   });
 
+  it('refuses to create a second sheet while one is in progress', async () => {
+    const oid = await freshOrder();
+    // First create succeeds (DRAFT).
+    await request(app.getHttpServer())
+      .post(`/orders/${oid}/confirmation-sheets`)
+      .set('Authorization', `Bearer ${repToken}`)
+      .send({})
+      .expect(201);
+    // Second create is blocked — a sheet is already in flight.
+    const res = await request(app.getHttpServer())
+      .post(`/orders/${oid}/confirmation-sheets`)
+      .set('Authorization', `Bearer ${repToken}`)
+      .send({})
+      .expect(400);
+    expect(res.body.message).toContain('already has a confirmation sheet');
+    // Exactly one sheet exists for the order.
+    const list = await request(app.getHttpServer())
+      .get(`/orders/${oid}/confirmation-sheets`)
+      .set('Authorization', `Bearer ${repToken}`)
+      .expect(200);
+    expect(list.body.data).toHaveLength(1);
+  });
+
   it('runs the full lifecycle incl. revision-before-signing and the order gate', async () => {
     // Order can't enter production before any executed sheet.
     await request(app.getHttpServer())
