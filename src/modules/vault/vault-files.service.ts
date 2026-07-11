@@ -255,8 +255,12 @@ export class VaultFilesService {
     const folder = await this.getFolderOrThrow(folderId);
     await this.assertCanRead(user, folder);
 
+    // Only ACTIVE files. A PENDING file has a presigned URL but was never
+    // confirmed — its bytes never landed in storage (e.g. the browser's direct
+    // PUT failed or was abandoned), so it is not a real upload and must not
+    // appear in the folder list looking like one.
     const files = await this.prisma.vaultFile.findMany({
-      where: { folderId, status: { not: VaultFileStatus.DELETED } },
+      where: { folderId, status: VaultFileStatus.ACTIVE },
       orderBy: { name: 'asc' },
     });
 

@@ -264,6 +264,42 @@ describe('Vault files (e2e)', () => {
     expect(confirmRes.body.data.status).toBe('ACTIVE');
   });
 
+  it('a PENDING (never-confirmed) file does NOT appear in the folder listing', async () => {
+    const folderId = await createFolder(ownerToken, {
+      name: 'Pending Check',
+      type: 'CUSTOM',
+    });
+    // Request an upload URL but never confirm — mirrors a browser PUT that
+    // failed (e.g. R2 CORS-blocked). The file stays PENDING.
+    const urlRes = await request(app.getHttpServer())
+      .post('/vault/files/upload-url')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        folderId,
+        name: 'never-landed.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 500,
+      })
+      .expect(201);
+    expect(urlRes.body.data.file.status).toBe('PENDING');
+
+    // The listing shows ACTIVE files only — the PENDING one is absent.
+    const list = await request(app.getHttpServer())
+      .get(`/vault/folders/${folderId}/files`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200);
+    expect(list.body.data).toHaveLength(0);
+
+    // After a real confirm it appears.
+    await uploadFile(ownerToken, folderId, 'landed.pdf', 500);
+    const list2 = await request(app.getHttpServer())
+      .get(`/vault/folders/${folderId}/files`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200);
+    expect(list2.body.data).toHaveLength(1);
+    expect(list2.body.data[0].name).toBe('landed.pdf');
+  });
+
   it('storage failure while minting the presigned URL leaves NO orphaned file row', async () => {
     const folderId = await createFolder(ownerToken, {
       name: 'Orphan Check',

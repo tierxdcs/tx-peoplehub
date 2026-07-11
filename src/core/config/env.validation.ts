@@ -55,7 +55,6 @@ export const envValidationSchema = Joi.object({
   R2_ACCESS_KEY_ID: Joi.string().optional(),
   R2_SECRET_ACCESS_KEY: Joi.string().optional(),
   R2_BUCKET: Joi.string().optional(),
-  R2_BUCKET_NAME: Joi.string().optional(),
   // Presigned URL lifetime in seconds — short-lived by design (minutes).
   R2_PRESIGN_TTL_SECONDS: Joi.number().default(300),
 
