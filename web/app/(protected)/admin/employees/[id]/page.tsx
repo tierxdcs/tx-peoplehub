@@ -13,12 +13,15 @@ import { Button } from '../../../../components/ui/button';
 import { Card, CardContent } from '../../../../components/ui/card';
 import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
+import { useAuth } from '../../../../lib/auth-context';
 
 export default function EditEmployeePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [verticals, setVerticals] = useState<Vertical[]>([]);
   const [candidateManagers, setCandidateManagers] = useState<Employee[]>([]);
@@ -90,6 +93,27 @@ export default function EditEmployeePage() {
     }
   }
 
+  async function handleDelete() {
+    if (!employee) return;
+    const ok = await confirm({
+      title: `Permanently delete ${employee.firstName} ${employee.lastName}?`,
+      description:
+        'This removes the account entirely and cannot be undone. It is refused if they still own any reports or business records — deactivate instead in that case. Use this only for mistaken or duplicate accounts.',
+      confirmLabel: 'Delete permanently',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await apiFetch(`/employees/${employee.id}`, { method: 'DELETE' });
+      toast.success('Employee deleted.');
+      router.push('/admin/employees');
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to delete employee',
+      );
+    }
+  }
+
   if (loading) return <p>Loading…</p>;
   if (!employee) return <p>Employee not found.</p>;
 
@@ -137,7 +161,9 @@ export default function EditEmployeePage() {
           firstName: employee.firstName,
           lastName: employee.lastName,
           email: employee.email,
-          role: employee.role as 'ADMIN' | 'MANAGER' | 'EMPLOYEE',
+          // Pass the true role (including SUPER_ADMIN) so the form can lock it
+          // rather than silently downgrading the CEO to ADMIN on save.
+          role: employee.role ?? 'EMPLOYEE',
           verticalId: employee.verticalId ?? '',
           reportingManagerId: employee.reportingManagerId ?? '',
         }}
@@ -146,6 +172,25 @@ export default function EditEmployeePage() {
         onSubmit={handleSubmit}
         submitLabel="Save changes"
       />
+
+      {/* Permanent delete — SUPER_ADMIN only. The backend refuses if the
+          employee still owns reports or business records. */}
+      {isSuperAdmin && (
+        <Card className="my-4 max-w-xl border-destructive/40">
+          <CardContent className="flex items-center justify-between gap-4 p-4">
+            <div className="text-sm">
+              <div className="font-medium">Delete permanently</div>
+              <div className="text-muted-foreground">
+                Removes the account entirely. Refused if they still own reports
+                or business records — deactivate instead in that case.
+              </div>
+            </div>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

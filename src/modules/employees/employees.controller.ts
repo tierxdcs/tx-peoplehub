@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -118,6 +120,20 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Deactivate an employee (soft delete)' })
   deactivate(@Param('id') id: string) {
     return this.employeesService.deactivate(id);
+  }
+
+  @Delete(':id')
+  @Roles(Role.SUPER_ADMIN)
+  @HttpCode(204)
+  @ApiOperation({
+    summary:
+      'Permanently delete an employee (SUPER_ADMIN only) — refused if they still own reports or business records; deactivate instead',
+  })
+  async remove(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.employeesService.hardDelete(id, user);
   }
 
   @Patch(':id/grant-access')

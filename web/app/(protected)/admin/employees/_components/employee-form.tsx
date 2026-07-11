@@ -9,9 +9,11 @@ export interface EmployeeFormValues {
   lastName: string;
   email: string;
   password?: string;
-  role: 'ADMIN' | 'MANAGER' | 'EMPLOYEE';
-  verticalId: string;
-  reportingManagerId: string;
+  role: 'ADMIN' | 'MANAGER' | 'EMPLOYEE' | 'SUPER_ADMIN';
+  // Optional: a SUPER_ADMIN (e.g. the CEO) may have no vertical and reports to
+  // no one. Omitted from the payload when empty so the API leaves them unset.
+  verticalId?: string;
+  reportingManagerId?: string;
 }
 
 interface EmployeeFormProps {
@@ -41,9 +43,13 @@ export function EmployeeForm({
   const [lastName, setLastName] = useState(initial?.lastName ?? '');
   const [email, setEmail] = useState(initial?.email ?? '');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'ADMIN' | 'MANAGER' | 'EMPLOYEE'>(
-    (initial?.role as 'ADMIN' | 'MANAGER' | 'EMPLOYEE') ?? 'EMPLOYEE',
+  const [role, setRole] = useState<EmployeeFormValues['role']>(
+    initial?.role ?? 'EMPLOYEE',
   );
+  // A SUPER_ADMIN (CEO) has no vertical/manager and their role isn't editable
+  // here — we can't create SUPER_ADMINs via this form, only edit an existing
+  // one without silently downgrading them.
+  const isSuperAdmin = role === 'SUPER_ADMIN';
   const [verticalId, setVerticalId] = useState(initial?.verticalId ?? '');
   const [managerId, setManagerId] = useState(
     initial?.reportingManagerId ?? '',
@@ -71,13 +77,17 @@ export function EmployeeForm({
     e.preventDefault();
     setError(null);
 
-    if (!verticalId) {
-      setError('Vertical is required');
-      return;
-    }
-    if (!managerId) {
-      setError('Reporting manager is required');
-      return;
+    // SUPER_ADMIN is exempt from vertical/manager (matches the backend rule);
+    // every other role must have both.
+    if (!isSuperAdmin) {
+      if (!verticalId) {
+        setError('Vertical is required');
+        return;
+      }
+      if (!managerId) {
+        setError('Reporting manager is required');
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -88,8 +98,10 @@ export function EmployeeForm({
         email,
         ...(mode === 'create' ? { password } : {}),
         role,
-        verticalId,
-        reportingManagerId: managerId,
+        // Omit entirely for a SUPER_ADMIN so the API doesn't get an empty
+        // string where it expects a UUID or nothing.
+        ...(verticalId ? { verticalId } : {}),
+        ...(managerId ? { reportingManagerId: managerId } : {}),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
@@ -138,54 +150,66 @@ export function EmployeeForm({
         </Field>
       )}
       <Field label="Role">
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value as Role & typeof role)}
-          style={inputStyle}
-        >
-          {ASSIGNABLE_ROLES.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
+        {isSuperAdmin ? (
+          // The CEO/SUPER_ADMIN role can't be reassigned from this form —
+          // showing it disabled prevents a silent downgrade to ADMIN.
+          <select value="SUPER_ADMIN" disabled style={inputStyle}>
+            <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+          </select>
+        ) : (
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as Role & typeof role)}
+            style={inputStyle}
+          >
+            {ASSIGNABLE_ROLES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        )}
       </Field>
-      <Field label="Vertical">
-        <select
-          value={verticalId}
-          onChange={(e) => setVerticalId(e.target.value)}
-          required
-          style={inputStyle}
-        >
-          <option value="">Select a vertical…</option>
-          {verticals.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Reporting manager">
-        <input
-          placeholder="Filter by name or email"
-          value={managerSearch}
-          onChange={(e) => setManagerSearch(e.target.value)}
-          style={{ ...inputStyle, marginBottom: 6 }}
-        />
-        <select
-          value={managerId}
-          onChange={(e) => setManagerId(e.target.value)}
-          required
-          style={inputStyle}
-        >
-          <option value="">Select a manager…</option>
-          {managerOptions.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.firstName} {m.lastName} ({m.employeeId}, {m.role})
-            </option>
-          ))}
-        </select>
-      </Field>
+      {!isSuperAdmin && (
+        <>
+          <Field label="Vertical">
+            <select
+              value={verticalId}
+              onChange={(e) => setVerticalId(e.target.value)}
+              required
+              style={inputStyle}
+            >
+              <option value="">Select a vertical…</option>
+              {verticals.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Reporting manager">
+            <input
+              placeholder="Filter by name or email"
+              value={managerSearch}
+              onChange={(e) => setManagerSearch(e.target.value)}
+              style={{ ...inputStyle, marginBottom: 6 }}
+            />
+            <select
+              value={managerId}
+              onChange={(e) => setManagerId(e.target.value)}
+              required
+              style={inputStyle}
+            >
+              <option value="">Select a manager…</option>
+              {managerOptions.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.firstName} {m.lastName} ({m.employeeId}, {m.role})
+                </option>
+              ))}
+            </select>
+          </Field>
+        </>
+      )}
 
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 

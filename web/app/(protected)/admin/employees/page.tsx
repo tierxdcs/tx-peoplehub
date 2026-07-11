@@ -2,12 +2,17 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { apiFetch } from '../../../lib/api';
+import { apiFetch, ApiError } from '../../../lib/api';
 import { Employee, PaginatedResult, Vertical } from '../../../lib/types';
 import { useConfirm } from '../../../components/ui/confirm';
+import { useToast } from '../../../components/ui/toaster';
+import { useAuth } from '../../../lib/auth-context';
 
 export default function EmployeesListPage() {
   const confirm = useConfirm();
+  const toast = useToast();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [verticals, setVerticals] = useState<Vertical[]>([]);
   const [page, setPage] = useState(1);
@@ -43,16 +48,46 @@ export default function EmployeesListPage() {
     load();
   }, [load]);
 
-  async function handleDeactivate(id: string) {
+  async function handleDeactivate(e: Employee) {
     const ok = await confirm({
-      title: 'Deactivate this employee?',
-      description: 'They will lose login access.',
+      title: `Deactivate ${e.firstName} ${e.lastName}?`,
+      description:
+        'They will lose login access. All their records are kept and this can be reversed.',
       confirmLabel: 'Deactivate',
       destructive: true,
     });
     if (!ok) return;
-    await apiFetch(`/employees/${id}/deactivate`, { method: 'PATCH' });
-    await load();
+    try {
+      await apiFetch(`/employees/${e.id}/deactivate`, { method: 'PATCH' });
+      toast.success('Employee deactivated.');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to deactivate',
+      );
+    }
+  }
+
+  async function handleDelete(e: Employee) {
+    const ok = await confirm({
+      title: `Permanently delete ${e.firstName} ${e.lastName}?`,
+      description:
+        'This removes the account entirely and cannot be undone. It is refused if they still own any reports or business records — deactivate instead in that case. Use this only for mistaken or duplicate accounts.',
+      confirmLabel: 'Delete permanently',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await apiFetch(`/employees/${e.id}`, { method: 'DELETE' });
+      toast.success(`${e.firstName} ${e.lastName} deleted.`);
+      await load();
+    } catch (err) {
+      // Surface the backend's specific blocker list (e.g. "still referenced by
+      // 3 payslips, 1 owned customer …") rather than a generic failure.
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to delete employee',
+      );
+    }
   }
 
   const verticalName = (id: string | null) =>
@@ -159,11 +194,24 @@ export default function EmployeesListPage() {
                   <td>{e.role}</td>
                   <td>{e.status}</td>
                   <td>
-                    {e.status === 'ACTIVE' && (
-                      <button onClick={() => handleDeactivate(e.id)}>
-                        Deactivate
-                      </button>
-                    )}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Link href={`/admin/employees/${e.id}`}>
+                        <button>Edit</button>
+                      </Link>
+                      {e.status === 'ACTIVE' && (
+                        <button onClick={() => handleDeactivate(e)}>
+                          Deactivate
+                        </button>
+                      )}
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => handleDelete(e)}
+                          style={{ color: 'crimson' }}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

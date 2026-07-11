@@ -215,4 +215,91 @@ describe('Employees (e2e)', () => {
       .set('Authorization', `Bearer ${employeeToken}`)
       .expect(403);
   });
+
+  // ── Permanent (hard) delete — SUPER_ADMIN only ──────────────────────
+  it('SUPER_ADMIN permanently deletes an unreferenced employee (204, row gone)', async () => {
+    const suffix = Date.now();
+    const target = await createEmployee({
+      firstName: 'Duplicate',
+      lastName: 'Account',
+      email: `harddelete-${suffix}@peoplehub.local`,
+      password: 'S3curePass!',
+      role: 'EMPLOYEE',
+      verticalId,
+      reportingManagerId: superAdminId,
+    });
+
+    await request(app.getHttpServer())
+      .delete(`/employees/${target.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(204);
+
+    const gone = await prisma.employee.findUnique({
+      where: { id: target.id },
+    });
+    expect(gone).toBeNull();
+  });
+
+  it('refuses to hard-delete an employee who still has direct reports, naming the blocker', async () => {
+    const suffix = Date.now();
+    const manager = await createEmployee({
+      firstName: 'HasReports',
+      lastName: 'Manager',
+      email: `hasreports-${suffix}@peoplehub.local`,
+      password: 'S3curePass!',
+      role: 'MANAGER',
+      verticalId,
+      reportingManagerId: superAdminId,
+    });
+    await createEmployee({
+      firstName: 'Report',
+      lastName: 'Under',
+      email: `report-${suffix}@peoplehub.local`,
+      password: 'S3curePass!',
+      role: 'EMPLOYEE',
+      verticalId,
+      reportingManagerId: manager.id,
+    });
+
+    const res = await request(app.getHttpServer())
+      .delete(`/employees/${manager.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(409);
+    expect(res.body.message).toContain('1 direct report');
+    expect(res.body.message).toContain('Deactivate them instead');
+
+    // Row untouched.
+    const still = await prisma.employee.findUnique({
+      where: { id: manager.id },
+    });
+    expect(still).not.toBeNull();
+  });
+
+  it('a non-SUPER_ADMIN (ADMIN) cannot hard-delete (403)', async () => {
+    const suffix = Date.now();
+    const admin = await createEmployee({
+      firstName: 'Plain',
+      lastName: 'Admin',
+      email: `plainadmin-${suffix}@peoplehub.local`,
+      password: 'S3curePass!',
+      role: 'ADMIN',
+      verticalId,
+      reportingManagerId: superAdminId,
+    });
+    const adminOnlyToken = await login(admin.email, 'S3curePass!');
+    const victim = await createEmployee({
+      firstName: 'Victim',
+      lastName: 'Employee',
+      email: `victim-${suffix}@peoplehub.local`,
+      password: 'S3curePass!',
+      role: 'EMPLOYEE',
+      verticalId,
+      reportingManagerId: superAdminId,
+    });
+
+    await request(app.getHttpServer())
+      .delete(`/employees/${victim.id}`)
+      .set('Authorization', `Bearer ${adminOnlyToken}`)
+      .expect(403);
+  });
 });

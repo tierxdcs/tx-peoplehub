@@ -185,6 +185,78 @@ export class EmployeesService {
   }
 
   /**
+   * PERMANENT delete (SUPER_ADMIN only, guarded at the route). This is for
+   * genuinely empty accounts — a mistaken/duplicate record — NOT for normal
+   * offboarding, which is deactivate() (soft). We refuse if the employee is
+   * referenced by anything that must survive them: direct reports, or any
+   * business/financial record they own or authored (the `onDelete: Restrict`
+   * relations — payslips, payroll runs, customers, leads, opportunities, bids,
+   * orders, bid assessments). Those references are exactly why a raw delete
+   * would either fail at the DB or destroy history; we surface a clear,
+   * specific error naming the blockers and steer the caller to deactivate.
+   *
+   * When it DOES proceed, the `onDelete: Cascade` relations (leave balances /
+   * requests they filed, attendance, compensation, statutory + bank info,
+   * their vault folders/files, audit-actor set-null) are cleaned up by the DB.
+   * `caller` guards against deleting yourself.
+   */
+  async hardDelete(id: string, caller: AuthenticatedUser): Promise<void> {
+    if (id === caller.id) {
+      throw new BadRequestException('You cannot delete your own account');
+    }
+    await this.findRawOrThrow(id);
+
+    // Count every reference that must block a permanent delete. Ordered so the
+    // error message reads naturally. Direct reports first (org-structure), then
+    // financial/audit records, then sales ownership/authorship.
+    const [
+      directReports,
+      payslips,
+      payrollRunsInitiated,
+      customersOwned,
+      leadsOwned,
+      opportunitiesOwned,
+      bidsCreated,
+      ordersOwned,
+      bidAssessmentsSubmitted,
+    ] = await Promise.all([
+      this.prisma.employee.count({ where: { reportingManagerId: id } }),
+      this.prisma.payslip.count({ where: { employeeId: id } }),
+      this.prisma.payrollRun.count({ where: { initiatedById: id } }),
+      this.prisma.customer.count({ where: { ownerId: id } }),
+      this.prisma.lead.count({ where: { ownerId: id } }),
+      this.prisma.opportunity.count({ where: { ownerId: id } }),
+      this.prisma.bid.count({ where: { createdById: id } }),
+      this.prisma.order.count({ where: { ownerId: id } }),
+      this.prisma.bidDecisionAssessment.count({ where: { submittedById: id } }),
+    ]);
+
+    const blockers: string[] = [];
+    const add = (n: number, singular: string, plural = `${singular}s`) => {
+      if (n > 0) blockers.push(`${n} ${n === 1 ? singular : plural}`);
+    };
+    add(directReports, 'direct report');
+    add(payslips, 'payslip');
+    add(payrollRunsInitiated, 'initiated payroll run');
+    add(customersOwned, 'owned customer');
+    add(leadsOwned, 'owned lead');
+    add(opportunitiesOwned, 'owned opportunity', 'owned opportunities');
+    add(bidsCreated, 'authored bid');
+    add(ordersOwned, 'owned order');
+    add(bidAssessmentsSubmitted, 'submitted bid assessment');
+
+    if (blockers.length > 0) {
+      throw new ConflictException(
+        `Cannot permanently delete this employee — they are still referenced by ${blockers.join(
+          ', ',
+        )}. Deactivate them instead to preserve this history.`,
+      );
+    }
+
+    await this.prisma.employee.delete({ where: { id } });
+  }
+
+  /**
    * THE downstream-hierarchy lookup: ids of every direct and indirect report
    * of `managerId`, via a recursive CTE. This is the single code path behind
    * Leave/Attendance team views, Sales write-scoping, and Vault TEAM-scope
