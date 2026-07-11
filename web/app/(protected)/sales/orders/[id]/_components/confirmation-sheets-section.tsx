@@ -352,6 +352,9 @@ export function ConfirmationSheetsSection({
         downloadUrl: string;
         expiresInSeconds: number;
       }>(`/confirmation-sheets/${latest.id}/signed-copy-download-url`);
+      // Each call returns a freshly-presigned URL (new X-Amz-Date/signature),
+      // so the browser can't serve a stale cached response — no cache-bust
+      // query param, which would break the SigV4 signature on R2.
       window.open(res.downloadUrl, '_blank', 'noopener,noreferrer');
     } catch (err) {
       toast.error(
@@ -535,10 +538,12 @@ export function ConfirmationSheetsSection({
         </CardContent>
       </Card>
 
-      {/* Hidden file input for the signed-copy upload. */}
+      {/* Hidden file input for the signed-copy upload. Accept PDFs/images —
+          this must be the customer-SIGNED scan, not the blank generated PDF. */}
       <input
         ref={fileInputRef}
         type="file"
+        accept="application/pdf,image/*"
         hidden
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -664,8 +669,9 @@ function LatestSheetPanel({
             </Button>
           )}
           <p className="w-full text-sm text-muted-foreground">
-            Awaiting the customer&apos;s signature. Download the PDF for signing,
-            then upload the signed copy.
+            Awaiting the customer&apos;s signature. Download the PDF, get it
+            physically signed by the customer, then upload the{' '}
+            <strong>signed scan</strong> — not the blank generated PDF.
           </p>
         </div>
       )}
