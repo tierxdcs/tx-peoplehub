@@ -345,13 +345,13 @@ export function ConfirmationSheetsSection({
     }
   }
 
-  async function viewSignedCopy() {
-    if (!latest) return;
+  /** Open a sheet's uploaded signed copy (the scan stored in R2). */
+  async function viewSignedCopy(sheetId: string) {
     try {
       const res = await apiFetch<{
         downloadUrl: string;
         expiresInSeconds: number;
-      }>(`/confirmation-sheets/${latest.id}/signed-copy-download-url`);
+      }>(`/confirmation-sheets/${sheetId}/signed-copy-download-url`);
       // Each call returns a freshly-presigned URL (new X-Amz-Date/signature),
       // so the browser can't serve a stale cached response — no cache-bust
       // query param, which would break the SigV4 signature on R2.
@@ -360,6 +360,19 @@ export function ConfirmationSheetsSection({
       toast.error(
         err instanceof ApiError ? err.message : 'Failed to open signed copy',
       );
+    }
+  }
+
+  /**
+   * The row-level "PDF" action. If the sheet has an uploaded signed copy, open
+   * that actual scan; otherwise print the generated confirmation-sheet doc.
+   * One button, unambiguous per row.
+   */
+  function openSheetPdf(sheet: OrderConfirmationSheet) {
+    if (sheet.hasSignedCopy) {
+      viewSignedCopy(sheet.id);
+    } else {
+      printSheetById(sheet.id);
     }
   }
 
@@ -495,13 +508,13 @@ export function ConfirmationSheetsSection({
                           : '—'}
                       </TableCell>
                       <TableCell className="text-right">
-                        {/* Print any sheet — notably the EXECUTED one, which
-                            carries the signature and may not be the latest. */}
+                        {/* Opens the uploaded signed scan if there is one,
+                            otherwise prints the generated sheet. */}
                         {s.status !== 'DRAFT' && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => printSheetById(s.id)}
+                            onClick={() => openSheetPdf(s)}
                           >
                             <Download /> PDF
                           </Button>
@@ -527,7 +540,6 @@ export function ConfirmationSheetsSection({
                   onGenerate={generatePdf}
                   onPrint={() => latest && printSheetById(latest.id)}
                   onUploadClick={() => fileInputRef.current?.click()}
-                  onViewSigned={viewSignedCopy}
                   onCountersign={countersign}
                   onOpenReject={() => setRejectOpen(true)}
                   onRequestRevision={requestRevision}
@@ -605,7 +617,6 @@ function LatestSheetPanel({
   onGenerate,
   onPrint,
   onUploadClick,
-  onViewSigned,
   onCountersign,
   onOpenReject,
   onRequestRevision,
@@ -623,7 +634,6 @@ function LatestSheetPanel({
   onGenerate: () => void;
   onPrint: () => void;
   onUploadClick: () => void;
-  onViewSigned: () => void;
   onCountersign: () => void;
   onOpenReject: () => void;
   onRequestRevision: () => void;
@@ -678,14 +688,17 @@ function LatestSheetPanel({
 
       {sheet.status === 'AWAITING_INTERNAL_SIGNATURE' && (
         <div className="flex flex-wrap items-center gap-2">
+          {isReviewer && (
+            <p className="w-full text-sm text-muted-foreground">
+              Review the uploaded signed copy (the <strong>PDF</strong> button
+              on this row above) before countersigning.
+            </p>
+          )}
           {isReviewer && !hasSignature && (
             <div className="w-full">
               <SignatureSetupInline onSaved={onSignatureSaved} />
             </div>
           )}
-          <Button variant="outline" onClick={onViewSigned}>
-            View signed copy
-          </Button>
           {isReviewer && (
             <Button onClick={onCountersign} disabled={acting}>
               Countersign
@@ -755,9 +768,7 @@ function LatestSheetPanel({
               />
             </div>
           </div>
-          <Button variant="outline" onClick={onViewSigned}>
-            View signed copy
-          </Button>
+          {/* The uploaded signed scan is available via the row's PDF button. */}
         </div>
       )}
     </div>
