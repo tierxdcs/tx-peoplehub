@@ -41,7 +41,7 @@ npm run start:dev             # http://localhost:3000  (docs at /docs)
 ```
 
 Default seeded super admin (override in `.env`):
-`admin@peoplehub.local` / `ChangeMe123!` — has no vertical/manager, and can
+`nithin.gangadhar@phaze-dynamics.com` / `ChangeMe123!` — has no vertical/manager, and can
 only create `ADMIN` accounts and onboard the rest of the org via `POST
 /employees`. There is no self-registration; onboarding is always
 admin-initiated, and the admin sets the employee's initial password directly.

@@ -243,7 +243,7 @@ async function main() {
     }
   }
 
-  const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@peoplehub.local';
+  const email = process.env.SEED_ADMIN_EMAIL ?? 'nithin.gangadhar@phaze-dynamics.com';
   const password = process.env.SEED_ADMIN_PASSWORD ?? 'ChangeMe123!';
   const passwordHash = await bcrypt.hash(password, 10);
 
