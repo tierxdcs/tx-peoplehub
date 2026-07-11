@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { LeaveRequestStatus } from '@prisma/client';
+import { LeaveRequestStatus, SignatureFont } from '@prisma/client';
 
 export class LeaveRequestEntity {
   @ApiProperty()
@@ -34,6 +34,12 @@ export class LeaveRequestEntity {
 
   @ApiProperty({ nullable: true })
   approverComments!: string | null;
+
+  @ApiProperty({ nullable: true })
+  approverSignatureTextSnapshot!: string | null;
+
+  @ApiProperty({ enum: SignatureFont, nullable: true })
+  approverSignatureFontSnapshot!: SignatureFont | null;
 
   @ApiProperty()
   createdAt!: Date;

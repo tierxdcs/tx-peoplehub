@@ -19,6 +19,7 @@ import {
 import { OrderEntity, OrderLineItemEntity } from './entities/order.entity';
 import { SalesAccessService } from './common/sales-access.service';
 import { SalesNumberingService } from './common/sales-numbering.service';
+import { ConfirmationSheetsService } from './confirmation-sheets.service';
 
 /**
  * Legal forward status transitions. CANCELLED is reachable from any
@@ -47,6 +48,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly access: SalesAccessService,
     private readonly numbering: SalesNumberingService,
+    private readonly confirmationSheets: ConfirmationSheetsService,
   ) {}
 
   /**
@@ -157,6 +159,17 @@ export class OrdersService {
       throw new BadRequestException(
         `Cannot move an order from ${order.status} to ${target}`,
       );
+    }
+    // Hard gate (same enforcement style as the Bid/No-Bid gate on POST /bids):
+    // an order cannot enter production until its most-recent Order Confirmation
+    // Sheet is EXECUTED (customer-signed + Sales Head countersigned).
+    if (target === OrderStatus.IN_PRODUCTION) {
+      const executed = await this.confirmationSheets.latestIsExecutedFor(id);
+      if (!executed) {
+        throw new BadRequestException(
+          'This order cannot enter production until its Order Confirmation Sheet is executed (customer-signed and countersigned by the Sales Head)',
+        );
+      }
     }
     const updated = await this.prisma.order.update({
       where: { id },

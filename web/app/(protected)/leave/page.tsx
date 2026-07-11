@@ -39,6 +39,7 @@ import {
 } from '../../components/ui/dialog';
 import { useToast } from '../../components/ui/toaster';
 import { useConfirm } from '../../components/ui/confirm';
+import { SignatureDisplay } from '../../components/ui/signature-display';
 
 export default function MyLeavePage() {
   const toast = useToast();
@@ -227,9 +228,24 @@ export default function MyLeavePage() {
                         <StatusBadge value={r.status} />
                       </TableCell>
                       <TableCell>
-                        {r.approverId
-                          ? approverNames[r.approverId] ?? '…'
-                          : '—'}
+                        {r.status === 'APPROVED' ? (
+                          <SignatureDisplay
+                            text={r.approverSignatureTextSnapshot}
+                            font={r.approverSignatureFontSnapshot}
+                            approverName={
+                              r.approverId
+                                ? approverNames[r.approverId] ?? '…'
+                                : undefined
+                            }
+                            date={
+                              r.approvedAt ? r.approvedAt.slice(0, 10) : null
+                            }
+                          />
+                        ) : r.approverId ? (
+                          approverNames[r.approverId] ?? '…'
+                        ) : (
+                          '—'
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         {canCancel ? (

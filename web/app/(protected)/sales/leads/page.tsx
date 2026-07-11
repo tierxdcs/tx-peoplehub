@@ -161,7 +161,7 @@ export default function LeadsPage() {
     if (lead.status === 'QUALIFIED') {
       return (
         <Button size="sm" onClick={() => setConvertTarget(lead)}>
-          Create Bid
+          Convert to Opportunity
         </Button>
       );
     }
@@ -292,7 +292,10 @@ export default function LeadsPage() {
           onClose={() => setConvertTarget(null)}
           onConverted={(opportunityId) => {
             setConvertTarget(null);
-            router.push(`/sales/bids/new?opportunityId=${opportunityId}`);
+            // Land on the Opportunity detail page — its Bid/No-Bid gate
+            // (Submit Assessment → … → Approved+Create Bid) owns whether a bid
+            // can be drafted. Going straight to the bid form would bypass it.
+            router.push(`/sales/opportunities/${opportunityId}`);
           }}
         />
       )}
@@ -443,9 +446,11 @@ function NewLeadForm({
 }
 
 /**
- * "Create Bid" on a QUALIFIED lead first converts it into an Opportunity
+ * "Convert to Opportunity" on a QUALIFIED lead converts it into an Opportunity
  * (spec §2.6/§3.1) — creating a Customer from the lead when none is linked —
- * then routes to the bid form.
+ * then routes to the Opportunity detail page. Bid creation is NOT started here:
+ * it's gated behind the Opportunity's Bid/No-Bid assessment, which the rep
+ * submits on that page before a bid can be drafted.
  */
 function ConvertLeadForm({
   lead,
@@ -508,7 +513,8 @@ function ConvertLeadForm({
           <DialogTitle>Convert {lead.leadNumber} → Opportunity</DialogTitle>
           <DialogDescription>
             Converting creates an Opportunity (and a Customer from this lead),
-            then takes you to the bid form.
+            then takes you to the Opportunity, where you’ll submit the
+            Bid/No-Bid assessment before a bid can be created.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -569,7 +575,7 @@ function ConvertLeadForm({
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>
-              {submitting ? 'Converting…' : 'Convert & Create Bid'}
+              {submitting ? 'Converting…' : 'Convert to Opportunity'}
             </Button>
           </DialogFooter>
         </form>

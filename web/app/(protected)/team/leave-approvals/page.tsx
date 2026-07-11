@@ -29,6 +29,7 @@ import {
 } from '../../../components/ui/table';
 import { useToast } from '../../../components/ui/toaster';
 import { useConfirm } from '../../../components/ui/confirm';
+import { SignatureSetupInline } from '../../../components/ui/signature-setup-inline';
 
 /**
  * Backend-enforced scope: /leave-requests/pending-approval is server-shaped
@@ -56,6 +57,7 @@ export default function TeamLeaveApprovalsPage() {
   const [error, setError] = useState<string | null>(null);
   const [comments, setComments] = useState<Record<string, string>>({});
   const [acting, setActing] = useState<string | null>(null);
+  const [hasSignature, setHasSignature] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,6 +96,15 @@ export default function TeamLeaveApprovalsPage() {
     if (authLoading || !user || !allowed) return;
     load();
   }, [authLoading, user, allowed, load]);
+
+  // Whether the approving manager has a signature configured — drives the
+  // just-in-time setup prompt above the queue.
+  useEffect(() => {
+    if (authLoading || !user || !allowed) return;
+    apiFetch<Employee>(`/employees/${user.sub}`)
+      .then((me) => setHasSignature(!!me.signatureText))
+      .catch(() => setHasSignature(true));
+  }, [authLoading, user, allowed]);
 
   if (authLoading || !user) return null;
   if (!allowed) {
@@ -139,6 +150,12 @@ export default function TeamLeaveApprovalsPage() {
       />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
+      {!hasSignature && !loading && requests.length > 0 && (
+        <div className="mb-4">
+          <SignatureSetupInline onSaved={() => setHasSignature(true)} />
+        </div>
+      )}
 
       <Card>
         <CardContent className={loading || requests.length === 0 ? 'pt-6' : 'p-0'}>

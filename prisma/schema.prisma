@@ -41,6 +41,15 @@ enum EmploymentType {
   PART_TIME
 }
 
+/// Fixed set of signature-style fonts for the internal e-signature display
+/// layer. Kept in sync with the frontend's loaded Google Fonts.
+enum SignatureFont {
+  DANCING_SCRIPT
+  CAVEAT
+  PACIFICO
+  GREAT_VIBES
+}
+
 enum LeaveAccrualType {
   FIXED_ANNUAL
   MONTHLY_ACCRUAL
@@ -264,6 +273,12 @@ model Employee {
   /// holder in one transaction), not by a DB constraint.
   isSalesHead Boolean @default(false)
 
+  /// Internal e-signature (a display layer, NOT a legally-binding e-sign).
+  /// Self-service typed text rendered in a chosen signature-style font;
+  /// snapshotted onto approval records at approval time.
+  signatureText String?
+  signatureFont SignatureFont?
+
   // HR onboarding fields — populated by POST /employees/onboard.
   dateOfBirth              DateTime?
   gender                   String?
@@ -301,6 +316,10 @@ model Employee {
 
   bidAssessmentsSubmitted BidDecisionAssessment[] @relation("BidAssessmentSubmitter")
   bidAssessmentsReviewed  BidDecisionAssessment[] @relation("BidAssessmentReviewer")
+
+  ocSheetsCreated        OrderConfirmationSheet[] @relation("OcCreator")
+  ocSignedCopiesUploaded OrderConfirmationSheet[] @relation("OcSignedCopyUploader")
+  ocSheetsInternalSigned OrderConfirmationSheet[] @relation("OcInternalSigner")
 
   vaultFoldersOwned       VaultFolder[]            @relation("VaultFolderOwner")
   vaultPermissionsGranted VaultFolderPermission[]  @relation("VaultPermissionGrantor")
@@ -426,22 +445,25 @@ model LeaveBalance {
 /// existing reportingManagerId hierarchy (no separate approver-assignment
 /// model needed).
 model LeaveRequest {
-  id               String             @id @default(uuid())
-  employeeId       String
-  employee         Employee           @relation("LeaveRequester", fields: [employeeId], references: [id], onDelete: Cascade)
-  leaveTypeId      String
-  leaveType        LeaveType          @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
-  startDate        DateTime
-  endDate          DateTime
-  numberOfDays     Decimal            @db.Decimal(4, 1)
-  reason           String
-  status           LeaveRequestStatus @default(PENDING)
-  approverId       String?
-  approver         Employee?          @relation("LeaveApprover", fields: [approverId], references: [id], onDelete: SetNull)
-  approvedAt       DateTime?
-  approverComments String?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  id                            String             @id @default(uuid())
+  employeeId                    String
+  employee                      Employee           @relation("LeaveRequester", fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId                   String
+  leaveType                     LeaveType          @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  startDate                     DateTime
+  endDate                       DateTime
+  numberOfDays                  Decimal            @db.Decimal(4, 1)
+  reason                        String
+  status                        LeaveRequestStatus @default(PENDING)
+  approverId                    String?
+  approver                      Employee?          @relation("LeaveApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  approvedAt                    DateTime?
+  approverComments              String?
+  /// Snapshot of the approving manager's e-signature at approval time.
+  approverSignatureTextSnapshot String?
+  approverSignatureFontSnapshot SignatureFont?
+  createdAt                     DateTime           @default(now())
+  updatedAt                     DateTime           @updatedAt
 
   @@index([employeeId])
   @@index([status])
@@ -710,36 +732,39 @@ model Opportunity {
 /// discountPercent > 10 routes to the creator's manager for approval before
 /// it can be SENT (same escalation guard as leave approvals).
 model Bid {
-  id                     String        @id @default(uuid())
-  bidNumber              String        @unique
-  opportunityId          String
-  opportunity            Opportunity   @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
-  customerId             String
-  customer               Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  status                 BidStatus     @default(DRAFT)
-  validUntil             DateTime
-  tenderReferenceNumber  String?
-  technicalSpecification String?
+  id                            String         @id @default(uuid())
+  bidNumber                     String         @unique
+  opportunityId                 String
+  opportunity                   Opportunity    @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  customerId                    String
+  customer                      Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  status                        BidStatus      @default(DRAFT)
+  validUntil                    DateTime
+  tenderReferenceNumber         String?
+  technicalSpecification        String?
   /// Placeholder for a future file-storage module: metadata only
   /// ([{filename, url}]), no upload infrastructure in this phase.
-  attachments            Json?
-  subtotal               Decimal       @default(0) @db.Decimal(14, 2)
-  discountPercent        Decimal       @default(0) @db.Decimal(5, 2)
-  discountAmount         Decimal       @default(0) @db.Decimal(14, 2)
-  taxType                SalesTaxType?
-  taxRate                Decimal?      @db.Decimal(5, 2)
-  taxAmount              Decimal       @default(0) @db.Decimal(14, 2)
-  totalAmount            Decimal       @default(0) @db.Decimal(14, 2)
-  createdById            String
-  createdBy              Employee      @relation("BidCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  approverId             String?
-  approver               Employee?     @relation("BidApprover", fields: [approverId], references: [id], onDelete: SetNull)
-  approvedAt             DateTime?
-  approverComments       String?
-  lineItems              BidLineItem[]
-  orders                 Order[]
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
+  attachments                   Json?
+  subtotal                      Decimal        @default(0) @db.Decimal(14, 2)
+  discountPercent               Decimal        @default(0) @db.Decimal(5, 2)
+  discountAmount                Decimal        @default(0) @db.Decimal(14, 2)
+  taxType                       SalesTaxType?
+  taxRate                       Decimal?       @db.Decimal(5, 2)
+  taxAmount                     Decimal        @default(0) @db.Decimal(14, 2)
+  totalAmount                   Decimal        @default(0) @db.Decimal(14, 2)
+  createdById                   String
+  createdBy                     Employee       @relation("BidCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  approverId                    String?
+  approver                      Employee?      @relation("BidApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  approvedAt                    DateTime?
+  approverComments              String?
+  /// Snapshot of the approving manager's e-signature at discount-approval time.
+  approverSignatureTextSnapshot String?
+  approverSignatureFontSnapshot SignatureFont?
+  lineItems                     BidLineItem[]
+  orders                        Order[]
+  createdAt                     DateTime       @default(now())
+  updatedAt                     DateTime       @updatedAt
 
   @@index([opportunityId])
   @@index([customerId])
@@ -768,27 +793,28 @@ model BidLineItem {
 }
 
 model Order {
-  id              String          @id @default(uuid())
-  orderNumber     String          @unique
-  bidId           String?
-  bid             Bid?            @relation(fields: [bidId], references: [id], onDelete: SetNull)
-  customerId      String
-  customer        Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  status          OrderStatus     @default(CONFIRMED)
+  id                 String                   @id @default(uuid())
+  orderNumber        String                   @unique
+  bidId              String?
+  bid                Bid?                     @relation(fields: [bidId], references: [id], onDelete: SetNull)
+  customerId         String
+  customer           Customer                 @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  status             OrderStatus              @default(CONFIRMED)
   /// Snapshot of the source bid's totalAmount at conversion time — the
   /// order's booked value. Frozen here rather than recomputed from line
   /// items so it survives independently of the bid (which can be edited in
   /// a later revision). Decimal, never Float.
-  totalAmount     Decimal         @default(0) @db.Decimal(14, 2)
+  totalAmount        Decimal                  @default(0) @db.Decimal(14, 2)
   /// Reserved FK for the future Production module — not enforced yet.
-  productionRunId String?
+  productionRunId    String?
   /// Reserved FK for the future SCM/logistics module — not enforced yet.
-  shipmentId      String?
-  ownerId         String
-  owner           Employee        @relation("OrderOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  lineItems       OrderLineItem[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  shipmentId         String?
+  ownerId            String
+  owner              Employee                 @relation("OrderOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  lineItems          OrderLineItem[]
+  confirmationSheets OrderConfirmationSheet[]
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
 
   @@index([ownerId])
   @@index([customerId])
@@ -810,6 +836,104 @@ model OrderLineItem {
 
   @@index([orderId])
   @@map("order_line_items")
+}
+
+/// Lifecycle of an Order Confirmation Sheet. DRAFT is editable; generating the
+/// PDF locks it (AWAITING_CUSTOMER_SIGNATURE); the rep uploads the customer-
+/// signed scan (AWAITING_INTERNAL_SIGNATURE); the Sales Head countersigns
+/// (EXECUTED) or rejects (REJECTED). EXECUTED is the hard gate that unblocks
+/// the Order's CONFIRMED -> IN_PRODUCTION transition.
+enum OrderConfirmationStatus {
+  DRAFT
+  AWAITING_CUSTOMER_SIGNATURE
+  AWAITING_INTERNAL_SIGNATURE
+  REJECTED
+  EXECUTED
+}
+
+enum OrderConfirmationDeliveryType {
+  FULL_TRUCKLOAD
+  PARTIAL_TRUCKLOAD
+  CUSTOMER_PICKUP_EXWORKS
+  COURIER_EXPRESS
+  OTHER
+}
+
+enum OrderConfirmationQualityReport {
+  MATERIAL_TEST_CERTIFICATE
+  FACTORY_ACCEPTANCE_TEST_REPORT
+  CALIBRATION_CERTIFICATE
+  COMPLIANCE_CERTIFICATE
+  OTHER
+}
+
+/// A formal, customer-agreed requirements document tied to a CONFIRMED order:
+/// delivery/packaging/quality terms, executed by customer signature + Sales
+/// Head countersignature. Numbered OC-YYYY-#### via SalesNumberingService.
+/// Revisions are new rows (revisionNumber+1), so full history is preserved.
+/// The single signed-copy attachment lives in R2 (signedCopyStorageKey),
+/// reusing the Vault storage client directly — not the Vault folder model.
+model OrderConfirmationSheet {
+  id                 String                  @id @default(uuid())
+  confirmationNumber String                  @unique
+  orderId            String
+  order              Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  revisionNumber     Int                     @default(1)
+  status             OrderConfirmationStatus @default(DRAFT)
+
+  requirementsOverview String @db.Text
+
+  deliveryDate     DateTime
+  deliveryLocation String                        @db.Text
+  deliveryType     OrderConfirmationDeliveryType
+
+  qualityReportsExpected OrderConfirmationQualityReport[]
+  qualityReportNotes     String?                          @db.Text
+
+  installationCommissioningRequired Boolean @default(false)
+  installationNotes                 String? @db.Text
+
+  warrantyTerms               String  @db.Text
+  paymentMilestones           String  @db.Text
+  siteReadinessRequirements   String? @db.Text
+  specialHandlingInstructions String? @db.Text
+
+  // Packaging — deliberately structured (§2.1); required at the form level.
+  packagingType                  String  @db.Text
+  protectiveMeasures             String  @db.Text
+  packagingComplianceStandard    String? @db.Text
+  labelingRequirements           String  @db.Text
+  customerPackagingSpecReference String? @db.Text
+
+  // Delivery coordination point of contact.
+  customerContactName  String
+  customerContactPhone String
+  customerContactEmail String
+
+  pdfGeneratedAt DateTime?
+
+  signedCopyStorageKey   String?
+  signedCopyUploadedById String?
+  signedCopyUploadedBy   Employee? @relation("OcSignedCopyUploader", fields: [signedCopyUploadedById], references: [id], onDelete: SetNull)
+  signedCopyUploadedAt   DateTime?
+
+  internalSignedById            String?
+  internalSignedBy              Employee?      @relation("OcInternalSigner", fields: [internalSignedById], references: [id], onDelete: SetNull)
+  internalSignedAt              DateTime?
+  internalReviewComments        String?        @db.Text
+  /// Snapshot of the Sales Head's e-signature at countersignature time —
+  /// rendered onto the internal-signature line of the printed sheet.
+  approverSignatureTextSnapshot String?
+  approverSignatureFontSnapshot SignatureFont?
+
+  createdById String
+  createdBy   Employee @relation("OcCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+  @@map("order_confirmation_sheets")
 }
 
 /// Versioned, effective-dated GST rate — same pattern as StatutoryConfig,
@@ -855,19 +979,23 @@ model BidAssessmentQuestion {
 /// — a resubmission is a new row; only the most-recent per Opportunity gates
 /// Bid creation.
 model BidDecisionAssessment {
-  id               String                  @id @default(uuid())
-  opportunityId    String
-  opportunity      Opportunity             @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
-  submittedById    String
-  submittedBy      Employee                @relation("BidAssessmentSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
-  status           BidAssessmentStatus     @default(PENDING_REVIEW)
-  reviewedById     String?
-  reviewedBy       Employee?               @relation("BidAssessmentReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  reviewedAt       DateTime?
-  reviewerComments String?
-  responses        BidAssessmentResponse[]
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
+  id                            String                  @id @default(uuid())
+  opportunityId                 String
+  opportunity                   Opportunity             @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  submittedById                 String
+  submittedBy                   Employee                @relation("BidAssessmentSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
+  status                        BidAssessmentStatus     @default(PENDING_REVIEW)
+  reviewedById                  String?
+  reviewedBy                    Employee?               @relation("BidAssessmentReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt                    DateTime?
+  reviewerComments              String?
+  /// Snapshot of the reviewer's e-signature at approval time (nullable — none
+  /// if the reviewer had no signature configured).
+  approverSignatureTextSnapshot String?
+  approverSignatureFontSnapshot SignatureFont?
+  responses                     BidAssessmentResponse[]
+  createdAt                     DateTime                @default(now())
+  updatedAt                     DateTime                @updatedAt
 
   @@index([opportunityId, createdAt])
   @@index([status])

@@ -41,6 +41,7 @@ describe('Sales (e2e)', () => {
   const createdProductIds: string[] = [];
   const createdBidIds: string[] = [];
   const createdOrderIds: string[] = [];
+  const createdOcSheetIds: string[] = [];
   const createdOpportunityIds: string[] = [];
   const createdLeadIds: string[] = [];
   const createdTaxConfigIds: string[] = [];
@@ -186,6 +187,9 @@ describe('Sales (e2e)', () => {
   });
 
   afterAll(async () => {
+    await prisma.orderConfirmationSheet.deleteMany({
+      where: { id: { in: createdOcSheetIds } },
+    });
     await prisma.orderLineItem.deleteMany({
       where: { orderId: { in: createdOrderIds } },
     });
@@ -469,7 +473,44 @@ describe('Sales (e2e)', () => {
     // Booked value snapshotted from the accepted bid's total.
     expect(orderRes.body.data.totalAmount).toBe('62687500');
 
-    // Status progression + illegal-skip guard.
+    // Order Confirmation Sheet gate: production is blocked until the order's
+    // latest sheet is EXECUTED. (The full sheet lifecycle has its own e2e —
+    // order-confirmation-sheet.e2e-spec.ts; here we just assert the gate on
+    // the order status transition and satisfy it with an EXECUTED sheet.)
+    await request(app.getHttpServer())
+      .patch(`/orders/${orderId}/status`)
+      .set('Authorization', `Bearer ${repToken}`)
+      .send({ status: 'IN_PRODUCTION' })
+      .expect(400);
+
+    // Create + execute a confirmation sheet directly (the sheet's own workflow
+    // is exercised elsewhere; this test only needs the gate satisfied).
+    const ocSheet = await prisma.orderConfirmationSheet.create({
+      data: {
+        confirmationNumber: `OC-TEST-${suffix}`,
+        orderId,
+        revisionNumber: 1,
+        status: 'EXECUTED',
+        requirementsOverview: 'ok',
+        deliveryDate: new Date('2026-09-01'),
+        deliveryLocation: 'Bengaluru',
+        deliveryType: 'FULL_TRUCKLOAD',
+        warrantyTerms: '24m',
+        paymentMilestones: '50/50',
+        packagingType: 'Wooden Crate',
+        protectiveMeasures: 'Moisture barrier',
+        labelingRequirements: 'Fragile',
+        customerContactName: 'Ravi',
+        customerContactPhone: '+910000000000',
+        customerContactEmail: 'ravi@example.com',
+        createdById: repId,
+        internalSignedById: superAdminId,
+        internalSignedAt: new Date(),
+      },
+    });
+    createdOcSheetIds.push(ocSheet.id);
+
+    // Status progression + illegal-skip guard (now that the gate is satisfied).
     await request(app.getHttpServer())
       .patch(`/orders/${orderId}/status`)
       .set('Authorization', `Bearer ${repToken}`)

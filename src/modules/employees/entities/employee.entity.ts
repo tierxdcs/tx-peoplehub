@@ -1,5 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { AccessStatus, EmployeeStatus, Role } from '@prisma/client';
+import {
+  AccessStatus,
+  EmployeeStatus,
+  Role,
+  SignatureFont,
+} from '@prisma/client';
 
 /**
  * Public shape of an employee returned by the API. Never includes
@@ -46,6 +51,12 @@ export class EmployeeEntity {
 
   @ApiProperty({ nullable: true })
   officialEmail!: string | null;
+
+  @ApiProperty({ nullable: true, description: 'Internal e-signature text' })
+  signatureText!: string | null;
+
+  @ApiProperty({ enum: SignatureFont, nullable: true })
+  signatureFont!: SignatureFont | null;
 
   @ApiProperty()
   createdAt!: Date;

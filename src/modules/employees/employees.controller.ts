@@ -23,6 +23,7 @@ import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { OnboardEmployeeDto } from './dto/onboard-employee.dto';
 import { GrantAccessDto } from './dto/grant-access.dto';
+import { UpdateSignatureDto } from './dto/update-signature.dto';
 import { RosterQueryDto } from './dto/roster-query.dto';
 import { EmployeeSearchQueryDto } from './dto/employee-search-query.dto';
 import { EmployeesService } from './employees.service';
@@ -86,6 +87,20 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Employees awaiting an access grant' })
   getPendingAccess(@Query() query: PaginationQueryDto) {
     return this.employeesService.getPendingAccess(query);
+  }
+
+  // Static route — declared before @Patch(':id') so 'me' isn't swallowed by
+  // the :id param. Every authenticated employee sets their OWN signature.
+  @Patch('me/signature')
+  @Roles(Role.MANAGER, Role.EMPLOYEE, Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Set/change your own internal e-signature (self-service)',
+  })
+  updateOwnSignature(
+    @Body() dto: UpdateSignatureDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.employeesService.updateOwnSignature(user.id, dto);
   }
 
   @Post()

@@ -9,6 +9,7 @@ import {
   BidDecisionAssessment,
   BidAssessmentResponse,
   Prisma,
+  SignatureFont,
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -223,6 +224,14 @@ export class BidAssessmentsService {
       );
     }
 
+    // Snapshot the reviewer's e-signature on APPROVAL only (a rejection isn't
+    // a signed approval). Null-safe: no signature configured → snapshot stays
+    // null and the UI falls back to plain "Approved by X".
+    const sig =
+      decision === BidAssessmentStatus.APPROVED
+        ? await this.snapshotSignature(user.id)
+        : { text: null, font: null };
+
     const updated = await this.prisma.bidDecisionAssessment.update({
       where: { id },
       data: {
@@ -230,10 +239,23 @@ export class BidAssessmentsService {
         reviewedById: user.id,
         reviewedAt: new Date(),
         reviewerComments: dto.reviewerComments ?? null,
+        approverSignatureTextSnapshot: sig.text,
+        approverSignatureFontSnapshot: sig.font,
       },
       include: { responses: true },
     });
     return this.toEntity(updated);
+  }
+
+  /** The approver's current signature, or nulls if none configured. */
+  private async snapshotSignature(
+    employeeId: string,
+  ): Promise<{ text: string | null; font: SignatureFont | null }> {
+    const emp = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { signatureText: true, signatureFont: true },
+    });
+    return { text: emp?.signatureText ?? null, font: emp?.signatureFont ?? null };
   }
 
   /**
@@ -293,6 +315,8 @@ export class BidAssessmentsService {
       reviewedById: assessment.reviewedById,
       reviewedAt: assessment.reviewedAt,
       reviewerComments: assessment.reviewerComments,
+      approverSignatureTextSnapshot: assessment.approverSignatureTextSnapshot,
+      approverSignatureFontSnapshot: assessment.approverSignatureFontSnapshot,
       responses: assessment.responses.map(
         (r) =>
           new BidAssessmentResponseEntity({

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { BidAssessmentStatus } from '@prisma/client';
+import { BidAssessmentStatus, SignatureFont } from '@prisma/client';
 
 export class BidAssessmentResponseEntity {
   @ApiProperty()
@@ -40,6 +40,12 @@ export class BidDecisionAssessmentEntity {
 
   @ApiProperty({ nullable: true })
   reviewerComments!: string | null;
+
+  @ApiProperty({ nullable: true })
+  approverSignatureTextSnapshot!: string | null;
+
+  @ApiProperty({ enum: SignatureFont, nullable: true })
+  approverSignatureFontSnapshot!: SignatureFont | null;
 
   @ApiProperty({ type: [BidAssessmentResponseEntity], required: false })
   responses?: BidAssessmentResponseEntity[];

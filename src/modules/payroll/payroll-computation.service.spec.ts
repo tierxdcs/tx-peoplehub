@@ -42,6 +42,8 @@ describe('PayrollComputationService', () => {
     deactivatedAt: null,
     accessStatus: 'ACTIVE' as any,
     isSalesHead: false,
+    signatureText: null,
+    signatureFont: null,
     dateOfBirth: null,
     gender: null,
     personalEmail: null,

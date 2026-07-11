@@ -8,6 +8,13 @@ export type EmploymentType =
   | 'INTERN'
   | 'PART_TIME';
 
+/** Fixed set of signature-style fonts (mirrors the backend SignatureFont enum). */
+export type SignatureFont =
+  | 'DANCING_SCRIPT'
+  | 'CAVEAT'
+  | 'PACIFICO'
+  | 'GREAT_VIBES';
+
 export interface Employee {
   id: string;
   employeeId: string;
@@ -22,6 +29,8 @@ export interface Employee {
   accessStatus: AccessStatus;
   isSalesHead: boolean;
   officialEmail: string | null;
+  signatureText?: string | null;
+  signatureFont?: SignatureFont | null;
   designation?: string | null;
   employmentType?: EmploymentType | null;
   dateOfJoining?: string | null;
@@ -133,6 +142,8 @@ export interface LeaveRequest {
   approverId: string | null;
   approvedAt: string | null;
   approverComments: string | null;
+  approverSignatureTextSnapshot: string | null;
+  approverSignatureFontSnapshot: SignatureFont | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -504,7 +515,11 @@ export interface Bid {
   approverId: string | null;
   approvedAt: string | null;
   approverComments: string | null;
+  approverSignatureTextSnapshot: string | null;
+  approverSignatureFontSnapshot: SignatureFont | null;
   lineItems?: BidLineItem[];
+  /** Non-null once this bid has been converted to an order. */
+  convertedOrderId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -531,6 +546,69 @@ export interface Order {
   shipmentId: string | null;
   ownerId: string;
   lineItems?: OrderLineItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---- Order Confirmation Sheet ----
+
+export type OrderConfirmationStatus =
+  | 'DRAFT'
+  | 'AWAITING_CUSTOMER_SIGNATURE'
+  | 'AWAITING_INTERNAL_SIGNATURE'
+  | 'REJECTED'
+  | 'EXECUTED';
+
+export type OrderConfirmationDeliveryType =
+  | 'FULL_TRUCKLOAD'
+  | 'PARTIAL_TRUCKLOAD'
+  | 'CUSTOMER_PICKUP_EXWORKS'
+  | 'COURIER_EXPRESS'
+  | 'OTHER';
+
+export type OrderConfirmationQualityReport =
+  | 'MATERIAL_TEST_CERTIFICATE'
+  | 'FACTORY_ACCEPTANCE_TEST_REPORT'
+  | 'CALIBRATION_CERTIFICATE'
+  | 'COMPLIANCE_CERTIFICATE'
+  | 'OTHER';
+
+export interface OrderConfirmationSheet {
+  id: string;
+  confirmationNumber: string;
+  orderId: string;
+  revisionNumber: number;
+  status: OrderConfirmationStatus;
+  requirementsOverview: string;
+  deliveryDate: string | null;
+  deliveryLocation: string;
+  deliveryType: OrderConfirmationDeliveryType | null;
+  qualityReportsExpected: OrderConfirmationQualityReport[];
+  qualityReportNotes: string | null;
+  installationCommissioningRequired: boolean;
+  installationNotes: string | null;
+  warrantyTerms: string;
+  paymentMilestones: string;
+  siteReadinessRequirements: string | null;
+  specialHandlingInstructions: string | null;
+  packagingType: string;
+  protectiveMeasures: string;
+  packagingComplianceStandard: string | null;
+  labelingRequirements: string;
+  customerPackagingSpecReference: string | null;
+  customerContactName: string;
+  customerContactPhone: string;
+  customerContactEmail: string;
+  pdfGeneratedAt: string | null;
+  hasSignedCopy: boolean;
+  signedCopyUploadedById: string | null;
+  signedCopyUploadedAt: string | null;
+  internalSignedById: string | null;
+  internalSignedAt: string | null;
+  internalReviewComments: string | null;
+  approverSignatureTextSnapshot: string | null;
+  approverSignatureFontSnapshot: SignatureFont | null;
+  createdById: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -574,6 +652,8 @@ export interface BidDecisionAssessment {
   reviewedById: string | null;
   reviewedAt: string | null;
   reviewerComments: string | null;
+  approverSignatureTextSnapshot: string | null;
+  approverSignatureFontSnapshot: SignatureFont | null;
   responses?: BidAssessmentResponse[];
   createdAt: string;
   updatedAt: string;

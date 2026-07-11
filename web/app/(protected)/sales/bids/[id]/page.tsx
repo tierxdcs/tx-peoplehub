@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, CalendarDays, Download, FileText } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
-import { Bid, Customer } from '../../../../lib/types';
+import { Bid, Customer, Employee } from '../../../../lib/types';
 import { formatINR, prettyEnum } from '../../../../lib/sales';
 import { todayDateStr } from '../../../../lib/date';
 import { PageContainer } from '../../../../components/ui/page-container';
@@ -30,6 +30,8 @@ import {
 } from '../../../../components/ui/table';
 import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
+import { SignatureDisplay } from '../../../../components/ui/signature-display';
+import { SignatureSetupInline } from '../../../../components/ui/signature-setup-inline';
 import { ProductCell } from '../../_components/product-cell';
 import { BidPrintDocument } from '../../_components/bid-print-document';
 
@@ -46,6 +48,7 @@ export default function BidDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
   const [comments, setComments] = useState('');
+  const [hasSignature, setHasSignature] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,6 +75,15 @@ export default function BidDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Whether the current user has a signature configured — drives the
+  // just-in-time setup prompt shown beside the approve controls.
+  useEffect(() => {
+    if (!user) return;
+    apiFetch<Employee>(`/employees/${user.sub}`)
+      .then((me) => setHasSignature(!!me.signatureText))
+      .catch(() => setHasSignature(true));
+  }, [user]);
 
   async function act(
     path: string,
@@ -221,11 +233,23 @@ export default function BidDetailPage() {
               Mark as Accepted
             </Button>
           )}
-          {bid.status === 'ACCEPTED' && (
-            <Button disabled={acting} onClick={convertToOrder}>
-              Convert to Order
-            </Button>
-          )}
+          {bid.status === 'ACCEPTED' &&
+            (bid.convertedOrderId ? (
+              // Already converted — a bid maps to at most one order. Offer a
+              // link to it instead of a dead "Convert" that the API rejects.
+              <Button
+                variant="outline"
+                onClick={() =>
+                  router.push(`/sales/orders/${bid.convertedOrderId}`)
+                }
+              >
+                View Order
+              </Button>
+            ) : (
+              <Button disabled={acting} onClick={convertToOrder}>
+                Convert to Order
+              </Button>
+            ))}
           {(bid.status === 'DRAFT' || bid.status === 'REJECTED') && (
             <Button
               variant="outline"
@@ -399,7 +423,32 @@ export default function BidDetailPage() {
         </p>
       )}
 
+      {/* Approver's e-signature, shown once the bid is approved. */}
+      {bid.status === 'APPROVED' && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              Approved by
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <SignatureDisplay
+              text={bid.approverSignatureTextSnapshot}
+              font={bid.approverSignatureFontSnapshot}
+              date={bid.approvedAt ? bid.approvedAt.slice(0, 10) : null}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Approve/reject controls for the assigned approver */}
+      {canApprove && !hasSignature && (
+        <div className="mb-4">
+          <SignatureSetupInline
+            onSaved={() => setHasSignature(true)}
+          />
+        </div>
+      )}
       {canApprove && (
         <Card className="mb-4">
           <CardContent className="flex flex-wrap items-center gap-2 p-4">

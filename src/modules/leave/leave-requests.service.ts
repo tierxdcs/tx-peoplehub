@@ -104,6 +104,10 @@ export class LeaveRequestsService {
             approvedAt: new Date(),
             approverComments:
               'Auto-approved: no reporting manager (SUPER_ADMIN)',
+            // The requester is effectively their own approver here — snapshot
+            // their signature (null-safe).
+            approverSignatureTextSnapshot: requester.signatureText ?? null,
+            approverSignatureFontSnapshot: requester.signatureFont ?? null,
           },
         });
       });
@@ -200,6 +204,12 @@ export class LeaveRequestsService {
       await this.leaveBalances.ensureBalances(request.employeeId, year);
     }
 
+    // Snapshot the approving manager's e-signature at approval time (null-safe).
+    const approver = await this.prisma.employee.findUnique({
+      where: { id: currentUser.id },
+      select: { signatureText: true, signatureFont: true },
+    });
+
     const updated = await this.prisma.$transaction(async (tx) => {
       if (isTracked) {
         await this.assertSufficientBalance(
@@ -224,6 +234,8 @@ export class LeaveRequestsService {
           approverId: currentUser.id,
           approvedAt: new Date(),
           approverComments: approverComments ?? null,
+          approverSignatureTextSnapshot: approver?.signatureText ?? null,
+          approverSignatureFontSnapshot: approver?.signatureFont ?? null,
         },
       });
     });
@@ -464,6 +476,8 @@ export class LeaveRequestsService {
       approverId: request.approverId,
       approvedAt: request.approvedAt,
       approverComments: request.approverComments,
+      approverSignatureTextSnapshot: request.approverSignatureTextSnapshot,
+      approverSignatureFontSnapshot: request.approverSignatureFontSnapshot,
       createdAt: request.createdAt,
       updatedAt: request.updatedAt,
     });

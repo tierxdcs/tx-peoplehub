@@ -38,6 +38,7 @@ import {
 } from '../../../../components/ui/table';
 import { BidAssessmentDialog } from '../../_components/bid-assessment-dialog';
 import { useConfirm } from '../../../../components/ui/confirm';
+import { SignatureDisplay } from '../../../../components/ui/signature-display';
 
 const STAGES: OpportunityStage[] = [
   'PROSPECTING',
@@ -262,6 +263,25 @@ export default function OpportunityDetailPage() {
             <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
               <span className="font-semibold">Reviewer comments:</span>{' '}
               {gate.comments}
+            </div>
+          )}
+          {/* Reviewer's e-signature once the assessment is approved. */}
+          {gate.state === 'APPROVED' && assessments[0] && (
+            <div className="mb-4 rounded-md border border-success/40 bg-success/10 p-3">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Approved by
+              </div>
+              <div className="mt-1">
+                <SignatureDisplay
+                  text={assessments[0].approverSignatureTextSnapshot}
+                  font={assessments[0].approverSignatureFontSnapshot}
+                  date={
+                    assessments[0].reviewedAt
+                      ? assessments[0].reviewedAt.slice(0, 10)
+                      : null
+                  }
+                />
+              </div>
             </div>
           )}
           <Table>

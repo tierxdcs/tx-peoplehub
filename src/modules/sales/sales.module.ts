@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { EmployeesModule } from '../employees/employees.module';
+import { VaultModule } from '../vault/vault.module';
 import { SalesAccessService } from './common/sales-access.service';
 import { SalesNumberingService } from './common/sales-numbering.service';
 import { ApprovalRoutingService } from './common/approval-routing.service';
@@ -21,6 +22,8 @@ import { BidAssessmentQuestionsController } from './bid-assessment-questions.con
 import { BidAssessmentQuestionsService } from './bid-assessment-questions.service';
 import { BidAssessmentsController } from './bid-assessments.controller';
 import { BidAssessmentsService } from './bid-assessments.service';
+import { ConfirmationSheetsController } from './confirmation-sheets.controller';
+import { ConfirmationSheetsService } from './confirmation-sheets.service';
 
 /**
  * Sales pipeline: Customer/Product master data → Lead → Opportunity →
@@ -29,7 +32,7 @@ import { BidAssessmentsService } from './bid-assessments.service';
  * SalesAccessService's manager scoping.
  */
 @Module({
-  imports: [EmployeesModule],
+  imports: [EmployeesModule, VaultModule],
   controllers: [
     CustomersController,
     ProductsController,
@@ -40,6 +43,7 @@ import { BidAssessmentsService } from './bid-assessments.service';
     BidAssessmentsController,
     BidsController,
     OrdersController,
+    ConfirmationSheetsController,
   ],
   providers: [
     SalesAccessService,
@@ -54,6 +58,7 @@ import { BidAssessmentsService } from './bid-assessments.service';
     BidAssessmentsService,
     BidsService,
     OrdersService,
+    ConfirmationSheetsService,
   ],
 })
 export class SalesModule {}

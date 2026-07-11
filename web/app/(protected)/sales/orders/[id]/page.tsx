@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, ReceiptText } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
-import { Order, OrderStatus } from '../../../../lib/types';
+import { useAuth } from '../../../../lib/auth-context';
+import { useIsSalesHead } from '../../../../lib/use-is-sales-head';
+import { Customer, Order, OrderStatus } from '../../../../lib/types';
 import { ORDER_NEXT_STATUSES, formatINR, prettyEnum } from '../../../../lib/sales';
 import { PageContainer } from '../../../../components/ui/page-container';
 import {
@@ -29,17 +31,29 @@ import {
 import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
 import { ProductCell } from '../../_components/product-cell';
+import { ConfirmationSheetsSection } from './_components/confirmation-sheets-section';
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const toast = useToast();
   const confirm = useConfirm();
+  const { user } = useAuth();
+  const { isSalesHead } = useIsSalesHead();
 
   const [order, setOrder] = useState<Order | null>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nextStatus, setNextStatus] = useState<OrderStatus | ''>('');
   const [acting, setActing] = useState(false);
+  // Whether the order's latest confirmation sheet is EXECUTED — reported up
+  // from the sheets section, so the CONFIRMED→IN_PRODUCTION gate re-enables
+  // live when a sheet is signed (no reload).
+  const [latestExecuted, setLatestExecuted] = useState(false);
+
+  const handleLatestExecutedChange = useCallback((executed: boolean) => {
+    setLatestExecuted(executed);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,6 +62,13 @@ export default function OrderDetailPage() {
       const o = await apiFetch<Order>(`/orders/${id}`);
       setOrder(o);
       setNextStatus('');
+      // Recipient details for the printable confirmation sheet — best-effort
+      // so a customer-fetch failure never blocks the order view itself.
+      try {
+        setCustomer(await apiFetch<Customer>(`/customers/${o.customerId}`));
+      } catch {
+        setCustomer(null);
+      }
     } catch {
       setError('Failed to load order');
     } finally {
@@ -110,6 +131,13 @@ export default function OrderDetailPage() {
   }
 
   const nextOptions = ORDER_NEXT_STATUSES[order.status];
+  const isReviewer = user?.role === 'SUPER_ADMIN' || isSalesHead;
+  // Frontend mirror of the backend gate: a CONFIRMED order can't advance
+  // (its only forward step is IN_PRODUCTION) until its latest Order
+  // Confirmation Sheet is EXECUTED. Only this step is gated — later
+  // transitions (IN_PRODUCTION→READY_TO_SHIP, …) are unaffected.
+  const blockedPendingConfirmation =
+    order.status === 'CONFIRMED' && !latestExecuted;
 
   return (
     <PageContainer>
@@ -215,25 +243,47 @@ export default function OrderDetailPage() {
               This order is in a terminal state — no further transitions.
             </p>
           ) : (
-            <div className="flex items-center gap-2">
-              <Select
-                value={nextStatus}
-                onChange={(e) => setNextStatus(e.target.value as OrderStatus)}
-              >
-                <option value="">Select next status…</option>
-                {nextOptions.map((s) => (
-                  <option key={s} value={s}>
-                    {prettyEnum(s)}
-                  </option>
-                ))}
-              </Select>
-              <Button onClick={updateStatus} disabled={acting || !nextStatus}>
-                {acting ? '…' : 'Update'}
-              </Button>
-            </div>
+            <>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={nextStatus}
+                  onChange={(e) => setNextStatus(e.target.value as OrderStatus)}
+                  disabled={blockedPendingConfirmation}
+                >
+                  <option value="">Select next status…</option>
+                  {nextOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {prettyEnum(s)}
+                    </option>
+                  ))}
+                </Select>
+                <Button
+                  onClick={updateStatus}
+                  disabled={
+                    acting || !nextStatus || blockedPendingConfirmation
+                  }
+                >
+                  {acting ? '…' : 'Update'}
+                </Button>
+              </div>
+              {blockedPendingConfirmation && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Requires an executed Order Confirmation Sheet before this
+                  order can move to production.
+                </p>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
+
+      <ConfirmationSheetsSection
+        orderId={order.id}
+        canWrite
+        isReviewer={isReviewer}
+        customer={customer}
+        onLatestExecutedChange={handleLatestExecutedChange}
+      />
     </PageContainer>
   );
 }

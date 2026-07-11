@@ -45,6 +45,6 @@ import { VaultPublicController } from './vault-public.controller';
     VaultPreviewService,
     VaultExternalShareService,
   ],
-  exports: [VaultAccessService],
+  exports: [VaultAccessService, VaultStorageService],
 })
 export class VaultModule {}

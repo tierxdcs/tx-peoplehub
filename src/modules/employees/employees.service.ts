@@ -24,6 +24,7 @@ import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { OnboardEmployeeDto } from './dto/onboard-employee.dto';
 import { GrantAccessDto } from './dto/grant-access.dto';
+import { UpdateSignatureDto } from './dto/update-signature.dto';
 import { RosterQueryDto } from './dto/roster-query.dto';
 import { EmployeeEntity } from './entities/employee.entity';
 import {
@@ -172,6 +173,22 @@ export class EmployeesService {
       },
     });
 
+    return this.toEntity(employee);
+  }
+
+  /** Self-service: set/change the caller's own internal e-signature. */
+  async updateOwnSignature(
+    userId: string,
+    dto: UpdateSignatureDto,
+  ): Promise<EmployeeEntity> {
+    await this.findRawOrThrow(userId);
+    const employee = await this.prisma.employee.update({
+      where: { id: userId },
+      data: {
+        signatureText: dto.signatureText,
+        signatureFont: dto.signatureFont,
+      },
+    });
     return this.toEntity(employee);
   }
 
@@ -852,6 +869,8 @@ export class EmployeesService {
       accessStatus: employee.accessStatus,
       isSalesHead: employee.isSalesHead,
       officialEmail: employee.officialEmail,
+      signatureText: employee.signatureText,
+      signatureFont: employee.signatureFont,
       createdAt: employee.createdAt,
       updatedAt: employee.updatedAt,
     });

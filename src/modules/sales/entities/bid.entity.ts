@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { BidStatus, SalesTaxType } from '@prisma/client';
+import { BidStatus, SalesTaxType, SignatureFont } from '@prisma/client';
 
 export class BidLineItemEntity {
   @ApiProperty()
@@ -98,8 +98,24 @@ export class BidEntity {
   @ApiProperty({ nullable: true })
   approverComments!: string | null;
 
+  @ApiProperty({
+    nullable: true,
+    description: "Approver's e-signature text, snapshotted at approval",
+  })
+  approverSignatureTextSnapshot!: string | null;
+
+  @ApiProperty({ enum: SignatureFont, nullable: true })
+  approverSignatureFontSnapshot!: SignatureFont | null;
+
   @ApiProperty({ type: [BidLineItemEntity], required: false })
   lineItems?: BidLineItemEntity[];
+
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Id of the order this bid was converted into, if any. Non-null means it has already been converted (a bid converts to at most one order).',
+  })
+  convertedOrderId!: string | null;
 
   @ApiProperty()
   createdAt!: Date;

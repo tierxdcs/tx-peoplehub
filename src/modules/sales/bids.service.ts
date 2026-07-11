@@ -35,7 +35,10 @@ const COMPANY_STATE = 'Karnataka';
 type BidLineItemWithProduct = BidLineItem & {
   product: { name: string; sku: string };
 };
-type BidWithLines = Bid & { lineItems: BidLineItemWithProduct[] };
+type BidWithLines = Bid & {
+  lineItems: BidLineItemWithProduct[];
+  orders?: { id: string }[];
+};
 
 @Injectable()
 export class BidsService {
@@ -283,6 +286,11 @@ export class BidsService {
         'Only a PENDING_APPROVAL bid can be approved',
       );
     }
+    // Snapshot the approving manager's e-signature at approval time. Null-safe.
+    const emp = await this.prisma.employee.findUnique({
+      where: { id: user.id },
+      select: { signatureText: true, signatureFont: true },
+    });
     const updated = await this.prisma.bid.update({
       where: { id },
       data: {
@@ -290,6 +298,8 @@ export class BidsService {
         approverId: user.id,
         approvedAt: new Date(),
         approverComments: dto.approverComments ?? null,
+        approverSignatureTextSnapshot: emp?.signatureText ?? null,
+        approverSignatureFontSnapshot: emp?.signatureFont ?? null,
       },
       include: { lineItems: { include: { product: true } } },
     });
@@ -418,7 +428,11 @@ export class BidsService {
   private async findRawOrThrow(id: string): Promise<BidWithLines> {
     const bid = await this.prisma.bid.findUnique({
       where: { id },
-      include: { lineItems: { include: { product: true } } },
+      include: {
+        lineItems: { include: { product: true } },
+        // The converted order (if any) — a bid converts to at most one.
+        orders: { select: { id: true }, take: 1 },
+      },
     });
     if (!bid) {
       throw new NotFoundException('Bid not found');
@@ -448,6 +462,9 @@ export class BidsService {
       approverId: bid.approverId,
       approvedAt: bid.approvedAt,
       approverComments: bid.approverComments,
+      approverSignatureTextSnapshot: bid.approverSignatureTextSnapshot,
+      approverSignatureFontSnapshot: bid.approverSignatureFontSnapshot,
+      convertedOrderId: bid.orders?.[0]?.id ?? null,
       lineItems: bid.lineItems.map(
         (li) =>
           new BidLineItemEntity({
