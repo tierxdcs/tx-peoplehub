@@ -31,6 +31,7 @@ import {
   EmployeeRosterEntity,
 } from './entities/employee-roster.entity';
 import { EmployeeCompensationEntity } from './entities/employee-compensation.entity';
+import { EmployeeSearchResultEntity } from './entities/employee-search-result.entity';
 import { EmployeeStatutoryEntity } from './entities/employee-statutory.entity';
 import { EmployeeBankDetailsEntity } from './entities/employee-bank-details.entity';
 
@@ -184,9 +185,29 @@ export class EmployeesService {
   }
 
   /**
+   * THE downstream-hierarchy lookup: ids of every direct and indirect report
+   * of `managerId`, via a recursive CTE. This is the single code path behind
+   * Leave/Attendance team views, Sales write-scoping, and Vault TEAM-scope
+   * folder visibility — new consumers must call this rather than duplicating
+   * the CTE, so the hierarchy semantics can never drift between modules.
+   */
+  async getTeamIds(managerId: string): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      WITH RECURSIVE subtree AS (
+        SELECT id FROM employees WHERE id = ${managerId}
+        UNION ALL
+        SELECT e.id FROM employees e
+        INNER JOIN subtree s ON e."reportingManagerId" = s.id
+      )
+      SELECT id FROM subtree WHERE id != ${managerId}
+    `;
+    return rows.map((row) => row.id);
+  }
+
+  /**
    * Returns every downstream report (direct and indirect) of `managerId` via
-   * a recursive CTE — a naive direct-reports-only filter would miss
-   * multi-level hierarchies.
+   * getTeamIds() — a naive direct-reports-only filter would miss multi-level
+   * hierarchies.
    */
   async getTeam(
     managerId: string,
@@ -198,17 +219,7 @@ export class EmployeesService {
 
     await this.findRawOrThrow(managerId);
 
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
-      WITH RECURSIVE subtree AS (
-        SELECT id FROM employees WHERE id = ${managerId}
-        UNION ALL
-        SELECT e.id FROM employees e
-        INNER JOIN subtree s ON e."reportingManagerId" = s.id
-      )
-      SELECT id FROM subtree WHERE id != ${managerId}
-    `;
-
-    const ids = rows.map((row) => row.id);
+    const ids = await this.getTeamIds(managerId);
     if (ids.length === 0) {
       return [];
     }
@@ -325,6 +336,19 @@ export class EmployeesService {
         },
       });
 
+      // Vault: every onboarded employee gets exactly one PERSONAL folder
+      // (private, undeletable, versioning not configurable). Created in the
+      // same transaction as the Employee row so an employee can never exist
+      // without one; a DB partial unique index guarantees at most one.
+      await tx.vaultFolder.create({
+        data: {
+          name: 'My Documents',
+          type: 'PERSONAL',
+          ownerId: created.id,
+          visibilityScope: 'PRIVATE',
+        },
+      });
+
       return created;
     });
 
@@ -376,6 +400,51 @@ export class EmployeesService {
       page: query.page,
       limit: query.limit,
     };
+  }
+
+  /**
+   * Lightweight type-ahead search for the share-picker (any authenticated
+   * employee). Matches the term case-insensitively against first/last name,
+   * email, and employeeId; ACTIVE employees only; capped small result set
+   * (never paginated — it's a picker, not a browse). Returns the lean
+   * EmployeeSearchResultEntity, so this endpoint exposes nothing the
+   * HR/Admin-gated roster protects.
+   */
+  async search(
+    term: string,
+    limit = 10,
+  ): Promise<EmployeeSearchResultEntity[]> {
+    const q = term.trim();
+    if (!q) {
+      return [];
+    }
+    const take = Math.min(Math.max(limit, 1), 25);
+    const contains = { contains: q, mode: 'insensitive' as const };
+    const employees = await this.prisma.employee.findMany({
+      where: {
+        status: EmployeeStatus.ACTIVE,
+        OR: [
+          { firstName: contains },
+          { lastName: contains },
+          { email: contains },
+          { employeeId: contains },
+        ],
+      },
+      take,
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+    });
+    return employees.map(
+      (e) =>
+        new EmployeeSearchResultEntity({
+          id: e.id,
+          employeeId: e.employeeId,
+          firstName: e.firstName,
+          lastName: e.lastName,
+          fullName: `${e.firstName} ${e.lastName}`.trim(),
+          email: e.email,
+          verticalId: e.verticalId,
+        }),
+    );
   }
 
   /** Employees still awaiting an Admin's grant-access decision. */

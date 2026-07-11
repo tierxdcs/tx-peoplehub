@@ -211,6 +211,154 @@ export interface Payslip {
   createdAt: string;
 }
 
+// ---- Vault (document management) ----
+
+export type VaultFolderType = 'PERSONAL' | 'DEFAULT' | 'CUSTOM';
+export type VaultVisibilityScope =
+  | 'PRIVATE'
+  | 'TEAM'
+  | 'VERTICAL'
+  | 'COMPANY_WIDE';
+export type VaultFolderStatus = 'ACTIVE' | 'ARCHIVED';
+export type VaultFileStatus = 'PENDING' | 'ACTIVE' | 'DELETED';
+export type VaultPreviewStatus =
+  | 'PENDING'
+  | 'READY'
+  | 'FAILED'
+  | 'NOT_APPLICABLE';
+export type VaultSharePermission = 'VIEW' | 'EDIT';
+export type VaultShareResourceType = 'FILE' | 'FOLDER';
+
+/** The caller's computed effective access on a folder or file. */
+export interface VaultAccess {
+  canRead: boolean;
+  canWrite: boolean;
+  canDelete: boolean;
+  canCreateSubfolder: boolean;
+}
+
+export interface VaultFolder {
+  id: string;
+  name: string;
+  parentFolderId: string | null;
+  type: VaultFolderType;
+  ownerId: string;
+  visibilityScope: VaultVisibilityScope;
+  scopeVerticalId: string | null;
+  versioningEnabled: boolean;
+  maxVersionsRetained: number | null;
+  status: VaultFolderStatus;
+  access: VaultAccess;
+  children?: VaultFolder[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Enriched file row from GET /vault/folders/:id/files and /vault/files/:id. */
+export interface VaultFile {
+  id: string;
+  folderId: string;
+  name: string;
+  currentVersionId: string | null;
+  status: VaultFileStatus;
+  uploadedById: string;
+  uploadedByName: string | null;
+  sizeBytes: string | null;
+  mimeType: string | null;
+  previewStatus: VaultPreviewStatus | null;
+  versionCount: number;
+  access: VaultAccess;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VaultFileVersion {
+  id: string;
+  fileId: string;
+  versionNumber: number;
+  mimeType: string;
+  sizeBytes: string;
+  storageKey: string;
+  previewStorageKey: string | null;
+  previewStatus: VaultPreviewStatus;
+  changeNote: string | null;
+  uploadedById: string;
+  createdAt: string;
+}
+
+/** POST /vault/files/upload-url and /vault/files/:id/versions response. */
+export interface VaultUploadUrlResponse {
+  file: {
+    id: string;
+    folderId: string;
+    name: string;
+    currentVersionId: string | null;
+    status: VaultFileStatus;
+  };
+  versionId: string;
+  storageKey: string;
+  uploadUrl: string;
+  expiresInSeconds: number;
+}
+
+export interface VaultDownloadUrlResponse {
+  downloadUrl: string;
+  expiresInSeconds: number;
+}
+
+export interface VaultViewUrlResponse {
+  previewStatus: VaultPreviewStatus;
+  viewUrl: string | null;
+  expiresInSeconds: number | null;
+}
+
+export interface VaultInternalShare {
+  id: string;
+  resourceType: VaultShareResourceType;
+  resourceId: string;
+  sharedWithEmployeeId: string;
+  sharedWithEmployeeName: string | null;
+  permission: VaultSharePermission;
+  sharedById: string;
+  createdAt: string;
+}
+
+export interface VaultExternalShareLink {
+  id: string;
+  resourceType: VaultShareResourceType;
+  resourceId: string;
+  token: string;
+  permission: VaultSharePermission;
+  pinnedVersionId: string | null;
+  hasPassword: boolean;
+  expiresAt: string;
+  revokedAt: string | null;
+  createdById: string;
+  createdAt: string;
+  /** Only present on the list endpoint. */
+  accessCount?: number;
+}
+
+/** GET /employees/search — lean picker shape. */
+export interface EmployeeSearchResult {
+  id: string;
+  employeeId: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  email: string;
+  verticalId: string | null;
+}
+
+/** GET /public/vault/shared/:token — public resolution shape. */
+export interface PublicSharedResource {
+  resourceType: VaultShareResourceType;
+  name: string;
+  url: string | null;
+  mimeType: string | null;
+  expiresInSeconds: number | null;
+}
+
 // ---- Sales module ----
 
 export type CustomerStatus = 'ACTIVE' | 'INACTIVE';

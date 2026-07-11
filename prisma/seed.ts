@@ -4,6 +4,8 @@ import {
   LeaveAccrualType,
   PrismaClient,
   Role,
+  VaultFolderType,
+  VaultVisibilityScope,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -123,6 +125,91 @@ async function nextEmployeeId(): Promise<string> {
   return `EMP-${nextval.toString().padStart(4, '0')}`;
 }
 
+/**
+ * Default Vault folders (spec §4.1). All owned by the seeded SUPER_ADMIN.
+ * `verticalCode` null = COMPANY_WIDE; otherwise VERTICAL-scoped to that
+ * vertical. Company Policies + Compliance & Legal keep unbounded version
+ * history (maxVersions = null) per the compliance-retention exception; the
+ * rest use the default cap of 5 when versioning is on. Seeded idempotently:
+ * a folder is created only if no DEFAULT folder with the same name +
+ * scope/vertical already exists, so re-running never duplicates.
+ */
+const DEFAULT_FOLDERS: Array<{
+  name: string;
+  verticalCode: string | null;
+  versioningEnabled: boolean;
+  maxVersionsRetained: number | null;
+}> = [
+  // Company-wide
+  {
+    name: 'Company Policies',
+    verticalCode: null,
+    versioningEnabled: true,
+    maxVersionsRetained: null,
+  },
+  {
+    name: 'Onboarding Documents',
+    verticalCode: null,
+    versioningEnabled: false,
+    maxVersionsRetained: 5,
+  },
+  {
+    name: 'Compliance & Legal',
+    verticalCode: null,
+    versioningEnabled: true,
+    maxVersionsRetained: null,
+  },
+  {
+    name: 'IT & Security Guidelines',
+    verticalCode: null,
+    versioningEnabled: false,
+    maxVersionsRetained: 5,
+  },
+  {
+    name: 'Company Announcements',
+    verticalCode: null,
+    versioningEnabled: false,
+    maxVersionsRetained: 5,
+  },
+  // Vertical-scoped
+  {
+    name: 'Sales',
+    verticalCode: 'SALES',
+    versioningEnabled: false,
+    maxVersionsRetained: 5,
+  },
+  {
+    name: 'Design',
+    verticalCode: 'DESIGN',
+    versioningEnabled: true,
+    maxVersionsRetained: 5,
+  },
+  {
+    name: 'Production / Manufacturing',
+    verticalCode: 'PRODUCTION',
+    versioningEnabled: true,
+    maxVersionsRetained: 5,
+  },
+  {
+    name: 'Quality',
+    verticalCode: 'PRODUCTION',
+    versioningEnabled: false,
+    maxVersionsRetained: 5,
+  },
+  {
+    name: 'Procurement / SCM',
+    verticalCode: 'SCM',
+    versioningEnabled: false,
+    maxVersionsRetained: 5,
+  },
+  {
+    name: 'Dispatch',
+    verticalCode: 'SCM',
+    versioningEnabled: false,
+    maxVersionsRetained: 5,
+  },
+];
+
 async function main() {
   for (const vertical of VERTICALS) {
     await prisma.vertical.upsert({
@@ -161,11 +248,11 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, 10);
 
   const existing = await prisma.employee.findUnique({ where: { email } });
-  if (!existing) {
-    const employeeId = await nextEmployeeId();
-    await prisma.employee.create({
+  const superAdmin =
+    existing ??
+    (await prisma.employee.create({
       data: {
-        employeeId,
+        employeeId: await nextEmployeeId(),
         email,
         passwordHash,
         firstName: 'Super',
@@ -173,11 +260,51 @@ async function main() {
         role: Role.SUPER_ADMIN,
         accessStatus: AccessStatus.ACTIVE,
       },
+    }));
+
+  // Default Vault folders — owned by the SUPER_ADMIN, seeded idempotently
+  // (created only when an identical DEFAULT folder isn't already present).
+  let foldersCreated = 0;
+  for (const f of DEFAULT_FOLDERS) {
+    const scopeVerticalId = f.verticalCode
+      ? (
+          await prisma.vertical.findUniqueOrThrow({
+            where: { code: f.verticalCode },
+          })
+        ).id
+      : null;
+    const visibilityScope = f.verticalCode
+      ? VaultVisibilityScope.VERTICAL
+      : VaultVisibilityScope.COMPANY_WIDE;
+
+    const alreadyThere = await prisma.vaultFolder.findFirst({
+      where: {
+        type: VaultFolderType.DEFAULT,
+        name: f.name,
+        visibilityScope,
+        scopeVerticalId,
+      },
     });
+    if (alreadyThere) continue;
+
+    await prisma.vaultFolder.create({
+      data: {
+        name: f.name,
+        type: VaultFolderType.DEFAULT,
+        ownerId: superAdmin.id,
+        visibilityScope,
+        scopeVerticalId,
+        versioningEnabled: f.versioningEnabled,
+        maxVersionsRetained: f.maxVersionsRetained,
+      },
+    });
+    foldersCreated += 1;
   }
 
   console.log(
-    `Seed complete. Verticals: ${VERTICALS.length}. Leave types: ${LEAVE_TYPES.length}. Super admin: ${email}`,
+    `Seed complete. Verticals: ${VERTICALS.length}. Leave types: ${LEAVE_TYPES.length}. ` +
+      `Super admin: ${email}. Default vault folders created this run: ${foldersCreated} ` +
+      `(of ${DEFAULT_FOLDERS.length} total).`,
   );
 }
 

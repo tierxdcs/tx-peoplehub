@@ -76,6 +76,16 @@ export async function apiFetch<T>(
     }
   }
 
+  // A 204 No Content (e.g. DELETE endpoints) has an empty body — calling
+  // res.json() on it throws, which would surface a successful delete as a
+  // generic error. Treat any empty-bodied 2xx as a void success.
+  if (res.status === 204 || res.headers.get('content-length') === '0') {
+    if (!res.ok) {
+      throw new ApiError('Request failed', res.status);
+    }
+    return undefined as T;
+  }
+
   const body = (await res.json()) as Envelope<T>;
   if (!res.ok || !body.success) {
     throw new ApiError(body.message ?? 'Request failed', res.status);

@@ -22,6 +22,7 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { OnboardEmployeeDto } from './dto/onboard-employee.dto';
 import { GrantAccessDto } from './dto/grant-access.dto';
 import { RosterQueryDto } from './dto/roster-query.dto';
+import { EmployeeSearchQueryDto } from './dto/employee-search-query.dto';
 import { EmployeesService } from './employees.service';
 
 /**
@@ -62,6 +63,20 @@ export class EmployeesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.employeesService.getRoster(query, user);
+  }
+
+  @Get('search')
+  @Roles(Role.MANAGER, Role.EMPLOYEE, Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Type-ahead employee search (name/email) for pickers — lean shape, all roles',
+  })
+  search(@Query() query: EmployeeSearchQueryDto) {
+    const limit = query.limit ? parseInt(query.limit, 10) : undefined;
+    return this.employeesService.search(
+      query.q,
+      Number.isFinite(limit) ? limit : undefined,
+    );
   }
 
   @Get('pending-access')

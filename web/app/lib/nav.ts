@@ -102,6 +102,14 @@ export function sharedNav(access: Access): NavGroup[] {
     });
   }
 
+  // Vault (document management) is cross-cutting — every authenticated employee
+  // sees it regardless of role or vertical. Content within is access-scoped by
+  // the backend; the nav item itself is ungated by design.
+  groups.push({
+    heading: 'Vault',
+    items: [{ label: 'Documents', href: '/vault' }],
+  });
+
   return groups;
 }
 

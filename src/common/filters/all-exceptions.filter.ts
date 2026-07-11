@@ -32,9 +32,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = typeof res === 'string' ? res : ((res as any).message ?? res);
     }
 
+    // Strip the query string before it is ever logged or returned — a request
+    // must never leak a secret it carried in the URL (e.g. a share-link
+    // password) into server logs, error trackers, or the response body.
+    const path = request.url.split('?')[0];
+
     if (status >= 500) {
       this.logger.error(
-        `${request.method} ${request.url}`,
+        `${request.method} ${path}`,
         (exception as Error)?.stack,
       );
     }
@@ -42,7 +47,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     response.status(status).json({
       success: false,
       statusCode: status,
-      path: request.url,
+      path,
       timestamp: new Date().toISOString(),
       message,
     });

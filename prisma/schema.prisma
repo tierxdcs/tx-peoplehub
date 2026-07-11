@@ -156,16 +156,81 @@ enum SalesTaxType {
   IGST
 }
 
+// ---- Vault (document management) module ----
+
+/// PERSONAL = auto-provisioned per employee at onboarding (one each, private,
+/// undeletable). DEFAULT = SUPER_ADMIN-created org folders. CUSTOM =
+/// Manager-created team folders.
+enum VaultFolderType {
+  PERSONAL
+  DEFAULT
+  CUSTOM
+}
+
+enum VaultVisibilityScope {
+  PRIVATE
+  TEAM
+  VERTICAL
+  COMPANY_WIDE
+}
+
+enum VaultFolderStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+/// Who an explicit VaultFolderPermission grant targets. granteeId is
+/// polymorphic: an Employee id, a Vertical id, or a Role name respectively.
+enum VaultGranteeType {
+  EMPLOYEE
+  VERTICAL
+  ROLE
+}
+
+/// A VaultFile row is created before the browser has finished its direct
+/// upload to R2 (PENDING); confirm-upload flips it ACTIVE. DELETED is the
+/// soft-delete state (whole-file only).
+enum VaultFileStatus {
+  PENDING
+  ACTIVE
+  DELETED
+}
+
+/// Preview-conversion lifecycle for a version. Everything stays
+/// NOT_APPLICABLE in Phase 2 — the Gotenberg pipeline that sets
+/// PENDING/READY/FAILED is Phase 4.
+enum PreviewStatus {
+  NOT_APPLICABLE
+  PENDING
+  READY
+  FAILED
+}
+
+/// What an internal share targets. resourceId is polymorphic (a VaultFile id
+/// or a VaultFolder id per this type), so no DB FK on it.
+enum VaultShareResourceType {
+  FILE
+  FOLDER
+}
+
+/// Granted access level for an internal share. VIEW = read; EDIT = read+write.
+/// Additive only — a share never reduces access the recipient already has.
+enum VaultSharePermission {
+  VIEW
+  EDIT
+}
+
 /// Business vertical (Sales, HR, Production, ...). A table, not an enum, so
 /// new verticals can be added by the business without a code deploy.
 model Vertical {
-  id        String     @id @default(uuid())
-  name      String     @unique
-  code      String     @unique
-  isActive  Boolean    @default(true)
-  employees Employee[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id           String        @id @default(uuid())
+  name         String        @unique
+  code         String        @unique
+  isActive     Boolean       @default(true)
+  employees    Employee[]
+  vaultFolders VaultFolder[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@map("verticals")
 }
@@ -236,6 +301,14 @@ model Employee {
 
   bidAssessmentsSubmitted BidDecisionAssessment[] @relation("BidAssessmentSubmitter")
   bidAssessmentsReviewed  BidDecisionAssessment[] @relation("BidAssessmentReviewer")
+
+  vaultFoldersOwned       VaultFolder[]            @relation("VaultFolderOwner")
+  vaultPermissionsGranted VaultFolderPermission[]  @relation("VaultPermissionGrantor")
+  vaultFilesUploaded      VaultFile[]              @relation("VaultFileUploader")
+  vaultVersionsUploaded   VaultFileVersion[]       @relation("VaultVersionUploader")
+  vaultSharesReceived     VaultInternalShare[]     @relation("VaultShareRecipient")
+  vaultSharesGranted      VaultInternalShare[]     @relation("VaultShareGrantor")
+  vaultExternalLinks      VaultExternalShareLink[] @relation("VaultExternalShareCreator")
 
   auditLogs AuditLog[] @relation("AuditActor")
   createdAt DateTime   @default(now())
@@ -818,4 +891,182 @@ model BidAssessmentResponse {
 
   @@index([assessmentId])
   @@map("bid_assessment_responses")
+}
+
+/// Vault folder tree. Access = default scope rules (per visibilityScope) +
+/// explicit VaultFolderPermission grants, most-permissive-wins, SUPER_ADMIN
+/// override — computed in VaultAccessService, never trusted from the client.
+/// PERSONAL folders: exactly one per employee (partial unique index in the
+/// migration), PRIVATE, undeletable, versioning not exposed.
+model VaultFolder {
+  id                  String                  @id @default(uuid())
+  name                String
+  parentFolderId      String?
+  parentFolder        VaultFolder?            @relation("VaultFolderTree", fields: [parentFolderId], references: [id], onDelete: Restrict)
+  childFolders        VaultFolder[]           @relation("VaultFolderTree")
+  type                VaultFolderType
+  ownerId             String
+  /// Cascade: production never hard-deletes employees (soft-delete via
+  /// status INACTIVE); a hard delete (e.g. test cleanup) takes the person's
+  /// folders with it rather than blocking on the auto-provisioned PERSONAL one.
+  owner               Employee                @relation("VaultFolderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  visibilityScope     VaultVisibilityScope
+  /// Required when visibilityScope = VERTICAL (service-enforced).
+  scopeVerticalId     String?
+  scopeVertical       Vertical?               @relation(fields: [scopeVerticalId], references: [id], onDelete: Restrict)
+  versioningEnabled   Boolean                 @default(false)
+  maxVersionsRetained Int?                    @default(5)
+  status              VaultFolderStatus       @default(ACTIVE)
+  permissions         VaultFolderPermission[]
+  files               VaultFile[]
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  @@index([ownerId])
+  @@index([parentFolderId])
+  @@index([visibilityScope, scopeVerticalId])
+  @@map("vault_folders")
+}
+
+/// Explicit grant beyond a folder's default scope — additive only (grants
+/// never reduce scope-derived access). granteeId is polymorphic per
+/// granteeType (Employee id / Vertical id / Role name), so no FK on it.
+model VaultFolderPermission {
+  id                 String           @id @default(uuid())
+  folderId           String
+  folder             VaultFolder      @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  granteeType        VaultGranteeType
+  granteeId          String
+  canRead            Boolean          @default(false)
+  canWrite           Boolean          @default(false)
+  canDelete          Boolean          @default(false)
+  canCreateSubfolder Boolean          @default(false)
+  grantedById        String
+  grantedBy          Employee         @relation("VaultPermissionGrantor", fields: [grantedById], references: [id], onDelete: Cascade)
+  createdAt          DateTime         @default(now())
+
+  @@unique([folderId, granteeType, granteeId])
+  @@index([granteeType, granteeId])
+  @@map("vault_folder_permissions")
+}
+
+/// Stable identity for a document. Its bytes live in one-or-more
+/// VaultFileVersions; currentVersionId points at the live one. The backend
+/// never stores or streams bytes — only R2 object keys (storageKey on the
+/// version). A file always belongs to a folder (folderId required). Deletion
+/// is whole-file soft-delete (status DELETED cascades to every version).
+model VaultFile {
+  id               String             @id @default(uuid())
+  folderId         String
+  folder           VaultFolder        @relation(fields: [folderId], references: [id], onDelete: Restrict)
+  name             String
+  /// The live version. Nullable only transiently: a PENDING file exists
+  /// before its first version row is linked. No DB-level FK back-reference
+  /// (would be a cycle with VaultFileVersion.fileId) — set in the service.
+  currentVersionId String?            @unique
+  uploadedById     String
+  uploadedBy       Employee           @relation("VaultFileUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+  status           VaultFileStatus    @default(PENDING)
+  versions         VaultFileVersion[] @relation("VaultFileVersions")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([folderId, status])
+  @@map("vault_files")
+}
+
+/// One immutable version of a file's bytes. versionNumber is sequential per
+/// file. Append-only: a restore adds a new version copying an older one; a
+/// version row is never mutated, and only ever hard-deleted by retention
+/// pruning (which also deletes the R2 object). storageKey is the R2 object
+/// key. Preview fields stay NOT_APPLICABLE/unset until Phase 4.
+model VaultFileVersion {
+  id                 String                   @id @default(uuid())
+  fileId             String
+  file               VaultFile                @relation("VaultFileVersions", fields: [fileId], references: [id], onDelete: Cascade)
+  versionNumber      Int
+  mimeType           String
+  sizeBytes          BigInt
+  storageKey         String
+  previewStorageKey  String?
+  previewStatus      PreviewStatus            @default(NOT_APPLICABLE)
+  changeNote         String?
+  uploadedById       String
+  uploadedBy         Employee                 @relation("VaultVersionUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+  externalShareLinks VaultExternalShareLink[]
+  createdAt          DateTime                 @default(now())
+
+  @@unique([fileId, versionNumber])
+  @@index([fileId])
+  @@map("vault_file_versions")
+}
+
+/// An additive internal share: grants one employee VIEW/EDIT on one file or
+/// folder, ON TOP OF whatever the resource's default scope / folder
+/// permissions already give them. Folded into VaultAccessService — never
+/// reduces existing access. resourceId is polymorphic per resourceType, so
+/// there is no FK on it (a share is cleaned up in the service, or orphaned
+/// harmlessly if the resource is hard-deleted).
+model VaultInternalShare {
+  id                   String                 @id @default(uuid())
+  resourceType         VaultShareResourceType
+  resourceId           String
+  sharedWithEmployeeId String
+  sharedWithEmployee   Employee               @relation("VaultShareRecipient", fields: [sharedWithEmployeeId], references: [id], onDelete: Cascade)
+  permission           VaultSharePermission
+  sharedById           String
+  sharedBy             Employee               @relation("VaultShareGrantor", fields: [sharedById], references: [id], onDelete: Cascade)
+  createdAt            DateTime               @default(now())
+
+  // One live share per (resource, recipient): re-sharing updates the level.
+  @@unique([resourceType, resourceId, sharedWithEmployeeId])
+  @@index([sharedWithEmployeeId])
+  @@index([resourceType, resourceId])
+  @@map("vault_internal_shares")
+}
+
+/// A public, unauthenticated external share link. `token` is a cryptographically
+/// random secret (the only credential), permission is ALWAYS VIEW (no edit,
+/// ever). For a FILE it PINS `pinnedVersionId` — the version current at
+/// creation time — and keeps serving that even after newer versions land
+/// (not a live "current" pointer). Optional passwordHash + expiresAt (default
+/// 24h) + revokedAt gate access. PERSONAL folders can't be link-shared whole
+/// (service-enforced); individual files within them can.
+model VaultExternalShareLink {
+  id              String                   @id @default(uuid())
+  resourceType    VaultShareResourceType
+  resourceId      String
+  token           String                   @unique
+  /// Always VIEW — kept as a column for audit clarity, never anything else.
+  permission      VaultSharePermission     @default(VIEW)
+  /// Pinned version for FILE links (null for FOLDER links). No FK action on
+  /// delete beyond SetNull so a pruned version doesn't cascade-remove the link
+  /// row (the link simply stops resolving — handled in the service).
+  pinnedVersionId String?
+  pinnedVersion   VaultFileVersion?        @relation(fields: [pinnedVersionId], references: [id], onDelete: SetNull)
+  passwordHash    String?
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  createdById     String
+  createdBy       Employee                 @relation("VaultExternalShareCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  accessLogs      VaultExternalAccessLog[]
+  createdAt       DateTime                 @default(now())
+
+  @@index([resourceType, resourceId])
+  @@map("vault_external_share_links")
+}
+
+/// Audit trail for every public-link access ATTEMPT (success or failure —
+/// expired/revoked/bad-password hits are logged too). IP + user agent captured
+/// for security review.
+model VaultExternalAccessLog {
+  id          String                 @id @default(uuid())
+  shareLinkId String
+  shareLink   VaultExternalShareLink @relation(fields: [shareLinkId], references: [id], onDelete: Cascade)
+  accessedAt  DateTime               @default(now())
+  ipAddress   String?
+  userAgent   String?
+
+  @@index([shareLinkId])
+  @@map("vault_external_access_logs")
 }

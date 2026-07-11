@@ -36,6 +36,19 @@ Validated at boot by Joi (`src/core/config/env.validation.ts`) — the container
 `JWT_ACCESS_TTL` (`900s`), `JWT_REFRESH_TTL` (`7d`), `REFRESH_COOKIE_NAME`
 (`peoplehub_rt`), `PORT` (Railway sets this; the app reads it).
 
+### Vault file storage & previews (optional — Vault features degrade gracefully without them)
+| Variable | Notes |
+|---|---|
+| `R2_ENDPOINT` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | Cloudflare R2 (S3-compatible). All four needed for file upload/download. `R2_ENDPOINT` must be a full `https://` URL. Verify with `node scripts/verify-r2.js`. |
+| `R2_PRESIGN_TTL_SECONDS` | Presigned-URL lifetime, default `300`. |
+| `GOTENBERG_URL` | Base URL of the Gotenberg service (see below). Without it, PDF/image previews still work; Office-doc conversions land at `previewStatus = FAILED` rather than hanging. |
+| `GOTENBERG_TIMEOUT_MS` | Per-conversion timeout, default `60000`. |
+
+> **Gotenberg is a SEPARATE Railway service**, not part of the API image —
+> see [`deploy/gotenberg/README.md`](deploy/gotenberg/README.md) for its
+> one-time setup. Deploy it, then set `GOTENBERG_URL` on the backend to its
+> URL. The API only POSTs documents to it over HTTP; it bundles no LibreOffice.
+
 > `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` are only read by the seed script,
 > which you run **from your laptop** (see below) — they are **not** needed as
 > Railway service vars.

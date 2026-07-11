@@ -371,6 +371,7 @@ describe('EmployeesService', () => {
           salaryStructure: { create: jest.fn().mockResolvedValue({}) },
           employeeStatutoryInfo: { create: jest.fn().mockResolvedValue({}) },
           employeeBankDetails: { create: jest.fn().mockResolvedValue({}) },
+          vaultFolder: { create: jest.fn().mockResolvedValue({}) },
         }),
       );
     }
@@ -431,6 +432,7 @@ describe('EmployeesService', () => {
               return Promise.resolve({});
             }),
           },
+          vaultFolder: { create: jest.fn().mockResolvedValue({}) },
         }),
       );
 
