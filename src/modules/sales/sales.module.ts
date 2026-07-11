@@ -60,5 +60,6 @@ import { ConfirmationSheetsService } from './confirmation-sheets.service';
     OrdersService,
     ConfirmationSheetsService,
   ],
+  exports: [BidsService, BidAssessmentsService, ConfirmationSheetsService],
 })
 export class SalesModule {}

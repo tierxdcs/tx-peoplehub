@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth-context';
 import { useIsHrStaff } from '../lib/use-is-hr-staff';
 import { useIsSalesStaff } from '../lib/use-is-sales-staff';
 import { useIsSalesHead } from '../lib/use-is-sales-head';
+import { usePendingApprovalCounts } from '../lib/use-pending-approval-counts';
 import {
   activeModule as resolveActiveModule,
   availableModules,
@@ -26,6 +27,7 @@ export default function ProtectedLayout({
   const { isHrStaff, loading: hrLoading } = useIsHrStaff();
   const { isSalesStaff, loading: salesLoading } = useIsSalesStaff();
   const { isSalesHead, loading: salesHeadLoading } = useIsSalesHead();
+  const { counts } = usePendingApprovalCounts();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -57,6 +59,21 @@ export default function ProtectedLayout({
   const currentModule = resolveActiveModule(pathname, modules);
   const groups = sidebarNav(access, currentModule);
 
+  // Join the pending counts to nav items by href. leaveApprovals maps to both
+  // the manager and admin queues — a given user only sees one, so mapping to
+  // both hrefs is safe.
+  const badges: Record<string, number> = counts
+    ? {
+        '/team/leave-approvals': counts.leaveApprovals,
+        '/admin/leave-approvals': counts.leaveApprovals,
+        '/admin/pending-access': counts.hrPendingAccess,
+        '/sales/bids/pending-approval': counts.bidDiscountApprovals,
+        '/sales/bid-assessments/pending-approval': counts.bidAssessmentApprovals,
+        '/sales/confirmation-sheets/pending-approval':
+          counts.confirmationSheetsPending,
+      }
+    : {};
+
   function switchModule(m: ModuleKey) {
     const target = moduleHome(m, access);
     if (target) router.push(target);
@@ -71,7 +88,7 @@ export default function ProtectedLayout({
         onSwitchModule={switchModule}
       />
       <div className="flex flex-1">
-        <Sidebar groups={groups} />
+        <Sidebar groups={groups} badges={badges} />
         <main className="flex-1 overflow-x-auto p-6">{children}</main>
       </div>
     </div>

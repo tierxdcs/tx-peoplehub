@@ -24,6 +24,7 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { VaultModule } from './modules/vault/vault.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { HealthModule } from './modules/health/health.module';
 
 @Module({
@@ -44,6 +45,7 @@ import { HealthModule } from './modules/health/health.module';
     PayrollModule,
     SalesModule,
     VaultModule,
+    NotificationsModule,
     HealthModule,
   ],
   providers: [

@@ -190,6 +190,12 @@ export function salesNav(access: Access): NavGroup[] {
       label: 'Assessment Approvals',
       href: '/sales/bid-assessments/pending-approval',
     });
+    // Order Confirmation Sheets awaiting the Sales Head's countersignature —
+    // same audience as Assessment Approvals.
+    pipeline.push({
+      label: 'Confirmation Sheets',
+      href: '/sales/confirmation-sheets/pending-approval',
+    });
   }
   return [
     { heading: 'Pipeline', items: pipeline },
