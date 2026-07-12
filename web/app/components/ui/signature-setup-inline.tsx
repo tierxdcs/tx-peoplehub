@@ -61,8 +61,10 @@ export function SignatureEditorFields({
           </Select>
         </Field>
       </div>
-      <div className="rounded-md border bg-muted/30 p-4">
-        <div className="text-xs text-muted-foreground">Preview</div>
+      <div className="rounded-md border border-dashed bg-muted/30 p-4">
+        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Preview
+        </div>
         <div className="mt-1 text-2xl leading-tight" style={signatureStyle(font)}>
           {text || 'Your signature'}
         </div>

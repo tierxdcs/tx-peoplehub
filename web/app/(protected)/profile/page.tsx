@@ -1,19 +1,34 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Info } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 import { apiFetch, ApiError } from '../../lib/api';
 import { Employee, SignatureFont, Vertical } from '../../lib/types';
 import { SIGNATURE_FONTS } from '../../lib/signature';
+import { PageContainer } from '../../components/ui/page-container';
+import { PageHeader } from '../../components/ui/page-header';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from '../../components/ui/card';
+import { Avatar } from '../../components/ui/avatar';
+import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
+import { Skeleton } from '../../components/ui/skeleton';
 import { SignatureEditorFields } from '../../components/ui/signature-setup-inline';
 import { useToast } from '../../components/ui/toaster';
+
+/** Small uppercase label above a value in the details grid. */
+function DetailLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      {children}
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
@@ -77,35 +92,91 @@ export default function ProfilePage() {
     }
   }
 
-  if (authLoading || loading || !employee) return <p>Loading…</p>;
+  if (authLoading || loading || !employee) {
+    return (
+      <PageContainer>
+        <Skeleton className="mb-6 h-9 w-48" />
+        <Skeleton className="mb-4 h-40 w-full max-w-2xl" />
+        <Skeleton className="h-56 w-full max-w-2xl" />
+      </PageContainer>
+    );
+  }
+
+  const fullName = `${employee.firstName} ${employee.lastName}`;
 
   return (
-    <div>
-      <h1>My Profile</h1>
-      <dl>
-        <dt>Name</dt>
-        <dd>
-          {employee.firstName} {employee.lastName}
-        </dd>
-        <dt>Employee ID</dt>
-        <dd>{employee.employeeId}</dd>
-        <dt>Vertical</dt>
-        <dd>{verticalName ?? '—'}</dd>
-        <dt>Manager</dt>
-        <dd>{managerName ?? '—'}</dd>
-        <dt>Role</dt>
-        <dd>{employee.role}</dd>
-      </dl>
+    <PageContainer>
+      <PageHeader title="My Profile" />
 
-      <Card className="mt-6 max-w-2xl">
+      {/* Profile header card: identity up top, details row below a divider. */}
+      <Card className="mb-4 max-w-2xl">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-4">
+            <Avatar name={fullName} className="size-14 text-lg" />
+            <div className="min-w-0">
+              <div className="truncate text-xl font-semibold tracking-tight">
+                {fullName}
+              </div>
+              <div className="truncate text-sm text-muted-foreground">
+                {employee.employeeId} · {employee.email}
+              </div>
+            </div>
+          </div>
+
+          <div className="my-5 border-t" />
+
+          <div className="grid gap-6 sm:grid-cols-3">
+            <div>
+              <DetailLabel>Vertical</DetailLabel>
+              <div className="mt-1.5">
+                {verticalName ? (
+                  <Badge variant="muted">{verticalName}</Badge>
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <DetailLabel>Role</DetailLabel>
+              <div className="mt-1.5">
+                {employee.role ? (
+                  <Badge variant="muted">{employee.role}</Badge>
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <DetailLabel>Manager</DetailLabel>
+              <div className="mt-1.5">
+                {managerName ? (
+                  <div className="flex items-center gap-2">
+                    <Avatar name={managerName} className="size-6 text-[10px]" />
+                    <span className="text-sm font-medium">{managerName}</span>
+                  </div>
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Signature card. */}
+      <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle>Signature</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 pt-0">
-          <p className="text-sm text-muted-foreground">
-            Your internal e-signature is applied when you approve requests. This
-            is a display convenience, not a legally-binding e-signature.
-          </p>
+          <div className="flex gap-3 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+            <Info className="mt-0.5 size-4 shrink-0" />
+            <p>
+              Your internal e-signature is applied when you approve requests.
+              This is a display convenience, not a legally-binding e-signature.
+            </p>
+          </div>
+
           <SignatureEditorFields
             text={sigText}
             font={sigFont}
@@ -113,11 +184,15 @@ export default function ProfilePage() {
             onFontChange={setSigFont}
             disabled={savingSig}
           />
-          <Button onClick={saveSignature} disabled={savingSig || !sigText.trim()}>
+
+          <Button
+            onClick={saveSignature}
+            disabled={savingSig || !sigText.trim()}
+          >
             {savingSig ? 'Saving…' : 'Save signature'}
           </Button>
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }
