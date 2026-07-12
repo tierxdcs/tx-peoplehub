@@ -510,26 +510,22 @@ export function ConfirmationSheetsSection({
                           ? s.internalSignedAt.slice(0, 10)
                           : '—'}
                       </TableCell>
-                      <TableCell className="text-right space-x-2">
+                      <TableCell className="text-right">
                         {s.status !== 'DRAFT' && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openExecutedPdf(s.id)}
-                            >
-                              <Download /> Executed PDF
-                            </Button>
-                            {s.hasSignedCopy && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openSignedCopy(s.id)}
-                              >
-                                <Download /> Customer-signed scan
-                              </Button>
-                            )}
-                          </>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              s.hasSignedCopy
+                                ? openSignedCopy(s.id)
+                                : openExecutedPdf(s.id)
+                            }
+                          >
+                            <Download />
+                            {s.hasSignedCopy
+                              ? ' Final signed PDF'
+                              : ' PDF'}
+                          </Button>
                         )}
                       </TableCell>
                     </TableRow>
