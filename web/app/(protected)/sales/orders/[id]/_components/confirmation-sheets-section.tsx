@@ -364,16 +364,19 @@ export function ConfirmationSheetsSection({
   }
 
   /**
-   * The row-level "PDF" action.
-   * - If a signed customer copy exists, open that scan for verification.
-   * - Otherwise print the generated confirmation-sheet document.
+   * Open the executed/printable confirmation sheet.
+   * This is the version that includes the Sales Head signature block.
    */
-  function openSheetPdf(sheet: OrderConfirmationSheet) {
-    if (sheet.hasSignedCopy) {
-      viewSignedCopy(sheet.id);
-    } else {
-      printSheetById(sheet.id);
-    }
+  function openExecutedPdf(sheetId: string) {
+    printSheetById(sheetId);
+  }
+
+  /**
+   * Open the uploaded customer-signed scan. This is the source the Sales Head
+   * should verify before countersigning.
+   */
+  function openSignedCopy(sheetId: string) {
+    viewSignedCopy(sheetId);
   }
 
   async function countersign() {
@@ -507,17 +510,26 @@ export function ConfirmationSheetsSection({
                           ? s.internalSignedAt.slice(0, 10)
                           : '—'}
                       </TableCell>
-                      <TableCell className="text-right">
-                        {/* Opens the uploaded signed scan if there is one,
-                            otherwise prints the generated sheet. */}
+                      <TableCell className="text-right space-x-2">
                         {s.status !== 'DRAFT' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openSheetPdf(s)}
-                          >
-                            <Download /> PDF
-                          </Button>
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openExecutedPdf(s.id)}
+                            >
+                              <Download /> Executed PDF
+                            </Button>
+                            {s.hasSignedCopy && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openSignedCopy(s.id)}
+                              >
+                                <Download /> Customer-signed scan
+                              </Button>
+                            )}
+                          </>
                         )}
                       </TableCell>
                     </TableRow>
@@ -525,9 +537,10 @@ export function ConfirmationSheetsSection({
                 </TableBody>
               </Table>
               <p className="text-xs text-muted-foreground">
-                The row-level PDF button opens the uploaded customer-signed scan
-                whenever one exists. If no scan is available, it prints the
-                generated confirmation-sheet document.
+                The row-level PDF actions distinguish the two files now:
+                - executed sheets open the generated confirmation document with
+                the Sales Head signature block
+                - customer-signed scans remain available separately when present
               </p>
 
               {latest && (
