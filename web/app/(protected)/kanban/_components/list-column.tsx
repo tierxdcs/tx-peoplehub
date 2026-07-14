@@ -27,6 +27,7 @@ export function ListColumn({
   cards,
   canManage,
   dndDisabled,
+  sprintNames,
   onOpenCard,
   onAddCard,
 }: {
@@ -34,6 +35,8 @@ export function ListColumn({
   cards: KanbanCard[];
   canManage: boolean;
   dndDisabled: boolean;
+  /** Map of sprintId → sprint name, for the card-face sprint chip. */
+  sprintNames: Record<string, string>;
   onOpenCard: (card: KanbanCard) => void;
   onAddCard: (listId: string, title: string) => Promise<void>;
 }) {
@@ -108,7 +111,12 @@ export function ListColumn({
           strategy={verticalListSortingStrategy}
         >
           {cards.map((card) => (
-            <CardTile key={card.id} card={card} onOpen={onOpenCard} />
+            <CardTile
+              key={card.id}
+              card={card}
+              sprintName={card.sprintId ? sprintNames[card.sprintId] : undefined}
+              onOpen={onOpenCard}
+            />
           ))}
         </SortableContext>
 

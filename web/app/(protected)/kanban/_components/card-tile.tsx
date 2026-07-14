@@ -2,7 +2,7 @@
 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CalendarClock } from 'lucide-react';
+import { CalendarClock, Rocket } from 'lucide-react';
 import type { KanbanCard } from '../../../lib/kanban';
 import { Avatar } from '../../../components/ui/avatar';
 import { cn } from '../../../lib/utils';
@@ -28,9 +28,11 @@ function formatDate(iso: string): string {
  */
 export function CardTile({
   card,
+  sprintName,
   onOpen,
 }: {
   card: KanbanCard;
+  sprintName?: string;
   onOpen: (card: KanbanCard) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -75,6 +77,16 @@ export function CardTile({
       )}
 
       <p className="text-sm leading-snug">{card.title}</p>
+
+      {sprintName && (
+        <span
+          className="mt-1.5 inline-flex max-w-full items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary"
+          title={`Sprint: ${sprintName}`}
+        >
+          <Rocket className="h-3 w-3 shrink-0" />
+          <span className="truncate">{sprintName}</span>
+        </span>
+      )}
 
       <div className="mt-2 flex items-center gap-2">
         <span

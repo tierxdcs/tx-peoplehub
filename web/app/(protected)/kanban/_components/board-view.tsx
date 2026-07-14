@@ -116,6 +116,12 @@ export function BoardView({
   // board fetch already proved membership (403 otherwise), so the flag is enough.
   const canManage = Boolean(isSuperAdmin || isScrumMaster);
 
+  // sprintId → name, for the sprint chip on each card face.
+  const sprintNames = useMemo(
+    () => Object.fromEntries(sprints.map((s) => [s.id, s.name])),
+    [sprints],
+  );
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -448,6 +454,7 @@ export function BoardView({
                   cards={cardsByList[l.id] ?? []}
                   canManage={canManage}
                   dndDisabled={filterActive}
+                  sprintNames={sprintNames}
                   onOpenCard={setOpenCard}
                   onAddCard={addCard}
                 />
