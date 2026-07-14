@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -nA4 'sanitize' src/common/interceptors/audit.interceptor.ts)",
+      "Bash(SEED_ADMIN_EMAIL=admin@peoplehub.local SEED_ADMIN_PASSWORD=ChangeMe123! npx jest --config ./test/jest-e2e.json auth-change-password)",
+      "Bash(SEED_ADMIN_EMAIL=admin@peoplehub.local SEED_ADMIN_PASSWORD=ChangeMe123! npx jest --config ./test/jest-e2e.json app employees auth-change-password)"
+    ]
+  }
+}

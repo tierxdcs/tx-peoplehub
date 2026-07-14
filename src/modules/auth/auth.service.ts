@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AccessStatus, EmployeeStatus, Role } from '@prisma/client';
@@ -81,6 +85,39 @@ export class AuthService {
       employee.role,
       employee.verticalId,
     );
+  }
+
+  /**
+   * Change the authenticated user's own password: verify the current password,
+   * reject a no-op (new === current), then store the new bcrypt hash. The
+   * employee id comes from the verified JWT, so this only ever changes the
+   * caller's own password.
+   */
+  async changePassword(
+    employeeId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+    });
+    if (!employee || !employee.passwordHash) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    const valid = await bcrypt.compare(currentPassword, employee.passwordHash);
+    if (!valid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    if (currentPassword === newPassword) {
+      throw new BadRequestException(
+        'New password must be different from the current password',
+      );
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.employee.update({
+      where: { id: employeeId },
+      data: { passwordHash },
+    });
   }
 
   private async issueTokens(

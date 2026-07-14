@@ -124,47 +124,53 @@ export function InternalShareDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-end gap-2">
-          <div className="flex-1">
-            {selected ? (
-              <div className="flex items-center gap-2 rounded-md border p-2">
-                <Avatar name={selected.fullName} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">
-                    {selected.fullName}
-                  </span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {selected.email}
-                  </span>
+        <div className="space-y-2">
+          {selected ? (
+            <div className="flex items-center gap-2 rounded-md border p-2">
+              <Avatar name={selected.fullName} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">
+                  {selected.fullName}
                 </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelected(null)}
-                >
-                  Change
-                </Button>
-              </div>
-            ) : (
-              <EmployeePicker
-                onSelect={setSelected}
-                excludeIds={shares.map((s) => s.sharedWithEmployeeId)}
-              />
-            )}
+                <span className="block truncate text-xs text-muted-foreground">
+                  {selected.email}
+                </span>
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelected(null)}
+              >
+                Change
+              </Button>
+            </div>
+          ) : (
+            <EmployeePicker
+              onSelect={setSelected}
+              excludeIds={shares.map((s) => s.sharedWithEmployeeId)}
+            />
+          )}
+          {/* Permission + Share on their own row so nothing is clipped in the
+              narrow dialog. */}
+          <div className="flex items-center gap-2">
+            <Select
+              value={permission}
+              onChange={(e) =>
+                setPermission(e.target.value as VaultSharePermission)
+              }
+              className="w-32"
+            >
+              <option value="VIEW">View</option>
+              <option value="EDIT">Edit</option>
+            </Select>
+            <Button
+              className="flex-1"
+              onClick={handleShare}
+              disabled={!selected || submitting}
+            >
+              {submitting ? 'Sharing…' : 'Share'}
+            </Button>
           </div>
-          <Select
-            value={permission}
-            onChange={(e) =>
-              setPermission(e.target.value as VaultSharePermission)
-            }
-            className="w-28"
-          >
-            <option value="VIEW">View</option>
-            <option value="EDIT">Edit</option>
-          </Select>
-          <Button onClick={handleShare} disabled={!selected || submitting}>
-            {submitting ? 'Sharing…' : 'Share'}
-          </Button>
         </div>
 
         <div className="mt-2">

@@ -13,8 +13,13 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { NoAudit } from '../../common/decorators/no-audit.decorator';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+} from '../../common/decorators/current-user.decorator';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -35,6 +40,24 @@ export class AuthController {
     const tokens = await this.authService.login(dto.email, dto.password);
     this.setRefreshCookie(res, tokens.refreshToken);
     return { accessToken: tokens.accessToken };
+  }
+
+  // Audited (unlike login/refresh/logout) — a password change is a security
+  // event worth a trail. The audit interceptor redacts *password* fields, so
+  // the request body is logged safely as [REDACTED].
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Change your own password (verifies the current one)" })
+  async changePassword(
+    @Body() dto: ChangePasswordDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.authService.changePassword(
+      user.id,
+      dto.currentPassword,
+      dto.newPassword,
+    );
+    return { success: true };
   }
 
   @Public()
