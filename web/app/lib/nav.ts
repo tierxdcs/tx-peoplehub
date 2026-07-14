@@ -80,20 +80,16 @@ export function activeModule(
  * role only, never by module.
  */
 export function sharedNav(access: Access): NavGroup[] {
-  const { isManager, isEmployee, isAdmin } = flags(access.user);
+  const { isManager } = flags(access.user);
   const groups: NavGroup[] = [];
 
-  const me: NavItem[] = [
-    { label: 'My Leave', href: '/leave' },
-    { label: 'My Attendance', href: '/attendance' },
-  ];
-  if (isEmployee) me.unshift({ label: 'My Profile', href: '/profile' });
-  // "My Team" (the downstream-reports view at /team) is shown to anyone the
-  // page itself allows: MANAGER plus ADMIN/SUPER_ADMIN (isAdmin covers both).
-  // A SUPER_ADMIN/CEO sits atop the reporting tree, so the link must not be
-  // manager-only — that left the CEO able to reach /team by URL but with no
-  // nav entry to it.
-  if (isManager || isAdmin) me.unshift({ label: 'My Team', href: '/team' });
+  // My Team, My Leave, and My Attendance now live as tabs INSIDE the profile
+  // page, so the nav collapses to a single "My Profile" entry (shown to
+  // everyone — it's the home for those personal self-service tabs, gated
+  // inside the page itself). Payslips stays a separate link. The standalone
+  // /team, /leave, /attendance routes still resolve directly (bookmarks, deep
+  // links), they're just no longer surfaced in the sidebar.
+  const me: NavItem[] = [{ label: 'My Profile', href: '/profile' }];
   if (access.payslipsEnabled) me.push({ label: 'My Payslips', href: '/payslips' });
   groups.push({ heading: 'Me', items: me });
 

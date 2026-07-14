@@ -80,8 +80,7 @@ describe('sidebarNav — the reported bug', () => {
     const shown = labels(a, activeModule('/leave', mods));
     expect(shown).toContain('Leads');
     expect(shown).toContain('Bid Approvals'); // manager-only sales item
-    expect(shown).toContain('My Leave'); // shared items still present
-    expect(shown).toContain('My Team');
+    expect(shown).toContain('My Profile'); // shared self-service entry present
     // Must NOT leak HR-admin items.
     expect(shown).not.toContain('Employees');
     expect(shown).not.toContain('Payroll Runs');
@@ -92,40 +91,37 @@ describe('sidebarNav — the reported bug', () => {
     const shown = labels(a, activeModule('/sales/leads', availableModules(a)));
     expect(shown).toContain('Leads');
     expect(shown).not.toContain('Bid Approvals');
-    expect(shown).toContain('My Leave');
+    expect(shown).toContain('My Profile');
   });
 
   it('an HR EMPLOYEE sees HR People tools + shared items, no Sales', () => {
     const a = access('EMPLOYEE', { isHrStaff: true });
     const shown = labels(a, activeModule('/hr/roster', availableModules(a)));
     expect(shown).toContain('Roster');
-    expect(shown).toContain('My Leave');
+    expect(shown).toContain('My Profile');
     expect(shown).not.toContain('Leads');
   });
 
-  it('a SUPER_ADMIN sees the My Team link (sits atop the reporting tree)', () => {
-    const a = access('SUPER_ADMIN');
-    const shown = labels(a, activeModule('/admin/employees', availableModules(a)));
-    expect(shown).toContain('My Team');
-  });
-
-  it('a plain ADMIN sees the My Team link too', () => {
-    const a = access('ADMIN');
-    const shown = labels(a, activeModule('/admin/employees', availableModules(a)));
-    expect(shown).toContain('My Team');
-  });
-
-  it('an EMPLOYEE does NOT see My Team', () => {
-    const a = access('EMPLOYEE');
-    const shown = labels(a, activeModule('/leave', availableModules(a)));
-    expect(shown).not.toContain('My Team');
+  // My Team / My Leave / My Attendance are no longer sidebar items — they live
+  // as tabs inside the profile page. The sidebar now shows a single "My
+  // Profile" entry for everyone; the per-role gating (e.g. My Team) moved into
+  // the profile page itself.
+  it('every role sees the shared My Profile entry, not the old sub-links', () => {
+    for (const role of ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE'] as const) {
+      const a = access(role);
+      const shown = labels(a, activeModule('/profile', availableModules(a)));
+      expect(shown).toContain('My Profile');
+      expect(shown).not.toContain('My Team');
+      expect(shown).not.toContain('My Leave');
+      expect(shown).not.toContain('My Attendance');
+    }
   });
 
   it('a module-less EMPLOYEE (Production) sees only shared items', () => {
     const a = access('EMPLOYEE');
     const shown = labels(a, activeModule('/leave', availableModules(a)));
     expect(shown).toEqual(
-      expect.arrayContaining(['My Profile', 'My Leave', 'My Attendance']),
+      expect.arrayContaining(['My Profile', 'Documents', 'Boards']),
     );
     expect(shown).not.toContain('Leads');
     expect(shown).not.toContain('Roster');

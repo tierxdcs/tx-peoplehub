@@ -20,6 +20,12 @@ import { Button } from '../../components/ui/button';
 import { Skeleton } from '../../components/ui/skeleton';
 import { SignatureEditorFields } from '../../components/ui/signature-setup-inline';
 import { useToast } from '../../components/ui/toaster';
+import { cn } from '../../lib/utils';
+import { TeamSection } from '../_sections/team-section';
+import { LeaveSection } from '../_sections/leave-section';
+import { AttendanceSection } from '../_sections/attendance-section';
+
+type ProfileTab = 'profile' | 'team' | 'leave' | 'attendance';
 
 /** Small uppercase label above a value in the details grid. */
 function DetailLabel({ children }: { children: React.ReactNode }) {
@@ -41,6 +47,13 @@ export default function ProfilePage() {
   const [sigText, setSigText] = useState('');
   const [sigFont, setSigFont] = useState<SignatureFont>(SIGNATURE_FONTS[0]);
   const [savingSig, setSavingSig] = useState(false);
+  const [tab, setTab] = useState<ProfileTab>('profile');
+
+  // "My Team" is manager/admin-only, matching the previous nav gating.
+  const showTeam =
+    user?.role === 'MANAGER' ||
+    user?.role === 'ADMIN' ||
+    user?.role === 'SUPER_ADMIN';
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -104,10 +117,42 @@ export default function ProfilePage() {
 
   const fullName = `${employee.firstName} ${employee.lastName}`;
 
+  const tabs: { key: ProfileTab; label: string }[] = [
+    { key: 'profile', label: 'Profile' },
+    ...(showTeam ? [{ key: 'team' as const, label: 'My Team' }] : []),
+    { key: 'leave', label: 'My Leave' },
+    { key: 'attendance', label: 'My Attendance' },
+  ];
+
   return (
     <PageContainer>
       <PageHeader title="My Profile" />
 
+      {/* Tab bar — Profile details plus the personal self-service sections. */}
+      <div className="mb-6 flex gap-1 border-b">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={cn(
+              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              tab === t.key
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'team' && <TeamSection embedded />}
+      {tab === 'leave' && <LeaveSection embedded />}
+      {tab === 'attendance' && <AttendanceSection embedded />}
+
+      {tab === 'profile' && (
+        <>
       {/* Profile header card: identity up top, details row below a divider. */}
       <Card className="mb-4 max-w-2xl">
         <CardContent className="p-6">
@@ -193,6 +238,8 @@ export default function ProfilePage() {
           </Button>
         </CardContent>
       </Card>
+        </>
+      )}
     </PageContainer>
   );
 }
