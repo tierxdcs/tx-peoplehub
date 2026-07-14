@@ -42,6 +42,7 @@ describe('PayrollComputationService', () => {
     deactivatedAt: null,
     accessStatus: 'ACTIVE' as any,
     isSalesHead: false,
+    isScrumMaster: false,
     signatureText: null,
     signatureFont: null,
     dateOfBirth: null,

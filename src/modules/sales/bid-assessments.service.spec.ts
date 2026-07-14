@@ -183,10 +183,16 @@ describe('BidAssessmentsService', () => {
       expect(result.reviewedById).toBe('head-1');
     });
 
-    it('lets SUPER_ADMIN approve (fallback/override) without a Sales Head lookup', async () => {
+    it('lets SUPER_ADMIN approve (fallback/override) without a Sales Head check', async () => {
+      // SUPER_ADMIN skips the isSalesHead lookup for the review gate; it still
+      // reads its own row to snapshot the approver e-signature at approval
+      // time, which returns nulls when no signature is configured.
+      prisma.employee.findUnique.mockResolvedValue({
+        signatureText: null,
+        signatureFont: null,
+      });
       const result = await service.approve('a1', {}, superAdmin);
       expect(result.status).toBe(BidAssessmentStatus.APPROVED);
-      expect(prisma.employee.findUnique).not.toHaveBeenCalled();
     });
 
     it('forbids a non-head, non-superadmin from reviewing', async () => {

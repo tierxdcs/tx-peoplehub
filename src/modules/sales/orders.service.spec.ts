@@ -6,12 +6,14 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { OrdersService } from './orders.service';
 import { SalesAccessService } from './common/sales-access.service';
 import { SalesNumberingService } from './common/sales-numbering.service';
+import { ConfirmationSheetsService } from './confirmation-sheets.service';
 
 describe('OrdersService', () => {
   let service: OrdersService;
   let prisma: any;
   let access: any;
   let numbering: { nextNumber: jest.Mock };
+  let confirmationSheets: { latestIsExecutedFor: jest.Mock };
 
   const rep: AuthenticatedUser = {
     id: 'emp-1',
@@ -38,6 +40,12 @@ describe('OrdersService', () => {
       visibleOwnerIds: jest.fn().mockResolvedValue(['emp-1']),
     };
     numbering = { nextNumber: jest.fn().mockResolvedValue('ORD-2026-0001') };
+    // The order gate: default to "latest sheet executed" so status-transition
+    // tests that don't care about the gate pass; the gate itself has its own
+    // e2e coverage.
+    confirmationSheets = {
+      latestIsExecutedFor: jest.fn().mockResolvedValue(true),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -45,6 +53,7 @@ describe('OrdersService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: SalesAccessService, useValue: access },
         { provide: SalesNumberingService, useValue: numbering },
+        { provide: ConfirmationSheetsService, useValue: confirmationSheets },
       ],
     }).compile();
 

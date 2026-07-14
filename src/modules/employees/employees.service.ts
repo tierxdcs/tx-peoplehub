@@ -673,6 +673,25 @@ export class EmployeesService {
   }
 
   /**
+   * Designate / revoke a Scrum Master. Unlike Sales Head, MULTIPLE holders are
+   * allowed (company-wide capability), so this is a simple per-employee flag
+   * set — no "unset others" step.
+   */
+  async setScrumMaster(id: string, isScrumMaster: boolean): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (isScrumMaster && target.status !== EmployeeStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Only an active employee can be designated as a Scrum Master',
+      );
+    }
+    const updated = await this.prisma.employee.update({
+      where: { id },
+      data: { isScrumMaster },
+    });
+    return this.toEntity(updated);
+  }
+
+  /**
    * Reads the latest-effective SalaryStructure row (the table that
    * replaced EmployeeCompensation) but keeps returning the same response
    * shape as before, since existing consumers (e.g. the web UI's sensitive
@@ -884,6 +903,7 @@ export class EmployeesService {
       deactivatedAt: employee.deactivatedAt,
       accessStatus: employee.accessStatus,
       isSalesHead: employee.isSalesHead,
+      isScrumMaster: employee.isScrumMaster,
       officialEmail: employee.officialEmail,
       signatureText: employee.signatureText,
       signatureFont: employee.signatureFont,

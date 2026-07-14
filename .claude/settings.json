@@ -3,7 +3,14 @@
     "allow": [
       "Bash(grep -nA4 'sanitize' src/common/interceptors/audit.interceptor.ts)",
       "Bash(SEED_ADMIN_EMAIL=admin@peoplehub.local SEED_ADMIN_PASSWORD=ChangeMe123! npx jest --config ./test/jest-e2e.json auth-change-password)",
-      "Bash(SEED_ADMIN_EMAIL=admin@peoplehub.local SEED_ADMIN_PASSWORD=ChangeMe123! npx jest --config ./test/jest-e2e.json app employees auth-change-password)"
+      "Bash(SEED_ADMIN_EMAIL=admin@peoplehub.local SEED_ADMIN_PASSWORD=ChangeMe123! npx jest --config ./test/jest-e2e.json app employees auth-change-password)",
+      "Bash(grep -nA20 'async designateSalesHead' src/modules/employees/employees.service.ts)",
+      "Bash(grep -nB1 -A5 'designate-sales-head' src/modules/employees/employees.controller.ts)",
+      "Bash(grep -nA5 'enum LeadPriority' prisma/schema.prisma)",
+      "Bash(echo \"backend tsc: $?\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(SEED_ADMIN_EMAIL=admin@peoplehub.local SEED_ADMIN_PASSWORD=ChangeMe123! npx jest --config ./test/jest-e2e.json kanban)",
+      "Bash(SEED_ADMIN_EMAIL=admin@peoplehub.local SEED_ADMIN_PASSWORD=ChangeMe123! npx jest --config ./test/jest-e2e.json employees kanban notifications)"
     ]
   }
 }

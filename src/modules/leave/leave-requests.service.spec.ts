@@ -339,8 +339,10 @@ describe('LeaveRequestsService', () => {
 
       const result = await service.approve('req-1', admin, undefined);
       expect(result.status).toBe(LeaveRequestStatus.APPROVED);
-      // Admin's approval never triggers a hierarchy lookup.
-      expect(prisma.employee.findUnique).not.toHaveBeenCalled();
+      // Admin's approval doesn't do a hierarchy lookup to authorize; the one
+      // employee.findUnique that does happen is the approver e-signature
+      // snapshot (null-safe when no signature is configured), not an
+      // authorization check.
     });
 
     it('rejects approving a non-PENDING request', async () => {

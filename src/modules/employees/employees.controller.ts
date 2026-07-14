@@ -181,6 +181,22 @@ export class EmployeesController {
     return this.employeesService.designateSalesHead(id);
   }
 
+  @Patch(':id/designate-scrum-master')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Designate this employee as a Scrum Master (multiple allowed)',
+  })
+  designateScrumMaster(@Param('id') id: string) {
+    return this.employeesService.setScrumMaster(id, true);
+  }
+
+  @Patch(':id/revoke-scrum-master')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Revoke this employee’s Scrum Master designation' })
+  revokeScrumMaster(@Param('id') id: string) {
+    return this.employeesService.setScrumMaster(id, false);
+  }
+
   @Get(':id/team')
   @Roles(Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN)
   @ApiOperation({
