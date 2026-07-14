@@ -1,9 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { KanbanSprintDuration, LeadPriority } from '@prisma/client';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
-  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -30,9 +30,99 @@ export class CreateListDto {
   @MinLength(1)
   name!: string;
 
-  @ApiProperty({ description: 'Ordering position within the board' })
-  @IsInt()
+  @ApiProperty({ description: 'Fractional ordering position within the board' })
+  @IsNumber()
   position!: number;
+
+  @ApiPropertyOptional({
+    description: 'Mark as a "done"-type list (cards here are never overdue)',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isDoneList?: boolean;
+}
+
+export class UpdateListDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isDoneList?: boolean;
+}
+
+export class ReorderListDto {
+  @ApiProperty({ description: 'New fractional position (midpoint of neighbours)' })
+  @IsNumber()
+  position!: number;
+}
+
+export class CreateLabelDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  name!: string;
+
+  @ApiProperty({ description: 'Color token (hex or named swatch)' })
+  @IsString()
+  @MinLength(1)
+  color!: string;
+}
+
+export class UpdateLabelDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  color?: string;
+}
+
+/**
+ * Board-wide card filter. All optional; combined with AND. `sprintId` accepts
+ * the literal 'none' to match cards not assigned to any sprint.
+ */
+export class CardFilterQueryDto {
+  @ApiPropertyOptional({ description: 'dueDate <= this (ISO date)' })
+  @IsOptional()
+  @IsDateString()
+  dueBefore?: string;
+
+  @ApiPropertyOptional({ description: 'dueDate >= this (ISO date)' })
+  @IsOptional()
+  @IsDateString()
+  dueAfter?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  createdBy?: string;
+
+  @ApiPropertyOptional({
+    description: "Sprint id, or the literal 'none' for no-sprint cards",
+  })
+  @IsOptional()
+  @IsString()
+  sprintId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  assigneeId?: string;
+
+  @ApiPropertyOptional({ enum: LeadPriority })
+  @IsOptional()
+  @IsEnum(LeadPriority)
+  priority?: LeadPriority;
 }
 
 export class CreateSprintDto {
@@ -133,6 +223,13 @@ export class MoveCardDto {
   })
   @IsNumber()
   position!: number;
+}
+
+export class CreateCommentDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  text!: string;
 }
 
 export class SetCardSprintDto {

@@ -1265,6 +1265,7 @@ model KanbanBoard {
   members     KanbanBoardMember[]
   lists       KanbanList[]
   sprints     KanbanSprint[]
+  labels      KanbanLabel[]
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
@@ -1294,7 +1295,12 @@ model KanbanList {
   boardId     String
   board       KanbanBoard  @relation(fields: [boardId], references: [id], onDelete: Cascade)
   name        String
-  position    Int
+  /// Fractional ordering, same scheme as KanbanCard.position — reordering a
+  /// list is a single-row update between two neighbours' positions.
+  position    Float
+  /// Marks a "done"-type column. A card sitting here is never flagged overdue
+  /// even if its dueDate has passed. Settable by Scrum Master / SUPER_ADMIN.
+  isDoneList  Boolean      @default(false)
   createdById String
   createdBy   Employee     @relation("KanbanListCreator", fields: [createdById], references: [id], onDelete: Restrict)
   cards       KanbanCard[]
@@ -1351,6 +1357,7 @@ model KanbanCard {
   comments      KanbanCardComment[]
   activity      KanbanCardActivity[]
   notifications Notification[]
+  labels        KanbanCardLabel[]
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
@@ -1358,6 +1365,36 @@ model KanbanCard {
   @@index([sprintId])
   @@index([assigneeId])
   @@map("kanban_cards")
+}
+
+/// A board-scoped colored label. Definition (create/edit/delete) is restricted
+/// to Scrum Master / SUPER_ADMIN; any member may attach an existing label to a
+/// card (via KanbanCardLabel).
+model KanbanLabel {
+  id        String            @id @default(uuid())
+  boardId   String
+  board     KanbanBoard       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  name      String
+  /// Free-form color token (e.g. a hex or a named swatch) — the UI maps it.
+  color     String
+  cards     KanbanCardLabel[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([boardId])
+  @@map("kanban_labels")
+}
+
+/// Join table: which labels are attached to which cards.
+model KanbanCardLabel {
+  cardId  String
+  card    KanbanCard  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  labelId String
+  label   KanbanLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, labelId])
+  @@index([labelId])
+  @@map("kanban_card_labels")
 }
 
 /// A user-authored comment on a card.

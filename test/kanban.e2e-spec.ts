@@ -448,4 +448,434 @@ describe('Kanban (e2e)', () => {
       ).toBe(false);
     });
   });
+
+  describe('comments + activity feed (Phase 3)', () => {
+    let boardId: string;
+    let listA: string;
+    let listB: string;
+    let sprintId: string;
+    let cardId: string;
+
+    beforeAll(async () => {
+      const board = await request(app.getHttpServer())
+        .post('/kanban/boards')
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .send({ name: 'Feed Board' })
+        .expect(201);
+      boardId = board.body.data.id;
+      createdBoardIds.push(boardId);
+      await request(app.getHttpServer())
+        .post(`/kanban/boards/${boardId}/members`)
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .send({ employeeId: memberId })
+        .expect(201);
+      listA = (
+        await request(app.getHttpServer())
+          .post(`/kanban/boards/${boardId}/lists`)
+          .set('Authorization', `Bearer ${scrumToken}`)
+          .send({ name: 'Backlog', position: 0 })
+          .expect(201)
+      ).body.data.id;
+      listB = (
+        await request(app.getHttpServer())
+          .post(`/kanban/boards/${boardId}/lists`)
+          .set('Authorization', `Bearer ${scrumToken}`)
+          .send({ name: 'In Progress', position: 1 })
+          .expect(201)
+      ).body.data.id;
+      sprintId = (
+        await request(app.getHttpServer())
+          .post(`/kanban/boards/${boardId}/sprints`)
+          .set('Authorization', `Bearer ${scrumToken}`)
+          .send({ name: 'Alpha', durationWeeks: 'ONE_WEEK', startDate: '2026-08-01' })
+          .expect(201)
+      ).body.data.id;
+      cardId = (
+        await request(app.getHttpServer())
+          .post(`/kanban/lists/${listA}/cards`)
+          .set('Authorization', `Bearer ${memberToken}`)
+          .send({ title: 'Feed card', priority: 'MEDIUM' })
+          .expect(201)
+      ).body.data.id;
+    });
+
+    it('any member comments; only author or managing SM can delete', async () => {
+      const c1 = (
+        await request(app.getHttpServer())
+          .post(`/kanban/cards/${cardId}/comments`)
+          .set('Authorization', `Bearer ${memberToken}`)
+          .send({ text: 'Member comment' })
+          .expect(201)
+      ).body.data;
+
+      // The Scrum Master (manages the board) can delete the member's comment.
+      await request(app.getHttpServer())
+        .delete(`/kanban/cards/${cardId}/comments/${c1.id}`)
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .expect(204);
+
+      // A comment by the scrum master; the plain member (not author, not
+      // manager) cannot delete it.
+      const c2 = (
+        await request(app.getHttpServer())
+          .post(`/kanban/cards/${cardId}/comments`)
+          .set('Authorization', `Bearer ${scrumToken}`)
+          .send({ text: 'SM comment' })
+          .expect(201)
+      ).body.data;
+      await request(app.getHttpServer())
+        .delete(`/kanban/cards/${cardId}/comments/${c2.id}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(403);
+      // Author can delete their own.
+      await request(app.getHttpServer())
+        .delete(`/kanban/cards/${cardId}/comments/${c2.id}`)
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .expect(204);
+    });
+
+    it('field changes generate correctly-worded activity; no-ops do not', async () => {
+      // No-op: priority already MEDIUM → PATCH with MEDIUM logs nothing.
+      await request(app.getHttpServer())
+        .patch(`/kanban/cards/${cardId}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .send({ priority: 'MEDIUM' })
+        .expect(200);
+
+      // Real changes: priority, due date, assignee.
+      await request(app.getHttpServer())
+        .patch(`/kanban/cards/${cardId}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .send({ priority: 'HIGH', dueDate: '2026-08-20', assigneeId: memberId })
+        .expect(200);
+
+      // Move to another list.
+      await request(app.getHttpServer())
+        .patch(`/kanban/cards/${cardId}/move`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .send({ listId: listB, position: 5000 })
+        .expect(200);
+
+      // Sprint assignment (privileged).
+      await request(app.getHttpServer())
+        .patch(`/kanban/cards/${cardId}/sprint`)
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .send({ sprintId })
+        .expect(200);
+
+      const feed = await request(app.getHttpServer())
+        .get(`/kanban/cards/${cardId}/feed`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(200);
+      const activity = (feed.body.data as { kind: string; text: string }[]).filter(
+        (i) => i.kind === 'ACTIVITY',
+      );
+      const texts = activity.map((a) => a.text);
+      // Exactly the four real changes — the no-op MEDIUM PATCH added nothing.
+      expect(texts).toContain('changed priority to HIGH');
+      expect(texts).toContain('set the due date to 2026-08-20');
+      expect(texts.some((t) => t.startsWith('assigned this card to '))).toBe(true);
+      expect(texts).toContain('moved this card from Backlog to In Progress');
+      expect(texts).toContain('assigned this card to sprint Alpha');
+      // No priority-noop entry: only one priority-change line total.
+      expect(texts.filter((t) => t.startsWith('changed priority')).length).toBe(1);
+    });
+
+    it('feed merges comments + activity in chronological order with discriminators', async () => {
+      const feed = await request(app.getHttpServer())
+        .get(`/kanban/cards/${cardId}/feed`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(200);
+      const items = feed.body.data as { kind: string; createdAt: string }[];
+      expect(items.length).toBeGreaterThan(0);
+      // Every item is tagged, and the list is non-decreasing by createdAt.
+      expect(items.every((i) => i.kind === 'COMMENT' || i.kind === 'ACTIVITY')).toBe(true);
+      const times = items.map((i) => i.createdAt);
+      const sorted = [...times].sort((a, b) => a.localeCompare(b));
+      expect(times).toEqual(sorted);
+    });
+  });
+
+  describe('filters, sprints, labels, overdue, counts, reorder (Phase 5)', () => {
+    let boardId: string;
+    let todo: string;
+    let done: string;
+
+    beforeAll(async () => {
+      const board = await request(app.getHttpServer())
+        .post('/kanban/boards')
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .send({ name: 'Phase5 Board' })
+        .expect(201);
+      boardId = board.body.data.id;
+      createdBoardIds.push(boardId);
+      await request(app.getHttpServer())
+        .post(`/kanban/boards/${boardId}/members`)
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .send({ employeeId: memberId })
+        .expect(201);
+
+      // A normal list and a done-list.
+      todo = (
+        await request(app.getHttpServer())
+          .post(`/kanban/boards/${boardId}/lists`)
+          .set('Authorization', `Bearer ${scrumToken}`)
+          .send({ name: 'To Do', position: 1024 })
+          .expect(201)
+      ).body.data.id;
+      const doneRes = await request(app.getHttpServer())
+        .post(`/kanban/boards/${boardId}/lists`)
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .send({ name: 'Done', position: 2048, isDoneList: true })
+        .expect(201);
+      done = doneRes.body.data.id;
+      expect(doneRes.body.data.isDoneList).toBe(true);
+      expect(doneRes.body.data.cardCount).toBe(0);
+    });
+
+    it('isDoneList: only Scrum Master/SUPER_ADMIN can set it; overdue respects it', async () => {
+      // A member cannot flip a list's done-flag.
+      await request(app.getHttpServer())
+        .patch(`/kanban/lists/${todo}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .send({ isDoneList: true })
+        .expect(403);
+
+      // Past-due card in the normal list → isOverdue true.
+      const overdueCard = (
+        await request(app.getHttpServer())
+          .post(`/kanban/lists/${todo}/cards`)
+          .set('Authorization', `Bearer ${memberToken}`)
+          .send({ title: 'past due', dueDate: '2020-01-01' })
+          .expect(201)
+      ).body.data;
+      expect(overdueCard.isOverdue).toBe(true);
+
+      // Same past due-date but in a done-list → NOT overdue.
+      const doneCard = (
+        await request(app.getHttpServer())
+          .post(`/kanban/lists/${done}/cards`)
+          .set('Authorization', `Bearer ${memberToken}`)
+          .send({ title: 'done past due', dueDate: '2020-01-01' })
+          .expect(201)
+      ).body.data;
+      expect(doneCard.isOverdue).toBe(false);
+
+      // Future due-date → not overdue.
+      const futureCard = (
+        await request(app.getHttpServer())
+          .post(`/kanban/lists/${todo}/cards`)
+          .set('Authorization', `Bearer ${memberToken}`)
+          .send({ title: 'future', dueDate: '2099-01-01' })
+          .expect(201)
+      ).body.data;
+      expect(futureCard.isOverdue).toBe(false);
+    });
+
+    it('list responses carry ACTIVE card counts', async () => {
+      const lists = await request(app.getHttpServer())
+        .get(`/kanban/boards/${boardId}/lists`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(200);
+      const todoList = (lists.body.data as { id: string; cardCount: number }[]).find(
+        (l) => l.id === todo,
+      );
+      const doneList = (lists.body.data as { id: string; cardCount: number }[]).find(
+        (l) => l.id === done,
+      );
+      // todo has the past-due + future card; done has one.
+      expect(todoList?.cardCount).toBe(2);
+      expect(doneList?.cardCount).toBe(1);
+    });
+
+    it('board-wide card filter combines predicates with AND (incl. sprintId=none)', async () => {
+      // A HIGH-priority card assigned to the member, due mid-2026.
+      const targeted = (
+        await request(app.getHttpServer())
+          .post(`/kanban/lists/${todo}/cards`)
+          .set('Authorization', `Bearer ${memberToken}`)
+          .send({
+            title: 'targeted',
+            priority: 'HIGH',
+            assigneeId: memberId,
+            dueDate: '2026-06-15',
+          })
+          .expect(201)
+      ).body.data;
+
+      // Filter by priority + assignee.
+      const byPriority = await request(app.getHttpServer())
+        .get(`/kanban/boards/${boardId}/cards`)
+        .query({ priority: 'HIGH', assigneeId: memberId })
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(200);
+      const ids = (byPriority.body.data as { id: string }[]).map((c) => c.id);
+      expect(ids).toContain(targeted.id);
+      expect(ids.every((id: string) => id !== undefined)).toBe(true);
+      // Every returned card is HIGH + assigned to member.
+      expect(
+        (byPriority.body.data as { priority: string; assigneeId: string }[]).every(
+          (c) => c.priority === 'HIGH' && c.assigneeId === memberId,
+        ),
+      ).toBe(true);
+
+      // Date-range filter: dueAfter excludes the 2020 card, dueBefore excludes 2099.
+      const byRange = await request(app.getHttpServer())
+        .get(`/kanban/boards/${boardId}/cards`)
+        .query({ dueAfter: '2026-01-01', dueBefore: '2026-12-31' })
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(200);
+      const rangeIds = (byRange.body.data as { id: string }[]).map((c) => c.id);
+      expect(rangeIds).toContain(targeted.id);
+      expect(rangeIds.length).toBe(1);
+
+      // sprintId=none returns only cards with no sprint (all of them here).
+      const noSprint = await request(app.getHttpServer())
+        .get(`/kanban/boards/${boardId}/cards`)
+        .query({ sprintId: 'none' })
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(200);
+      expect(
+        (noSprint.body.data as { sprintId: string | null }[]).every(
+          (c) => c.sprintId === null,
+        ),
+      ).toBe(true);
+
+      // An outsider is blocked from the board-wide search.
+      await request(app.getHttpServer())
+        .get(`/kanban/boards/${boardId}/cards`)
+        .set('Authorization', `Bearer ${outsiderToken}`)
+        .expect(403);
+    });
+
+    it('labels: SM-only definition, any-member attach/detach, cross-board rejected', async () => {
+      // A member cannot create a label.
+      await request(app.getHttpServer())
+        .post(`/kanban/boards/${boardId}/labels`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .send({ name: 'Bug', color: '#f00' })
+        .expect(403);
+
+      const label = (
+        await request(app.getHttpServer())
+          .post(`/kanban/boards/${boardId}/labels`)
+          .set('Authorization', `Bearer ${scrumToken}`)
+          .send({ name: 'Bug', color: '#f00' })
+          .expect(201)
+      ).body.data;
+      expect(label.boardId).toBe(boardId);
+
+      const card = (
+        await request(app.getHttpServer())
+          .post(`/kanban/lists/${todo}/cards`)
+          .set('Authorization', `Bearer ${memberToken}`)
+          .send({ title: 'labelled' })
+          .expect(201)
+      ).body.data;
+
+      // Any member attaches; the card response carries the label.
+      const attached = await request(app.getHttpServer())
+        .post(`/kanban/cards/${card.id}/labels/${label.id}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(201);
+      expect(
+        (attached.body.data.labels as { id: string }[]).some((l) => l.id === label.id),
+      ).toBe(true);
+
+      // Idempotent re-attach.
+      await request(app.getHttpServer())
+        .post(`/kanban/cards/${card.id}/labels/${label.id}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(201);
+
+      // Detach.
+      const detached = await request(app.getHttpServer())
+        .delete(`/kanban/cards/${card.id}/labels/${label.id}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(200);
+      expect((detached.body.data.labels as unknown[]).length).toBe(0);
+
+      // A label from another board cannot be attached to this card.
+      const otherBoard = (
+        await request(app.getHttpServer())
+          .post('/kanban/boards')
+          .set('Authorization', `Bearer ${scrumToken}`)
+          .send({ name: 'Other Board' })
+          .expect(201)
+      ).body.data.id;
+      createdBoardIds.push(otherBoard);
+      const foreignLabel = (
+        await request(app.getHttpServer())
+          .post(`/kanban/boards/${otherBoard}/labels`)
+          .set('Authorization', `Bearer ${scrumToken}`)
+          .send({ name: 'Foreign', color: '#00f' })
+          .expect(201)
+      ).body.data;
+      await request(app.getHttpServer())
+        .post(`/kanban/cards/${card.id}/labels/${foreignLabel.id}`)
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .expect(400);
+    });
+
+    it('list reorder: SM-only, fractional position', async () => {
+      // A member cannot reorder.
+      await request(app.getHttpServer())
+        .patch(`/kanban/lists/${todo}/reorder`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .send({ position: 3072 })
+        .expect(403);
+
+      const moved = await request(app.getHttpServer())
+        .patch(`/kanban/lists/${todo}/reorder`)
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .send({ position: 3072 })
+        .expect(200);
+      expect(moved.body.data.position).toBe(3072);
+
+      // The board's lists are now ordered done(2048) then todo(3072).
+      const lists = await request(app.getHttpServer())
+        .get(`/kanban/boards/${boardId}/lists`)
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .expect(200);
+      const order = (lists.body.data as { id: string }[]).map((l) => l.id);
+      expect(order.indexOf(done)).toBeLessThan(order.indexOf(todo));
+    });
+
+    it('sprint listing across boards is grouped by computed status with counts', async () => {
+      // Add a completed + upcoming sprint on this board.
+      await request(app.getHttpServer())
+        .post(`/kanban/boards/${boardId}/sprints`)
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .send({ name: 'Past', durationWeeks: 'ONE_WEEK', startDate: '2020-01-01' })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post(`/kanban/boards/${boardId}/sprints`)
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .send({ name: 'Future', durationWeeks: 'ONE_WEEK', startDate: '2099-01-01' })
+        .expect(201);
+
+      const grouped = await request(app.getHttpServer())
+        .get('/kanban/sprints')
+        .query({ boardId })
+        .set('Authorization', `Bearer ${scrumToken}`)
+        .expect(200);
+      const data = grouped.body.data as Record<string, { name: string; cardCount: number }[]>;
+      expect(data.COMPLETED.some((s) => s.name === 'Past')).toBe(true);
+      expect(data.UPCOMING.some((s) => s.name === 'Future')).toBe(true);
+      // Counts present on every entry.
+      expect(
+        [...data.COMPLETED, ...data.UPCOMING, ...data.ACTIVE].every(
+          (s) => typeof s.cardCount === 'number',
+        ),
+      ).toBe(true);
+
+      // An outsider (member of no board) sees empty groups.
+      const outsiderView = await request(app.getHttpServer())
+        .get('/kanban/sprints')
+        .set('Authorization', `Bearer ${outsiderToken}`)
+        .expect(200);
+      const od = outsiderView.body.data as Record<string, unknown[]>;
+      expect(od.COMPLETED.length + od.UPCOMING.length + od.ACTIVE.length).toBe(0);
+    });
+  });
 });

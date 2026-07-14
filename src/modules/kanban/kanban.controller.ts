@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -20,15 +21,23 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { KanbanBoardsService } from './kanban-boards.service';
 import { KanbanListsService } from './kanban-lists.service';
 import { KanbanCardsService } from './kanban-cards.service';
+import { KanbanFeedService } from './kanban-feed.service';
+import { KanbanLabelsService } from './kanban-labels.service';
 import {
   AddBoardMemberDto,
+  CardFilterQueryDto,
   CreateBoardDto,
   CreateCardDto,
+  CreateCommentDto,
+  CreateLabelDto,
   CreateListDto,
   CreateSprintDto,
   MoveCardDto,
+  ReorderListDto,
   SetCardSprintDto,
   UpdateCardDto,
+  UpdateLabelDto,
+  UpdateListDto,
 } from './dto/kanban.dto';
 
 /**
@@ -51,6 +60,8 @@ export class KanbanController {
     private readonly boards: KanbanBoardsService,
     private readonly lists: KanbanListsService,
     private readonly cards: KanbanCardsService,
+    private readonly feed: KanbanFeedService,
+    private readonly labels: KanbanLabelsService,
   ) {}
 
   // ── Boards ─────────────────────────────────────────────────────────
@@ -130,7 +141,39 @@ export class KanbanController {
     return this.lists.createList(id, dto, user);
   }
 
+  @Patch('lists/:id')
+  @ApiOperation({ summary: 'Edit a list name / done-flag (Scrum Master / SUPER_ADMIN)' })
+  updateList(
+    @Param('id') id: string,
+    @Body() dto: UpdateListDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.lists.updateList(id, dto, user);
+  }
+
+  @Patch('lists/:id/reorder')
+  @ApiOperation({ summary: 'Reorder a list within its board (Scrum Master / SUPER_ADMIN)' })
+  reorderList(
+    @Param('id') id: string,
+    @Body() dto: ReorderListDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.lists.reorderList(id, dto, user);
+  }
+
   // ── Sprints ────────────────────────────────────────────────────────
+  @Get('sprints')
+  @ApiOperation({
+    summary:
+      'Sprints across every board the caller can view, grouped by computed status (optional boardId filter)',
+  })
+  listAllSprints(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('boardId') boardId?: string,
+  ) {
+    return this.lists.listAllSprints(user, boardId);
+  }
+
   @Get('boards/:id/sprints')
   @ApiOperation({ summary: 'Sprints on a board (any member)' })
   listSprints(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
@@ -148,6 +191,19 @@ export class KanbanController {
   }
 
   // ── Cards ──────────────────────────────────────────────────────────
+  @Get('boards/:id/cards')
+  @ApiOperation({
+    summary:
+      'Board-wide card search with filters (dueBefore/dueAfter/createdBy/sprintId/assigneeId/priority) — any member',
+  })
+  listBoardCards(
+    @Param('id') id: string,
+    @Query() query: CardFilterQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cards.listBoardCards(id, query, user);
+  }
+
   @Get('lists/:listId/cards')
   @ApiOperation({ summary: 'Cards in a list (any board member)' })
   listCards(
@@ -213,5 +269,95 @@ export class KanbanController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     await this.cards.archive(id, user);
+  }
+
+  // ── Comments + feed ────────────────────────────────────────────────
+  @Post('cards/:id/comments')
+  @ApiOperation({ summary: 'Comment on a card (any board member)' })
+  addComment(
+    @Param('id') id: string,
+    @Body() dto: CreateCommentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.feed.addComment(id, dto, user);
+  }
+
+  @Delete('cards/:id/comments/:commentId')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Delete a comment (author or managing Scrum Master / SUPER_ADMIN)',
+  })
+  async deleteComment(
+    @Param('id') id: string,
+    @Param('commentId') commentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.feed.deleteComment(id, commentId, user);
+  }
+
+  @Get('cards/:id/feed')
+  @ApiOperation({
+    summary:
+      'Combined comment + activity feed for a card (chronological, discriminated)',
+  })
+  getFeed(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.feed.getFeed(id, user);
+  }
+
+  // ── Labels ─────────────────────────────────────────────────────────
+  @Get('boards/:id/labels')
+  @ApiOperation({ summary: 'List a board’s labels (any member)' })
+  listLabels(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.labels.listLabels(id, user);
+  }
+
+  @Post('boards/:id/labels')
+  @ApiOperation({ summary: 'Create a label (Scrum Master / SUPER_ADMIN)' })
+  createLabel(
+    @Param('id') id: string,
+    @Body() dto: CreateLabelDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.labels.createLabel(id, dto, user);
+  }
+
+  @Patch('labels/:labelId')
+  @ApiOperation({ summary: 'Edit a label (Scrum Master / SUPER_ADMIN)' })
+  updateLabel(
+    @Param('labelId') labelId: string,
+    @Body() dto: UpdateLabelDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.labels.updateLabel(labelId, dto, user);
+  }
+
+  @Delete('labels/:labelId')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Delete a label (Scrum Master / SUPER_ADMIN)' })
+  async deleteLabel(
+    @Param('labelId') labelId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.labels.deleteLabel(labelId, user);
+  }
+
+  @Post('cards/:id/labels/:labelId')
+  @ApiOperation({ summary: 'Attach a label to a card (any board member)' })
+  attachLabel(
+    @Param('id') id: string,
+    @Param('labelId') labelId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.labels.attach(id, labelId, user);
+  }
+
+  @Delete('cards/:id/labels/:labelId')
+  @ApiOperation({ summary: 'Detach a label from a card (any board member)' })
+  detachLabel(
+    @Param('id') id: string,
+    @Param('labelId') labelId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.labels.detach(id, labelId, user);
   }
 }

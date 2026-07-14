@@ -86,6 +86,24 @@ export class KanbanAccessService {
   }
 
   /**
+   * All board ids the caller may VIEW: every board for SUPER_ADMIN, otherwise
+   * just the ones they're an explicit member of. Used for cross-board reads.
+   */
+  async viewableBoardIds(user: AuthenticatedUser): Promise<string[]> {
+    if (this.isSuperAdmin(user)) {
+      const boards = await this.prisma.kanbanBoard.findMany({
+        select: { id: true },
+      });
+      return boards.map((b) => b.id);
+    }
+    const memberships = await this.prisma.kanbanBoardMember.findMany({
+      where: { employeeId: user.id },
+      select: { boardId: true },
+    });
+    return memberships.map((m) => m.boardId);
+  }
+
+  /**
    * Load a board the user may VIEW (member, or SUPER_ADMIN). 404 if it doesn't
    * exist, 403 if they can't see it. Returns the board row for reuse.
    */

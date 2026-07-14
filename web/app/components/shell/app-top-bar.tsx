@@ -11,6 +11,7 @@ import { useAuth } from '../../lib/auth-context';
 import { Avatar } from '../ui/avatar';
 import { cn } from '../../lib/utils';
 import { ResetPasswordDialog } from './reset-password-dialog';
+import { NotificationBell } from './notification-bell';
 
 /**
  * Top bar: brand (left) · module switcher (center, only if the user has both
@@ -87,8 +88,10 @@ export function AppTopBar({
         </div>
       )}
 
-      <div className="ml-auto" ref={menuRef}>
-        <div className="relative">
+      <div className="ml-auto flex items-center gap-1">
+        <NotificationBell />
+
+        <div className="relative" ref={menuRef}>
           <button
             type="button"
             onClick={() => setMenuOpen((o) => !o)}

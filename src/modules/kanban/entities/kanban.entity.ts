@@ -40,6 +40,9 @@ export class KanbanListEntity {
   @ApiProperty() boardId!: string;
   @ApiProperty() name!: string;
   @ApiProperty() position!: number;
+  @ApiProperty() isDoneList!: boolean;
+  @ApiProperty({ description: 'Count of ACTIVE cards in this list' })
+  cardCount!: number;
   @ApiProperty() createdById!: string;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
@@ -64,6 +67,8 @@ export class KanbanSprintEntity {
     description: 'Computed from dates: UPCOMING / ACTIVE / COMPLETED',
   })
   status!: KanbanSprintStatus;
+  @ApiProperty({ description: 'Count of ACTIVE cards in this sprint' })
+  cardCount!: number;
   @ApiProperty() createdById!: string;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
@@ -87,10 +92,69 @@ export class KanbanCardEntity {
   @ApiProperty() position!: number;
   @ApiProperty() createdById!: string;
   @ApiProperty({ enum: KanbanCardStatus }) status!: KanbanCardStatus;
+  @ApiProperty({
+    description: 'Computed: dueDate is past AND the list is not a done-list',
+  })
+  isOverdue!: boolean;
+  @ApiProperty({ type: () => [KanbanLabelEntity], required: false })
+  labels?: KanbanLabelEntity[];
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
 
   constructor(partial: Partial<KanbanCardEntity>) {
+    Object.assign(this, partial);
+  }
+}
+
+export class KanbanLabelEntity {
+  @ApiProperty() id!: string;
+  @ApiProperty() boardId!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() color!: string;
+
+  constructor(partial: Partial<KanbanLabelEntity>) {
+    Object.assign(this, partial);
+  }
+}
+
+export class KanbanCommentEntity {
+  @ApiProperty() id!: string;
+  @ApiProperty() cardId!: string;
+  @ApiProperty() authorId!: string;
+  @ApiProperty({ nullable: true }) authorName!: string | null;
+  @ApiProperty() text!: string;
+  @ApiProperty() createdAt!: string;
+
+  constructor(partial: Partial<KanbanCommentEntity>) {
+    Object.assign(this, partial);
+  }
+}
+
+export class KanbanActivityEntity {
+  @ApiProperty() id!: string;
+  @ApiProperty() cardId!: string;
+  @ApiProperty() actorId!: string;
+  @ApiProperty({ nullable: true }) actorName!: string | null;
+  @ApiProperty() description!: string;
+  @ApiProperty() createdAt!: string;
+
+  constructor(partial: Partial<KanbanActivityEntity>) {
+    Object.assign(this, partial);
+  }
+}
+
+/** One entry in the combined card feed — a comment or an activity record. */
+export class KanbanFeedItemEntity {
+  @ApiProperty({ enum: ['COMMENT', 'ACTIVITY'] })
+  kind!: 'COMMENT' | 'ACTIVITY';
+  @ApiProperty() id!: string;
+  @ApiProperty() actorId!: string;
+  @ApiProperty({ nullable: true }) actorName!: string | null;
+  /** For COMMENT: the comment text. For ACTIVITY: the generated description. */
+  @ApiProperty() text!: string;
+  @ApiProperty() createdAt!: string;
+
+  constructor(partial: Partial<KanbanFeedItemEntity>) {
     Object.assign(this, partial);
   }
 }

@@ -1,9 +1,13 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { KanbanController } from './kanban.controller';
 import { KanbanAccessService } from './kanban-access.service';
 import { KanbanBoardsService } from './kanban-boards.service';
 import { KanbanListsService } from './kanban-lists.service';
 import { KanbanCardsService } from './kanban-cards.service';
+import { KanbanActivityService } from './kanban-activity.service';
+import { KanbanFeedService } from './kanban-feed.service';
+import { KanbanLabelsService } from './kanban-labels.service';
 
 /**
  * Kanban boards (Phase 1): boards, members, lists, sprints. Access is by
@@ -12,12 +16,16 @@ import { KanbanCardsService } from './kanban-cards.service';
  * notifications land in later phases.
  */
 @Module({
+  imports: [NotificationsModule],
   controllers: [KanbanController],
   providers: [
     KanbanAccessService,
     KanbanBoardsService,
     KanbanListsService,
     KanbanCardsService,
+    KanbanActivityService,
+    KanbanFeedService,
+    KanbanLabelsService,
   ],
 })
 export class KanbanModule {}

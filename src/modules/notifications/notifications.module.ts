@@ -4,15 +4,18 @@ import { EmployeesModule } from '../employees/employees.module';
 import { SalesModule } from '../sales/sales.module';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
+import { KanbanNotificationsService } from './kanban-notifications.service';
 
 /**
- * Cross-cutting notification counters. Imports the modules that own each
- * approval surface and reuses their services' count helpers — no scoping
- * logic is reimplemented here.
+ * Two notification surfaces: the cross-cutting approval COUNTERS
+ * (NotificationsService, reusing each module's scoped queries) and the generic
+ * in-app NOTIFICATIONS (KanbanNotificationsService). The latter is exported so
+ * KanbanModule's write-paths can create notifications on card events.
  */
 @Module({
   imports: [LeaveModule, EmployeesModule, SalesModule],
   controllers: [NotificationsController],
-  providers: [NotificationsService],
+  providers: [NotificationsService, KanbanNotificationsService],
+  exports: [KanbanNotificationsService],
 })
 export class NotificationsModule {}

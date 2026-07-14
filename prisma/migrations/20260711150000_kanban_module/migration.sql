@@ -41,7 +41,7 @@ CREATE TABLE "kanban_lists" (
     "id" TEXT NOT NULL,
     "boardId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "position" INTEGER NOT NULL,
+    "position" DOUBLE PRECISION NOT NULL,
     "createdById" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
