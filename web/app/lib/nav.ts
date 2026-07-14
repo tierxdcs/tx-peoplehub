@@ -115,6 +115,17 @@ export function sharedNav(access: Access): NavGroup[] {
     items: [{ label: 'Documents', href: '/vault' }],
   });
 
+  // Kanban is likewise cross-cutting and membership-scoped — everyone sees the
+  // nav item; which boards they can actually open is decided by board
+  // membership on the server. Sprints spans every board they belong to.
+  groups.push({
+    heading: 'Boards',
+    items: [
+      { label: 'Boards', href: '/kanban' },
+      { label: 'Sprints', href: '/kanban/sprints' },
+    ],
+  });
+
   return groups;
 }
 

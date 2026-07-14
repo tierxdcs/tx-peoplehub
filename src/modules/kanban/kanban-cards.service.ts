@@ -34,7 +34,7 @@ const POSITION_STEP = 1024;
  */
 const CARD_INCLUDE = {
   assignee: { select: { firstName: true, lastName: true } },
-  list: { select: { isDoneList: true } },
+  list: { select: { boardId: true, isDoneList: true } },
   labels: { include: { label: true } },
 } as const;
 
@@ -62,6 +62,26 @@ export class KanbanCardsService {
       orderBy: { position: 'asc' },
     });
     return cards.map((c) => this.toEntity(c));
+  }
+
+  /**
+   * A single card by id (any board member). Carries boardId + listId so a
+   * deep-link (e.g. from a notification) can resolve the board and open the
+   * card in context. 404 for a missing/archived card, 403 for a non-member.
+   */
+  async findOne(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<KanbanCardEntity> {
+    const card = await this.prisma.kanbanCard.findUnique({
+      where: { id },
+      include: CARD_INCLUDE,
+    });
+    if (!card || card.status === KanbanCardStatus.ARCHIVED) {
+      throw new NotFoundException('Card not found');
+    }
+    await this.access.assertCanViewBoard(user, card.list.boardId);
+    return this.toEntity(card);
   }
 
   /**
@@ -463,7 +483,7 @@ export class KanbanCardsService {
   private toEntity(
     card: KanbanCard & {
       assignee?: { firstName: string; lastName: string } | null;
-      list?: { isDoneList: boolean } | null;
+      list?: { boardId?: string; isDoneList: boolean } | null;
       labels?: {
         label: { id: string; boardId: string; name: string; color: string };
       }[];
@@ -477,6 +497,7 @@ export class KanbanCardsService {
     return new KanbanCardEntity({
       id: card.id,
       listId: card.listId,
+      boardId: card.list?.boardId,
       title: card.title,
       description: card.description,
       assigneeId: card.assigneeId,

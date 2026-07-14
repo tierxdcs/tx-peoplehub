@@ -312,6 +312,22 @@ describe('Kanban (e2e)', () => {
       expect(created.body.data.priority).toBe('HIGH');
       expect(created.body.data.sprintId).toBeNull();
 
+      // GET /kanban/cards/:id resolves the card + its boardId (deep-link basis);
+      // an outsider is 403, a missing card is 404.
+      const fetched = await request(app.getHttpServer())
+        .get(`/kanban/cards/${cardId}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(200);
+      expect(fetched.body.data.boardId).toBe(boardId);
+      await request(app.getHttpServer())
+        .get(`/kanban/cards/${cardId}`)
+        .set('Authorization', `Bearer ${outsiderToken}`)
+        .expect(403);
+      await request(app.getHttpServer())
+        .get('/kanban/cards/00000000-0000-0000-0000-000000000000')
+        .set('Authorization', `Bearer ${memberToken}`)
+        .expect(404);
+
       // Edit priority/dates via the general PATCH — member allowed.
       const edited = await request(app.getHttpServer())
         .patch(`/kanban/cards/${cardId}`)

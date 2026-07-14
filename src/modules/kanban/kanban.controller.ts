@@ -223,6 +223,14 @@ export class KanbanController {
     return this.cards.create(listId, dto, user);
   }
 
+  @Get('cards/:id')
+  @ApiOperation({
+    summary: 'One card by id, with boardId for deep-linking (any board member)',
+  })
+  getCard(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.cards.findOne(id, user);
+  }
+
   @Patch('cards/:id')
   @ApiOperation({
     summary:

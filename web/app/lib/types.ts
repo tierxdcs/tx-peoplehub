@@ -28,6 +28,7 @@ export interface Employee {
   deactivatedAt: string | null;
   accessStatus: AccessStatus;
   isSalesHead: boolean;
+  isScrumMaster: boolean;
   officialEmail: string | null;
   signatureText?: string | null;
   signatureFont?: SignatureFont | null;

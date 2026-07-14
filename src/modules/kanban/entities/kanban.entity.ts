@@ -81,6 +81,8 @@ export class KanbanSprintEntity {
 export class KanbanCardEntity {
   @ApiProperty() id!: string;
   @ApiProperty() listId!: string;
+  @ApiProperty({ description: "The card's board (via its list)" })
+  boardId?: string;
   @ApiProperty() title!: string;
   @ApiProperty({ nullable: true }) description!: string | null;
   @ApiProperty({ nullable: true }) assigneeId!: string | null;
