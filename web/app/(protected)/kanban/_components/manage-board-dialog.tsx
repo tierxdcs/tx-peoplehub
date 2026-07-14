@@ -1,17 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { Pencil, Trash2, X } from 'lucide-react';
+import { CalendarRange, Pencil, Trash2, X } from 'lucide-react';
 import {
   addMember,
   createLabel,
+  createSprint,
   deleteLabel,
   removeMember,
   updateLabel,
   LABEL_COLORS,
+  SPRINT_DURATION_LABEL,
   type KanbanBoard,
   type KanbanBoardMember,
   type KanbanLabel,
+  type KanbanSprint,
+  type SprintDuration,
 } from '../../../lib/kanban';
 import { ApiError } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toaster';
@@ -23,6 +27,7 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import { Input } from '../../../components/ui/input';
+import { Select } from '../../../components/ui/select';
 import { Button } from '../../../components/ui/button';
 import { Avatar } from '../../../components/ui/avatar';
 import { cn } from '../../../lib/utils';
@@ -30,27 +35,31 @@ import { EmployeePicker } from '../../vault/_components/employee-picker';
 
 /**
  * Board management (spec §6): add/remove members (the creator can't be
- * removed) and manage the label set (create/edit/delete). Scrum
- * Master/SuperAdmin only — the board view only mounts this for canManage.
+ * removed), manage the label set (create/edit/delete), and create sprints.
+ * Scrum Master/SuperAdmin only — the board view only mounts this for canManage.
  */
 export function ManageBoardDialog({
   board,
   members,
   labels,
+  sprints,
   onClose,
   onMembersChanged,
   onLabelsChanged,
+  onSprintsChanged,
 }: {
   board: KanbanBoard;
   members: KanbanBoardMember[];
   labels: KanbanLabel[];
+  sprints: KanbanSprint[];
   onClose: () => void;
   onMembersChanged: (next: KanbanBoardMember[]) => void;
   onLabelsChanged: (next: KanbanLabel[]) => void;
+  onSprintsChanged: (next: KanbanSprint[]) => void;
 }) {
   const toast = useToast();
   const confirm = useConfirm();
-  const [tab, setTab] = useState<'members' | 'labels'>('members');
+  const [tab, setTab] = useState<'members' | 'labels' | 'sprints'>('members');
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -60,7 +69,7 @@ export function ManageBoardDialog({
         </DialogHeader>
 
         <div className="flex gap-1 rounded-md bg-muted p-1">
-          {(['members', 'labels'] as const).map((t) => (
+          {(['members', 'labels', 'sprints'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -77,7 +86,7 @@ export function ManageBoardDialog({
           ))}
         </div>
 
-        {tab === 'members' ? (
+        {tab === 'members' && (
           <MembersPanel
             board={board}
             members={members}
@@ -85,13 +94,22 @@ export function ManageBoardDialog({
             toast={toast}
             confirm={confirm}
           />
-        ) : (
+        )}
+        {tab === 'labels' && (
           <LabelsPanel
             board={board}
             labels={labels}
             onLabelsChanged={onLabelsChanged}
             toast={toast}
             confirm={confirm}
+          />
+        )}
+        {tab === 'sprints' && (
+          <SprintsPanel
+            board={board}
+            sprints={sprints}
+            onSprintsChanged={onSprintsChanged}
+            toast={toast}
           />
         )}
       </DialogContent>
@@ -329,6 +347,132 @@ function LabelsPanel({
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+const DURATION_OPTIONS: SprintDuration[] = [
+  'ONE_WEEK',
+  'TWO_WEEKS',
+  'THREE_WEEKS',
+  'FOUR_WEEKS',
+];
+
+function formatSprintRange(start: string, end: string): string {
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
+function SprintsPanel({
+  board,
+  sprints,
+  onSprintsChanged,
+  toast,
+}: {
+  board: KanbanBoard;
+  sprints: KanbanSprint[];
+  onSprintsChanged: (next: KanbanSprint[]) => void;
+  toast: ToastApi;
+}) {
+  const [name, setName] = useState('');
+  const [duration, setDuration] = useState<SprintDuration>('TWO_WEEKS');
+  const [startDate, setStartDate] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    const trimmed = name.trim();
+    if (!trimmed || !startDate) return;
+    setBusy(true);
+    try {
+      const created = await createSprint(board.id, {
+        name: trimmed,
+        durationWeeks: duration,
+        startDate,
+      });
+      // Keep the list ordered by start date, like the board's own load.
+      onSprintsChanged(
+        [...sprints, created].sort((a, b) =>
+          a.startDate.localeCompare(b.startDate),
+        ),
+      );
+      toast.success('Sprint created.');
+      setName('');
+      setStartDate('');
+      setDuration('TWO_WEEKS');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to create sprint.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-2 rounded-md border p-3">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Sprint name…"
+        />
+        <div className="flex gap-2">
+          <label className="flex flex-1 flex-col gap-1 text-xs font-medium text-muted-foreground">
+            Start date
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-8"
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1 text-xs font-medium text-muted-foreground">
+            Duration
+            <Select
+              value={duration}
+              onChange={(e) => setDuration(e.target.value as SprintDuration)}
+              className="h-8"
+            >
+              {DURATION_OPTIONS.map((d) => (
+                <option key={d} value={d}>
+                  {SPRINT_DURATION_LABEL[d]}
+                </option>
+              ))}
+            </Select>
+          </label>
+        </div>
+        <Button size="sm" onClick={submit} disabled={busy || !name.trim() || !startDate}>
+          {busy ? 'Creating…' : 'Add sprint'}
+        </Button>
+      </div>
+
+      <ul className="max-h-56 space-y-1 overflow-y-auto">
+        {sprints.length === 0 && (
+          <li className="py-3 text-center text-sm text-muted-foreground">
+            No sprints yet.
+          </li>
+        )}
+        {sprints.map((s) => (
+          <li
+            key={s.id}
+            className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm"
+          >
+            <CalendarRange className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{s.name}</span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {formatSprintRange(s.startDate, s.endDate)}
+              </span>
+            </span>
+            <span className="shrink-0 text-xs capitalize text-muted-foreground">
+              {s.status.toLowerCase()}
+            </span>
           </li>
         ))}
       </ul>

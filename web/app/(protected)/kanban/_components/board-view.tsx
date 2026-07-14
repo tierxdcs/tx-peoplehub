@@ -482,9 +482,11 @@ export function BoardView({
           board={board}
           members={members}
           labels={labels}
+          sprints={sprints}
           onClose={() => setManageOpen(false)}
           onMembersChanged={(next) => setMembers(next)}
           onLabelsChanged={(next) => setLabels(next)}
+          onSprintsChanged={(next) => setSprints(next)}
         />
       )}
 
