@@ -51,7 +51,19 @@ export class CreateBidDto {
   @IsString()
   tenderReferenceNumber?: string;
 
-  @ApiPropertyOptional({ description: 'Technical proposal content' })
+  @ApiPropertyOptional({
+    example:
+      'Submission of quotation for supply of 24U & 42U 800x800 racks, along with MDU',
+    description:
+      'One-line quotation subject — used in both the Subject line and the opening paragraph.',
+  })
+  @IsOptional()
+  @IsString()
+  quotationSubject?: string;
+
+  @ApiPropertyOptional({
+    description: 'Internal technical notes (not rendered in the proposal PDF)',
+  })
   @IsOptional()
   @IsString()
   technicalSpecification?: string;

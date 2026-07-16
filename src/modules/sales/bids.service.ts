@@ -37,7 +37,12 @@ const DISCOUNT_APPROVAL_THRESHOLD = new Prisma.Decimal(10);
 const COMPANY_STATE = 'Karnataka';
 
 type BidLineItemWithProduct = BidLineItem & {
-  product: { name: string; sku: string };
+  product: {
+    name: string;
+    sku: string;
+    description: string | null;
+    unitOfMeasure: string;
+  };
 };
 type BidWithLines = Bid & {
   lineItems: BidLineItemWithProduct[];
@@ -145,6 +150,7 @@ export class BidsService {
           customerId: dto.customerId,
           validUntil: new Date(dto.validUntil),
           tenderReferenceNumber: dto.tenderReferenceNumber ?? null,
+          quotationSubject: dto.quotationSubject ?? null,
           technicalSpecification: dto.technicalSpecification ?? null,
           attachments: (dto.attachments ?? undefined) as
             Prisma.InputJsonValue | undefined,
@@ -474,6 +480,7 @@ export class BidsService {
       status: bid.status,
       validUntil: bid.validUntil,
       tenderReferenceNumber: bid.tenderReferenceNumber,
+      quotationSubject: bid.quotationSubject,
       technicalSpecification: bid.technicalSpecification,
       attachments: bid.attachments,
       subtotal: bid.subtotal.toString(),
@@ -498,6 +505,8 @@ export class BidsService {
             productId: li.productId,
             productName: li.product.name,
             productSku: li.product.sku,
+            productDescription: li.product.description ?? null,
+            productUnitOfMeasure: li.product.unitOfMeasure,
             quantity: li.quantity.toString(),
             unitPrice: li.unitPrice.toString(),
             lineDiscountPercent: li.lineDiscountPercent?.toString() ?? null,

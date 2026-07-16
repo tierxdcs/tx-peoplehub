@@ -60,6 +60,7 @@ export default function NewBidPage() {
   const [opportunityId, setOpportunityId] = useState(presetOpportunityId);
   const [validUntil, setValidUntil] = useState('');
   const [tenderReferenceNumber, setTenderReferenceNumber] = useState('');
+  const [quotationSubject, setQuotationSubject] = useState('');
   const [technicalSpecification, setTechnicalSpecification] = useState('');
   const [attachmentName, setAttachmentName] = useState('');
   const [attachmentUrl, setAttachmentUrl] = useState('');
@@ -140,6 +141,7 @@ export default function NewBidPage() {
           customerId,
           validUntil,
           tenderReferenceNumber: tenderReferenceNumber || undefined,
+          quotationSubject: quotationSubject || undefined,
           technicalSpecification: technicalSpecification || undefined,
           attachments,
           discountPercent: discountNum,
@@ -214,6 +216,22 @@ export default function NewBidPage() {
 
         <div style={{ marginBottom: 12 }}>
           <label style={{ display: 'block', marginBottom: 4 }}>
+            Quotation subject (optional)
+          </label>
+          <input
+            value={quotationSubject}
+            onChange={(e) => setQuotationSubject(e.target.value)}
+            placeholder="e.g. Submission of quotation for supply of 24U & 42U 800x800 racks, along with MDU"
+            style={fieldStyle}
+          />
+          <p style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+            Used in both the Subject line and the opening paragraph of the
+            proposal.
+          </p>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', marginBottom: 4 }}>
             Technical specification
           </label>
           <textarea
@@ -221,6 +239,10 @@ export default function NewBidPage() {
             onChange={(e) => setTechnicalSpecification(e.target.value)}
             style={{ ...fieldStyle, minHeight: 80 }}
           />
+          <p style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+            Internal notes only — not printed on the proposal (the per-line
+            product description carries the technical detail).
+          </p>
         </div>
 
         <div style={{ marginBottom: 12 }}>

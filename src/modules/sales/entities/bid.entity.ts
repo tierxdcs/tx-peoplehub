@@ -17,6 +17,15 @@ export class BidLineItemEntity {
   @ApiProperty({ description: 'Resolved product SKU (for display)' })
   productSku!: string;
 
+  @ApiProperty({
+    nullable: true,
+    description: 'Resolved product description/specification (for display)',
+  })
+  productDescription!: string | null;
+
+  @ApiProperty({ description: 'Resolved product unit of measure (for display)' })
+  productUnitOfMeasure!: string;
+
   @ApiProperty({ description: 'Decimal serialized as string' })
   quantity!: string;
 
@@ -56,7 +65,16 @@ export class BidEntity {
   @ApiProperty({ nullable: true })
   tenderReferenceNumber!: string | null;
 
-  @ApiProperty({ nullable: true })
+  @ApiProperty({
+    nullable: true,
+    description: 'One-line quotation subject (Subject line + opening paragraph)',
+  })
+  quotationSubject!: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    description: 'Internal technical notes — not rendered in the proposal PDF',
+  })
   technicalSpecification!: string | null;
 
   @ApiProperty({

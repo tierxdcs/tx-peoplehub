@@ -789,6 +789,11 @@ model Bid {
   status                        BidStatus      @default(DRAFT)
   validUntil                    DateTime
   tenderReferenceNumber         String?
+  /// One-line subject for the Techno Commercial Proposal — used verbatim in
+  /// both the "Subject:" line and the opening paragraph of the document.
+  quotationSubject              String?
+  /// Retained for internal use; NOT rendered in the Techno Commercial Proposal
+  /// (the per-line Description column carries the technical detail instead).
   technicalSpecification        String?
   /// Placeholder for a future file-storage module: metadata only
   /// ([{filename, url}]), no upload infrastructure in this phase.

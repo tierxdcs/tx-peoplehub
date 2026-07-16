@@ -489,6 +489,8 @@ export interface BidLineItem {
   productId: string;
   productName: string;
   productSku: string;
+  productDescription: string | null;
+  productUnitOfMeasure: string;
   quantity: string;
   unitPrice: string;
   lineDiscountPercent: string | null;
@@ -503,6 +505,7 @@ export interface Bid {
   status: BidStatus;
   validUntil: string;
   tenderReferenceNumber: string | null;
+  quotationSubject: string | null;
   technicalSpecification: string | null;
   attachments: Array<Record<string, unknown>> | null;
   subtotal: string;

@@ -189,6 +189,16 @@
     font-size: 12px;
   }
 
+  /* Browsers drop background colours/images from printouts by default, which
+   * would wipe the accent divider, the navy table header, the grand-total bar
+   * and the zebra rows. Force exact colour rendering for the document (and its
+   * descendants) so it prints as designed. */
+  .print-document,
+  .print-document * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   /* Belt-and-suspenders: anything explicitly marked no-print is removed. */
   .no-print {
     display: none !important;
@@ -200,14 +210,38 @@
     page-break-inside: avoid;
   }
 
-  /* Repeat the table header on each page for multi-page bids. */
+  /* Repeat table headers on each page (line-item tables + the outer layout
+   * table's running header). */
   thead {
     display: table-header-group;
   }
+  /* Repeat the outer layout table's running footer (address block) on each
+   * page — paired with the <tfoot> in the print document. */
+  tfoot {
+    display: table-footer-group;
+  }
+  /* Give the repeating header/footer a little breathing room from the page
+   * edges on every page. */
+  .print-running-head td {
+    padding-bottom: 6px !important;
+  }
+  .print-running-foot td {
+    padding-top: 6px !important;
+  }
 
-  /* Reasonable page margins for A4/Letter. */
+  /* Reasonable page margins for A4/Letter, plus a page number in the bottom
+   * margin box. NOTE: margin-box counters are honored by Firefox and most
+   * print engines, but Chromium ignores `content` here — in Chrome's
+   * print-to-PDF, enable the dialog's "Headers and footers" option for page
+   * numbers. Bottom margin is slightly larger to seat the number cleanly. */
   @page {
-    margin: 16mm 14mm;
+    margin: 16mm 14mm 18mm;
+
+    @bottom-right {
+      content: 'Page ' counter(page) ' of ' counter(pages);
+      font-size: 9px;
+      color: #6b7280;
+    }
   }
 
   a {
