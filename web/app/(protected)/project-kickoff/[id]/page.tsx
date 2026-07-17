@@ -77,29 +77,43 @@ export default function KickoffDetailPage() {
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const k = await getKickoff(id);
-      setKickoff(k);
-      // Board members drive the action-item owner picker (owner must be a
-      // board member). Best-effort — a failure just yields an empty picker.
+  /**
+   * Fetch the kickoff (+ board members). `showSkeleton` controls whether the
+   * whole-page loading skeleton is shown: true only on the INITIAL mount. After
+   * a mutation, sections call refresh() (showSkeleton=false) so the page updates
+   * in place WITHOUT the skeleton early-return remounting the tree — which would
+   * otherwise reset the scroll position to the top on every edit.
+   */
+  const fetchKickoff = useCallback(
+    async (showSkeleton: boolean) => {
+      if (showSkeleton) setLoading(true);
+      setError(null);
       try {
-        setMembers(await listMembers(k.kanbanBoardId));
-      } catch {
-        setMembers([]);
+        const k = await getKickoff(id);
+        setKickoff(k);
+        // Board members drive the action-item owner picker (owner must be a
+        // board member). Best-effort — a failure just yields an empty picker.
+        try {
+          setMembers(await listMembers(k.kanbanBoardId));
+        } catch {
+          setMembers([]);
+        }
+      } catch (err) {
+        if (err instanceof ApiError && (err.statusCode === 403 || err.statusCode === 404)) {
+          setForbidden(true);
+        } else {
+          setError('Failed to load kickoff.');
+        }
+      } finally {
+        if (showSkeleton) setLoading(false);
       }
-    } catch (err) {
-      if (err instanceof ApiError && (err.statusCode === 403 || err.statusCode === 404)) {
-        setForbidden(true);
-      } else {
-        setError('Failed to load kickoff.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+    },
+    [id],
+  );
+
+  // Initial load shows the skeleton; post-mutation refreshes are silent.
+  const load = useCallback(() => fetchKickoff(true), [fetchKickoff]);
+  const refresh = useCallback(() => fetchKickoff(false), [fetchKickoff]);
 
   useEffect(() => {
     void load();
@@ -218,11 +232,11 @@ export default function KickoffDetailPage() {
         </div>
 
         <OverviewSection kickoff={kickoff} onSaved={(k) => setKickoff(k)} />
-        <AttendeesSection kickoff={kickoff} onChanged={load} />
-        <MilestonesSection kickoff={kickoff} onChanged={load} />
-        <ActionItemsSection kickoff={kickoff} members={members} onChanged={load} />
-        <DeliveryClassificationSection kickoff={kickoff} onChanged={load} />
-        <RisksSection kickoff={kickoff} onChanged={load} />
+        <DeliveryClassificationSection kickoff={kickoff} onChanged={refresh} />
+        <AttendeesSection kickoff={kickoff} onChanged={refresh} />
+        <MilestonesSection kickoff={kickoff} onChanged={refresh} />
+        <ActionItemsSection kickoff={kickoff} members={members} onChanged={refresh} />
+        <RisksSection kickoff={kickoff} onChanged={refresh} />
         <MinutesSection kickoff={kickoff} onSaved={(k) => setKickoff(k)} />
       </PageContainer>
     </>
@@ -1012,7 +1026,20 @@ function DeliveryRow({
   const [nudge, setNudge] = useState<KickoffDeliveryItem | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const isVendor = item.deliveryType === 'VENDOR';
+  // Re-sync buffers when the persisted values change (e.g. selecting IN_HOUSE
+  // auto-fills vendorName server-side; without this the input would keep the
+  // stale local value and not show the auto-filled default).
+  useEffect(() => {
+    setVendorName(item.vendorName ?? '');
+    setVendorContact(item.vendorContactInfo ?? '');
+    setVendorLead(item.vendorExpectedLeadTime ?? '');
+  }, [item.vendorName, item.vendorContactInfo, item.vendorExpectedLeadTime]);
+
+  // Vendor detail fields apply to VENDOR (manual entry) and IN_HOUSE (fixed
+  // partner, auto-filled but editable). NPD has no vendor.
+  const showVendorFields =
+    item.deliveryType === 'VENDOR' || item.deliveryType === 'IN_HOUSE';
+  const isInHouse = item.deliveryType === 'IN_HOUSE';
 
   async function setType(deliveryType: DeliveryType) {
     setBusy(true);
@@ -1067,11 +1094,12 @@ function DeliveryRow({
           </Select>
         </TableCell>
         <TableCell className="align-top">
-          {isVendor ? (
+          {showVendorFields ? (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                Approved vendor list coming soon — enter vendor name manually for
-                now.
+                {isInHouse
+                  ? 'In-house manufacturing partner (pre-filled — edit if a different internal facility applies).'
+                  : 'Approved vendor list coming soon — enter vendor name manually for now.'}
               </p>
               <Input
                 value={vendorName}

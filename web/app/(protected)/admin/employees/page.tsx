@@ -8,6 +8,17 @@ import { useConfirm } from '../../../components/ui/confirm';
 import { useToast } from '../../../components/ui/toaster';
 import { useAuth } from '../../../lib/auth-context';
 
+/** Inline designation pill on the roster (Sales Head / Project Manager). */
+const rosterBadgeStyle: React.CSSProperties = {
+  marginLeft: 8,
+  fontSize: 11,
+  fontWeight: 600,
+  color: '#1d4ed8',
+  background: '#dbeafe',
+  borderRadius: 10,
+  padding: '1px 8px',
+};
+
 export default function EmployeesListPage() {
   const confirm = useConfirm();
   const toast = useToast();
@@ -193,19 +204,10 @@ export default function EmployeesListPage() {
                       {e.firstName} {e.lastName}
                     </Link>
                     {e.isSalesHead && (
-                      <span
-                        style={{
-                          marginLeft: 8,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: '#1d4ed8',
-                          background: '#dbeafe',
-                          borderRadius: 10,
-                          padding: '1px 8px',
-                        }}
-                      >
-                        Sales Head
-                      </span>
+                      <span style={rosterBadgeStyle}>Sales Head</span>
+                    )}
+                    {e.isProjectManager && (
+                      <span style={rosterBadgeStyle}>Project Manager</span>
                     )}
                   </td>
                   <td>{e.email}</td>

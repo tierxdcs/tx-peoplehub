@@ -37,6 +37,13 @@ function fullName(e: EmployeeName): string | null {
   return e ? `${e.firstName} ${e.lastName}` : null;
 }
 
+/**
+ * IN_HOUSE work always goes to this fixed manufacturing partner. Hardcoded for
+ * now (per business confirmation) — kept as one named constant so it's trivial
+ * to relocate to company-config if it ever needs to be configurable.
+ */
+const IN_HOUSE_VENDOR_NAME = 'Balaji MetalTech, Bengaluru';
+
 @Injectable()
 export class ProjectKickoffService {
   constructor(
@@ -483,9 +490,15 @@ export class ProjectKickoffService {
    * Set a line item's delivery type + vendor placeholder fields. Gated by
    * kickoff access (same as every other kickoff edit). The line item must
    * belong to THIS kickoff's order — we resolve the kickoff's orderId and match
-   * on it, so a caller can't edit an arbitrary order's lines. Vendor fields are
-   * only meaningful for VENDOR; when the type is set to non-VENDOR we clear
-   * them so stale vendor data doesn't linger.
+   * on it, so a caller can't edit an arbitrary order's lines.
+   *
+   * Vendor-field rules on a type change:
+   *   - VENDOR   → cleared, ready for manual entry.
+   *   - IN_HOUSE → vendorName auto-set to the fixed manufacturing partner
+   *                (override), contact/lead-time cleared; all remain editable.
+   *   - NPD      → cleared (no vendor).
+   * An explicit vendorName/contact/lead-time in the SAME request still wins
+   * (the manual-override path), applied after the type-driven defaults.
    */
   async updateDeliveryItem(
     kickoffId: string,
@@ -505,13 +518,26 @@ export class ProjectKickoffService {
     const data: Prisma.OrderLineItemUpdateInput = {};
     if (dto.deliveryType !== undefined) {
       data.deliveryType = dto.deliveryType;
-      // Clearing to non-VENDOR wipes the placeholder vendor fields.
-      if (dto.deliveryType !== 'VENDOR') {
+      if (dto.deliveryType === 'IN_HOUSE') {
+        // In-House always means the fixed manufacturing partner — override the
+        // name; drop stale contact/lead-time from any prior VENDOR entry.
+        data.vendorName = IN_HOUSE_VENDOR_NAME;
+        data.vendorContactInfo = null;
+        data.vendorExpectedLeadTime = null;
+      } else if (dto.deliveryType === 'VENDOR') {
+        // Fresh manual entry — clear anything carried over (e.g. from IN_HOUSE).
+        data.vendorName = null;
+        data.vendorContactInfo = null;
+        data.vendorExpectedLeadTime = null;
+      } else {
+        // NPD (or any future non-vendor type) — no vendor at all.
         data.vendorName = null;
         data.vendorContactInfo = null;
         data.vendorExpectedLeadTime = null;
       }
     }
+    // Explicit fields in the same request win over the type-driven default
+    // (manual override, e.g. an In-House line at a different internal facility).
     if (dto.vendorName !== undefined) data.vendorName = dto.vendorName;
     if (dto.vendorContactInfo !== undefined)
       data.vendorContactInfo = dto.vendorContactInfo;

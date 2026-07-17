@@ -446,7 +446,8 @@ describe('Project Kickoff (e2e)', () => {
     expect(vendorSet.vendorName).toBe('Acme Fabrication');
     expect(vendorSet.vendorExpectedLeadTime).toBe('6-8 weeks');
 
-    // Switching to a non-VENDOR type clears the stale vendor fields.
+    // Switching VENDOR→IN_HOUSE replaces the manual vendor with the fixed
+    // in-house partner (override, not clear) and drops stale contact/lead-time.
     const inhouse = (
       await request(app.getHttpServer())
         .patch(`/project-kickoffs/${kid}/delivery-items/${freshLineItemId}`)
@@ -455,9 +456,30 @@ describe('Project Kickoff (e2e)', () => {
         .expect(200)
     ).body.data;
     expect(inhouse.deliveryType).toBe('IN_HOUSE');
-    expect(inhouse.vendorName).toBeNull();
+    expect(inhouse.vendorName).toBe('Balaji MetalTech, Bengaluru');
     expect(inhouse.vendorContactInfo).toBeNull();
     expect(inhouse.vendorExpectedLeadTime).toBeNull();
+
+    // The auto-filled in-house vendor name is still overridable.
+    const overridden = (
+      await request(app.getHttpServer())
+        .patch(`/project-kickoffs/${kid}/delivery-items/${freshLineItemId}`)
+        .set('Authorization', `Bearer ${pmToken}`)
+        .send({ vendorName: 'Internal Facility 2' })
+        .expect(200)
+    ).body.data;
+    expect(overridden.vendorName).toBe('Internal Facility 2');
+
+    // NPD still clears vendor fields entirely.
+    const npd = (
+      await request(app.getHttpServer())
+        .patch(`/project-kickoffs/${kid}/delivery-items/${freshLineItemId}`)
+        .set('Authorization', `Bearer ${pmToken}`)
+        .send({ deliveryType: 'NPD' })
+        .expect(200)
+    ).body.data;
+    expect(npd.deliveryType).toBe('NPD');
+    expect(npd.vendorName).toBeNull();
 
     // A non-member cannot classify.
     await request(app.getHttpServer())
