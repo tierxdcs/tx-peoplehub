@@ -692,6 +692,41 @@ export class EmployeesService {
   }
 
   /**
+   * Project Manager designation — a company-wide capability flag (not a Role),
+   * multi-holder, same mechanics as Scrum Master. Only an ACTIVE employee whose
+   * role is MANAGER or above (MANAGER / ADMIN / SUPER_ADMIN) may hold it, per
+   * spec. SUPER_ADMIN is always treated as a PM in the access layer regardless
+   * of this flag, so designation targets everyone else.
+   */
+  async setProjectManager(
+    id: string,
+    isProjectManager: boolean,
+  ): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (isProjectManager) {
+      if (target.status !== EmployeeStatus.ACTIVE) {
+        throw new BadRequestException(
+          'Only an active employee can be designated as a Project Manager',
+        );
+      }
+      const eligible =
+        target.role === Role.MANAGER ||
+        target.role === Role.ADMIN ||
+        target.role === Role.SUPER_ADMIN;
+      if (!eligible) {
+        throw new BadRequestException(
+          'Only an employee with role MANAGER or above can be a Project Manager',
+        );
+      }
+    }
+    const updated = await this.prisma.employee.update({
+      where: { id },
+      data: { isProjectManager },
+    });
+    return this.toEntity(updated);
+  }
+
+  /**
    * Reads the latest-effective SalaryStructure row (the table that
    * replaced EmployeeCompensation) but keeps returning the same response
    * shape as before, since existing consumers (e.g. the web UI's sensitive
@@ -904,6 +939,7 @@ export class EmployeesService {
       accessStatus: employee.accessStatus,
       isSalesHead: employee.isSalesHead,
       isScrumMaster: employee.isScrumMaster,
+      isProjectManager: employee.isProjectManager,
       officialEmail: employee.officialEmail,
       signatureText: employee.signatureText,
       signatureFont: employee.signatureFont,

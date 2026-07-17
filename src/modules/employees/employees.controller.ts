@@ -197,6 +197,23 @@ export class EmployeesController {
     return this.employeesService.setScrumMaster(id, false);
   }
 
+  @Patch(':id/designate-project-manager')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Designate this employee as a Project Manager (MANAGER or above; multiple allowed)',
+  })
+  designateProjectManager(@Param('id') id: string) {
+    return this.employeesService.setProjectManager(id, true);
+  }
+
+  @Patch(':id/revoke-project-manager')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Revoke this employee’s Project Manager designation' })
+  revokeProjectManager(@Param('id') id: string) {
+    return this.employeesService.setProjectManager(id, false);
+  }
+
   @Get(':id/team')
   @Roles(Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN)
   @ApiOperation({

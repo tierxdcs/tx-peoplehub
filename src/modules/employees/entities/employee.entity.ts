@@ -54,6 +54,11 @@ export class EmployeeEntity {
   })
   isScrumMaster!: boolean;
 
+  @ApiProperty({
+    description: 'Whether this employee is a designated Project Manager',
+  })
+  isProjectManager!: boolean;
+
   @ApiProperty({ nullable: true })
   officialEmail!: string | null;
 

@@ -32,6 +32,7 @@ import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
 import { ProductCell } from '../../_components/product-cell';
 import { ConfirmationSheetsSection } from './_components/confirmation-sheets-section';
+import { ProjectKickoffSection } from './_components/project-kickoff-section';
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -283,6 +284,13 @@ export default function OrderDetailPage() {
         isReviewer={isReviewer}
         customer={customer}
         onLatestExecutedChange={handleLatestExecutedChange}
+      />
+
+      <ProjectKickoffSection
+        orderId={order.id}
+        orderNumber={order.orderNumber}
+        latestExecuted={latestExecuted}
+        customerName={customer?.name ?? null}
       />
     </PageContainer>
   );

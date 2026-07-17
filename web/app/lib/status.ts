@@ -38,6 +38,9 @@ const VARIANT_BY_VALUE: Record<string, BadgeVariant> = {
   PROCESSING: 'info',
   GENERATED: 'info',
   ON_LEAVE: 'info',
+  IN_PROGRESS: 'info',
+  MITIGATED: 'info',
+  DONE: 'success',
 
   // ---- pending / caution (amber) ----
   PENDING: 'warning',
@@ -48,6 +51,9 @@ const VARIANT_BY_VALUE: Record<string, BadgeVariant> = {
   HALF_DAY: 'warning',
   EXPIRED: 'warning',
   LOCKED: 'warning',
+  TODO: 'warning',
+  DELAYED: 'warning',
+  OPEN: 'warning',
 
   // ---- negative / terminal-bad (red) ----
   INACTIVE: 'destructive',

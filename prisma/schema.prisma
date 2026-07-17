@@ -195,6 +195,15 @@ enum SalesTaxType {
   IGST
 }
 
+/// Per-line-item delivery classification, assigned at project kickoff.
+/// NPD = new product development; IN_HOUSE = manufactured internally;
+/// VENDOR = outsourced/procured (captures a free-text vendor placeholder).
+enum OrderLineDeliveryType {
+  NPD
+  IN_HOUSE
+  VENDOR
+}
+
 // ---- Vault (document management) module ----
 
 /// PERSONAL = auto-provisioned per employee at onboarding (one each, private,
@@ -309,6 +318,13 @@ model Employee {
   /// regardless of this flag (override in the access layer).
   isScrumMaster Boolean @default(false)
 
+  /// Project Manager capability (not a Role). Runs project kickoffs and manages
+  /// action items. MULTIPLE holders allowed; SUPER_ADMIN is always a PM
+  /// regardless of this flag. Deliberately INDEPENDENT of isScrumMaster — a PM
+  /// gets a working project board via privileged internal provisioning, so they
+  /// don't need Scrum Master rights to run kickoffs.
+  isProjectManager Boolean @default(false)
+
   /// Internal e-signature (a display layer, NOT a legally-binding e-sign).
   /// Self-service typed text rendered in a chosen signature-style font;
   /// snapshotted onto approval records at approval time.
@@ -376,6 +392,13 @@ model Employee {
   kanbanCommentsAuthored KanbanCardComment[]  @relation("KanbanCommentAuthor")
   kanbanActivityActed    KanbanCardActivity[] @relation("KanbanActivityActor")
   notifications          Notification[]       @relation("NotificationRecipient")
+
+  // Project Kickoff back-relations.
+  projectKickoffsCreated ProjectKickoff[]  @relation("KickoffCreator")
+  kickoffAttendances     KickoffAttendee[] @relation("KickoffAttendeeEmployee")
+  kickoffMilestonesOwned KickoffMilestone[] @relation("KickoffMilestoneOwner")
+  kickoffActionItemsOwned KickoffActionItem[] @relation("KickoffActionItemOwner")
+  kickoffRisksOwned      KickoffRisk[]     @relation("KickoffRiskOwner")
 
   auditLogs AuditLog[] @relation("AuditActor")
   createdAt DateTime   @default(now())
@@ -866,6 +889,7 @@ model Order {
   owner              Employee                 @relation("OrderOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   lineItems          OrderLineItem[]
   confirmationSheets OrderConfirmationSheet[]
+  projectKickoffs    ProjectKickoff[]
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
 
@@ -884,6 +908,23 @@ model OrderLineItem {
   quantity  Decimal  @db.Decimal(14, 2)
   unitPrice Decimal  @db.Decimal(14, 2)
   lineTotal Decimal  @db.Decimal(14, 2)
+
+  /// Per-line delivery classification, set at project kickoff. Nullable — an
+  /// order line has no classification until a PM assigns one. Additive to the
+  /// existing bid→order flow (conversion leaves these null).
+  deliveryType OrderLineDeliveryType?
+  /// PLACEHOLDER (see below): free-text vendor name captured when deliveryType
+  /// = VENDOR, until an Approved Vendor Master module exists. Intentionally NOT
+  /// a FK — there is no Vendor entity yet. When the Vendor Master is built,
+  /// these free-text names will need a reconciliation/migration to real vendor
+  /// records; the generic `vendorName` naming keeps that path open.
+  vendorName             String?
+  /// Loose contact capture (name/phone/email in one field) for the placeholder
+  /// vendor — also temporary, folds into the future Vendor Master.
+  vendorContactInfo      String?
+  /// Rough expected lead time from the vendor, free text (e.g. "6-8 weeks").
+  vendorExpectedLeadTime String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1271,6 +1312,7 @@ model KanbanBoard {
   lists       KanbanList[]
   sprints     KanbanSprint[]
   labels      KanbanLabel[]
+  projectKickoffs ProjectKickoff[]
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
@@ -1363,6 +1405,7 @@ model KanbanCard {
   activity      KanbanCardActivity[]
   notifications Notification[]
   labels        KanbanCardLabel[]
+  kickoffActionItem KickoffActionItem?
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
@@ -1447,4 +1490,147 @@ model Notification {
 
   @@index([employeeId, isRead])
   @@map("notifications")
+}
+
+// ── Project Kickoff ──────────────────────────────────────────────────
+// A structured record of the cross-functional kickoff held once an Order's
+// Confirmation Sheet is EXECUTED. Action items are mirrored as real Kanban
+// cards on an auto-provisioned project board; their status is READ from the
+// card's list at query time (no stored action-item status → no drift).
+
+enum KickoffMeetingMode {
+  IN_PERSON
+  VIRTUAL
+  HYBRID
+}
+
+enum KickoffStatus {
+  DRAFT
+  COMPLETED
+}
+
+enum KickoffMilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+}
+
+enum KickoffRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum KickoffRiskStatus {
+  OPEN
+  MITIGATED
+  CLOSED
+}
+
+model ProjectKickoff {
+  id              String             @id @default(uuid())
+  orderId         String
+  order           Order              @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  projectName     String
+  meetingDate     DateTime
+  meetingMode     KickoffMeetingMode @default(VIRTUAL)
+  meetingLocation String?
+  overviewAndScope String?           @db.Text
+  minutesNotes    String?            @db.Text
+  status          KickoffStatus      @default(DRAFT)
+  /// The project board auto-provisioned at creation (§5). Restrict so a board
+  /// backing a kickoff can't be deleted out from under it.
+  kanbanBoardId   String
+  kanbanBoard     KanbanBoard        @relation(fields: [kanbanBoardId], references: [id], onDelete: Restrict)
+  createdById     String
+  createdBy       Employee           @relation("KickoffCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  attendees   KickoffAttendee[]
+  milestones  KickoffMilestone[]
+  actionItems KickoffActionItem[]
+  risks       KickoffRisk[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([createdById])
+  @@map("project_kickoffs")
+}
+
+/// One attendance record. Exactly one of employeeId / externalName is set
+/// (internal vs. external attendee) — enforced at the service layer.
+model KickoffAttendee {
+  id                   String         @id @default(uuid())
+  kickoffId            String
+  kickoff              ProjectKickoff @relation(fields: [kickoffId], references: [id], onDelete: Cascade)
+  employeeId           String?
+  employee             Employee?      @relation("KickoffAttendeeEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
+  externalName         String?
+  externalOrganization String?
+  designation          String?
+  department           String?
+  createdAt            DateTime       @default(now())
+
+  @@index([kickoffId])
+  @@map("kickoff_attendees")
+}
+
+/// A project-level checkpoint. Standalone (NOT linked to Kanban) — milestones
+/// are checkpoints, distinct from individually-actionable tasks.
+model KickoffMilestone {
+  id         String                 @id @default(uuid())
+  kickoffId  String
+  kickoff    ProjectKickoff         @relation(fields: [kickoffId], references: [id], onDelete: Cascade)
+  name       String
+  targetDate DateTime
+  ownerId    String?
+  owner      Employee?              @relation("KickoffMilestoneOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  status     KickoffMilestoneStatus @default(PENDING)
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+
+  @@index([kickoffId])
+  @@map("kickoff_milestones")
+}
+
+/// An actionable task. Mirrored 1:1 to a Kanban card; the item's DISPLAYED
+/// status is derived from that card's list at read time (no stored status).
+model KickoffActionItem {
+  id           String         @id @default(uuid())
+  kickoffId    String
+  kickoff      ProjectKickoff @relation(fields: [kickoffId], references: [id], onDelete: Cascade)
+  description  String
+  ownerId      String
+  owner        Employee       @relation("KickoffActionItemOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  dueDate      DateTime?
+  /// The linked Kanban card. Unique (1:1). SetNull so archiving the card
+  /// doesn't delete the action item; the item just loses its live status.
+  kanbanCardId String?        @unique
+  kanbanCard   KanbanCard?    @relation(fields: [kanbanCardId], references: [id], onDelete: SetNull)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([kickoffId])
+  @@map("kickoff_action_items")
+}
+
+/// A project risk with a likelihood/impact matrix and mitigation plan.
+model KickoffRisk {
+  id             String            @id @default(uuid())
+  kickoffId      String
+  kickoff        ProjectKickoff    @relation(fields: [kickoffId], references: [id], onDelete: Cascade)
+  description    String
+  likelihood     KickoffRiskLevel  @default(MEDIUM)
+  impact         KickoffRiskLevel  @default(MEDIUM)
+  mitigationPlan String?           @db.Text
+  ownerId        String?
+  owner          Employee?         @relation("KickoffRiskOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  status         KickoffRiskStatus @default(OPEN)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([kickoffId])
+  @@map("kickoff_risks")
 }

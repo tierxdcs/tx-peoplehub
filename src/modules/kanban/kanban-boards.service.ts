@@ -3,7 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EmployeeStatus, KanbanBoardStatus } from '@prisma/client';
+import {
+  EmployeeStatus,
+  KanbanBoardStatus,
+  KanbanCardStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { KanbanAccessService } from './kanban-access.service';
@@ -43,6 +47,117 @@ export class KanbanBoardsService {
       return created;
     });
     return this.toBoardEntity({ ...board, _count: { members: 1 } });
+  }
+
+  /**
+   * PRIVILEGED internal provisioning — NOT exposed on the human-facing API and
+   * deliberately bypassing the Scrum-Master access gates. Used by the Project
+   * Kickoff module to stand up a project board as a side effect of kickoff
+   * creation (§5): a board named after the project, the three default lists
+   * (To Do / In Progress / Done, the last a done-list), and initial members
+   * (creator + internal attendees). All in one transaction. Returns the ids the
+   * caller needs to wire up (board + the To Do list for action-item cards).
+   *
+   * `createdById` becomes the board/list author and each membership's addedBy —
+   * pass the real kickoff creator's employee id. `memberEmployeeIds` is
+   * de-duplicated and always includes the creator.
+   */
+  async provisionProjectBoard(input: {
+    name: string;
+    createdById: string;
+    memberEmployeeIds: string[];
+  }): Promise<{ boardId: string; todoListId: string }> {
+    const memberIds = Array.from(
+      new Set([input.createdById, ...input.memberEmployeeIds]),
+    );
+    return this.prisma.$transaction(async (tx) => {
+      const board = await tx.kanbanBoard.create({
+        data: { name: input.name, createdById: input.createdById },
+      });
+      await tx.kanbanBoardMember.createMany({
+        data: memberIds.map((employeeId) => ({
+          boardId: board.id,
+          employeeId,
+          addedById: input.createdById,
+        })),
+      });
+      // Default lists, fractional positions on the POSITION_STEP=1024 scheme.
+      const todo = await tx.kanbanList.create({
+        data: {
+          boardId: board.id,
+          name: 'To Do',
+          position: 1024,
+          isDoneList: false,
+          createdById: input.createdById,
+        },
+      });
+      await tx.kanbanList.create({
+        data: {
+          boardId: board.id,
+          name: 'In Progress',
+          position: 2048,
+          isDoneList: false,
+          createdById: input.createdById,
+        },
+      });
+      await tx.kanbanList.create({
+        data: {
+          boardId: board.id,
+          name: 'Done',
+          position: 3072,
+          isDoneList: true,
+          createdById: input.createdById,
+        },
+      });
+      return { boardId: board.id, todoListId: todo.id };
+    });
+  }
+
+  /**
+   * PRIVILEGED internal helper: ensure an employee is a member of a board
+   * (idempotent). Used when an action item's owner isn't already on the project
+   * board — a card's assignee must be a board member. Bypasses access gates.
+   */
+  async ensureMember(boardId: string, employeeId: string): Promise<void> {
+    await this.prisma.kanbanBoardMember.upsert({
+      where: { boardId_employeeId: { boardId, employeeId } },
+      create: { boardId, employeeId, addedById: employeeId },
+      update: {},
+    });
+  }
+
+  /**
+   * PRIVILEGED internal helper: append an ACTIVE card to a list, assigned to
+   * an owner, on the same fractional-position scheme as the normal card path
+   * (last position + 1024). Bypasses access gates. The caller must have already
+   * ensured the assignee is a board member. Returns the new card id so the
+   * action item can store its kanbanCardId.
+   */
+  async provisionActionCard(input: {
+    listId: string;
+    title: string;
+    assigneeId: string;
+    createdById: string;
+    dueDate: Date | null;
+  }): Promise<string> {
+    const last = await this.prisma.kanbanCard.findFirst({
+      where: { listId: input.listId, status: KanbanCardStatus.ACTIVE },
+      orderBy: { position: 'desc' },
+      select: { position: true },
+    });
+    const position = (last?.position ?? 0) + 1024;
+    const card = await this.prisma.kanbanCard.create({
+      data: {
+        listId: input.listId,
+        title: input.title,
+        assigneeId: input.assigneeId,
+        dueDate: input.dueDate,
+        position,
+        createdById: input.createdById,
+      },
+      select: { id: true },
+    });
+    return card.id;
   }
 
   /** Boards the caller can see: their memberships, or all for SUPER_ADMIN. */

@@ -29,6 +29,7 @@ export interface Employee {
   accessStatus: AccessStatus;
   isSalesHead: boolean;
   isScrumMaster: boolean;
+  isProjectManager: boolean;
   officialEmail: string | null;
   signatureText?: string | null;
   signatureFont?: SignatureFont | null;

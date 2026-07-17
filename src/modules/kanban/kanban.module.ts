@@ -27,5 +27,8 @@ import { KanbanLabelsService } from './kanban-labels.service';
     KanbanFeedService,
     KanbanLabelsService,
   ],
+  // KanbanBoardsService is exported for privileged internal provisioning by the
+  // Project Kickoff module (auto-created project board + action-item cards).
+  exports: [KanbanBoardsService],
 })
 export class KanbanModule {}

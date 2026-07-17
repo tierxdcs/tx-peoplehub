@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { OrderStatus } from '@prisma/client';
+import { OrderLineDeliveryType, OrderStatus } from '@prisma/client';
 
 export class OrderLineItemEntity {
   @ApiProperty()
@@ -25,6 +25,25 @@ export class OrderLineItemEntity {
 
   @ApiProperty()
   lineTotal!: string;
+
+  @ApiProperty({
+    enum: OrderLineDeliveryType,
+    nullable: true,
+    description: 'Per-line delivery classification, set at project kickoff',
+  })
+  deliveryType!: OrderLineDeliveryType | null;
+
+  @ApiProperty({
+    nullable: true,
+    description: 'Free-text vendor placeholder (VENDOR only) — see schema note',
+  })
+  vendorName!: string | null;
+
+  @ApiProperty({ nullable: true })
+  vendorContactInfo!: string | null;
+
+  @ApiProperty({ nullable: true })
+  vendorExpectedLeadTime!: string | null;
 
   constructor(partial: Partial<OrderLineItemEntity>) {
     Object.assign(this, partial);

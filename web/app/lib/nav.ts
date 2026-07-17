@@ -122,6 +122,13 @@ export function sharedNav(access: Access): NavGroup[] {
     ],
   });
 
+  // Project Kickoff — cross-cutting and membership-scoped like Kanban; everyone
+  // sees the nav item, access to individual kickoffs is decided server-side.
+  groups.push({
+    heading: 'Projects',
+    items: [{ label: 'Project Kickoff', href: '/project-kickoff' }],
+  });
+
   return groups;
 }
 
