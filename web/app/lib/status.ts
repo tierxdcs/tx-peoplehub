@@ -41,6 +41,23 @@ const VARIANT_BY_VALUE: Record<string, BadgeVariant> = {
   IN_PROGRESS: 'info',
   MITIGATED: 'info',
   DONE: 'success',
+  // Vendor qualification statuses.
+  PENDING_QUESTIONNAIRE: 'info',
+  QUESTIONNAIRE_SUBMITTED: 'info',
+  UNDER_AUDIT: 'info',
+  APPROVED_PREFERRED: 'success',
+  CONDITIONALLY_APPROVED: 'warning',
+  NOT_APPROVED: 'destructive',
+
+  // BOM statuses (DRAFT/PENDING_APPROVAL/REJECTED already mapped below).
+  RELEASED: 'success',
+  OBSOLETE: 'muted',
+
+  // Stock-availability statuses.
+  AVAILABLE: 'success',
+  EXPECTED_BEFORE_REQUIRED_DATE: 'info',
+  SHORTAGE: 'destructive',
+  UNKNOWN: 'muted',
 
   // ---- pending / caution (amber) ----
   PENDING: 'warning',

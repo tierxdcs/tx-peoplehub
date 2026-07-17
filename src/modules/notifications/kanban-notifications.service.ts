@@ -42,6 +42,78 @@ export class KanbanNotificationsService {
     });
   }
 
+  /**
+   * A vendor submitted their self-assessment questionnaire — notify the SCM
+   * employee who created it. Not card-linked (relatedCardId stays null). Skips
+   * self-notify. Kept here so all in-app notification writes share one path.
+   */
+  async notifyVendorQuestionnaireSubmitted(params: {
+    recipientId: string;
+    actorId: string | null;
+    vendorId: string;
+    vendorName: string;
+  }): Promise<void> {
+    // actorId is the vendor (external, no employee id) — pass null so we never
+    // suppress; recipient is always the SCM creator.
+    if (params.actorId && params.actorId === params.recipientId) return;
+    await this.prisma.notification.create({
+      data: {
+        employeeId: params.recipientId,
+        type: NotificationType.VENDOR_QUESTIONNAIRE_SUBMITTED,
+        relatedVendorId: params.vendorId,
+        message: `${params.vendorName} submitted their vendor self-assessment questionnaire`,
+      },
+    });
+  }
+
+  /**
+   * A raw-material supplier submitted their questionnaire — notify the SCM
+   * creator. Card-less (relatedSupplierId set instead). Distinct from the
+   * vendor variant above.
+   */
+  async notifySupplierQuestionnaireSubmitted(params: {
+    recipientId: string;
+    actorId: string | null;
+    supplierId: string;
+    supplierName: string;
+  }): Promise<void> {
+    if (params.actorId && params.actorId === params.recipientId) return;
+    await this.prisma.notification.create({
+      data: {
+        employeeId: params.recipientId,
+        type: NotificationType.SUPPLIER_QUESTIONNAIRE_SUBMITTED,
+        relatedSupplierId: params.supplierId,
+        message: `${params.supplierName} submitted their supplier self-assessment questionnaire`,
+      },
+    });
+  }
+
+  /**
+   * BOM workflow notifications (R&D). Submitted → notify each R&D Head;
+   * approved/rejected → notify the BOM creator. Card-less (relatedBomId set).
+   * Skips self-notify.
+   */
+  async notifyBomWorkflow(params: {
+    recipientId: string;
+    actorId: string | null;
+    type:
+      | typeof NotificationType.BOM_SUBMITTED
+      | typeof NotificationType.BOM_APPROVED
+      | typeof NotificationType.BOM_REJECTED;
+    bomId: string;
+    message: string;
+  }): Promise<void> {
+    if (params.actorId && params.actorId === params.recipientId) return;
+    await this.prisma.notification.create({
+      data: {
+        employeeId: params.recipientId,
+        type: params.type,
+        relatedBomId: params.bomId,
+        message: params.message,
+      },
+    });
+  }
+
   /** New assignee was set — notify them (unless they assigned themselves). */
   async notifyAssigned(params: {
     assigneeId: string | null;
@@ -135,6 +207,9 @@ export class KanbanNotificationsService {
     id: string;
     type: NotificationType;
     relatedCardId: string | null;
+    relatedVendorId: string | null;
+    relatedSupplierId: string | null;
+    relatedBomId: string | null;
     message: string;
     isRead: boolean;
     createdAt: Date;
@@ -143,6 +218,9 @@ export class KanbanNotificationsService {
       id: n.id,
       type: n.type,
       relatedCardId: n.relatedCardId,
+      relatedVendorId: n.relatedVendorId,
+      relatedSupplierId: n.relatedSupplierId,
+      relatedBomId: n.relatedBomId,
       message: n.message,
       isRead: n.isRead,
       createdAt: n.createdAt.toISOString(),

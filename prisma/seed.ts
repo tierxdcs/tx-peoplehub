@@ -9,8 +9,6 @@ import {
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient();
-
 const VERTICALS: Array<{ name: string; code: string }> = [
   { name: 'Sales', code: 'SALES' },
   { name: 'HR', code: 'HR' },
@@ -19,6 +17,11 @@ const VERTICALS: Array<{ name: string; code: string }> = [
   { name: 'R&D', code: 'RND' },
   { name: 'Accounts', code: 'ACCOUNTS' },
   { name: 'Design', code: 'DESIGN' },
+];
+
+/// Default store/warehouse locations for the inventory MVP (idempotent).
+const STORE_LOCATIONS: Array<{ code: string; name: string }> = [
+  { code: 'MAIN', name: 'Main Store' },
 ];
 
 const LEAVE_TYPES: Array<{
@@ -118,8 +121,8 @@ const BID_ASSESSMENT_QUESTIONS: Array<{
   },
 ];
 
-async function nextEmployeeId(): Promise<string> {
-  const [{ nextval }] = await prisma.$queryRaw<
+async function nextEmployeeId(client: PrismaClient): Promise<string> {
+  const [{ nextval }] = await client.$queryRaw<
     [{ nextval: bigint }]
   >`SELECT nextval('employee_id_seq')`;
   return `EMP-${nextval.toString().padStart(4, '0')}`;
@@ -210,7 +213,13 @@ const DEFAULT_FOLDERS: Array<{
   },
 ];
 
-async function main() {
+/**
+ * Idempotent baseline seed. Safe to run repeatedly and on a freshly-truncated
+ * database — verticals/leave types upsert, bid questions/super-admin/vault
+ * folders are count-or-existence guarded. Accepts the PrismaClient so tests can
+ * reuse their own connection (see test/reset-db.ts).
+ */
+export async function seed(prisma: PrismaClient): Promise<void> {
   for (const vertical of VERTICALS) {
     await prisma.vertical.upsert({
       where: { code: vertical.code },
@@ -224,6 +233,17 @@ async function main() {
       where: { code: leaveType.code },
       update: {},
       create: leaveType,
+    });
+  }
+
+  // Default store/warehouse location for the inventory MVP. Idempotent upsert
+  // on the unique code — the stock-availability feature needs at least one
+  // location to hold balances against.
+  for (const store of STORE_LOCATIONS) {
+    await prisma.storeLocation.upsert({
+      where: { code: store.code },
+      update: {},
+      create: store,
     });
   }
 
@@ -252,7 +272,7 @@ async function main() {
     existing ??
     (await prisma.employee.create({
       data: {
-        employeeId: await nextEmployeeId(),
+        employeeId: await nextEmployeeId(prisma),
         email,
         passwordHash,
         firstName: 'Super',
@@ -308,11 +328,16 @@ async function main() {
   );
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// CLI entry point (`prisma db seed` / `npm run seed`). When imported as a
+// module (e.g. by the e2e reset harness) this block is skipped.
+if (require.main === module) {
+  const prisma = new PrismaClient();
+  seed(prisma)
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

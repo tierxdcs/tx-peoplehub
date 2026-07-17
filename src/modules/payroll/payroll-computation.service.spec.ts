@@ -44,6 +44,8 @@ describe('PayrollComputationService', () => {
     isSalesHead: false,
     isScrumMaster: false,
     isProjectManager: false,
+    isInternalAuditor: false,
+    isRdHead: false,
     signatureText: null,
     signatureFont: null,
     dateOfBirth: null,

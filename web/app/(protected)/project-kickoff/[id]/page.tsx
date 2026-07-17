@@ -60,6 +60,7 @@ import { useToast } from '../../../components/ui/toaster';
 import { useConfirm } from '../../../components/ui/confirm';
 import { EmployeePicker } from '../../vault/_components/employee-picker';
 import { KickoffPrintDocument } from '../_components/kickoff-print-document';
+import { StockAvailabilitySection } from '../_components/stock-availability-section';
 
 function fmtDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString() : '—';
@@ -237,6 +238,7 @@ export default function KickoffDetailPage() {
         <MilestonesSection kickoff={kickoff} onChanged={refresh} />
         <ActionItemsSection kickoff={kickoff} members={members} onChanged={refresh} />
         <RisksSection kickoff={kickoff} onChanged={refresh} />
+        <StockAvailabilitySection kickoffId={kickoff.id} />
         <MinutesSection kickoff={kickoff} onSaved={(k) => setKickoff(k)} />
       </PageContainer>
     </>

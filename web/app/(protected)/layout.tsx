@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth-context';
 import { useIsHrStaff } from '../lib/use-is-hr-staff';
 import { useIsSalesStaff } from '../lib/use-is-sales-staff';
 import { useIsSalesHead } from '../lib/use-is-sales-head';
+import { useIsRndHead } from '../lib/use-is-rnd-head';
 import { usePendingApprovalCounts } from '../lib/use-pending-approval-counts';
 import {
   activeModule as resolveActiveModule,
@@ -27,6 +28,7 @@ export default function ProtectedLayout({
   const { isHrStaff, loading: hrLoading } = useIsHrStaff();
   const { isSalesStaff, loading: salesLoading } = useIsSalesStaff();
   const { isSalesHead, loading: salesHeadLoading } = useIsSalesHead();
+  const { isRndHead, loading: rndHeadLoading } = useIsRndHead();
   const { counts } = usePendingApprovalCounts();
   const router = useRouter();
   const pathname = usePathname();
@@ -39,7 +41,14 @@ export default function ProtectedLayout({
 
   // Wait for auth + vertical checks so the sidebar doesn't briefly render
   // the wrong items on first paint.
-  if (loading || hrLoading || salesLoading || salesHeadLoading || !user) {
+  if (
+    loading ||
+    hrLoading ||
+    salesLoading ||
+    salesHeadLoading ||
+    rndHeadLoading ||
+    !user
+  ) {
     return null;
   }
 
@@ -49,6 +58,7 @@ export default function ProtectedLayout({
     isHrStaff,
     isSalesStaff,
     isSalesHead,
+    isRndHead,
     payslipsEnabled,
   };
 

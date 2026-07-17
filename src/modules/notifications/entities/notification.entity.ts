@@ -6,6 +6,9 @@ export class NotificationEntity {
   @ApiProperty() id!: string;
   @ApiProperty({ enum: NotificationType }) type!: NotificationType;
   @ApiProperty({ nullable: true }) relatedCardId!: string | null;
+  @ApiProperty({ nullable: true }) relatedVendorId!: string | null;
+  @ApiProperty({ nullable: true }) relatedSupplierId!: string | null;
+  @ApiProperty({ nullable: true }) relatedBomId!: string | null;
   @ApiProperty() message!: string;
   @ApiProperty() isRead!: boolean;
   @ApiProperty() createdAt!: string;

@@ -14,6 +14,7 @@ function access(
     isHrStaff?: boolean;
     isSalesStaff?: boolean;
     isSalesHead?: boolean;
+    isRndHead?: boolean;
   } = {},
 ): Access {
   const user: DecodedAccessToken = {
@@ -27,6 +28,7 @@ function access(
     isHrStaff: opts.isHrStaff ?? false,
     isSalesStaff: opts.isSalesStaff ?? false,
     isSalesHead: opts.isSalesHead ?? false,
+    isRndHead: opts.isRndHead ?? false,
     payslipsEnabled: false,
   };
 }
@@ -100,6 +102,22 @@ describe('sidebarNav — the reported bug', () => {
     expect(shown).toContain('Roster');
     expect(shown).toContain('My Profile');
     expect(shown).not.toContain('Leads');
+  });
+
+  it('everyone sees the Engineering group (Item Master / BOM / Inventory)', () => {
+    const a = access('EMPLOYEE');
+    const shown = labels(a, activeModule('/scm/items', availableModules(a)));
+    expect(shown).toContain('Item Master');
+    expect(shown).toContain('Bills of Materials');
+    expect(shown).toContain('Inventory');
+    // Non-R&D-Head does NOT see the BOM approval queue.
+    expect(shown).not.toContain('BOM Approvals');
+  });
+
+  it('an R&D Head additionally sees the BOM Approvals queue', () => {
+    const a = access('EMPLOYEE', { isRndHead: true });
+    const shown = labels(a, activeModule('/scm/bom', availableModules(a)));
+    expect(shown).toContain('BOM Approvals');
   });
 
   // My Team / My Leave / My Attendance are no longer sidebar items — they live

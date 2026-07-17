@@ -22,14 +22,15 @@ export default function RootPage() {
       return;
     }
     const payslipsEnabled = process.env.NEXT_PUBLIC_PAYSLIPS_ENABLED === 'true';
-    // isSalesHead doesn't affect the landing route (only the assessment-queue
-    // nav item), so it's safely false here.
+    // isSalesHead / isRndHead don't affect the landing route (they only gate
+    // approval-queue nav items), so they're safely false here.
     router.replace(
       landingRoute({
         user,
         isHrStaff,
         isSalesStaff,
         isSalesHead: false,
+        isRndHead: false,
         payslipsEnabled,
       }),
     );

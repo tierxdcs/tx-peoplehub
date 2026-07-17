@@ -78,6 +78,11 @@ enum NotificationType {
   CARD_ASSIGNED
   CARD_COMMENTED
   CARD_UPDATED
+  VENDOR_QUESTIONNAIRE_SUBMITTED
+  SUPPLIER_QUESTIONNAIRE_SUBMITTED
+  BOM_SUBMITTED
+  BOM_APPROVED
+  BOM_REJECTED
 }
 
 enum LeaveAccrualType {
@@ -325,6 +330,20 @@ model Employee {
   /// don't need Scrum Master rights to run kickoffs.
   isProjectManager Boolean @default(false)
 
+  /// Internal Auditor capability (not a Role). Conducts/finalizes vendor
+  /// qualification audits. MULTIPLE holders allowed; SUPER_ADMIN is always an
+  /// auditor regardless of this flag. MANAGER-or-above only, same pattern.
+  isInternalAuditor Boolean @default(false)
+
+  /// R&D Head capability (not a Role). Grants TECHNICAL BOM approval authority:
+  /// approve/reject submitted Bills of Materials, and create/update Item Master
+  /// technical data. MULTIPLE holders allowed. The employee must belong to the
+  /// R&D vertical (code 'RND') — enforced at designation time (unlike the other
+  /// flags, whose vertical checks live in the consuming access layer). NOTE:
+  /// SUPER_ADMIN can manage this designation but does NOT automatically receive
+  /// BOM approval authority — only a real isRdHead holder may approve a BOM.
+  isRdHead Boolean @default(false)
+
   /// Internal e-signature (a display layer, NOT a legally-binding e-sign).
   /// Self-service typed text rendered in a chosen signature-style font;
   /// snapshotted onto approval records at approval time.
@@ -399,6 +418,26 @@ model Employee {
   kickoffMilestonesOwned KickoffMilestone[] @relation("KickoffMilestoneOwner")
   kickoffActionItemsOwned KickoffActionItem[] @relation("KickoffActionItemOwner")
   kickoffRisksOwned      KickoffRisk[]     @relation("KickoffRiskOwner")
+
+  // Vendor Qualification (SCM) back-relations.
+  vendorsCreated        Vendor[]                    @relation("VendorCreator")
+  vendorInvitesCreated  VendorQuestionnaireInvite[] @relation("VendorInviteCreator")
+  vendorAuditsConducted VendorAudit[]               @relation("VendorAuditor")
+
+  // Supplier Qualification (SCM raw-materials) back-relations.
+  suppliersCreated        Supplier[]                    @relation("SupplierCreator")
+  supplierInvitesCreated  SupplierQuestionnaireInvite[] @relation("SupplierInviteCreator")
+  supplierAuditsConducted SupplierAudit[]               @relation("SupplierAuditor")
+
+  // BOM / Item Master / Inventory back-relations.
+  bomsCreated        Bom[]             @relation("BomCreator")
+  bomsSubmitted      Bom[]             @relation("BomSubmitter")
+  bomsApproved       Bom[]             @relation("BomApprover")
+  bomsRejected       Bom[]             @relation("BomRejecter")
+  bomEventsActed     BomEvent[]        @relation("BomEventActor")
+  stockAdjustments   StockAdjustment[] @relation("StockAdjustmentActor")
+  reservationsMade   StockReservation[] @relation("ReservationCreator")
+  reservationsCancelled StockReservation[] @relation("ReservationCanceller")
 
   auditLogs AuditLog[] @relation("AuditActor")
   createdAt DateTime   @default(now())
@@ -745,6 +784,7 @@ model Product {
   isActive       Boolean         @default(true)
   bidLineItems   BidLineItem[]
   orderLineItems OrderLineItem[]
+  boms           Bom[]           @relation("ProductBoms")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -1482,8 +1522,19 @@ model Notification {
   employeeId    String
   employee      Employee         @relation("NotificationRecipient", fields: [employeeId], references: [id], onDelete: Cascade)
   type          NotificationType
+  /// Deep-link target for card-based notifications (Kanban). Null for others.
   relatedCardId String?
   relatedCard   KanbanCard?      @relation(fields: [relatedCardId], references: [id], onDelete: Cascade)
+  /// Deep-link target for vendor-based notifications (SCM). Null for others.
+  /// A notification carries at most one related-entity id, by type.
+  relatedVendorId String?
+  relatedVendor   Vendor?    @relation(fields: [relatedVendorId], references: [id], onDelete: Cascade)
+  /// Deep-link target for supplier-based notifications (SCM raw-materials).
+  relatedSupplierId String?
+  relatedSupplier   Supplier?  @relation(fields: [relatedSupplierId], references: [id], onDelete: Cascade)
+  /// Deep-link target for BOM workflow notifications (R&D). Null for others.
+  relatedBomId String?
+  relatedBom   Bom?       @relation(fields: [relatedBomId], references: [id], onDelete: Cascade)
   message       String
   isRead        Boolean          @default(false)
   createdAt     DateTime         @default(now())
@@ -1550,6 +1601,8 @@ model ProjectKickoff {
   milestones  KickoffMilestone[]
   actionItems KickoffActionItem[]
   risks       KickoffRisk[]
+  stockReport      KickoffStockReport?
+  stockReservations StockReservation[] @relation("KickoffReservations")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1633,4 +1686,632 @@ model KickoffRisk {
 
   @@index([kickoffId])
   @@map("kickoff_risks")
+}
+
+// ── Vendor Qualification (SCM) ─────────────────────────────────────
+// Vendor Master + self-assessment questionnaire (vendor fills online via a
+// token link) + internal audit with weighted scoring → classification. This
+// is the first real Vendor/Vendor Master; Project Kickoff's free-text
+// vendorName reconciles to Vendor.companyName in a FUTURE task (keep
+// companyName a plain matchable string).
+
+enum VendorStatus {
+  PENDING_QUESTIONNAIRE
+  QUESTIONNAIRE_SUBMITTED
+  UNDER_AUDIT
+  APPROVED_PREFERRED
+  APPROVED
+  CONDITIONALLY_APPROVED
+  NOT_APPROVED
+}
+
+enum VendorQuestionnaireStatus {
+  SENT
+  SUBMITTED
+}
+
+enum VendorAuditType {
+  PHYSICAL
+  VIRTUAL
+}
+
+model Vendor {
+  id                    String         @id @default(uuid())
+  /// Plain, matchable company name — the future reconciliation target for
+  /// Project Kickoff's free-text vendorName. Deliberately not normalized away.
+  companyName           String
+  registeredAddress     String         @db.Text
+  factoryAddress        String         @db.Text
+  yearEstablished       String
+  numberOfEmployees     String
+  annualTurnover        String
+  msmeUdyamCertificate  String?
+  contactPersonName     String
+  contactPersonDesignation String
+  contactEmail          String
+  contactPhone          String
+  website               String?
+  status                VendorStatus @default(PENDING_QUESTIONNAIRE)
+  createdById           String
+  createdBy             Employee       @relation("VendorCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  questionnaires        VendorQuestionnaire[]
+  audits                VendorAudit[]
+  notifications         Notification[]
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([status])
+  @@map("vendors")
+}
+
+/// One questionnaire revision. Section content is stored as opaque JSON (one
+/// column per VSAQ section) — 100+ narrative fields don't each need a column;
+/// only Vendor's own fields and the audit scores are individually queryable.
+model VendorQuestionnaire {
+  id           String                      @id @default(uuid())
+  vendorId   String
+  vendor     Vendor                    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  revisionNumber Int                       @default(1)
+  status       VendorQuestionnaireStatus @default(SENT)
+  submittedAt  DateTime?
+
+  // One JSON blob per VSAQ section (§1–18). Null until the vendor fills it.
+  businessProfile        Json?
+  manufacturingCapability Json?
+  equipmentDetails       Json?
+  productionCapacity     Json?
+  qualityManagement      Json?
+  engineeringCapability  Json?
+  supplyChain            Json?
+  traceability           Json?
+  logistics              Json?
+  sustainability         Json?
+  informationSecurity    Json?
+  businessContinuity     Json?
+  ehs                    Json?
+  financialInformation   Json?
+  customerSupport        Json?
+  compliance             Json?
+  references             Json?
+  declaration            Json?
+
+  /// Uploaded quality-certificate files (R2-backed, guarded by Vault's rules).
+  /// [{ storageKey, name, sizeBytes, contentType }] — metadata only.
+  qualityCertificateFiles Json?
+
+  invites VendorQuestionnaireInvite[]
+  audits  VendorAudit[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([vendorId])
+  @@map("vendor_questionnaires")
+}
+
+/// Token-based public invite to fill a questionnaire — same shape as Vault's
+/// external share link (crypto token, expiry, revoke, optional password).
+model VendorQuestionnaireInvite {
+  id              String                @id @default(uuid())
+  questionnaireId String
+  questionnaire   VendorQuestionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  token           String                @unique
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  passwordHash    String?
+  createdById     String
+  createdBy       Employee              @relation("VendorInviteCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt       DateTime              @default(now())
+
+  @@index([questionnaireId])
+  @@map("vendor_questionnaire_invites")
+}
+
+/// Internal audit of a specific questionnaire revision. totalScore and
+/// classification are COMPUTED on read from the 10 weighted scores (sum=100) —
+/// never stored. Finalizing sets Vendor.status to the classification.
+model VendorAudit {
+  id              String                @id @default(uuid())
+  vendorId      String
+  vendor        Vendor              @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  questionnaireId String
+  questionnaire   VendorQuestionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Restrict)
+  auditType       VendorAuditType
+  auditDate       DateTime
+  auditorId       String
+  auditor         Employee              @relation("VendorAuditor", fields: [auditorId], references: [id], onDelete: Restrict)
+
+  // Weighted category scores — maxes 20/10/20/10/5/10/10/5/5/5 = 100.
+  manufacturingCapabilityScore Decimal @db.Decimal(5, 2)
+  capacityScore                Decimal @db.Decimal(5, 2)
+  qualitySystemScore           Decimal @db.Decimal(5, 2)
+  engineeringScore             Decimal @db.Decimal(5, 2)
+  financialStabilityScore      Decimal @db.Decimal(5, 2)
+  supplyChainScore             Decimal @db.Decimal(5, 2)
+  exportReadinessScore         Decimal @db.Decimal(5, 2)
+  sustainabilityScore          Decimal @db.Decimal(5, 2)
+  ehsScore                     Decimal @db.Decimal(5, 2)
+  customerReferencesScore      Decimal @db.Decimal(5, 2)
+
+  auditNotes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([vendorId])
+  @@index([questionnaireId])
+  @@map("vendor_audits")
+}
+
+// ── Supplier Qualification (SCM — raw materials) ─────────────────────
+// A DISTINCT module from Vendor Qualification (see vendor-vs-supplier-
+// terminology.md): raw-material suppliers, their own questionnaire sections
+// and 6-category weighted audit. Reuses the shared token-invite mechanism
+// (src/common/utils/token-invite) and Vault's storage guardrails. A future
+// task adds the hard BOM-release gate once Item Master + BillOfMaterials exist.
+
+enum SupplierStatus {
+  PENDING_QUESTIONNAIRE
+  QUESTIONNAIRE_SUBMITTED
+  UNDER_AUDIT
+  APPROVED_PREFERRED
+  APPROVED
+  CONDITIONALLY_APPROVED
+  NOT_APPROVED
+}
+
+enum SupplierQuestionnaireStatus {
+  SENT
+  SUBMITTED
+}
+
+enum SupplierAuditType {
+  PHYSICAL
+  VIRTUAL
+}
+
+/// How a questionnaire reached SUBMITTED. Null until submitted. Supplier-sourced
+/// data is more authoritative than data entered second-hand by internal staff,
+/// so the distinction is preserved for anyone reviewing a classification.
+enum SupplierFilledBy {
+  EXTERNAL_SUPPLIER
+  INTERNAL_STAFF
+}
+
+model Supplier {
+  id                       String         @id @default(uuid())
+  /// Plain, matchable company name (future Item↔Supplier reconciliation).
+  companyName              String
+  registeredAddress        String         @db.Text
+  /// Factory / origin location of the raw materials.
+  factoryAddress           String         @db.Text
+  yearEstablished          String
+  numberOfEmployees        String
+  annualTurnover           String
+  msmeUdyamCertificate     String?
+  contactPersonName        String
+  contactPersonDesignation String
+  contactEmail             String
+  contactPhone             String
+  website                  String?
+  status                   SupplierStatus @default(PENDING_QUESTIONNAIRE)
+  createdById              String
+  createdBy                Employee       @relation("SupplierCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  questionnaires           SupplierQuestionnaire[]
+  audits                   SupplierAudit[]
+  notifications            Notification[]
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+
+  @@index([status])
+  @@map("suppliers")
+}
+
+/// One questionnaire revision. Section content is opaque JSON, one column per
+/// section. `packagingAndDelivery` is optional (not required to submit).
+model SupplierQuestionnaire {
+  id             String                      @id @default(uuid())
+  supplierId     String
+  supplier       Supplier                    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  revisionNumber Int                         @default(1)
+  status         SupplierQuestionnaireStatus @default(SENT)
+  submittedAt    DateTime?
+  /// Which path produced the submission. Null until SUBMITTED.
+  filledBy       SupplierFilledBy?
+
+  materialRange          Json?
+  materialCertifications Json?
+  compliance             Json?
+  qualityCertifications  Json?
+  commercialTerms        Json?
+  packagingAndDelivery   Json?
+  logistics              Json?
+  references             Json?
+  declaration            Json?
+
+  /// Uploaded certificate files (R2-backed, Vault guardrails).
+  /// [{ storageKey, name, sizeBytes, contentType }] — metadata only.
+  certificateFiles Json?
+
+  invites SupplierQuestionnaireInvite[]
+  audits  SupplierAudit[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([supplierId])
+  @@map("supplier_questionnaires")
+}
+
+/// Token-based public invite (shared mechanism: crypto token, expiry, revoke,
+/// optional password).
+model SupplierQuestionnaireInvite {
+  id              String                @id @default(uuid())
+  questionnaireId String
+  questionnaire   SupplierQuestionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  token           String                @unique
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  passwordHash    String?
+  createdById     String
+  createdBy       Employee              @relation("SupplierInviteCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt       DateTime              @default(now())
+
+  @@index([questionnaireId])
+  @@map("supplier_questionnaire_invites")
+}
+
+/// Internal audit of a questionnaire revision. Six weighted scores summing to
+/// 100; totalScore + classification computed on read (thresholds 90/80/70).
+model SupplierAudit {
+  id              String                @id @default(uuid())
+  supplierId      String
+  supplier        Supplier              @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  questionnaireId String
+  questionnaire   SupplierQuestionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Restrict)
+  auditType       SupplierAuditType
+  auditDate       DateTime
+  auditorId       String
+  auditor         Employee              @relation("SupplierAuditor", fields: [auditorId], references: [id], onDelete: Restrict)
+
+  // Weighted category scores — maxes 30/15/20/15/10/10 = 100.
+  materialCertificationsQualityScore Decimal @db.Decimal(5, 2)
+  complianceScore                    Decimal @db.Decimal(5, 2)
+  commercialTermsScore               Decimal @db.Decimal(5, 2)
+  logisticsDeliveryScore             Decimal @db.Decimal(5, 2)
+  financialStabilityScore            Decimal @db.Decimal(5, 2)
+  referencesScore                    Decimal @db.Decimal(5, 2)
+
+  auditNotes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([supplierId])
+  @@index([questionnaireId])
+  @@map("supplier_audits")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Bill of Materials + Item Master + Inventory (R&D / Store)
+//
+// R&D employees prepare revision-controlled BOMs for a Product; an R&D Head
+// technically approves them. At project kickoff the released BOM is snapshotted
+// and compared against store inventory to produce a stock-availability report.
+// Quantities use Decimal(14,4) (finer than money's 14,2 — BOM per-unit
+// quantities are often fractional); percentages use Decimal(5,2).
+// ─────────────────────────────────────────────────────────────────────────
+
+enum ItemType {
+  RAW_MATERIAL
+  COMPONENT
+  SUBASSEMBLY
+  FINISHED_GOOD
+  CONSUMABLE
+}
+
+enum BomStatus {
+  DRAFT
+  PENDING_APPROVAL
+  REJECTED
+  RELEASED
+  OBSOLETE
+}
+
+/// Make vs. buy classification of a BOM line.
+enum BomLineSource {
+  MAKE
+  BUY
+}
+
+/// The kind of workflow action captured in a BomEvent (audit/history trail).
+enum BomEventType {
+  CREATED
+  UPDATED
+  SUBMITTED
+  APPROVED
+  REJECTED
+  RELEASED
+  OBSOLETED
+  REVISION_CREATED
+}
+
+/// Which quantity bucket a stock adjustment targets. availableQuantity is
+/// always DERIVED (onHand - reserved - blocked), never adjusted directly.
+enum StockBucket {
+  ON_HAND
+  BLOCKED
+}
+
+/// Item Master. BOM lines and stock records reference items here rather than
+/// free-text material names. Items are never hard-deleted when referenced —
+/// they are marked inactive instead.
+model Item {
+  id                     String   @id @default(uuid())
+  itemCode               String   @unique
+  name                   String
+  description            String?  @db.Text
+  itemType               ItemType
+  baseUnitOfMeasure      String
+  isActive               Boolean  @default(true)
+  /// Default wastage % applied to BOM lines using this item unless the line
+  /// overrides it. Optional. Decimal(5,2).
+  defaultWastagePercent  Decimal? @db.Decimal(5, 2)
+  drawingSpecReference   String?
+  standardLeadTimeDays   Int?
+
+  bomLines       BomLine[]
+  stockBalances  StockBalance[]
+  stockAdjustments StockAdjustment[]
+  reservations   StockReservation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([itemType])
+  @@index([isActive])
+  @@map("items")
+}
+
+/// One BOM revision (header) for a Product. Only one RELEASED revision is
+/// normally active at a time — enforced in the service transaction when a new
+/// revision is released (the prior RELEASED one becomes OBSOLETE). Unique
+/// (productId, revisionNumber) prevents duplicate revision numbers per product.
+model Bom {
+  id            String    @id @default(uuid())
+  productId     String
+  product       Product   @relation("ProductBoms", fields: [productId], references: [id], onDelete: Restrict)
+  revisionNumber Int
+  status        BomStatus @default(DRAFT)
+  effectiveDate DateTime?
+  revisionNotes String?   @db.Text
+
+  createdById   String
+  createdBy     Employee  @relation("BomCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedById String?
+  submittedBy   Employee? @relation("BomSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt   DateTime?
+  approvedById  String?
+  approvedBy    Employee? @relation("BomApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt    DateTime?
+  rejectedById  String?
+  rejectedBy    Employee? @relation("BomRejecter", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedAt    DateTime?
+  rejectionComment String? @db.Text
+
+  /// Signature snapshot captured at approval (mirrors OrderConfirmationSheet /
+  /// Bid): the approver's typed-signature text + font at the moment of approval.
+  approverSignatureTextSnapshot String?
+  approverSignatureFontSnapshot SignatureFont?
+
+  lines  BomLine[]
+  events BomEvent[]
+  notifications Notification[]
+  kickoffSelections KickoffBomSelection[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, revisionNumber])
+  @@index([productId])
+  @@index([status])
+  @@map("boms")
+}
+
+/// A single material line on a BOM revision.
+model BomLine {
+  id                   String        @id @default(uuid())
+  bomId                String
+  bom                  Bom           @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  itemId               String
+  item                 Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  /// Quantity of this item per ONE finished product unit. Decimal(14,4).
+  quantityPerUnit      Decimal       @db.Decimal(14, 4)
+  unitOfMeasure        String
+  wastagePercent       Decimal       @default(0) @db.Decimal(5, 2)
+  makeBuy              BomLineSource @default(BUY)
+  notes                String?       @db.Text
+  drawingSpecReference String?
+  sequence             Int           @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bomId])
+  @@index([itemId])
+  @@map("bom_lines")
+}
+
+/// Immutable workflow-event / approval-history trail for a BOM (in addition to
+/// the global audit log). Records who did what and any comment.
+model BomEvent {
+  id        String       @id @default(uuid())
+  bomId     String
+  bom       Bom          @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  type      BomEventType
+  actorId   String?
+  actor     Employee?    @relation("BomEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  comment   String?      @db.Text
+  createdAt DateTime     @default(now())
+
+  @@index([bomId, createdAt])
+  @@map("bom_events")
+}
+
+/// A physical store / warehouse location that holds stock.
+model StoreLocation {
+  id        String  @id @default(uuid())
+  code      String  @unique
+  name      String
+  isActive  Boolean @default(true)
+
+  stockBalances    StockBalance[]
+  stockAdjustments StockAdjustment[]
+  reservations     StockReservation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("store_locations")
+}
+
+/// On-hand / reserved / blocked balance for one item at one location.
+/// availableQuantity is DERIVED on read (onHand - reserved - blocked) and is
+/// never stored as an independently editable value.
+model StockBalance {
+  id              String        @id @default(uuid())
+  itemId          String
+  item            Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  storeLocationId String
+  storeLocation   StoreLocation @relation(fields: [storeLocationId], references: [id], onDelete: Restrict)
+
+  onHandQuantity   Decimal @default(0) @db.Decimal(14, 4)
+  reservedQuantity Decimal @default(0) @db.Decimal(14, 4)
+  blockedQuantity  Decimal @default(0) @db.Decimal(14, 4)
+
+  /// Optional inbound-supply visibility for the EXPECTED_BEFORE_REQUIRED_DATE
+  /// availability status.
+  expectedReceiptQuantity Decimal?  @db.Decimal(14, 4)
+  expectedReceiptDate     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([itemId, storeLocationId])
+  @@index([itemId])
+  @@map("stock_balances")
+}
+
+/// Append-only history of every stock movement (actor, reason, delta, bucket).
+model StockAdjustment {
+  id              String        @id @default(uuid())
+  itemId          String
+  item            Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  storeLocationId String
+  storeLocation   StoreLocation @relation(fields: [storeLocationId], references: [id], onDelete: Restrict)
+  bucket          StockBucket   @default(ON_HAND)
+  /// Signed change applied to the bucket (positive = increase). Decimal(14,4).
+  quantityChange  Decimal       @db.Decimal(14, 4)
+  reason          String
+  actorId         String?
+  actor           Employee?     @relation("StockAdjustmentActor", fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt       DateTime      @default(now())
+
+  @@index([itemId, storeLocationId])
+  @@index([createdAt])
+  @@map("stock_adjustments")
+}
+
+/// A material reservation held against a specific project kickoff. Reservations
+/// increment StockBalance.reservedQuantity in the same transaction. Cancelling
+/// releases the quantity. Re-running the kickoff report treats reservations
+/// belonging to the SAME kickoff as already-earmarked (not a competing demand),
+/// so it never double-counts them.
+model StockReservation {
+  id              String        @id @default(uuid())
+  kickoffId       String
+  kickoff         ProjectKickoff @relation("KickoffReservations", fields: [kickoffId], references: [id], onDelete: Cascade)
+  itemId          String
+  item            Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  storeLocationId String
+  storeLocation   StoreLocation @relation(fields: [storeLocationId], references: [id], onDelete: Restrict)
+  quantity        Decimal       @db.Decimal(14, 4)
+  isActive        Boolean       @default(true)
+
+  createdById   String
+  createdBy     Employee  @relation("ReservationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt     DateTime  @default(now())
+  cancelledById String?
+  cancelledBy   Employee? @relation("ReservationCanceller", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancelledAt   DateTime?
+
+  @@index([kickoffId])
+  @@index([itemId, storeLocationId])
+  @@map("stock_reservations")
+}
+
+// ── Kickoff stock-availability snapshot ──────────────────────────────────
+// The report is snapshotted the first time it is generated so later BOM
+// revisions never retroactively change a historical kickoff report.
+
+/// One stock-availability report per kickoff (created on first generate).
+model KickoffStockReport {
+  id          String         @id @default(uuid())
+  kickoffId   String         @unique
+  kickoff     ProjectKickoff @relation(fields: [kickoffId], references: [id], onDelete: Cascade)
+  generatedAt DateTime       @default(now())
+  /// Chosen decimal precision for requirement math, recorded for provenance.
+  quantityPrecision Int      @default(4)
+
+  bomSelections KickoffBomSelection[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("kickoff_stock_reports")
+}
+
+/// Which released BOM revision was selected for a given ordered product at
+/// snapshot time. Stores the revision id + number for provenance; the copied
+/// lines below preserve historical accuracy independent of the live BOM.
+model KickoffBomSelection {
+  id             String   @id @default(uuid())
+  reportId       String
+  report         KickoffStockReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  /// The order line item this selection was generated for.
+  orderLineItemId String
+  productId       String
+  productName     String
+  productSku      String
+  orderedQuantity Decimal  @db.Decimal(14, 4)
+  bomId           String
+  bom             Bom      @relation(fields: [bomId], references: [id], onDelete: Restrict)
+  bomRevisionNumber Int
+
+  lines KickoffBomSnapshotLine[]
+
+  createdAt DateTime @default(now())
+
+  @@index([reportId])
+  @@map("kickoff_bom_selections")
+}
+
+/// A copied BOM line captured at snapshot time. Enough data is copied
+/// (item identity, quantities, wastage, UoM) that the report is reproducible
+/// even after the source BOM is obsoleted or edited into a new revision.
+model KickoffBomSnapshotLine {
+  id           String  @id @default(uuid())
+  selectionId  String
+  selection    KickoffBomSelection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+  itemId       String
+  itemCode     String
+  itemName     String
+  unitOfMeasure String
+  quantityPerUnit Decimal @db.Decimal(14, 4)
+  wastagePercent  Decimal @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now())
+
+  @@index([selectionId])
+  @@map("kickoff_bom_snapshot_lines")
 }

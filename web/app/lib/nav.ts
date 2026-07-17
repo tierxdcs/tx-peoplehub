@@ -29,6 +29,8 @@ export interface Access {
   isSalesStaff: boolean;
   /** The current user holds the Sales Head designation (gates the assessment queue). */
   isSalesHead: boolean;
+  /** The current user holds the R&D Head designation (gates the BOM approval queue). */
+  isRndHead: boolean;
   payslipsEnabled: boolean;
 }
 
@@ -128,6 +130,35 @@ export function sharedNav(access: Access): NavGroup[] {
     heading: 'Projects',
     items: [{ label: 'Project Kickoff', href: '/project-kickoff' }],
   });
+
+  // SCM — vendor + supplier qualification. Two visually and functionally
+  // distinct sections (mirroring the fully-separate backend entities), never
+  // merged or tabbed. Company-wide read, so everyone sees the nav items;
+  // creation/audit actions are gated inside the pages by the backend.
+  groups.push({
+    heading: 'SCM',
+    items: [
+      { label: 'Vendors', href: '/scm/vendors' },
+      { label: 'Suppliers', href: '/scm/suppliers' },
+    ],
+  });
+
+  // Engineering — Item Master + Bills of Materials + Inventory. Company-wide
+  // read (R&D + Store see items/BOMs/stock); create/approve/adjust actions are
+  // gated inside the pages by the backend. The BOM Approval Queue is shown only
+  // to R&D Heads (the approvers), mirroring the Sales-Head-gated items.
+  const engineeringItems: NavItem[] = [
+    { label: 'Item Master', href: '/scm/items' },
+    { label: 'Bills of Materials', href: '/scm/bom' },
+    { label: 'Inventory', href: '/scm/inventory' },
+  ];
+  if (access.isRndHead) {
+    engineeringItems.push({
+      label: 'BOM Approvals',
+      href: '/scm/bom/pending-approval',
+    });
+  }
+  groups.push({ heading: 'Engineering', items: engineeringItems });
 
   return groups;
 }

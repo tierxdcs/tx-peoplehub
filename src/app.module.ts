@@ -27,6 +27,9 @@ import { VaultModule } from './modules/vault/vault.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { KanbanModule } from './modules/kanban/kanban.module';
 import { ProjectKickoffModule } from './modules/project-kickoff/project-kickoff.module';
+import { ScmModule } from './modules/scm/scm.module';
+import { ScmSupplierModule } from './modules/scm-supplier/scm-supplier.module';
+import { BomModule } from './modules/bom/bom.module';
 import { HealthModule } from './modules/health/health.module';
 
 @Module({
@@ -50,6 +53,9 @@ import { HealthModule } from './modules/health/health.module';
     NotificationsModule,
     KanbanModule,
     ProjectKickoffModule,
+    ScmModule,
+    ScmSupplierModule,
+    BomModule,
     HealthModule,
   ],
   providers: [

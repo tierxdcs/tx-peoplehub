@@ -209,6 +209,12 @@ export default function EmployeesListPage() {
                     {e.isProjectManager && (
                       <span style={rosterBadgeStyle}>Project Manager</span>
                     )}
+                    {e.isInternalAuditor && (
+                      <span style={rosterBadgeStyle}>Internal Auditor</span>
+                    )}
+                    {e.isRdHead && (
+                      <span style={rosterBadgeStyle}>R&D Head</span>
+                    )}
                   </td>
                   <td>{e.email}</td>
                   <td>{verticalName(e.verticalId)}</td>

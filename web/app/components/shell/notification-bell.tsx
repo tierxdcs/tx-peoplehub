@@ -62,7 +62,16 @@ export function NotificationBell() {
   function onClickItem(n: AppNotification) {
     setOpen(false);
     if (!n.isRead) void markRead(n.id);
-    if (n.relatedCardId) {
+    // Route by type — three distinct notification "shapes" deep-link to three
+    // different surfaces, each keyed off its own related-id (the others are
+    // null). Kanban → relatedCardId, Vendor → relatedVendorId, Supplier →
+    // relatedSupplierId. Each is its own explicit branch; the Supplier case
+    // does NOT piggyback on Vendor's handling.
+    if (n.type === 'VENDOR_QUESTIONNAIRE_SUBMITTED' && n.relatedVendorId) {
+      router.push(`/scm/vendors/${n.relatedVendorId}`);
+    } else if (n.type === 'SUPPLIER_QUESTIONNAIRE_SUBMITTED' && n.relatedSupplierId) {
+      router.push(`/scm/suppliers/${n.relatedSupplierId}`);
+    } else if (n.relatedCardId) {
       // Deep-link to the card; the board UI resolves it (frontend board pass).
       router.push(`/kanban/cards/${n.relatedCardId}`);
     }

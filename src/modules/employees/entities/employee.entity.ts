@@ -59,6 +59,17 @@ export class EmployeeEntity {
   })
   isProjectManager!: boolean;
 
+  @ApiProperty({
+    description: 'Whether this employee is a designated Internal Auditor',
+  })
+  isInternalAuditor!: boolean;
+
+  @ApiProperty({
+    description:
+      'Whether this employee is a designated R&D Head (technical BOM approval authority)',
+  })
+  isRdHead!: boolean;
+
   @ApiProperty({ nullable: true })
   officialEmail!: string | null;
 

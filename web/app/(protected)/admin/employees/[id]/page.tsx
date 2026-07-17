@@ -133,6 +133,68 @@ export default function EditEmployeePage() {
     }
   }
 
+  async function setInternalAuditor(next: boolean) {
+    if (!employee) return;
+    const ok = await confirm({
+      title: next ? 'Designate Internal Auditor' : 'Revoke Internal Auditor',
+      description: next
+        ? `Designate ${employee.firstName} ${employee.lastName} as an Internal Auditor? They’ll be able to conduct and finalize vendor audits.`
+        : `Revoke ${employee.firstName} ${employee.lastName}’s Internal Auditor designation?`,
+      confirmLabel: next ? 'Designate' : 'Revoke',
+      destructive: !next,
+    });
+    if (!ok) return;
+    setDesignating(true);
+    try {
+      await apiFetch(
+        `/employees/${employee.id}/${next ? 'designate' : 'revoke'}-internal-auditor`,
+        { method: 'PATCH' },
+      );
+      toast.success(
+        next ? 'Internal Auditor designated' : 'Internal Auditor revoked',
+      );
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to update Internal Auditor designation',
+      );
+    } finally {
+      setDesignating(false);
+    }
+  }
+
+  async function setRdHead(next: boolean) {
+    if (!employee) return;
+    const ok = await confirm({
+      title: next ? 'Designate R&D Head' : 'Revoke R&D Head',
+      description: next
+        ? `Designate ${employee.firstName} ${employee.lastName} as an R&D Head? They’ll be able to approve/reject BOMs and manage Item Master technical data. (They must be in the R&D vertical.)`
+        : `Revoke ${employee.firstName} ${employee.lastName}’s R&D Head designation?`,
+      confirmLabel: next ? 'Designate' : 'Revoke',
+      destructive: !next,
+    });
+    if (!ok) return;
+    setDesignating(true);
+    try {
+      await apiFetch(
+        `/employees/${employee.id}/${next ? 'designate' : 'revoke'}-rd-head`,
+        { method: 'PATCH' },
+      );
+      toast.success(next ? 'R&D Head designated' : 'R&D Head revoked');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to update R&D Head designation',
+      );
+    } finally {
+      setDesignating(false);
+    }
+  }
+
   async function handleDelete() {
     if (!employee) return;
     const ok = await confirm({
@@ -160,8 +222,12 @@ export default function EditEmployeePage() {
   const salesVerticalId = verticals.find((v) => v.code === 'SALES')?.id;
   const isSalesVertical =
     !!salesVerticalId && employee.verticalId === salesVerticalId;
-  // PM eligibility mirrors the backend: role MANAGER or above, any vertical.
-  const pmEligible =
+  const rndVerticalId = verticals.find((v) => v.code === 'RND')?.id;
+  const isRndVertical =
+    !!rndVerticalId && employee.verticalId === rndVerticalId;
+  // PM & Internal Auditor eligibility both mirror the backend: MANAGER or
+  // above, any vertical.
+  const managerOrAbove =
     employee.role === 'MANAGER' ||
     employee.role === 'ADMIN' ||
     employee.role === 'SUPER_ADMIN';
@@ -174,6 +240,10 @@ export default function EditEmployeePage() {
         {employee.isProjectManager && (
           <Badge variant="info">Project Manager</Badge>
         )}
+        {employee.isInternalAuditor && (
+          <Badge variant="info">Internal Auditor</Badge>
+        )}
+        {employee.isRdHead && <Badge variant="info">R&D Head</Badge>}
       </h1>
 
       {/* Sales Head designation — only meaningful for Sales-vertical staff. */}
@@ -205,7 +275,7 @@ export default function EditEmployeePage() {
 
       {/* Project Manager designation — role MANAGER or above, any vertical.
           Multi-holder: designate/revoke is a plain flag flip (no swap). */}
-      {pmEligible && (
+      {managerOrAbove && (
         <Card className="my-4 max-w-xl">
           <CardContent className="flex items-center justify-between gap-4 p-4">
             <div className="text-sm">
@@ -225,6 +295,62 @@ export default function EditEmployeePage() {
                 {employee.isProjectManager
                   ? 'Revoke Project Manager'
                   : 'Designate as Project Manager'}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Internal Auditor designation — role MANAGER or above, any vertical.
+          Multi-holder flag flip; conducts/finalizes vendor audits. */}
+      {managerOrAbove && (
+        <Card className="my-4 max-w-xl">
+          <CardContent className="flex items-center justify-between gap-4 p-4">
+            <div className="text-sm">
+              <div className="font-medium">Internal Auditor designation</div>
+              <div className="text-muted-foreground">
+                {employee.isInternalAuditor
+                  ? 'This employee is an Internal Auditor and can conduct vendor audits.'
+                  : 'Not an Internal Auditor. Designate to allow conducting vendor audits.'}
+              </div>
+            </div>
+            {canDesignate && (
+              <Button
+                variant={employee.isInternalAuditor ? 'destructive' : 'outline'}
+                disabled={designating}
+                onClick={() => setInternalAuditor(!employee.isInternalAuditor)}
+              >
+                {employee.isInternalAuditor
+                  ? 'Revoke Internal Auditor'
+                  : 'Designate as Internal Auditor'}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* R&D Head designation — R&D-vertical only (backend enforces this too).
+          Multi-holder; grants technical BOM approval + Item Master authority.
+          Shown for any R&D-vertical employee, or for an existing holder (so it
+          can always be revoked even if their vertical later changed). */}
+      {(isRndVertical || employee.isRdHead) && (
+        <Card className="my-4 max-w-xl">
+          <CardContent className="flex items-center justify-between gap-4 p-4">
+            <div className="text-sm">
+              <div className="font-medium">R&D Head designation</div>
+              <div className="text-muted-foreground">
+                {employee.isRdHead
+                  ? 'This employee is an R&D Head and can approve/reject BOMs and manage Item Master data.'
+                  : 'Not an R&D Head. Designate to grant technical BOM approval authority.'}
+              </div>
+            </div>
+            {canDesignate && (
+              <Button
+                variant={employee.isRdHead ? 'destructive' : 'outline'}
+                disabled={designating || (!employee.isRdHead && !isRndVertical)}
+                onClick={() => setRdHead(!employee.isRdHead)}
+              >
+                {employee.isRdHead ? 'Revoke R&D Head' : 'Designate as R&D Head'}
               </Button>
             )}
           </CardContent>

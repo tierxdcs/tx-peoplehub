@@ -7,12 +7,16 @@ import { useAuth } from './auth-context';
 export type NotificationType =
   | 'CARD_ASSIGNED'
   | 'CARD_COMMENTED'
-  | 'CARD_UPDATED';
+  | 'CARD_UPDATED'
+  | 'VENDOR_QUESTIONNAIRE_SUBMITTED'
+  | 'SUPPLIER_QUESTIONNAIRE_SUBMITTED';
 
 export interface AppNotification {
   id: string;
   type: NotificationType;
   relatedCardId: string | null;
+  relatedVendorId: string | null;
+  relatedSupplierId: string | null;
   message: string;
   isRead: boolean;
   createdAt: string;

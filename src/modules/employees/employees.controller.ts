@@ -214,6 +214,40 @@ export class EmployeesController {
     return this.employeesService.setProjectManager(id, false);
   }
 
+  @Patch(':id/designate-internal-auditor')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Designate this employee as an Internal Auditor (MANAGER or above; multiple allowed)',
+  })
+  designateInternalAuditor(@Param('id') id: string) {
+    return this.employeesService.setInternalAuditor(id, true);
+  }
+
+  @Patch(':id/revoke-internal-auditor')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Revoke this employee’s Internal Auditor designation' })
+  revokeInternalAuditor(@Param('id') id: string) {
+    return this.employeesService.setInternalAuditor(id, false);
+  }
+
+  @Patch(':id/designate-rd-head')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Designate this employee as an R&D Head (must belong to the R&D vertical; multiple allowed)',
+  })
+  designateRdHead(@Param('id') id: string) {
+    return this.employeesService.setRdHead(id, true);
+  }
+
+  @Patch(':id/revoke-rd-head')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Revoke this employee’s R&D Head designation' })
+  revokeRdHead(@Param('id') id: string) {
+    return this.employeesService.setRdHead(id, false);
+  }
+
   @Get(':id/team')
   @Roles(Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN)
   @ApiOperation({

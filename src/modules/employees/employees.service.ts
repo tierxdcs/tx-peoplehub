@@ -727,6 +727,75 @@ export class EmployeesService {
   }
 
   /**
+   * Internal Auditor designation — multi-holder capability (like Project
+   * Manager / Scrum Master), MANAGER-or-above only, SUPER_ADMIN always implicit
+   * in the access layer. Conducts/finalizes vendor qualification audits.
+   */
+  async setInternalAuditor(
+    id: string,
+    isInternalAuditor: boolean,
+  ): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (isInternalAuditor) {
+      if (target.status !== EmployeeStatus.ACTIVE) {
+        throw new BadRequestException(
+          'Only an active employee can be designated as an Internal Auditor',
+        );
+      }
+      const eligible =
+        target.role === Role.MANAGER ||
+        target.role === Role.ADMIN ||
+        target.role === Role.SUPER_ADMIN;
+      if (!eligible) {
+        throw new BadRequestException(
+          'Only an employee with role MANAGER or above can be an Internal Auditor',
+        );
+      }
+    }
+    const updated = await this.prisma.employee.update({
+      where: { id },
+      data: { isInternalAuditor },
+    });
+    return this.toEntity(updated);
+  }
+
+  /**
+   * Designate/revoke the R&D Head capability. Unlike the other flags, the
+   * designation itself enforces vertical membership: the target must belong to
+   * the R&D vertical (code 'RND'). MULTIPLE holders are allowed. The controller
+   * already restricts the caller to ADMIN/SUPER_ADMIN via @Roles.
+   */
+  async setRdHead(id: string, isRdHead: boolean): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (isRdHead) {
+      if (target.status !== EmployeeStatus.ACTIVE) {
+        throw new BadRequestException(
+          'Only an active employee can be designated as an R&D Head',
+        );
+      }
+      if (!target.verticalId) {
+        throw new BadRequestException(
+          'Only an employee in the R&D vertical can be designated as an R&D Head',
+        );
+      }
+      const vertical = await this.prisma.vertical.findUnique({
+        where: { id: target.verticalId },
+        select: { code: true },
+      });
+      if (vertical?.code !== 'RND') {
+        throw new BadRequestException(
+          'Only an employee in the R&D vertical can be designated as an R&D Head',
+        );
+      }
+    }
+    const updated = await this.prisma.employee.update({
+      where: { id },
+      data: { isRdHead },
+    });
+    return this.toEntity(updated);
+  }
+
+  /**
    * Reads the latest-effective SalaryStructure row (the table that
    * replaced EmployeeCompensation) but keeps returning the same response
    * shape as before, since existing consumers (e.g. the web UI's sensitive
@@ -940,6 +1009,8 @@ export class EmployeesService {
       isSalesHead: employee.isSalesHead,
       isScrumMaster: employee.isScrumMaster,
       isProjectManager: employee.isProjectManager,
+      isInternalAuditor: employee.isInternalAuditor,
+      isRdHead: employee.isRdHead,
       officialEmail: employee.officialEmail,
       signatureText: employee.signatureText,
       signatureFont: employee.signatureFont,
