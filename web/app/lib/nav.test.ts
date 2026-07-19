@@ -17,6 +17,8 @@ function access(
     isRndHead?: boolean;
     isRndStaff?: boolean;
     isStoreStaff?: boolean;
+    isScmStaff?: boolean;
+    isFinanceUser?: boolean;
   } = {},
 ): Access {
   const user: DecodedAccessToken = {
@@ -31,10 +33,11 @@ function access(
     isSalesStaff: opts.isSalesStaff ?? false,
     isSalesHead: opts.isSalesHead ?? false,
     isRndHead: opts.isRndHead ?? false,
-    isFinanceUser: false,
+    isFinanceUser: opts.isFinanceUser ?? false,
     isAccountsHead: false,
     isRndStaff: opts.isRndStaff ?? false,
     isStoreStaff: opts.isStoreStaff ?? false,
+    isScmStaff: opts.isScmStaff ?? false,
     payslipsEnabled: false,
   };
 }
@@ -159,9 +162,26 @@ describe('sidebarNav — the reported bug', () => {
     expect(shown).not.toContain('Inventory');
   });
 
-  it('Purchase Orders live in the company-wide SCM group (everyone sees it)', () => {
-    const a = access('EMPLOYEE');
-    const shown = labels(a, activeModule('/profile', availableModules(a)));
+  it('SCM staff see the SCM group (Vendors / Suppliers / Purchase Orders)', () => {
+    const a = access('EMPLOYEE', { isScmStaff: true });
+    const shown = labels(a, activeModule('/scm/vendors', availableModules(a)));
+    expect(shown).toContain('Vendors');
+    expect(shown).toContain('Suppliers');
+    expect(shown).toContain('Purchase Orders');
+  });
+
+  it('a non-SCM, non-SuperAdmin user does NOT see the SCM group', () => {
+    const a = access('EMPLOYEE', { isSalesStaff: true });
+    const shown = labels(a, activeModule('/sales/leads', availableModules(a)));
+    expect(shown).not.toContain('Vendors');
+    expect(shown).not.toContain('Suppliers');
+    expect(shown).not.toContain('Purchase Orders');
+  });
+
+  it('SUPER_ADMIN still sees the SCM group', () => {
+    const a = access('SUPER_ADMIN');
+    const shown = labels(a, activeModule('/scm/vendors', availableModules(a)));
+    expect(shown).toContain('Vendors');
     expect(shown).toContain('Purchase Orders');
   });
 
@@ -171,6 +191,26 @@ describe('sidebarNav — the reported bug', () => {
     expect(shown).toContain('GRN Register');
     expect(shown).toContain('Non-Conformance');
     expect(shown).toContain('Material Issue');
+  });
+
+  it('Store staff see the Logistics group (Dispatch Register / OTD)', () => {
+    const a = access('EMPLOYEE', { isStoreStaff: true });
+    const shown = labels(a, activeModule('/logistics/dispatch', availableModules(a)));
+    expect(shown).toContain('Dispatch Register');
+    expect(shown).toContain('OTD Analytics');
+  });
+
+  it('SCM staff also see the Logistics group', () => {
+    const a = access('EMPLOYEE', { isScmStaff: true });
+    const shown = labels(a, activeModule('/logistics/dispatch', availableModules(a)));
+    expect(shown).toContain('Dispatch Register');
+    expect(shown).toContain('OTD Analytics');
+  });
+
+  it('a non-Store, non-SuperAdmin user does NOT see the Logistics group', () => {
+    const a = access('EMPLOYEE');
+    const shown = labels(a, activeModule('/profile', availableModules(a)));
+    expect(shown).not.toContain('Dispatch Register');
   });
 
   it('a non-Store, non-SuperAdmin user does NOT see the Store receiving items', () => {
@@ -211,6 +251,24 @@ describe('sidebarNav — the reported bug', () => {
     );
     expect(shown).not.toContain('Leads');
     expect(shown).not.toContain('Roster');
+  });
+
+  it('Finance shows the trimmed spine and hides the leaf-module items', () => {
+    const a = access('EMPLOYEE', { isFinanceUser: true });
+    const shown = labels(a, activeModule('/finance/ar/invoices', availableModules(a)));
+    // Spine (GL core + AR + AP + compliance) is visible.
+    expect(shown).toContain('Sales Invoices');
+    expect(shown).toContain('Vendor Invoices');
+    expect(shown).toContain('Chart of Accounts');
+    expect(shown).toContain('Journal Entries');
+    expect(shown).toContain('GST, TDS & Forecast');
+    // Leaf modules are hidden from nav (code remains, just not surfaced).
+    expect(shown).not.toContain('Treasury & Credit');
+    expect(shown).not.toContain('Budgets');
+    expect(shown).not.toContain('Fixed Assets');
+    expect(shown).not.toContain('Bank Reconciliation');
+    expect(shown).not.toContain('Executive Reporting');
+    expect(shown).not.toContain('Production Readiness');
   });
 });
 

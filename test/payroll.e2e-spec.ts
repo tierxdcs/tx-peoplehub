@@ -168,24 +168,40 @@ describe('Payroll (e2e)', () => {
   it('full lifecycle with fake config: process succeeds, snapshot populated, lock prevents further edits', async () => {
     const suffix = Date.now();
 
-    // processRun() computes a payslip for every ACTIVE employee, and the
-    // seeded super-admin fixture is ACTIVE too — give it a salary
-    // structure so it doesn't 404 the whole run via getCurrentOrThrow.
-    const adminStructure = await prisma.salaryStructure.findFirst({
-      where: { employeeId: superAdminId },
+    // processRun() computes a payslip for every ACTIVE employee. Several
+    // fixtures are seeded ACTIVE (the super-admin, plus the finance
+    // Accounts-Head + clerk added for the finance spine) — give each a salary
+    // structure so none 404s the whole run via getCurrentOrThrow.
+    const seededActive = await prisma.employee.findMany({
+      where: {
+        status: 'ACTIVE',
+        email: {
+          in: [
+            adminEmail,
+            'accounts.head@phaze-dynamics.com',
+            'accounts.clerk@phaze-dynamics.com',
+          ],
+        },
+      },
+      select: { id: true },
     });
-    if (!adminStructure) {
-      await request(app.getHttpServer())
-        .post('/salary-structures')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({
-          employeeId: superAdminId,
-          effectiveFrom: '2020-01-01',
-          basic: 100000,
-          hra: 20000,
-          ctcAnnual: 1440000,
-        })
-        .expect(201);
+    for (const emp of seededActive) {
+      const existing = await prisma.salaryStructure.findFirst({
+        where: { employeeId: emp.id },
+      });
+      if (!existing) {
+        await request(app.getHttpServer())
+          .post('/salary-structures')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({
+            employeeId: emp.id,
+            effectiveFrom: '2020-01-01',
+            basic: 100000,
+            hra: 20000,
+            ctcAnnual: 1440000,
+          })
+          .expect(201);
+      }
     }
 
     const employee = await createEmployee({

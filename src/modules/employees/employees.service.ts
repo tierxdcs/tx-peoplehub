@@ -708,6 +708,40 @@ export class EmployeesService {
     return this.toEntity(updated);
   }
 
+  async designateQmsHead(id: string): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (target.status !== EmployeeStatus.ACTIVE)
+      throw new BadRequestException('Only an active employee can be designated as QMS Head');
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.employee.updateMany({ where: { isQmsHead: true, id: { not: id } }, data: { isQmsHead: false } });
+      return tx.employee.update({ where: { id }, data: { isQmsHead: true } });
+    });
+    return this.toEntity(updated);
+  }
+
+  async revokeQmsHead(id: string): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (!target.isQmsHead) return this.toEntity(target);
+    return this.toEntity(await this.prisma.employee.update({ where: { id }, data: { isQmsHead: false } }));
+  }
+
+  async designateDesignHead(id: string): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (target.status !== EmployeeStatus.ACTIVE)
+      throw new BadRequestException('Only an active employee can be designated as Design Head');
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.employee.updateMany({ where: { isDesignHead: true, id: { not: id } }, data: { isDesignHead: false } });
+      return tx.employee.update({ where: { id }, data: { isDesignHead: true } });
+    });
+    return this.toEntity(updated);
+  }
+
+  async revokeDesignHead(id: string): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (!target.isDesignHead) return this.toEntity(target);
+    return this.toEntity(await this.prisma.employee.update({ where: { id }, data: { isDesignHead: false } }));
+  }
+
   /**
    * Designate / revoke a Scrum Master. Unlike Sales Head, MULTIPLE holders are
    * allowed (company-wide capability), so this is a simple per-employee flag
@@ -1125,6 +1159,8 @@ export class EmployeesService {
       isProjectManager: employee.isProjectManager,
       isInternalAuditor: employee.isInternalAuditor,
       isQcInspector: employee.isQcInspector,
+      isQmsHead: employee.isQmsHead,
+      isDesignHead: employee.isDesignHead,
       isRdHead: employee.isRdHead,
       isAccountsHead: employee.isAccountsHead,
       officialEmail: employee.officialEmail,

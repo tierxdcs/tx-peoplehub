@@ -32,6 +32,8 @@ export interface Employee {
   isProjectManager: boolean;
   isInternalAuditor: boolean;
   isQcInspector: boolean;
+  isQmsHead: boolean;
+  isDesignHead: boolean;
   isRdHead: boolean;
   isAccountsHead: boolean;
   officialEmail: string | null;
@@ -552,6 +554,10 @@ export interface Order {
   bidId: string | null;
   customerId: string;
   status: OrderStatus;
+  /** Outbound finished-goods final-QC clearance (dispatch precondition). */
+  finalQcStatus?: 'PENDING' | 'CLEARED';
+  /** Derived dispatch fulfilment progress. */
+  fulfilmentStatus?: 'NOT_DISPATCHED' | 'PARTIALLY_DISPATCHED' | 'FULLY_DISPATCHED';
   totalAmount: string;
   productionRunId: string | null;
   shipmentId: string | null;

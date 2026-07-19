@@ -1,0 +1,3 @@
+'use client';
+import { useEffect,useState } from 'react'; import { apiFetch } from './api'; import { useAuth } from './auth-context';
+export function useQmsAccess(){const {user,loading:authLoading}=useAuth();const [access,setAccess]=useState({isQualityUser:false,isQmsHead:false}),[loading,setLoading]=useState(true);useEffect(()=>{if(authLoading)return;if(!user){setLoading(false);return;}apiFetch<{isQualityUser:boolean;isQmsHead:boolean}>('/qms/access').then(setAccess).catch(()=>setAccess({isQualityUser:false,isQmsHead:false})).finally(()=>setLoading(false));},[authLoading,user]);return {...access,loading:authLoading||loading};}

@@ -16,6 +16,7 @@ import {
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../core/database/prisma.service';
 import { FinanceAccessService } from '../finance/finance-access.service';
+import { FinanceService } from '../finance/finance.service';
 import {
   CreateBudgetDto,
   CreateFixedAssetDto,
@@ -58,6 +59,7 @@ export class ManagementService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: FinanceAccessService,
+    private readonly finance: FinanceService,
   ) {}
   async createBudget(d: CreateBudgetDto, u: AuthenticatedUser) {
     await this.access.assertCanUseFinance(u);
@@ -282,43 +284,26 @@ export class ManagementService {
         'Finance Head cannot approve an asset they created',
       );
     return this.prisma.$transaction(async (tx) => {
-      const p = await this.period(tx, a.capitalizationDate),
-        jn = await this.number(
-          tx,
-          'JOURNAL',
-          'JV',
-          a.capitalizationDate.getUTCFullYear(),
-        );
-      await tx.journalEntry.create({
-        data: {
-          journalNumber: jn,
-          entryDate: a.capitalizationDate,
-          periodId: p.id,
-          description: `Capitalisation ${a.assetNumber} ${a.name}`,
-          reference: a.vendorReference,
-          status: JournalStatus.POSTED,
-          createdById: a.createdById,
-          submittedById: a.createdById,
-          submittedAt: new Date(),
-          approvedById: u.id,
-          approvedAt: new Date(),
-          lines: {
-            create: [
-              {
-                sequence: 1,
-                accountId: a.assetAccountId,
-                debit: a.originalCost,
-                credit: 0,
-              },
-              {
-                sequence: 2,
-                accountId: a.acquisitionCreditAccountId,
-                debit: 0,
-                credit: a.originalCost,
-              },
-            ],
+      await this.finance.postJournalTx(tx, {
+        entryDate: a.capitalizationDate,
+        description: `Capitalisation ${a.assetNumber} ${a.name}`,
+        reference: a.vendorReference,
+        createdById: a.createdById,
+        submittedById: a.createdById,
+        submittedAt: new Date(),
+        approvedById: u.id,
+        lines: [
+          {
+            accountId: a.assetAccountId,
+            debit: a.originalCost,
+            credit: 0,
           },
-        },
+          {
+            accountId: a.acquisitionCreditAccountId,
+            debit: 0,
+            credit: a.originalCost,
+          },
+        ],
       });
       return tx.fixedAsset.update({
         where: { id },
@@ -366,42 +351,26 @@ export class ManagementService {
       if (amount.lte(0)) continue;
       created.push(
         await this.prisma.$transaction(async (tx) => {
-          const jn = await this.number(
-            tx,
-            'JOURNAL',
-            'JV',
-            date.getUTCFullYear(),
-          );
-          const j = await tx.journalEntry.create({
-            data: {
-              journalNumber: jn,
-              entryDate: date,
-              periodId: period.id,
-              description: `Depreciation ${a.assetNumber} ${period.name}`,
-              reference: a.assetNumber,
-              status: JournalStatus.POSTED,
-              createdById: a.createdById,
-              submittedById: u.id,
-              submittedAt: new Date(),
-              approvedById: u.id,
-              approvedAt: new Date(),
-              lines: {
-                create: [
-                  {
-                    sequence: 1,
-                    accountId: a.depreciationExpenseAccountId,
-                    debit: amount,
-                    credit: 0,
-                  },
-                  {
-                    sequence: 2,
-                    accountId: a.accumulatedDepreciationAccountId,
-                    debit: 0,
-                    credit: amount,
-                  },
-                ],
+          const j = await this.finance.postJournalTx(tx, {
+            entryDate: date,
+            description: `Depreciation ${a.assetNumber} ${period.name}`,
+            reference: a.assetNumber,
+            createdById: a.createdById,
+            submittedById: u.id,
+            submittedAt: new Date(),
+            approvedById: u.id,
+            lines: [
+              {
+                accountId: a.depreciationExpenseAccountId,
+                debit: amount,
+                credit: 0,
               },
-            },
+              {
+                accountId: a.accumulatedDepreciationAccountId,
+                debit: 0,
+                credit: amount,
+              },
+            ],
           });
           await tx.fixedAsset.update({
             where: { id: a.id },
@@ -551,42 +520,31 @@ export class ManagementService {
     for (const { schedule: s, dates } of plans) {
       for (const run of dates) {
         const execution = await this.prisma.$transaction(async (tx) => {
-          const p = await this.period(tx, run),
-            jn = await this.number(tx, 'JOURNAL', 'JV', run.getUTCFullYear());
-          const j = await tx.journalEntry.create({
-            data: {
-              journalNumber: jn,
-              entryDate: run,
-              periodId: p.id,
-              description: `${s.scheduleType.replaceAll('_', ' ')} ${s.name}`,
-              reference: s.scheduleNumber,
-              status: JournalStatus.POSTED,
-              createdById: s.createdById,
-              submittedById: u.id,
-              submittedAt: new Date(),
-              approvedById: u.id,
-              approvedAt: new Date(),
-              lines: {
-                create: [
-                  {
-                    sequence: 1,
-                    accountId: s.debitAccountId,
-                    debit: s.amountPerRun,
-                    credit: 0,
-                    costCenterId: s.costCenterId,
-                    projectReference: s.projectReference,
-                  },
-                  {
-                    sequence: 2,
-                    accountId: s.creditAccountId,
-                    debit: 0,
-                    credit: s.amountPerRun,
-                    costCenterId: s.costCenterId,
-                    projectReference: s.projectReference,
-                  },
-                ],
+          const p = await this.period(tx, run);
+          const j = await this.finance.postJournalTx(tx, {
+            entryDate: run,
+            description: `${s.scheduleType.replaceAll('_', ' ')} ${s.name}`,
+            reference: s.scheduleNumber,
+            createdById: s.createdById,
+            submittedById: u.id,
+            submittedAt: new Date(),
+            approvedById: u.id,
+            lines: [
+              {
+                accountId: s.debitAccountId,
+                debit: s.amountPerRun,
+                credit: 0,
+                costCenterId: s.costCenterId,
+                projectReference: s.projectReference,
               },
-            },
+              {
+                accountId: s.creditAccountId,
+                debit: 0,
+                credit: s.amountPerRun,
+                costCenterId: s.costCenterId,
+                projectReference: s.projectReference,
+              },
+            ],
           });
           return tx.financeScheduleExecution.create({
             data: {

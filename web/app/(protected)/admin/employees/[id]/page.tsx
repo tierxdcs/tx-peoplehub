@@ -265,6 +265,26 @@ export default function EditEmployeePage() {
     }
   }
 
+  async function setQmsHead(next: boolean) {
+    if (!employee) return;
+    const ok = await confirm({ title: next ? 'Designate QMS Head' : 'Revoke QMS Head', description: next ? `Designate ${employee.firstName} ${employee.lastName} as the sole QMS approver? Any existing holder will be replaced.` : 'QMS approvals will stop until a new head is assigned.', confirmLabel: next ? 'Designate' : 'Revoke', destructive: !next });
+    if (!ok) return;
+    setDesignating(true);
+    try { await apiFetch(`/employees/${employee.id}/${next ? 'designate' : 'revoke'}-qms-head`, { method: 'PATCH' }); toast.success(next ? 'QMS Head designated' : 'QMS Head revoked'); await load(); }
+    catch (err) { toast.error(err instanceof ApiError ? err.message : 'Failed to update QMS Head'); }
+    finally { setDesignating(false); }
+  }
+
+  async function setDesignHead(next: boolean) {
+    if (!employee) return;
+    const ok = await confirm({ title: next ? 'Designate Design Head' : 'Revoke Design Head', description: next ? `Designate ${employee.firstName} ${employee.lastName} as the sole design release authority? Any existing holder will be replaced.` : 'Design releases will stop until a new Design Head is assigned.', confirmLabel: next ? 'Designate' : 'Revoke', destructive: !next });
+    if (!ok) return;
+    setDesignating(true);
+    try { await apiFetch(`/employees/${employee.id}/${next ? 'designate' : 'revoke'}-design-head`, { method: 'PATCH' }); toast.success(next ? 'Design Head designated' : 'Design Head revoked'); await load(); }
+    catch (err) { toast.error(err instanceof ApiError ? err.message : 'Failed to update Design Head'); }
+    finally { setDesignating(false); }
+  }
+
   async function handleDelete() {
     if (!employee) return;
     const ok = await confirm({
@@ -347,6 +367,8 @@ export default function EditEmployeePage() {
         )}
         {employee.isRdHead && <Badge variant="info">R&D Head</Badge>}
         {employee.isAccountsHead && <Badge variant="info">Finance/Accounts Head</Badge>}
+        {employee.isQmsHead && <Badge variant="info">QMS Head</Badge>}
+        {employee.isDesignHead && <Badge variant="info">Design Head</Badge>}
       </h1>
 
       {/* Sales Head designation — only meaningful for Sales-vertical staff. */}
@@ -516,6 +538,14 @@ export default function EditEmployeePage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {(isSuperAdmin || employee.isQmsHead) && (
+        <Card className="my-4 max-w-xl"><CardContent className="flex items-center justify-between gap-4 p-4"><div className="text-sm"><div className="font-medium">QMS Head designation</div><div className="text-muted-foreground">{employee.isQmsHead ? 'This employee is the sole approver for QMS templates, plans and inspection reviews.' : 'Designate as the sole QMS approval authority.'}</div></div>{isSuperAdmin && <Button variant={employee.isQmsHead ? 'destructive' : 'outline'} disabled={designating} onClick={()=>setQmsHead(!employee.isQmsHead)}>{employee.isQmsHead ? 'Revoke QMS Head' : 'Designate as QMS Head'}</Button>}</CardContent></Card>
+      )}
+
+      {(isSuperAdmin || employee.isDesignHead) && (
+        <Card className="my-4 max-w-xl"><CardContent className="flex items-center justify-between gap-4 p-4"><div className="text-sm"><div className="font-medium">Design Head designation</div><div className="text-muted-foreground">{employee.isDesignHead ? 'This employee is the sole approver and production-release authority for design documents.' : 'Designate as the sole Design Engineering release authority.'}</div></div>{isSuperAdmin && <Button variant={employee.isDesignHead ? 'destructive' : 'outline'} disabled={designating} onClick={()=>setDesignHead(!employee.isDesignHead)}>{employee.isDesignHead ? 'Revoke Design Head' : 'Designate as Design Head'}</Button>}</CardContent></Card>
       )}
 
       {/* Force password reset — Admin/SuperAdmin, for another employee who has

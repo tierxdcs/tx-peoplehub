@@ -83,6 +83,8 @@ enum NotificationType {
   BOM_SUBMITTED
   BOM_APPROVED
   BOM_REJECTED
+  QMS_ACTION_ASSIGNED
+  QMS_ACTION_OVERDUE
 }
 
 enum LeaveAccrualType {
@@ -366,6 +368,14 @@ model Employee {
   /// above only, same pattern as Internal Auditor.
   isQcInspector Boolean @default(false)
 
+  /// Sole QMS approval authority, assigned only by SUPER_ADMIN. Inspectors may
+  /// execute quality work, but only this holder approves templates and plans.
+  isQmsHead Boolean @default(false)
+
+  /// Sole Design Engineering release authority, assigned by SUPER_ADMIN.
+  /// Design users prepare and check documents; only this holder releases them.
+  isDesignHead Boolean @default(false)
+
   /// Internal e-signature (a display layer, NOT a legally-binding e-sign).
   /// Self-service typed text rendered in a chosen signature-style font;
   /// snapshotted onto approval records at approval time.
@@ -506,14 +516,18 @@ model Employee {
   reservationsCancelled    StockReservation[]       @relation("ReservationCanceller")
 
   // Purchasing (Stores) back-relations.
-  purchaseOrdersCreated PurchaseOrder[]        @relation("PurchaseOrderCreator")
-  grnsReceived          GoodsReceiptNote[]     @relation("GrnReceivedBy")
-  grnsInspected         GoodsReceiptNote[]     @relation("GrnInspectedBy")
-  grnsSupervised        GoodsReceiptNote[]     @relation("GrnSupervisorSignOff")
-  ncrsRaised            NonConformanceReport[] @relation("NcrRaisedBy")
-  ncrsDispositioned     NonConformanceReport[] @relation("NcrDispositionedBy")
-  materialIndentsRaised MaterialIndent[]       @relation("MaterialIndentRaisedBy")
-  materialIssuesIssued  MaterialIssueNote[]    @relation("MaterialIssueIssuedBy")
+  purchaseOrdersCreated   PurchaseOrder[]        @relation("PurchaseOrderCreator")
+  grnsReceived            GoodsReceiptNote[]     @relation("GrnReceivedBy")
+  grnsInspected           GoodsReceiptNote[]     @relation("GrnInspectedBy")
+  grnsSupervised          GoodsReceiptNote[]     @relation("GrnSupervisorSignOff")
+  ncrsRaised              NonConformanceReport[] @relation("NcrRaisedBy")
+  ncrsDispositioned       NonConformanceReport[] @relation("NcrDispositionedBy")
+  materialIndentsRaised   MaterialIndent[]       @relation("MaterialIndentRaisedBy")
+  materialIssuesIssued    MaterialIssueNote[]    @relation("MaterialIssueIssuedBy")
+  ordersFinalQcCleared    Order[]                @relation("OrderFinalQcClearedBy")
+  deliveryChallansCreated DeliveryChallan[]      @relation("DeliveryChallanCreatedBy")
+  rfqsCreated             Rfq[]                  @relation("RfqCreatedBy")
+  rfqsAwarded             Rfq[]                  @relation("RfqAwardDecisionBy")
 
   auditLogs AuditLog[] @relation("AuditActor")
   createdAt DateTime   @default(now())
@@ -824,6 +838,7 @@ model Customer {
   orders           Order[]
   salesInvoices    SalesInvoice[]
   customerReceipts CustomerReceipt[]
+  deliveryChallans DeliveryChallan[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -1001,6 +1016,18 @@ model Order {
   customerId         String
   customer           Customer                 @relation(fields: [customerId], references: [id], onDelete: Restrict)
   status             OrderStatus              @default(CONFIRMED)
+  /// Outbound final-QC clearance for finished goods. A dispatch cannot be
+  /// created until this is CLEARED (mirrors the inbound GRN→QC gate). Separate
+  /// from the manual `status` workflow. Cleared by an isQcInspector/SUPER_ADMIN.
+  finalQcStatus      OrderFinalQcStatus       @default(PENDING)
+  finalQcClearedById String?
+  finalQcClearedBy   Employee?                @relation("OrderFinalQcClearedBy", fields: [finalQcClearedById], references: [id], onDelete: SetNull)
+  finalQcClearedAt   DateTime?
+  /// DERIVED fulfilment progress from Delivery Challans (cumulative dispatched
+  /// vs ordered across all lines). Kept separate from the manual `status`
+  /// Sales workflow so that workflow is undisturbed; recomputed on each
+  /// dispatch. Mirrors how PurchaseOrder receipt status derives from GRNs.
+  fulfilmentStatus   OrderFulfilmentStatus    @default(NOT_DISPATCHED)
   /// Snapshot of the source bid's totalAmount at conversion time — the
   /// order's booked value. Frozen here rather than recomputed from line
   /// items so it survives independently of the bid (which can be edited in
@@ -1017,6 +1044,7 @@ model Order {
   projectKickoffs    ProjectKickoff[]
   billingMilestones  BillingMilestone[]
   salesInvoices      SalesInvoice[]
+  deliveryChallans   DeliveryChallan[]
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
 
@@ -1024,6 +1052,19 @@ model Order {
   @@index([customerId])
   @@index([status])
   @@map("orders")
+}
+
+/// Outbound finished-goods QC clearance (dispatch precondition).
+enum OrderFinalQcStatus {
+  PENDING
+  CLEARED
+}
+
+/// Derived dispatch fulfilment progress (never set manually).
+enum OrderFulfilmentStatus {
+  NOT_DISPATCHED
+  PARTIALLY_DISPATCHED
+  FULLY_DISPATCHED
 }
 
 model OrderLineItem {
@@ -1051,6 +1092,8 @@ model OrderLineItem {
   vendorContactInfo      String?
   /// Rough expected lead time from the vendor, free text (e.g. "6-8 weeks").
   vendorExpectedLeadTime String?
+
+  deliveryChallanLines DeliveryChallanLine[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1321,6 +1364,7 @@ model VaultFile {
   uploadedBy       Employee           @relation("VaultFileUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
   status           VaultFileStatus    @default(PENDING)
   versions         VaultFileVersion[] @relation("VaultFileVersions")
+  designDocuments  DesignDocument[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
@@ -1347,11 +1391,672 @@ model VaultFileVersion {
   uploadedById       String
   uploadedBy         Employee                 @relation("VaultVersionUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
   externalShareLinks VaultExternalShareLink[]
+  designRevisions    DesignDocumentRevision[]
   createdAt          DateTime                 @default(now())
 
   @@unique([fileId, versionNumber])
   @@index([fileId])
   @@map("vault_file_versions")
+}
+
+// ── Design Engineering Phase 1: requests, projects and file control ───
+enum DesignRequestStatus {
+  OPEN
+  ACCEPTED
+  REJECTED
+  CONVERTED
+  CLOSED
+}
+
+enum DesignRequestSource {
+  SALES_ORDER
+  PROJECT_KICKOFF
+  CUSTOMER_CHANGE
+  INTERNAL_DEVELOPMENT
+  NCR_CAPA
+  VALUE_ENGINEERING
+}
+
+enum DesignPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DesignProjectStatus {
+  REQUIREMENTS
+  CONCEPT
+  DETAILED_DESIGN
+  INTERNAL_REVIEW
+  CUSTOMER_APPROVAL
+  RELEASED_FOR_PRODUCTION
+  ON_HOLD
+  CLOSED
+}
+
+enum DesignDocumentType {
+  GENERAL_ARRANGEMENT
+  MANUFACTURING_DRAWING
+  ASSEMBLY_DRAWING
+  ELECTRICAL_DRAWING
+  SCHEMATIC
+  CALCULATION
+  DATASHEET
+  SPECIFICATION
+  THREE_D_MODEL
+  WORK_INSTRUCTION
+  OTHER
+}
+
+enum DesignRevisionStatus {
+  DRAFT
+  PENDING_CHECK
+  CHECKED
+  PENDING_APPROVAL
+  RELEASED
+  REJECTED
+  OBSOLETE
+}
+
+enum DesignRequirementCategory {
+  CUSTOMER
+  FUNCTIONAL
+  PERFORMANCE
+  INTERFACE
+  MATERIAL
+  SAFETY
+  REGULATORY
+  MANUFACTURING
+  INSPECTION
+  OTHER
+}
+
+enum DesignVerificationMethod {
+  CALCULATION
+  SIMULATION
+  DRAWING_REVIEW
+  INSPECTION
+  TEST
+  PROTOTYPE
+  COMPARISON
+  CUSTOMER_REVIEW
+}
+
+enum DesignRequirementStatus {
+  OPEN
+  VERIFIED
+  FAILED
+  NOT_APPLICABLE
+}
+
+enum DesignMilestoneStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+  CANCELLED
+}
+
+enum DesignCustomerApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DesignChangeType {
+  CORRECTION
+  CUSTOMER_REQUEST
+  VALUE_ENGINEERING
+  COST_REDUCTION
+  OBSOLESCENCE
+  REGULATORY
+  PROCESS_IMPROVEMENT
+  OTHER
+}
+
+enum DesignChangeStatus {
+  DRAFT
+  IMPACT_ASSESSMENT
+  PENDING_APPROVAL
+  APPROVED
+  IMPLEMENTING
+  CLOSED
+  REJECTED
+}
+
+enum DesignChangeImpactArea {
+  DESIGN
+  BOM
+  INVENTORY
+  WORK_IN_PROGRESS
+  PROCUREMENT
+  PRODUCTION
+  QUALITY
+  COST
+  SCHEDULE
+  CUSTOMER
+}
+
+enum DesignChangeImpactStatus {
+  PENDING
+  COMPLETED
+}
+
+enum DesignChangeObjectType {
+  DOCUMENT_REVISION
+  BOM
+  ITEM
+  INVENTORY
+  WORK_IN_PROGRESS
+  PURCHASE_ORDER
+  SALES_ORDER
+  OTHER
+}
+
+enum DesignChangeDisposition {
+  PENDING
+  USE_AS_IS
+  REWORK
+  SCRAP
+  RETURN_TO_VENDOR
+  HOLD
+  NOT_APPLICABLE
+}
+
+enum DesignChangeEffectivityType {
+  IMMEDIATE
+  NEXT_PRODUCTION_RUN
+  DATE
+  SERIAL_NUMBER
+  LOT_NUMBER
+}
+
+enum DesignChangeAcknowledgementStatus {
+  PENDING
+  ACKNOWLEDGED
+}
+
+enum DesignReviewType {
+  REQUIREMENTS_REVIEW
+  CONCEPT_REVIEW
+  PRELIMINARY_DESIGN_REVIEW
+  CRITICAL_DESIGN_REVIEW
+  MANUFACTURING_READINESS_REVIEW
+  CHANGE_REVIEW
+  FINAL_DESIGN_REVIEW
+}
+
+enum DesignReviewStatus {
+  SCHEDULED
+  IN_PROGRESS
+  PENDING_CLOSURE
+  CLOSED
+  CANCELLED
+}
+
+enum DesignReviewActionStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  VERIFIED
+  CANCELLED
+}
+
+enum DesignTemplateStatus {
+  DRAFT
+  APPROVED
+  RETIRED
+}
+
+enum DesignTransmittalStatus {
+  DRAFT
+  ISSUED
+  ACKNOWLEDGED
+  SUPERSEDED
+}
+
+enum DesignChangeReportStatus {
+  AWAITING_INTERNAL_SIGNATURE
+  AWAITING_CUSTOMER_SIGNATURE
+  EXECUTED
+  SUPERSEDED
+}
+
+model DesignRequest {
+  id               String              @id @default(uuid())
+  requestNumber    String              @unique
+  source           DesignRequestSource
+  title            String
+  description      String              @db.Text
+  priority         DesignPriority      @default(MEDIUM)
+  status           DesignRequestStatus @default(OPEN)
+  productId        String?
+  customerId       String?
+  orderId          String?
+  projectKickoffId String?
+  requestedById    String
+  ownerId          String?
+  targetDate       DateTime
+  project          DesignProject?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([status, targetDate])
+  @@index([ownerId, status])
+  @@map("design_requests")
+}
+
+model DesignProject {
+  id               String              @id @default(uuid())
+  projectNumber    String              @unique
+  requestId        String?             @unique
+  request          DesignRequest?      @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  name             String
+  description      String?             @db.Text
+  status           DesignProjectStatus @default(REQUIREMENTS)
+  productId        String?
+  customerId       String?
+  orderId          String?
+  projectKickoffId String?
+  leadDesignerId   String
+  targetDate       DateTime
+  createdById      String
+  documents        DesignDocument[]
+  requirements     DesignRequirement[]
+  milestones       DesignMilestone[]
+  changes          DesignChange[]
+  reviews          DesignReview[]
+  transmittals     DesignTransmittal[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([status, targetDate])
+  @@index([leadDesignerId, status])
+  @@map("design_projects")
+}
+
+model DesignDocument {
+  id             String                   @id @default(uuid())
+  documentNumber String                   @unique
+  projectId      String
+  project        DesignProject            @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  title          String
+  documentType   DesignDocumentType
+  vaultFileId    String
+  vaultFile      VaultFile                @relation(fields: [vaultFileId], references: [id], onDelete: Restrict)
+  createdById    String
+  revisions      DesignDocumentRevision[]
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@index([projectId, documentType])
+  @@index([vaultFileId])
+  @@map("design_documents")
+}
+
+model DesignDocumentRevision {
+  id                       String                  @id @default(uuid())
+  documentId               String
+  document                 DesignDocument          @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  revisionNumber           Int
+  revisionCode             String
+  status                   DesignRevisionStatus    @default(DRAFT)
+  changeSummary            String                  @db.Text
+  vaultFileVersionId       String
+  vaultFileVersion         VaultFileVersion        @relation(fields: [vaultFileVersionId], references: [id], onDelete: Restrict)
+  preparedById             String
+  submittedById            String?
+  submittedAt              DateTime?
+  checkedById              String?
+  checkedAt                DateTime?
+  checkerNameSnapshot      String?
+  checkNote                String?                 @db.Text
+  approvedById             String?
+  approvedAt               DateTime?
+  approverNameSnapshot     String?
+  signatureTextSnapshot    String?
+  signatureFontSnapshot    SignatureFont?
+  rejectionReason          String?                 @db.Text
+  customerApprovalRequired Boolean                 @default(false)
+  customerApproval         DesignCustomerApproval?
+  transmittalItems         DesignTransmittalItem[]
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+
+  @@unique([documentId, revisionNumber])
+  @@unique([documentId, revisionCode])
+  @@index([status, submittedAt])
+  @@index([vaultFileVersionId])
+  @@map("design_document_revisions")
+}
+
+model DesignRequirement {
+  id                 String                    @id @default(uuid())
+  projectId          String
+  project            DesignProject             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requirementNumber  String
+  category           DesignRequirementCategory
+  description        String                    @db.Text
+  source             String?
+  acceptanceCriteria String                    @db.Text
+  verificationMethod DesignVerificationMethod
+  required           Boolean                   @default(true)
+  status             DesignRequirementStatus   @default(OPEN)
+  verificationResult String?                   @db.Text
+  evidence           Json?
+  verifiedById       String?
+  verifiedAt         DateTime?
+  createdById        String
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  @@unique([projectId, requirementNumber])
+  @@index([projectId, status])
+  @@map("design_requirements")
+}
+
+model DesignMilestone {
+  id            String                @id @default(uuid())
+  projectId     String
+  project       DesignProject         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?               @db.Text
+  ownerId       String
+  dueDate       DateTime
+  status        DesignMilestoneStatus @default(PLANNED)
+  completedById String?
+  completedAt   DateTime?
+  evidence      Json?
+  createdById   String
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([projectId, status, dueDate])
+  @@index([ownerId, status])
+  @@map("design_milestones")
+}
+
+model DesignCustomerApproval {
+  id                   String                       @id @default(uuid())
+  revisionId           String                       @unique
+  revision             DesignDocumentRevision       @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  status               DesignCustomerApprovalStatus @default(PENDING)
+  customerApproverName String
+  designation          String?
+  organisation         String?
+  approvalReference    String?
+  evidence             Json?
+  comments             String?                      @db.Text
+  approvedAt           DateTime?
+  recordedById         String
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
+
+  @@index([status, createdAt])
+  @@map("design_customer_approvals")
+}
+
+model DesignChange {
+  id                    String                        @id @default(uuid())
+  changeNumber          String                        @unique
+  projectId             String
+  project               DesignProject                 @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  title                 String
+  type                  DesignChangeType
+  priority              DesignPriority                @default(MEDIUM)
+  reason                String                        @db.Text
+  proposedChange        String                        @db.Text
+  status                DesignChangeStatus            @default(DRAFT)
+  requestedById         String
+  coordinatorId         String
+  targetDate            DateTime
+  submittedAt           DateTime?
+  approvedById          String?
+  approvedAt            DateTime?
+  approverNameSnapshot  String?
+  signatureTextSnapshot String?
+  signatureFontSnapshot SignatureFont?
+  rejectionReason       String?                       @db.Text
+  implementationNote    String?                       @db.Text
+  closedById            String?
+  closedAt              DateTime?
+  impacts               DesignChangeImpact[]
+  affectedItems         DesignChangeAffectedItem[]
+  acknowledgements      DesignChangeAcknowledgement[]
+  reports               DesignChangeReport[]
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+
+  @@index([projectId, status])
+  @@index([status, targetDate])
+  @@map("design_changes")
+}
+
+model DesignChangeImpact {
+  id             String                   @id @default(uuid())
+  changeId       String
+  change         DesignChange             @relation(fields: [changeId], references: [id], onDelete: Cascade)
+  area           DesignChangeImpactArea
+  ownerId        String
+  status         DesignChangeImpactStatus @default(PENDING)
+  hasImpact      Boolean?
+  assessment     String?                  @db.Text
+  requiredAction String?                  @db.Text
+  assessedById   String?
+  assessedAt     DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@unique([changeId, area])
+  @@index([ownerId, status])
+  @@map("design_change_impacts")
+}
+
+model DesignChangeAffectedItem {
+  id               String                      @id @default(uuid())
+  changeId         String
+  change           DesignChange                @relation(fields: [changeId], references: [id], onDelete: Cascade)
+  objectType       DesignChangeObjectType
+  objectId         String?
+  reference        String
+  description      String?
+  currentRevision  String?
+  proposedRevision String?
+  disposition      DesignChangeDisposition     @default(PENDING)
+  dispositionNote  String?                     @db.Text
+  effectivityType  DesignChangeEffectivityType
+  effectivityValue String?
+  createdById      String
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+
+  @@index([changeId, objectType])
+  @@index([objectType, objectId])
+  @@map("design_change_affected_items")
+}
+
+model DesignChangeAcknowledgement {
+  id               String                            @id @default(uuid())
+  changeId         String
+  change           DesignChange                      @relation(fields: [changeId], references: [id], onDelete: Cascade)
+  functionName     String
+  ownerId          String
+  status           DesignChangeAcknowledgementStatus @default(PENDING)
+  comments         String?                           @db.Text
+  acknowledgedById String?
+  acknowledgedAt   DateTime?
+  createdAt        DateTime                          @default(now())
+  updatedAt        DateTime                          @updatedAt
+
+  @@unique([changeId, functionName])
+  @@index([ownerId, status])
+  @@map("design_change_acknowledgements")
+}
+
+model DesignReview {
+  id             String                 @id @default(uuid())
+  reviewNumber   String                 @unique
+  projectId      String
+  project        DesignProject          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  changeId       String?
+  reviewType     DesignReviewType
+  title          String
+  objectives     String                 @db.Text
+  scheduledAt    DateTime
+  locationOrLink String?
+  chairpersonId  String
+  status         DesignReviewStatus     @default(SCHEDULED)
+  minutes        String?                @db.Text
+  decision       String?                @db.Text
+  createdById    String
+  closedById     String?
+  closedAt       DateTime?
+  attendees      DesignReviewAttendee[]
+  actions        DesignReviewAction[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([projectId, status, scheduledAt])
+  @@index([changeId])
+  @@map("design_reviews")
+}
+
+model DesignReviewAttendee {
+  id           String       @id @default(uuid())
+  reviewId     String
+  review       DesignReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  employeeId   String?
+  name         String
+  functionName String?
+  external     Boolean      @default(false)
+  attended     Boolean      @default(false)
+  comments     String?
+  createdAt    DateTime     @default(now())
+
+  @@index([reviewId, attended])
+  @@map("design_review_attendees")
+}
+
+model DesignReviewAction {
+  id             String                   @id @default(uuid())
+  reviewId       String
+  review         DesignReview             @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  actionNumber   Int
+  description    String                   @db.Text
+  ownerId        String
+  dueDate        DateTime
+  status         DesignReviewActionStatus @default(OPEN)
+  completionNote String?                  @db.Text
+  completedById  String?
+  completedAt    DateTime?
+  verifiedById   String?
+  verifiedAt     DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@unique([reviewId, actionNumber])
+  @@index([ownerId, status, dueDate])
+  @@map("design_review_actions")
+}
+
+model DesignProjectTemplate {
+  id           String               @id @default(uuid())
+  templateCode String               @unique
+  name         String
+  description  String?              @db.Text
+  version      Int                  @default(1)
+  status       DesignTemplateStatus @default(DRAFT)
+  requirements Json
+  milestones   Json
+  createdById  String
+  approvedById String?
+  approvedAt   DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([status, name])
+  @@map("design_project_templates")
+}
+
+model DesignTransmittal {
+  id                    String                  @id @default(uuid())
+  transmittalNumber     String                  @unique
+  projectId             String
+  project               DesignProject           @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  purpose               String
+  recipientOrganisation String
+  recipientName         String
+  recipientEmail        String?
+  message               String?                 @db.Text
+  status                DesignTransmittalStatus @default(DRAFT)
+  createdById           String
+  issuedById            String?
+  issuedAt              DateTime?
+  issuerNameSnapshot    String?
+  signatureTextSnapshot String?
+  signatureFontSnapshot SignatureFont?
+  acknowledgedByName    String?
+  acknowledgementNote   String?                 @db.Text
+  acknowledgedAt        DateTime?
+  items                 DesignTransmittalItem[]
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+
+  @@index([projectId, status])
+  @@index([status, issuedAt])
+  @@map("design_transmittals")
+}
+
+model DesignTransmittalItem {
+  id                     String                 @id @default(uuid())
+  transmittalId          String
+  transmittal            DesignTransmittal      @relation(fields: [transmittalId], references: [id], onDelete: Cascade)
+  revisionId             String
+  revision               DesignDocumentRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  documentNumberSnapshot String
+  titleSnapshot          String
+  revisionCodeSnapshot   String
+  purpose                String?
+  createdAt              DateTime               @default(now())
+
+  @@unique([transmittalId, revisionId])
+  @@index([revisionId])
+  @@map("design_transmittal_items")
+}
+
+model DesignChangeReport {
+  id                            String                   @id @default(uuid())
+  reportNumber                  String
+  revision                      Int                      @default(1)
+  changeId                      String
+  change                        DesignChange             @relation(fields: [changeId], references: [id], onDelete: Restrict)
+  title                         String
+  status                        DesignChangeReportStatus @default(AWAITING_INTERNAL_SIGNATURE)
+  frozenPayload                 Json
+  customerSignatureRequired     Boolean                  @default(false)
+  generatedById                 String
+  generatedAt                   DateTime                 @default(now())
+  internalSignerId              String?
+  internalSignerNameSnapshot    String?
+  internalSignatureTextSnapshot String?
+  internalSignatureFontSnapshot SignatureFont?
+  internalSignedAt              DateTime?
+  customerSignerName            String?
+  customerSignerDesignation     String?
+  customerOrganisation          String?
+  customerSignatureText         String?
+  customerSignatureEvidence     Json?
+  customerSignedAt              DateTime?
+  supersededAt                  DateTime?
+  supersededById                String?
+  createdAt                     DateTime                 @default(now())
+  updatedAt                     DateTime                 @updatedAt
+
+  @@unique([reportNumber, revision])
+  @@index([changeId, revision])
+  @@index([status, generatedAt])
+  @@map("design_change_reports")
 }
 
 /// An additive internal share: grants one employee VIEW/EDIT on one file or
@@ -1691,6 +2396,7 @@ model ProjectKickoff {
   stockReport       KickoffStockReport?
   stockReservations StockReservation[]  @relation("KickoffReservations")
   materialIndents   MaterialIndent[]
+  rfqs              Rfq[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1828,6 +2534,7 @@ model Vendor {
   purchaseOrders           PurchaseOrder[]
   apInvoices               AccountsPayableInvoice[]
   apPayments               AccountsPayablePayment[]
+  rfqInvitees              RfqInvitee[]
   createdAt                DateTime                 @default(now())
   updatedAt                DateTime                 @updatedAt
 
@@ -1995,6 +2702,7 @@ model Supplier {
   purchaseOrders           PurchaseOrder[]
   apInvoices               AccountsPayableInvoice[]
   apPayments               AccountsPayablePayment[]
+  rfqInvitees              RfqInvitee[]
   createdAt                DateTime                 @default(now())
   updatedAt                DateTime                 @updatedAt
 
@@ -2155,18 +2863,20 @@ model Item {
   drawingSpecReference  String?
   standardLeadTimeDays  Int?
 
-  boms               Bom[]                  @relation("ItemBoms")
-  bomLines           BomLine[]
-  products           Product[]              @relation("ProductItem")
-  stockBalances      StockBalance[]
-  stockAdjustments   StockAdjustment[]
-  reservations       StockReservation[]
-  supplierLinks      ItemSupplier[]
-  purchaseOrderLines PurchaseOrderLine[]
-  grnLines           GoodsReceiptNoteLine[]
-  ncrs               NonConformanceReport[]
-  materialIndents    MaterialIndent[]
-  materialIssueNotes MaterialIssueNote[]
+  boms                 Bom[]                  @relation("ItemBoms")
+  bomLines             BomLine[]
+  products             Product[]              @relation("ProductItem")
+  stockBalances        StockBalance[]
+  stockAdjustments     StockAdjustment[]
+  reservations         StockReservation[]
+  supplierLinks        ItemSupplier[]
+  purchaseOrderLines   PurchaseOrderLine[]
+  grnLines             GoodsReceiptNoteLine[]
+  ncrs                 NonConformanceReport[]
+  materialIndents      MaterialIndent[]
+  materialIssueNotes   MaterialIssueNote[]
+  deliveryChallanLines DeliveryChallanLine[]
+  rfqLines             RfqLine[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2953,13 +3663,13 @@ model FinanceCompanySettings {
 /// seeded control code (for example "1000" for the primary bank account) and
 /// point to the active ledger code selected by the Finance Head.
 model FinanceProductionSettings {
-  id                    String   @id @default("INDIA")
-  controlAccountMap     Json     @default("{}")
-  gstMaxAttempts        Int      @default(5)
-  gstRetryDelayMinutes  Int      @default(15)
-  emailDeliveryEnabled  Boolean  @default(false)
-  updatedById           String?
-  updatedAt             DateTime @updatedAt
+  id                   String   @id @default("INDIA")
+  controlAccountMap    Json     @default("{}")
+  gstMaxAttempts       Int      @default(5)
+  gstRetryDelayMinutes Int      @default(15)
+  emailDeliveryEnabled Boolean  @default(false)
+  updatedById          String?
+  updatedAt            DateTime @updatedAt
 
   @@map("finance_production_settings")
 }
@@ -2970,11 +3680,11 @@ enum FinanceReadinessStatus {
 }
 
 model FinanceReadinessRun {
-  id        String                 @id @default(uuid())
-  status    FinanceReadinessStatus
-  checks    Json
-  runById   String
-  runAt     DateTime               @default(now())
+  id      String                 @id @default(uuid())
+  status  FinanceReadinessStatus
+  checks  Json
+  runById String
+  runAt   DateTime               @default(now())
 
   @@index([runAt])
   @@map("finance_readiness_runs")
@@ -2993,6 +3703,681 @@ model FinanceImportBatch {
 
   @@index([kind, createdAt])
   @@map("finance_import_batches")
+}
+
+// ── QMS Phase 1: templates, plans and inspection execution ─────────────
+
+enum QmsTemplateStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  RETIRED
+}
+
+enum QmsTemplateType {
+  INCOMING
+  IN_PROCESS
+  FINAL
+  FAT
+  PRE_DISPATCH
+  INTERNAL_AUDIT
+  PROCESS_AUDIT
+  SUPPLIER_AUDIT
+  PRODUCT_AUDIT
+  FIVE_S
+  CUSTOM
+}
+
+enum QmsResponseType {
+  YES_NO_NA
+  PASS_FAIL_NA
+  TEXT
+  NUMBER
+  MEASUREMENT
+  DATE
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  RATING
+  PHOTO
+  DOCUMENT
+  SIGNATURE
+}
+
+enum QmsPlanStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  RETIRED
+}
+
+enum QmsInspectionStatus {
+  DRAFT
+  IN_PROGRESS
+  PENDING_REVIEW
+  PASSED
+  CONDITIONAL_PASS
+  FAILED
+  CANCELLED
+}
+
+enum QmsInspectionResult {
+  PASS
+  CONDITIONAL_PASS
+  FAIL
+  NOT_APPLICABLE
+}
+
+enum QmsControlPoint {
+  REVIEW
+  WITNESS
+  HOLD
+}
+
+model QmsQuestionTemplate {
+  id                String                @id @default(uuid())
+  templateCode      String
+  name              String
+  description       String?               @db.Text
+  templateType      QmsTemplateType
+  version           Int                   @default(1)
+  status            QmsTemplateStatus     @default(DRAFT)
+  effectiveFrom     DateTime?
+  createdById       String
+  submittedById     String?
+  submittedAt       DateTime?
+  approvedById      String?
+  approvedAt        DateTime?
+  questions         QmsTemplateQuestion[]
+  stages            QmsPlanStage[]
+  auditProgramItems QmsAuditProgramItem[]
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@unique([templateCode, version])
+  @@index([templateType, status])
+  @@map("qms_question_templates")
+}
+
+// ── QMS Phase 3: audit programmes and execution ──────────────────────
+enum QmsAuditProgramStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  RETIRED
+}
+
+enum QmsAuditStatus {
+  SCHEDULED
+  IN_PROGRESS
+  PENDING_REVIEW
+  CLOSED
+  CANCELLED
+}
+
+enum QmsAuditFindingType {
+  CONFORMITY
+  OBSERVATION
+  OPPORTUNITY_FOR_IMPROVEMENT
+  MINOR_NONCONFORMITY
+  MAJOR_NONCONFORMITY
+}
+
+model QmsAuditProgram {
+  id            String                @id @default(uuid())
+  programNumber String                @unique
+  name          String
+  description   String?               @db.Text
+  financialYear String
+  status        QmsAuditProgramStatus @default(DRAFT)
+  createdById   String
+  submittedById String?
+  submittedAt   DateTime?
+  approvedById  String?
+  approvedAt    DateTime?
+  items         QmsAuditProgramItem[]
+  audits        QmsAudit[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([financialYear, status])
+  @@map("qms_audit_programs")
+}
+
+model QmsAuditProgramItem {
+  id            String              @id @default(uuid())
+  programId     String
+  program       QmsAuditProgram     @relation(fields: [programId], references: [id], onDelete: Cascade)
+  title         String
+  auditType     QmsTemplateType
+  scope         String              @db.Text
+  criteria      String              @db.Text
+  plannedFrom   DateTime
+  plannedTo     DateTime
+  department    String?
+  supplierId    String?
+  leadAuditorId String
+  auditeeId     String?
+  templateId    String
+  template      QmsQuestionTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  audits        QmsAudit[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([programId, plannedFrom])
+  @@index([leadAuditorId, plannedFrom])
+  @@map("qms_audit_program_items")
+}
+
+model QmsAudit {
+  id               String               @id @default(uuid())
+  auditNumber      String               @unique
+  programId        String?
+  program          QmsAuditProgram?     @relation(fields: [programId], references: [id], onDelete: SetNull)
+  programItemId    String?
+  programItem      QmsAuditProgramItem? @relation(fields: [programItemId], references: [id], onDelete: SetNull)
+  title            String
+  auditType        QmsTemplateType
+  scope            String               @db.Text
+  criteria         String               @db.Text
+  scheduledFrom    DateTime
+  scheduledTo      DateTime
+  department       String?
+  supplierId       String?
+  leadAuditorId    String
+  auditeeId        String?
+  status           QmsAuditStatus       @default(SCHEDULED)
+  templateSnapshot Json
+  openingNotes     String?              @db.Text
+  conclusion       String?              @db.Text
+  startedAt        DateTime?
+  completedAt      DateTime?
+  reviewedById     String?
+  reviewedAt       DateTime?
+  createdById      String
+  responses        QmsAuditResponse[]
+  findings         QmsAuditFinding[]
+  reports          QmsQualityReport[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([status, scheduledFrom])
+  @@index([leadAuditorId, status])
+  @@index([auditeeId, status])
+  @@map("qms_audits")
+}
+
+model QmsAuditResponse {
+  id             String               @id @default(uuid())
+  auditId        String
+  audit          QmsAudit             @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  questionKey    String
+  section        String
+  sequence       Int
+  promptSnapshot String               @db.Text
+  responseType   QmsResponseType
+  required       Boolean
+  answer         Json?
+  result         QmsInspectionResult?
+  comments       String?              @db.Text
+  evidence       Json?
+
+  @@unique([auditId, questionKey])
+  @@map("qms_audit_responses")
+}
+
+model QmsAuditFinding {
+  id          String              @id @default(uuid())
+  auditId     String
+  audit       QmsAudit            @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  findingType QmsAuditFindingType
+  clause      String?
+  description String              @db.Text
+  evidence    String?             @db.Text
+  ownerId     String?
+  targetDate  DateTime?
+  ncrId       String?             @unique
+  createdById String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([auditId, findingType])
+  @@map("qms_audit_findings")
+}
+
+model QmsTemplateQuestion {
+  id                 String              @id @default(uuid())
+  templateId         String
+  template           QmsQuestionTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  section            String
+  sequence           Int
+  prompt             String              @db.Text
+  responseType       QmsResponseType
+  required           Boolean             @default(true)
+  weight             Decimal             @default(1) @db.Decimal(8, 2)
+  unit               String?
+  lowerLimit         Decimal?            @db.Decimal(18, 4)
+  upperLimit         Decimal?            @db.Decimal(18, 4)
+  options            Json?
+  acceptanceCriteria String?             @db.Text
+  evidenceOnFailure  Boolean             @default(true)
+
+  @@unique([templateId, sequence])
+  @@map("qms_template_questions")
+}
+
+model QmsInspectionPlan {
+  id               String          @id @default(uuid())
+  planNumber       String          @unique
+  name             String
+  description      String?         @db.Text
+  status           QmsPlanStatus   @default(DRAFT)
+  productId        String?
+  orderId          String?
+  projectKickoffId String?
+  revision         Int             @default(1)
+  createdById      String
+  submittedById    String?
+  submittedAt      DateTime?
+  approvedById     String?
+  approvedAt       DateTime?
+  stages           QmsPlanStage[]
+  inspections      QmsInspection[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([status, productId])
+  @@index([orderId])
+  @@map("qms_inspection_plans")
+}
+
+model QmsPlanStage {
+  id                      String              @id @default(uuid())
+  planId                  String
+  plan                    QmsInspectionPlan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  name                    String
+  stageCode               String
+  sequence                Int
+  controlPoint            QmsControlPoint     @default(REVIEW)
+  templateId              String
+  template                QmsQuestionTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  customerWitnessRequired Boolean             @default(false)
+  blocksNextStage         Boolean             @default(true)
+  instructions            String?             @db.Text
+  inspections             QmsInspection[]
+
+  @@unique([planId, sequence])
+  @@unique([planId, stageCode])
+  @@map("qms_plan_stages")
+}
+
+model QmsInspection {
+  id                String                  @id @default(uuid())
+  inspectionNumber  String                  @unique
+  inspectionType    QmsTemplateType
+  status            QmsInspectionStatus     @default(DRAFT)
+  overallResult     QmsInspectionResult?
+  planId            String?
+  plan              QmsInspectionPlan?      @relation(fields: [planId], references: [id], onDelete: SetNull)
+  planStageId       String?
+  planStage         QmsPlanStage?           @relation(fields: [planStageId], references: [id], onDelete: SetNull)
+  templateSnapshot  Json
+  productId         String?
+  orderId           String?
+  projectKickoffId  String?
+  grnId             String?
+  batchOrSerial     String?
+  quantityOffered   Decimal?                @db.Decimal(14, 4)
+  quantityInspected Decimal?                @db.Decimal(14, 4)
+  quantityAccepted  Decimal?                @db.Decimal(14, 4)
+  quantityRejected  Decimal?                @db.Decimal(14, 4)
+  assignedToId      String?
+  inspectedById     String?
+  inspectedAt       DateTime?
+  reviewedById      String?
+  reviewedAt        DateTime?
+  remarks           String?                 @db.Text
+  createdById       String
+  responses         QmsInspectionResponse[]
+  nonConformances   QmsNonConformance[]
+  reports           QmsQualityReport[]
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@index([status, inspectionType])
+  @@index([grnId])
+  @@index([orderId])
+  @@map("qms_inspections")
+}
+
+model QmsInspectionResponse {
+  id             String               @id @default(uuid())
+  inspectionId   String
+  inspection     QmsInspection        @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  questionKey    String
+  section        String
+  sequence       Int
+  promptSnapshot String               @db.Text
+  responseType   QmsResponseType
+  required       Boolean
+  answer         Json?
+  result         QmsInspectionResult?
+  comments       String?              @db.Text
+  evidence       Json?
+
+  @@unique([inspectionId, questionKey])
+  @@map("qms_inspection_responses")
+}
+
+// ── QMS Phase 2: nonconformance and CAPA ──────────────────────────────
+enum QmsNcrSource {
+  INSPECTION
+  GRN
+  AUDIT
+  CUSTOMER_COMPLAINT
+  CALIBRATION
+  MANUAL
+}
+
+enum QmsNcrSeverity {
+  CRITICAL
+  MAJOR
+  MINOR
+}
+
+enum QmsNcrStatus {
+  OPEN
+  CONTAINED
+  INVESTIGATION
+  PENDING_DISPOSITION
+  CAPA_IN_PROGRESS
+  VERIFICATION
+  CLOSED
+  CANCELLED
+}
+
+enum QmsDisposition {
+  REWORK
+  REPAIR
+  USE_AS_IS
+  RETURN_TO_SUPPLIER
+  SCRAP
+  CONCESSION
+}
+
+enum QmsCapaStatus {
+  DRAFT
+  IN_PROGRESS
+  PENDING_EFFECTIVENESS
+  EFFECTIVE
+  INEFFECTIVE
+  CLOSED
+}
+
+enum QmsCapaActionStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  VERIFIED
+  CANCELLED
+}
+
+model QmsNonConformance {
+  id                 String          @id @default(uuid())
+  ncrNumber          String          @unique
+  source             QmsNcrSource
+  sourceId           String?
+  legacyStoreNcrId   String?         @unique
+  inspectionId       String?
+  inspection         QmsInspection?  @relation(fields: [inspectionId], references: [id], onDelete: SetNull)
+  severity           QmsNcrSeverity
+  status             QmsNcrStatus    @default(OPEN)
+  title              String
+  description        String          @db.Text
+  requirement        String?         @db.Text
+  actualResult       String?         @db.Text
+  productId          String?
+  orderId            String?
+  projectKickoffId   String?
+  grnId              String?
+  itemId             String?
+  batchOrSerial      String?
+  affectedQuantity   Decimal?        @db.Decimal(14, 4)
+  costOfPoorQuality  Decimal?        @db.Decimal(18, 2)
+  containmentAction  String?         @db.Text
+  containedAt        DateTime?
+  disposition        QmsDisposition?
+  dispositionNotes   String?         @db.Text
+  concessionRequired Boolean         @default(false)
+  ownerId            String
+  targetDate         DateTime
+  raisedById         String
+  dispositionedById  String?
+  dispositionedAt    DateTime?
+  closedById         String?
+  closedAt           DateTime?
+  closureNote        String?         @db.Text
+  capa               QmsCapa?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([status, targetDate])
+  @@index([severity, status])
+  @@index([inspectionId])
+  @@map("qms_non_conformances")
+}
+
+model QmsCapa {
+  id                        String            @id @default(uuid())
+  capaNumber                String            @unique
+  ncrId                     String            @unique
+  ncr                       QmsNonConformance @relation(fields: [ncrId], references: [id], onDelete: Restrict)
+  status                    QmsCapaStatus     @default(DRAFT)
+  problemStatement          String            @db.Text
+  rootCauseMethod           String?
+  rootCauseAnalysis         Json?
+  rootCauseConclusion       String?           @db.Text
+  correction                String?           @db.Text
+  effectivenessCriteria     String?           @db.Text
+  effectivenessDueDate      DateTime?
+  effectivenessResult       String?           @db.Text
+  effectivenessReviewedById String?
+  effectivenessReviewedAt   DateTime?
+  ownerId                   String
+  createdById               String
+  closedById                String?
+  closedAt                  DateTime?
+  actions                   QmsCapaAction[]
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+
+  @@index([status, effectivenessDueDate])
+  @@map("qms_capas")
+}
+
+model QmsCapaAction {
+  id             String              @id @default(uuid())
+  capaId         String
+  capa           QmsCapa             @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  actionType     String
+  description    String              @db.Text
+  ownerId        String
+  dueDate        DateTime
+  status         QmsCapaActionStatus @default(OPEN)
+  completionNote String?             @db.Text
+  evidence       Json?
+  completedById  String?
+  completedAt    DateTime?
+  verifiedById   String?
+  verifiedAt     DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([ownerId, status, dueDate])
+  @@index([capaId, status])
+  @@map("qms_capa_actions")
+}
+
+// ── QMS Phase 4: controlled quality reports and signatures ───────────
+enum QmsReportType {
+  INSPECTION
+  AUDIT
+}
+
+enum QmsReportStatus {
+  AWAITING_INTERNAL_SIGNATURE
+  AWAITING_CUSTOMER_SIGNATURE
+  EXECUTED
+  SUPERSEDED
+}
+
+model QmsQualityReport {
+  id                            String          @id @default(uuid())
+  reportNumber                  String
+  revision                      Int             @default(1)
+  reportType                    QmsReportType
+  status                        QmsReportStatus @default(AWAITING_INTERNAL_SIGNATURE)
+  inspectionId                  String?
+  inspection                    QmsInspection?  @relation(fields: [inspectionId], references: [id], onDelete: Restrict)
+  auditId                       String?
+  audit                         QmsAudit?       @relation(fields: [auditId], references: [id], onDelete: Restrict)
+  title                         String
+  frozenPayload                 Json
+  customerSignatureRequired     Boolean         @default(false)
+  generatedById                 String
+  generatedAt                   DateTime        @default(now())
+  internalSignerId              String?
+  internalSignerNameSnapshot    String?
+  internalSignatureTextSnapshot String?
+  internalSignatureFontSnapshot SignatureFont?
+  internalSignedAt              DateTime?
+  customerSignerName            String?
+  customerSignerDesignation     String?
+  customerOrganisation          String?
+  customerSignatureText         String?
+  customerSignatureEvidence     Json?
+  customerSignedAt              DateTime?
+  supersededAt                  DateTime?
+  supersededById                String?
+  createdAt                     DateTime        @default(now())
+  updatedAt                     DateTime        @updatedAt
+
+  @@unique([reportNumber, revision])
+  @@index([status, generatedAt])
+  @@index([inspectionId, revision])
+  @@index([auditId, revision])
+  @@map("qms_quality_reports")
+}
+
+// ── QMS Phase 5: calibration, complaints and supplier quality ─────────
+enum QmsEquipmentStatus {
+  ACTIVE
+  DUE
+  OVERDUE
+  OUT_OF_SERVICE
+  RETIRED
+}
+
+enum QmsCalibrationResult {
+  PASS
+  FAIL
+  LIMITED_USE
+}
+
+enum QmsCalibrationReviewStatus {
+  PENDING_REVIEW
+  ACCEPTED
+  REJECTED
+}
+
+enum QmsComplaintStatus {
+  OPEN
+  INVESTIGATION
+  PENDING_CLOSURE
+  CLOSED
+  CANCELLED
+}
+
+model QmsMeasuringEquipment {
+  id                       String                 @id @default(uuid())
+  equipmentCode            String                 @unique
+  name                     String
+  serialNumber             String?                @unique
+  manufacturer             String?
+  model                    String?
+  measurementRange         String?
+  leastCount               String?
+  location                 String?
+  custodianId              String
+  calibrationFrequencyDays Int
+  lastCalibrationDate      DateTime?
+  nextCalibrationDate      DateTime
+  status                   QmsEquipmentStatus     @default(ACTIVE)
+  notes                    String?                @db.Text
+  createdById              String
+  records                  QmsCalibrationRecord[]
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+
+  @@index([status, nextCalibrationDate])
+  @@index([custodianId])
+  @@map("qms_measuring_equipment")
+}
+
+model QmsCalibrationRecord {
+  id                  String                     @id @default(uuid())
+  calibrationNumber   String                     @unique
+  equipmentId         String
+  equipment           QmsMeasuringEquipment      @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  calibrationDate     DateTime
+  nextDueDate         DateTime
+  result              QmsCalibrationResult
+  reviewStatus        QmsCalibrationReviewStatus @default(PENDING_REVIEW)
+  agency              String?
+  certificateNumber   String?
+  certificateEvidence Json?
+  observedResults     Json?
+  remarks             String?                    @db.Text
+  performedById       String
+  reviewedById        String?
+  reviewedAt          DateTime?
+  ncrId               String?                    @unique
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+
+  @@index([equipmentId, calibrationDate])
+  @@index([reviewStatus])
+  @@map("qms_calibration_records")
+}
+
+model QmsCustomerComplaint {
+  id                 String             @id @default(uuid())
+  complaintNumber    String             @unique
+  customerId         String
+  orderId            String?
+  productId          String?
+  status             QmsComplaintStatus @default(OPEN)
+  severity           QmsNcrSeverity
+  reportedAt         DateTime
+  reportedBy         String?
+  title              String
+  description        String             @db.Text
+  ownerId            String
+  targetDate         DateTime
+  immediateAction    String?            @db.Text
+  investigation      String?            @db.Text
+  responseToCustomer String?            @db.Text
+  ncrId              String?            @unique
+  createdById        String
+  closedById         String?
+  closedAt           DateTime?
+  closureNote        String?            @db.Text
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([status, targetDate])
+  @@index([customerId, reportedAt])
+  @@index([severity, status])
+  @@map("qms_customer_complaints")
 }
 
 model BillingMilestone {
@@ -3075,6 +4460,7 @@ model SalesInvoice {
   allocations                ReceiptAllocation[]
   gstSubmissions             GstSubmission[]
   adjustmentNotes            FinanceAdjustmentNote[]
+  deliveryChallan            DeliveryChallan?        @relation("DeliveryChallanInvoice")
   createdAt                  DateTime                @default(now())
   updatedAt                  DateTime                @updatedAt
 
@@ -4394,4 +5780,276 @@ model MaterialIssueNote {
   @@index([materialIndentId])
   @@index([itemId])
   @@map("material_issue_notes")
+}
+
+// ── Logistics & Dispatch ─────────────────────────────────────────────────
+//
+// Delivery Challans for outbound shipments. Dispatching a DC generates STOCK_OUT
+// movements for the shipped finished goods (via the existing ledger) and seeds a
+// DRAFT SalesInvoice in AR (never issued here — Finance's maker-checker owns
+// that). Partial dispatch across multiple DCs per order line is supported;
+// "previously dispatched" and order fulfilment status are COMPUTED, never stored.
+
+enum TransportMode {
+  ROAD
+  RAIL
+  AIR
+  SEA
+  COURIER
+}
+
+enum DeliveryChallanStatus {
+  DRAFT
+  DISPATCHED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+model DeliveryChallan {
+  id         String                @id @default(uuid())
+  /// DC-YYYY-#### via the shared year-prefixed SalesNumberingService.
+  dcNumber   String                @unique
+  orderId    String
+  order      Order                 @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  customerId String
+  customer   Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  status     DeliveryChallanStatus @default(DRAFT)
+
+  customerPoReference String?
+  dispatchDate        DateTime
+
+  consigneeName      String
+  consigneeAddress   String  @db.Text
+  consigneeGstin     String?
+  /// Drives place-of-supply on the seeded draft invoice.
+  consigneeStateCode String
+
+  transportMode               TransportMode
+  transporterName             String?
+  vehicleOrAwbNumber          String?
+  driverName                  String?
+  driverPhone                 String?
+  specialDeliveryInstructions String?       @db.Text
+  /// Checklist of documents included (DC, invoice, e-way bill, packing list,
+  /// COC, FAT report, quality certificate, ISPM-15/phyto), as a JSON map.
+  documentsIncluded           Json?
+
+  /// Captured for OTD tracking; actual set on POD capture.
+  promisedDeliveryDate DateTime?
+  actualDeliveryDate   DateTime?
+
+  linkedInvoiceId String?       @unique
+  linkedInvoice   SalesInvoice? @relation("DeliveryChallanInvoice", fields: [linkedInvoiceId], references: [id], onDelete: SetNull)
+
+  eWayBillNumber     String?
+  eWayBillDate       DateTime?
+  eWayBillValidUntil DateTime?
+
+  /// Proof of delivery (R2 object key) + who signed + notes.
+  podFileKey    String?
+  podReceivedBy String?
+  podNotes      String? @db.Text
+
+  createdById String
+  createdBy   Employee @relation("DeliveryChallanCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  lines     DeliveryChallanLine[]
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  @@index([orderId])
+  @@index([customerId])
+  @@index([status])
+  @@map("delivery_challans")
+}
+
+model DeliveryChallanLine {
+  id                String          @id @default(uuid())
+  deliveryChallanId String
+  deliveryChallan   DeliveryChallan @relation(fields: [deliveryChallanId], references: [id], onDelete: Cascade)
+  itemId            String
+  item              Item            @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  /// Required — partial-dispatch tracking depends on knowing which order line
+  /// each dispatched quantity belongs to.
+  orderLineId       String
+  orderLine         OrderLineItem   @relation(fields: [orderLineId], references: [id], onDelete: Restrict)
+
+  description   String
+  hsnCode       String?
+  quantity      Decimal @db.Decimal(14, 4)
+  unitOfMeasure String
+  unitRate      Decimal @db.Decimal(18, 2)
+  lineValue     Decimal @db.Decimal(18, 2)
+  sequence      Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([deliveryChallanId])
+  @@index([orderLineId])
+  @@index([itemId])
+  @@map("delivery_challan_lines")
+}
+
+// ── RFQ Builder (SCM) ────────────────────────────────────────────────────
+//
+// Float Requests for Quotation to ≥3 vendors/suppliers, collect sealed quotes
+// through a token-authed public form, compare, and award (lowest-cost OR a
+// documented override). Reuses the shared token-invite behaviour, R2 storage
+// guardrails, and pre-fills a DRAFT PurchaseOrder on award. Sealed-bid: quotes
+// are not readable by SCM until the RFQ CLOSES (enforced in the service).
+
+enum RfqStatus {
+  DRAFT
+  ISSUED
+  CLOSED
+  AWARDED
+  CANCELLED
+}
+
+/// Per-invitee quote lifecycle.
+enum RfqQuoteStatus {
+  INVITED
+  VIEWED
+  SUBMITTED
+  DECLINED
+}
+
+model Rfq {
+  id          String    @id @default(uuid())
+  /// RFQ-YYYY-#### via the shared year-prefixed SalesNumberingService.
+  rfqNumber   String    @unique
+  title       String
+  description String?   @db.Text
+  status      RfqStatus @default(DRAFT)
+
+  /// Set when generated from a kickoff stock shortfall.
+  projectKickoffId String?
+  projectKickoff   ProjectKickoff? @relation(fields: [projectKickoffId], references: [id], onDelete: SetNull)
+
+  submissionDeadline     DateTime
+  requiredByDate         DateTime?
+  deliveryLocation       String?   @db.Text
+  paymentTermsRequested  String?
+
+  /// The winning invitee. Named relation so it doesn't clash with the
+  /// Rfq→RfqInvitee list relation below.
+  awardedInviteeId String?      @unique
+  awardedInvitee   RfqInvitee?  @relation("RfqAwardedInvitee", fields: [awardedInviteeId], references: [id], onDelete: SetNull)
+  awardDecisionById String?
+  awardDecisionBy   Employee?   @relation("RfqAwardDecisionBy", fields: [awardDecisionById], references: [id], onDelete: SetNull)
+  awardDecisionAt   DateTime?
+  /// Mandatory when the awarded quote is NOT the lowest total (service-enforced).
+  awardJustification String?    @db.Text
+
+  createdById String
+  createdBy   Employee @relation("RfqCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  lines    RfqLine[]
+  invitees RfqInvitee[] @relation("RfqInvitees")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([projectKickoffId])
+  @@map("rfqs")
+}
+
+model RfqLine {
+  id                 String  @id @default(uuid())
+  rfqId              String
+  rfq                Rfq     @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  itemId             String
+  item               Item    @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  quantity           Decimal @db.Decimal(14, 4)
+  unitOfMeasure      String
+  specificationNotes String? @db.Text
+  sequence           Int     @default(0)
+
+  quoteLines RfqQuoteLine[]
+
+  @@index([rfqId])
+  @@index([itemId])
+  @@map("rfq_lines")
+}
+
+model RfqInvitee {
+  id    String @id @default(uuid())
+  rfqId String
+  rfq   Rfq    @relation("RfqInvitees", fields: [rfqId], references: [id], onDelete: Cascade)
+
+  /// Exactly one of supplierId / vendorId (CHECK constraint in migration).
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  vendorId   String?
+  vendor     Vendor?   @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+
+  /// Shared token-invite mechanism (see src/common/utils/token-invite.ts).
+  inviteToken   String    @unique
+  tokenExpiresAt DateTime
+  passwordHash  String?
+  revokedAt     DateTime?
+
+  /// The invitee's qualification classification snapshotted AT INVITE TIME —
+  /// the award decision reflects what was known then, not later changes.
+  qualificationStatusSnapshot String
+
+  quoteStatus  RfqQuoteStatus @default(INVITED)
+  submittedAt  DateTime?
+  declineReason String?       @db.Text
+
+  quote          RfqQuote?
+  /// Back-relation for Rfq.awardedInvitee (named to disambiguate).
+  awardedForRfq  Rfq?         @relation("RfqAwardedInvitee")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([rfqId])
+  @@index([supplierId])
+  @@index([vendorId])
+  @@map("rfq_invitees")
+}
+
+model RfqQuote {
+  id        String     @id @default(uuid())
+  inviteeId String     @unique
+  invitee   RfqInvitee @relation(fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  quotedLeadTimeDays  Int?
+  paymentTermsOffered String?
+  validityDays        Int?
+  notes               String?  @db.Text
+  /// R2 object refs, reusing the vault storage guardrails.
+  attachmentFileKeys  Json?
+  /// Snapshot of the summed line totals at submission.
+  totalQuotedValue    Decimal  @db.Decimal(18, 2) @default(0)
+
+  /// Save-and-resume: a quote row exists in draft until submittedAt is set on
+  /// the parent invitee. Lines are upserted on each save.
+  lines RfqQuoteLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("rfq_quotes")
+}
+
+model RfqQuoteLine {
+  id        String   @id @default(uuid())
+  quoteId   String
+  quote     RfqQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  rfqLineId String
+  rfqLine   RfqLine  @relation(fields: [rfqLineId], references: [id], onDelete: Restrict)
+
+  unitPrice            Decimal @db.Decimal(18, 2)
+  lineTotal            Decimal @db.Decimal(18, 2)
+  deliveryLeadTimeDays Int?
+  remarks              String? @db.Text
+
+  @@unique([quoteId, rfqLineId])
+  @@index([rfqLineId])
+  @@map("rfq_quote_lines")
 }

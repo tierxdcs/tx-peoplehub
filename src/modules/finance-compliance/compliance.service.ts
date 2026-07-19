@@ -20,6 +20,7 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../core/database/prisma.service';
 import { FinanceAccessService } from '../finance/finance-access.service';
+import { FinanceService } from '../finance/finance.service';
 import {
   CreateAdjustmentNoteDto,
   CreateTdsSectionDto,
@@ -41,6 +42,7 @@ export class ComplianceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: FinanceAccessService,
+    private readonly finance: FinanceService,
   ) {}
 
   async tdsSections(user: AuthenticatedUser) {
@@ -581,13 +583,6 @@ export class ComplianceService {
         'Credit note now exceeds invoice outstanding',
       );
     return this.prisma.$transaction(async (tx) => {
-      const period = await this.openPeriod(tx, note.noteDate);
-      const journalNumber = await this.number(
-        tx,
-        'JOURNAL',
-        'JV',
-        note.noteDate.getUTCFullYear(),
-      );
       const control = await this.account(tx, isAr ? '1100' : '2000');
       const base = await this.account(
         tx,
@@ -623,21 +618,15 @@ export class ComplianceService {
           debit: baseDebit ? taxValue : 0,
           credit: baseDebit ? 0 : taxValue,
         });
-      const journal = await tx.journalEntry.create({
-        data: {
-          journalNumber,
-          entryDate: note.noteDate,
-          periodId: period.id,
-          description: `${note.noteType.replace('_', ' ')} ${note.noteNumber}`,
-          reference: invoice.invoiceNumber ?? invoice.internalBillNumber,
-          status: JournalStatus.POSTED,
-          createdById: note.createdById,
-          submittedById: note.submittedById,
-          submittedAt: note.submittedAt,
-          approvedById: approverId,
-          approvedAt: new Date(),
-          lines: { create: lines },
-        },
+      const journal = await this.finance.postJournalTx(tx, {
+        entryDate: note.noteDate,
+        description: `${note.noteType.replace('_', ' ')} ${note.noteNumber}`,
+        reference: invoice.invoiceNumber ?? invoice.internalBillNumber,
+        createdById: note.createdById,
+        submittedById: note.submittedById,
+        submittedAt: note.submittedAt,
+        approvedById: approverId,
+        lines,
       });
       const delta = increase ? note.totalAmount : note.totalAmount.negated();
       const nextOutstanding = invoice.outstandingAmount.plus(delta);

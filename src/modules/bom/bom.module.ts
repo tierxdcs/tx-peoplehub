@@ -35,6 +35,6 @@ import { KickoffStockController } from './kickoff-stock.controller';
   ],
   // Exported so the Purchasing/Stores module (Material Issue) can reuse the
   // single reservation-aware STOCK_OUT implementation and access rules.
-  exports: [InventoryService, BomAccessService],
+  exports: [InventoryService, BomAccessService, StockReportService],
 })
 export class BomModule {}

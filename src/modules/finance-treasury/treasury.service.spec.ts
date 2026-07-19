@@ -4,7 +4,7 @@ import { TreasuryService } from './treasury.service';
 describe('TreasuryService accounting controls', () => {
   const access = { assertCanUseFinance: jest.fn(), assertAccountsHead: jest.fn() };
   const prisma = { fxRevaluationRun: { findUnique: jest.fn(), update: jest.fn() } };
-  const service = new TreasuryService(prisma as any, access as any);
+  const service = new TreasuryService(prisma as any, access as any, {} as any);
   beforeEach(() => jest.clearAllMocks());
 
   it('recognizes an AR gain when the closing rate rises', () => {

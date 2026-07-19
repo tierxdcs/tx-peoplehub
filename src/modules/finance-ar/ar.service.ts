@@ -16,6 +16,8 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { FinanceAccessService } from '../finance/finance-access.service';
+import { FinanceService } from '../finance/finance.service';
+import { SalesNumberingService } from '../sales/common/sales-numbering.service';
 import {
   CompanySettingsDto,
   CreateCustomerReceiptDto,
@@ -39,6 +41,8 @@ export class ArService {
     private readonly prisma: PrismaService,
     private readonly access: FinanceAccessService,
     private readonly gst: GstGatewayService,
+    private readonly numbering: SalesNumberingService,
+    private readonly finance: FinanceService,
   ) {}
 
   async settings(user: AuthenticatedUser) {
@@ -203,11 +207,15 @@ export class ArService {
     if (dueDate < invoiceDate)
       throw new BadRequestException('Due date cannot precede invoice date');
     return this.prisma.$transaction(async (tx) => {
-      const number = await this.number(
-        tx,
-        'SALES_INVOICE',
+      // Document numbers use the shared year-prefixed SalesNumberingService
+      // (INV-YYYY-####), matching every other module. Journal numbers stay on
+      // the shared financeSequence 'JOURNAL' key (see this.number) so AR's GL
+      // journal numbering remains one series with AP + finance-core.
+      const number = await this.numbering.nextNumber(
         'INV',
+        'SALES_INVOICE',
         invoiceDate.getUTCFullYear(),
+        tx,
       );
       return tx.salesInvoice.create({
         data: {
@@ -244,6 +252,137 @@ export class ArService {
         include: INVOICE_INCLUDE,
       });
     });
+  }
+
+  /**
+   * Seed a DRAFT sales invoice from another module (Logistics & Dispatch), WITHOUT
+   * a finance access check — a logistics user would fail assertCanUseFinance, but
+   * dispatch is a legitimate system trigger. This is deliberately NOT wired to any
+   * HTTP route (no controller endpoint calls it), so it is only reachable
+   * module-to-module via the exported ArService; a non-finance HTTP caller cannot
+   * reach it.
+   *
+   * DRAFT-only BY CONSTRUCTION: this method hardcodes `status: DRAFT`, takes no
+   * status parameter, and never calls submit/approve/issue or posts a journal
+   * entry. The existing maker-checker flow (submit -> Accounts Head approve ->
+   * issue -> GL) is the ONLY way this invoice can advance. GST rates are seeded
+   * as supplied (best-effort from the dispatch side) and corrected by Finance at
+   * approval time.
+   *
+   * `tx` is optional: pass the caller's transaction client so the invoice is
+   * created atomically with the dispatch + stock movements.
+   */
+  async createDraftInvoiceFromDispatch(
+    input: {
+      customerId: string;
+      orderId?: string;
+      customerPoReference?: string;
+      placeOfSupplyState: string;
+      placeOfSupplyStateCode: string;
+      invoiceDate?: Date;
+      dueDate?: Date;
+      createdById: string;
+      lines: Array<{
+        productId?: string;
+        description: string;
+        hsnSacCode: string;
+        quantity: number | Prisma.Decimal;
+        unitOfMeasure: string;
+        unitPrice: number | Prisma.Decimal;
+        cgstRate?: number;
+        sgstRate?: number;
+        igstRate?: number;
+      }>;
+    },
+    tx?: Prisma.TransactionClient,
+  ) {
+    const run = async (db: Prisma.TransactionClient) => {
+      const customer = await db.customer.findUnique({
+        where: { id: input.customerId },
+      });
+      if (!customer) throw new NotFoundException('Customer not found');
+      if (!input.lines.length)
+        throw new BadRequestException('At least one invoice line is required');
+
+      const lines = input.lines.map((line, index) =>
+        this.calculateLine(line, index),
+      );
+      const subtotal = lines
+        .reduce(
+          (s, l) => s.plus(l.quantity.times(l.unitPrice)),
+          new Prisma.Decimal(0),
+        )
+        .toDecimalPlaces(2);
+      const taxable = lines.reduce(
+        (s, l) => s.plus(l.taxableAmount),
+        new Prisma.Decimal(0),
+      );
+      const cgst = lines.reduce(
+        (s, l) => s.plus(l.cgstAmount),
+        new Prisma.Decimal(0),
+      );
+      const sgst = lines.reduce(
+        (s, l) => s.plus(l.sgstAmount),
+        new Prisma.Decimal(0),
+      );
+      const igst = lines.reduce(
+        (s, l) => s.plus(l.igstAmount),
+        new Prisma.Decimal(0),
+      );
+      const discount = subtotal.minus(taxable);
+      const total = taxable
+        .plus(cgst)
+        .plus(sgst)
+        .plus(igst)
+        .toDecimalPlaces(2);
+      const invoiceDate = input.invoiceDate ?? new Date();
+      // Default 30-day terms; Finance adjusts before issue.
+      const dueDate =
+        input.dueDate ??
+        new Date(invoiceDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      const number = await this.numbering.nextNumber(
+        'INV',
+        'SALES_INVOICE',
+        invoiceDate.getUTCFullYear(),
+        db,
+      );
+      return db.salesInvoice.create({
+        data: {
+          invoiceNumber: number,
+          invoiceDate,
+          dueDate,
+          customerId: customer.id,
+          orderId: input.orderId,
+          customerPoReference: input.customerPoReference,
+          currencyCode: 'INR',
+          exchangeRateToInr: 1,
+          billingAddressSnapshot:
+            customer.billingAddress as Prisma.InputJsonValue,
+          shippingAddressSnapshot: (customer.shippingAddress ??
+            customer.billingAddress) as Prisma.InputJsonValue,
+          customerGstinSnapshot: customer.gstin,
+          placeOfSupplyState: input.placeOfSupplyState,
+          placeOfSupplyStateCode: input.placeOfSupplyStateCode,
+          // Status is hardcoded DRAFT — never parameterised.
+          status: SalesInvoiceStatus.DRAFT,
+          subtotal,
+          discountAmount: discount,
+          taxableAmount: taxable,
+          cgstAmount: cgst,
+          sgstAmount: sgst,
+          igstAmount: igst,
+          otherCharges: 0,
+          roundOff: 0,
+          totalAmount: total,
+          outstandingAmount: total,
+          createdById: input.createdById,
+          lines: { create: lines },
+        },
+        include: INVOICE_INCLUDE,
+      });
+    };
+    return tx ? run(tx) : this.prisma.$transaction(run);
   }
 
   async invoices(query: PaginationQueryDto, user: AuthenticatedUser) {
@@ -566,11 +705,11 @@ export class ArService {
       );
     const receiptDate = this.day(dto.receiptDate);
     return this.prisma.$transaction(async (tx) => {
-      const number = await this.number(
-        tx,
-        'CUSTOMER_RECEIPT',
+      const number = await this.numbering.nextNumber(
         'RCT',
+        'CUSTOMER_RECEIPT',
         receiptDate.getUTCFullYear(),
+        tx,
       );
       return tx.customerReceipt.create({
         data: {
@@ -784,13 +923,6 @@ export class ArService {
     const inv = await this.findInvoice(id);
     const rate = inv.exchangeRateToInr;
     return this.prisma.$transaction(async (tx) => {
-      const period = await this.period(tx, inv.invoiceDate);
-      const jn = await this.number(
-        tx,
-        'JOURNAL',
-        'JV',
-        inv.invoiceDate.getUTCFullYear(),
-      );
       const ar = await this.account(tx, '1100'),
         revenue = await this.account(tx, '4000'),
         gst = await this.account(tx, '2100');
@@ -800,36 +932,19 @@ export class ArService {
           .plus(inv.igstAmount)
           .times(rate)
           .toDecimalPlaces(2);
-      const journal = await tx.journalEntry.create({
-        data: {
-          journalNumber: jn,
-          entryDate: inv.invoiceDate,
-          periodId: period.id,
-          description: `Sales invoice ${inv.invoiceNumber}`,
-          reference: inv.invoiceNumber,
-          status: JournalStatus.POSTED,
-          createdById: inv.createdById,
-          submittedById: inv.submittedById,
-          submittedAt: inv.submittedAt,
-          approvedById: approverId,
-          approvedAt: new Date(),
-          lines: {
-            create: [
-              { sequence: 1, accountId: ar.id, debit: total, credit: 0 },
-              {
-                sequence: 2,
-                accountId: revenue.id,
-                debit: 0,
-                credit: total.minus(tax),
-              },
-              { sequence: 3, accountId: gst.id, debit: 0, credit: tax },
-            ].filter(
-              (l) =>
-                new Prisma.Decimal(l.debit).gt(0) ||
-                new Prisma.Decimal(l.credit).gt(0),
-            ),
-          },
-        },
+      const journal = await this.finance.postJournalTx(tx, {
+        entryDate: inv.invoiceDate,
+        description: `Sales invoice ${inv.invoiceNumber}`,
+        reference: inv.invoiceNumber,
+        createdById: inv.createdById,
+        submittedById: inv.submittedById,
+        submittedAt: inv.submittedAt,
+        approvedById: approverId,
+        lines: [
+          { accountId: ar.id, debit: total, credit: 0 },
+          { accountId: revenue.id, debit: 0, credit: total.minus(tax) },
+          { accountId: gst.id, debit: 0, credit: tax },
+        ],
       });
       if (inv.milestoneId)
         await tx.billingMilestone.update({
@@ -852,13 +967,6 @@ export class ArService {
   private async postReceipt(receipt: any, approverId: string) {
     const rate = receipt.exchangeRateToInr;
     return this.prisma.$transaction(async (tx) => {
-      const period = await this.period(tx, receipt.receiptDate);
-      const jn = await this.number(
-        tx,
-        'JOURNAL',
-        'JV',
-        receipt.receiptDate.getUTCFullYear(),
-      );
       const bank = await this.account(tx, '1000'),
         ar = await this.account(tx, '1100'),
         adv = await this.account(tx, '2300'),
@@ -923,21 +1031,15 @@ export class ArService {
           ? { sequence: lines.length + 1, accountId: settings.gainAccountId, debit: 0, credit: realizedFx }
           : { sequence: lines.length + 1, accountId: settings.lossAccountId, debit: realizedFx.abs(), credit: 0 });
       }
-      const journal = await tx.journalEntry.create({
-        data: {
-          journalNumber: jn,
-          entryDate: receipt.receiptDate,
-          periodId: period.id,
-          description: `Customer receipt ${receipt.receiptNumber}`,
-          reference: receipt.bankReference,
-          status: JournalStatus.POSTED,
-          createdById: receipt.createdById,
-          submittedById: receipt.submittedById,
-          submittedAt: receipt.submittedAt,
-          approvedById: approverId,
-          approvedAt: new Date(),
-          lines: { create: lines },
-        },
+      const journal = await this.finance.postJournalTx(tx, {
+        entryDate: receipt.receiptDate,
+        description: `Customer receipt ${receipt.receiptNumber}`,
+        reference: receipt.bankReference,
+        createdById: receipt.createdById,
+        submittedById: receipt.submittedById,
+        submittedAt: receipt.submittedAt,
+        approvedById: approverId,
+        lines,
       });
       for (const a of receipt.allocations) {
         const outstanding = a.invoice.outstandingAmount.minus(a.amount);
@@ -1015,6 +1117,9 @@ export class ArService {
     if (!inv) throw new NotFoundException('Sales invoice not found');
     return inv;
   }
+  // JOURNAL numbers only. Document numbers (INV-/RCT-) moved to the shared
+  // SalesNumberingService; the GL journal series stays on the shared
+  // financeSequence 'JOURNAL' key so it remains one sequence with AP + core.
   private async number(
     tx: Prisma.TransactionClient,
     entity: string,

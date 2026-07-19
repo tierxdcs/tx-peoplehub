@@ -282,6 +282,26 @@ export class EmployeesController {
     return this.employeesService.revokeAccountsHead(id);
   }
 
+  @Patch(':id/designate-qms-head')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Designate the sole QMS Head' })
+  designateQmsHead(@Param('id') id: string) { return this.employeesService.designateQmsHead(id); }
+
+  @Patch(':id/revoke-qms-head')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Revoke the QMS Head designation' })
+  revokeQmsHead(@Param('id') id: string) { return this.employeesService.revokeQmsHead(id); }
+
+  @Patch(':id/designate-design-head')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Designate the sole Design Head' })
+  designateDesignHead(@Param('id') id: string) { return this.employeesService.designateDesignHead(id); }
+
+  @Patch(':id/revoke-design-head')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Revoke the Design Head designation' })
+  revokeDesignHead(@Param('id') id: string) { return this.employeesService.revokeDesignHead(id); }
+
   @Patch(':id/reset-password')
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
   @ApiOperation({

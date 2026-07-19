@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { ArService } from './ar.service';
 
 describe('ArService invoice calculations', () => {
-  const service = new ArService({} as any, {} as any, {} as any);
+  const service = new ArService({} as any, {} as any, {} as any, {} as any, {} as any);
   const calculate = (line: Record<string, unknown>) =>
     (service as any).calculateLine(line, 0);
 

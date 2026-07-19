@@ -35,9 +35,15 @@ export interface Access {
   isRndStaff: boolean;
   /** The current user is Store staff (PRODUCTION vertical) — gates Store Management. */
   isStoreStaff: boolean;
+  /** The current user is SCM staff (SCM vertical) — gates the SCM group. */
+  isScmStaff: boolean;
   isFinanceUser: boolean;
   isFinanceAuditor?: boolean;
   isAccountsHead: boolean;
+  isQualityUser?: boolean;
+  isQmsHead?: boolean;
+  isDesignUser?: boolean;
+  isDesignHead?: boolean;
   payslipsEnabled: boolean;
 }
 
@@ -139,19 +145,22 @@ export function sharedNav(access: Access): NavGroup[] {
     items: [{ label: 'Project Kickoff', href: '/project-kickoff' }],
   });
 
-  // SCM — vendor + supplier qualification plus Purchase Orders. Raising a PO is
-  // a purchasing (SCM) activity, distinct from the Stores receiving flow, so it
-  // lives here next to the trading partners it references. Company-wide read
-  // (like Vendors/Suppliers), so everyone sees the nav items; PO create is
-  // gated to SCM Manager+ by the backend and self-guarded in the page.
-  groups.push({
-    heading: 'SCM',
-    items: [
-      { label: 'Vendors', href: '/scm/vendors' },
-      { label: 'Suppliers', href: '/scm/suppliers' },
-      { label: 'Purchase Orders', href: '/stores/purchase-orders' },
-    ],
-  });
+  // SCM — vendor + supplier qualification plus Purchase Orders. Restricted to
+  // SCM-vertical staff and SUPER_ADMIN (procurement is their function). Backend
+  // reads remain company-wide, but the nav group is not surfaced to other
+  // verticals (Sales/Finance/HR/R&D/Production). PO create is further gated to
+  // SCM Manager+/SA and self-guarded in the page.
+  if (access.isScmStaff || flags(access.user).isSuperAdmin) {
+    groups.push({
+      heading: 'SCM',
+      items: [
+        { label: 'Vendors', href: '/scm/vendors' },
+        { label: 'Suppliers', href: '/scm/suppliers' },
+        { label: 'RFQs', href: '/scm/rfqs' },
+        { label: 'Purchase Orders', href: '/stores/purchase-orders' },
+      ],
+    });
+  }
 
   // Engineering — Bills of Materials. R&D-only (RND vertical; SUPER_ADMIN
   // included via isRndStaff). Create/approve actions are further gated inside
@@ -196,7 +205,31 @@ export function sharedNav(access: Access): NavGroup[] {
     });
   }
 
+  // Logistics & Dispatch — outbound Delivery Challans + OTD. Shown to Store
+  // (Production) staff AND SCM staff (procurement/logistics overlap), plus
+  // SUPER_ADMIN. Dispatch is gated to Production-vertical and final-QC clearance
+  // to isQcInspector by the backend; read is company-wide there.
+  if (access.isStoreStaff || access.isScmStaff || flags(access.user).isSuperAdmin) {
+    groups.push({
+      heading: 'Logistics',
+      items: [
+        { label: 'Dispatch Register', href: '/logistics/dispatch' },
+        { label: 'OTD Analytics', href: '/logistics/otd' },
+      ],
+    });
+  }
+
   if (access.isFinanceUser || access.isAccountsHead) {
+    // Trimmed to the core procure-to-pay / order-to-cash / GST spine: GL core,
+    // AR, AP, and compliance. The four "leaf" finance modules — Treasury &
+    // Credit, Schedules & Analytics + Budgets + Fixed Assets (management),
+    // Bank Reconciliation + Exports + Production Readiness (operations), and
+    // Executive Reporting (reporting) — are INTENTIONALLY HIDDEN from nav.
+    // Their backend code, routes, models, and page files remain intact and
+    // reachable by direct URL; they're built but not currently in use. Do NOT
+    // re-add them to nav without a reason — hiding is a deliberate, reversible
+    // trim (see the Finance discovery report). To restore one, just re-add its
+    // NavItem line here.
     const financeItems: NavItem[] = [
       { label: 'Sales Invoices', href: '/finance/ar/invoices' },
       { label: 'Customer Receipts', href: '/finance/ar/receipts' },
@@ -209,17 +242,18 @@ export function sharedNav(access: Access): NavGroup[] {
       { label: 'GST, TDS & Forecast', href: '/finance/compliance' },
       { label: 'Statutory Filings', href: '/finance/filings' },
       { label: 'Period Close', href: '/finance/period-close' },
-      { label: 'Bank Reconciliation', href: '/finance/bank-reconciliation' },
-      { label: 'Exports & Audit Pack', href: '/finance/exports' },
-      { label: 'Budgets', href: '/finance/budgets' },
-      { label: 'Fixed Assets', href: '/finance/fixed-assets' },
-      { label: 'Schedules & Analytics', href: '/finance/management' },
-      { label: 'Treasury & Credit', href: '/finance/treasury' },
       { label: 'Chart of Accounts', href: '/finance/accounts' },
       { label: 'Journal Entries', href: '/finance/journals' },
       { label: 'Financial Reports', href: '/finance/reports' },
-      { label: 'Executive Reporting', href: '/finance/executive' },
-      { label: 'Production Readiness', href: '/finance/production-readiness' },
+      // Hidden leaf-module items (kept here, commented, for easy restore):
+      // { label: 'Bank Reconciliation', href: '/finance/bank-reconciliation' }, // finance-operations
+      // { label: 'Exports & Audit Pack', href: '/finance/exports' },            // finance-operations
+      // { label: 'Production Readiness', href: '/finance/production-readiness' },// finance-operations
+      // { label: 'Budgets', href: '/finance/budgets' },                         // finance-management
+      // { label: 'Fixed Assets', href: '/finance/fixed-assets' },               // finance-management
+      // { label: 'Schedules & Analytics', href: '/finance/management' },         // finance-management
+      // { label: 'Treasury & Credit', href: '/finance/treasury' },              // finance-treasury
+      // { label: 'Executive Reporting', href: '/finance/executive' },           // finance-reporting
     ];
     groups.push({ heading: 'Finance & Accounts', items: financeItems });
   } else if (access.isFinanceAuditor) {
@@ -227,6 +261,39 @@ export function sharedNav(access: Access): NavGroup[] {
       heading: 'Finance Audit',
       items: [{ label: 'Executive Reporting', href: '/finance/executive' }],
     });
+  }
+
+  if (access.isQualityUser || access.isQmsHead) {
+    groups.push({ heading: 'Quality Management', items: [
+      { label: 'QMS Dashboard', href: '/qms' },
+      { label: 'Inspections', href: '/qms/inspections' },
+      { label: 'Quality Plans', href: '/qms/plans' },
+      { label: 'Question Templates', href: '/qms/templates' },
+      { label: 'NCR Register', href: '/qms/ncrs' },
+      { label: 'CAPA Tracker', href: '/qms/capas' },
+      { label: 'Audit Programmes', href: '/qms/audit-programs' },
+      { label: 'Audits', href: '/qms/audits' },
+      { label: 'Quality Reports', href: '/qms/reports' },
+      { label: 'Calibration', href: '/qms/calibration' },
+      { label: 'Customer Complaints', href: '/qms/complaints' },
+      { label: 'Supplier Quality', href: '/qms/supplier-quality' },
+      { label: 'Quality Analytics', href: '/qms/analytics' },
+    ] });
+  }
+
+  if (access.isDesignUser || access.isDesignHead) {
+    groups.push({ heading: 'Design Engineering', items: [
+      { label: 'Design Dashboard', href: '/design' },
+      { label: 'Design Requests', href: '/design/requests' },
+      { label: 'Design Projects', href: '/design/projects' },
+      { label: 'Design Controls', href: '/design/controls' },
+      { label: 'Document Register', href: '/design/documents' },
+      { label: 'Engineering Changes', href: '/design/changes' },
+      { label: 'Design Reviews', href: '/design/reviews' },
+      { label: 'Project Templates', href: '/design/templates' },
+      { label: 'Document Transmittals', href: '/design/transmittals' },
+      { label: 'Change Reports', href: '/design/change-reports' },
+    ] });
   }
 
   return groups;

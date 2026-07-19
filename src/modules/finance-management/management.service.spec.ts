@@ -19,7 +19,7 @@ describe('ManagementService accounting controls', () => {
     accountingPeriod: { findFirst: jest.fn() },
     $transaction: jest.fn(),
   };
-  const service = new ManagementService(prisma as any, access as any);
+  const service = new ManagementService(prisma as any, access as any, {} as any);
 
   beforeEach(() => jest.clearAllMocks());
 

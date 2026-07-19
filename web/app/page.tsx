@@ -35,6 +35,7 @@ export default function RootPage() {
         isAccountsHead: false,
         isRndStaff: false,
         isStoreStaff: false,
+        isScmStaff: false,
         payslipsEnabled,
       }),
     );

@@ -38,9 +38,13 @@ import { FinanceComplianceModule } from './modules/finance-compliance/finance-co
 import { FinanceOperationsModule } from './modules/finance-operations/finance-operations.module';
 import { FinanceManagementModule } from './modules/finance-management/finance-management.module';
 import { ScmPurchasingModule } from './modules/scm-purchasing/scm-purchasing.module';
+import { LogisticsModule } from './modules/logistics/logistics.module';
+import { RfqModule } from './modules/rfq/rfq.module';
 import { HealthModule } from './modules/health/health.module';
 import { FinanceTreasuryModule } from './modules/finance-treasury/finance-treasury.module';
 import { FinanceReportingModule } from './modules/finance-reporting/finance-reporting.module';
+import { QmsModule } from './modules/qms/qms.module';
+import { DesignModule } from './modules/design/design.module';
 
 @Module({
   imports: [
@@ -74,7 +78,11 @@ import { FinanceReportingModule } from './modules/finance-reporting/finance-repo
     FinanceManagementModule,
     FinanceTreasuryModule,
     FinanceReportingModule,
+    QmsModule,
+    DesignModule,
     ScmPurchasingModule,
+    LogisticsModule,
+    RfqModule,
     HealthModule,
   ],
   providers: [

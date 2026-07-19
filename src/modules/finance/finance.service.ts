@@ -392,6 +392,94 @@ export class FinanceService {
     return period;
   }
 
+  /**
+   * THE single shared GL-posting helper. Every subledger posting (AR invoice/
+   * receipt, AP invoice/payment, treasury FX/advances, management depreciation/
+   * schedules, operations opening-balance, compliance TDS/adjustment) MUST post
+   * through this — do NOT hand-roll `tx.journalEntry.create` inline (that was
+   * the copy-pasted drift liability this consolidates). It, in one place:
+   *   - resolves the OPEN accounting period for entryDate (throws if none/closed)
+   *   - allocates the next shared JV-YYYY-##### number (financeSequence 'JOURNAL')
+   *   - validates the lines are balanced (debits == credits > 0, one-sided each)
+   *   - creates a POSTED JournalEntry carrying the maker-checker snapshot
+   *
+   * Subledger entries post directly as POSTED (their own document already went
+   * through its submit→approve maker-checker); the manual-journal path
+   * (createJournal) is separate and keeps its DRAFT→approve workflow.
+   *
+   * Must be called INSIDE the caller's transaction so the journal and the
+   * document that references it commit atomically. Returns the created journal.
+   */
+  async postJournalTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      entryDate: Date;
+      description: string;
+      reference?: string | null;
+      createdById: string;
+      submittedById?: string | null;
+      submittedAt?: Date | null;
+      approvedById: string;
+      /** Defaults to now; pass to preserve a document's own approval timestamp. */
+      approvedAt?: Date | null;
+      lines: Array<{
+        accountId: string;
+        debit: Prisma.Decimal | number;
+        credit: Prisma.Decimal | number;
+        description?: string | null;
+        costCenterId?: string | null;
+        projectReference?: string | null;
+      }>;
+    },
+  ) {
+    // Only lines that actually carry an amount (mirrors the old inline filter).
+    const lines = params.lines.filter(
+      (l) => new Prisma.Decimal(l.debit).gt(0) || new Prisma.Decimal(l.credit).gt(0),
+    );
+    this.validateLines(lines);
+
+    const period = await tx.accountingPeriod.findFirst({
+      where: { startsOn: { lte: params.entryDate }, endsOn: { gte: params.entryDate } },
+    });
+    if (!period) throw new BadRequestException('No accounting period exists for the entry date');
+    if (period.status !== AccountingPeriodStatus.OPEN) throw new BadRequestException('The accounting period is not open');
+
+    const year = params.entryDate.getUTCFullYear();
+    const seq = await tx.financeSequence.upsert({
+      where: { entity_year: { entity: 'JOURNAL', year } },
+      create: { entity: 'JOURNAL', year, lastValue: 1 },
+      update: { lastValue: { increment: 1 } },
+    });
+    const journalNumber = `JV-${year}-${String(seq.lastValue).padStart(5, '0')}`;
+
+    return tx.journalEntry.create({
+      data: {
+        journalNumber,
+        entryDate: params.entryDate,
+        periodId: period.id,
+        description: params.description,
+        reference: params.reference ?? null,
+        status: JournalStatus.POSTED,
+        createdById: params.createdById,
+        submittedById: params.submittedById ?? null,
+        submittedAt: params.submittedAt ?? null,
+        approvedById: params.approvedById,
+        approvedAt: params.approvedAt ?? new Date(),
+        lines: {
+          create: lines.map((l, i) => ({
+            sequence: i + 1,
+            accountId: l.accountId,
+            description: l.description ?? null,
+            debit: new Prisma.Decimal(l.debit),
+            credit: new Prisma.Decimal(l.credit),
+            costCenterId: l.costCenterId ?? null,
+            projectReference: l.projectReference ?? null,
+          })),
+        },
+      },
+    });
+  }
+
   private async findJournal(id: string) {
     const journal = await this.prisma.journalEntry.findUnique({ where: { id }, include: JOURNAL_INCLUDE });
     if (!journal) throw new NotFoundException('Journal entry not found');

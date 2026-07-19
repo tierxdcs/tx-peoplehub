@@ -19,6 +19,7 @@ const VARIANT_BY_VALUE: Record<string, BadgeVariant> = {
   ACCEPTED: 'success',
   COMPLETED: 'success',
   CLOSED_WON: 'success',
+  CLOSED: 'success',
   DELIVERED: 'success',
   PAID: 'success',
   QUALIFIED: 'success',
@@ -39,6 +40,18 @@ const VARIANT_BY_VALUE: Record<string, BadgeVariant> = {
   GENERATED: 'info',
   ON_LEAVE: 'info',
   IN_PROGRESS: 'info',
+  IMPACT_ASSESSMENT: 'info',
+  IMPLEMENTING: 'info',
+  SCHEDULED: 'info',
+  ACKNOWLEDGED: 'success',
+  EXECUTED: 'success',
+  USE_AS_IS: 'success',
+  NOT_APPLICABLE: 'muted',
+  SUPERSEDED: 'muted',
+  REWORK: 'warning',
+  SCRAP: 'destructive',
+  RETURN_TO_VENDOR: 'warning',
+  HOLD: 'warning',
   MITIGATED: 'info',
   DONE: 'success',
   // Vendor qualification statuses.
@@ -78,9 +91,29 @@ const VARIANT_BY_VALUE: Record<string, BadgeVariant> = {
   PARTIALLY_ISSUED: 'info',
   FULLY_ISSUED: 'success',
 
+  // RFQ Builder — RFQ status (DRAFT/ISSUED/CLOSED/CANCELLED shared) + award.
+  AWARDED: 'success',
+  // RFQ per-invitee quote status.
+  INVITED: 'muted',
+  VIEWED: 'info',
+  SUBMITTED: 'success',
+  DECLINED: 'destructive',
+
+  // Logistics & Dispatch — Delivery Challan statuses.
+  DISPATCHED: 'info',
+  IN_TRANSIT: 'info',
+  // (DELIVERED already mapped success above.)
+  // Order fulfilment (derived) + final-QC clearance.
+  PARTIALLY_DISPATCHED: 'info',
+  FULLY_DISPATCHED: 'success',
+  CLEARED: 'success',
+
   // ---- pending / caution (amber) ----
   PENDING: 'warning',
   PENDING_APPROVAL: 'warning',
+  PENDING_CLOSURE: 'warning',
+  AWAITING_INTERNAL_SIGNATURE: 'warning',
+  AWAITING_CUSTOMER_SIGNATURE: 'warning',
   PENDING_ACCESS: 'warning',
   DRAFT: 'warning',
   NEW: 'warning',

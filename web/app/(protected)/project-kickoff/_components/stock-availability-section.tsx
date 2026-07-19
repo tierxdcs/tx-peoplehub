@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
+import { createRfqFromKickoff } from '../../../lib/rfq';
 import {
   AVAILABILITY_LABEL,
   cancelReservation,
@@ -40,6 +42,7 @@ import { useConfirm } from '../../../components/ui/confirm';
  */
 export function StockAvailabilitySection({ kickoffId }: { kickoffId: string }) {
   const { user } = useAuth();
+  const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
   const [report, setReport] = useState<StockAvailabilityReport | null>(null);
@@ -93,13 +96,44 @@ export function StockAvailabilitySection({ kickoffId }: { kickoffId: string }) {
     }
   }
 
+  const shortfallCount =
+    report?.rows.filter((r) => r.availabilityStatus === 'SHORTAGE').length ?? 0;
+
+  async function createRfq() {
+    const ok = await confirm({
+      title: 'Create RFQ for shortfalls',
+      description: `Generate a DRAFT RFQ pre-filled with the ${shortfallCount} shorted item(s) from this report? SCM then adds invitees and issues it.`,
+      confirmLabel: 'Create RFQ',
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const rfq = await createRfqFromKickoff(kickoffId);
+      toast.success(`RFQ ${rfq.rfqNumber} drafted from shortfalls`);
+      router.push(`/scm/rfqs/${rfq.id}`);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to create RFQ',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Card className="mb-4">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Material Stock Availability</CardTitle>
-        <Button size="sm" variant="outline" onClick={generate} disabled={busy}>
-          {report ? 'Regenerate' : 'Generate report'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {shortfallCount > 0 && (
+            <Button size="sm" onClick={createRfq} disabled={busy}>
+              Create RFQ for shortfalls ({shortfallCount})
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={generate} disabled={busy}>
+            {report ? 'Regenerate' : 'Generate report'}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="pt-0">
         {loading ? (

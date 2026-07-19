@@ -37,5 +37,8 @@ import { MaterialService } from './material.service';
     GrnAccessService,
     MaterialService,
   ],
+  // Exported so the RFQ module can pre-fill a DRAFT PurchaseOrder from an
+  // awarded quote (reusing create() rather than duplicating PO logic).
+  exports: [PurchaseOrderService],
 })
 export class ScmPurchasingModule {}

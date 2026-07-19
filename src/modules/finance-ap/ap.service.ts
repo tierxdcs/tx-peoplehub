@@ -18,6 +18,7 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { FinanceAccessService } from '../finance/finance-access.service';
+import { FinanceService } from '../finance/finance.service';
 import {
   ApApprovalDto,
   CreateApInvoiceDto,
@@ -43,6 +44,7 @@ export class ApService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: FinanceAccessService,
+    private readonly finance: FinanceService,
   ) {}
   async partners(user: AuthenticatedUser) {
     await this.access.assertCanUseFinance(user);
@@ -675,14 +677,7 @@ export class ApService {
   ) {
     const rate = i.exchangeRateToInr;
     return this.prisma.$transaction(async (tx) => {
-      const period = await this.period(tx, i.invoiceDate),
-        jn = await this.number(
-          tx,
-          'JOURNAL',
-          'JV',
-          i.invoiceDate.getUTCFullYear(),
-        ),
-        debit = await this.account(tx, i.purchaseOrderId ? '1200' : '6100'),
+      const debit = await this.account(tx, i.purchaseOrderId ? '1200' : '6100'),
         gst = await this.account(tx, '1300'),
         ap = await this.account(tx, '2000'),
         tds = await this.account(tx, '2200');
@@ -720,21 +715,15 @@ export class ApService {
           debit: 0,
           credit: tdsValue,
         });
-      const j = await tx.journalEntry.create({
-        data: {
-          journalNumber: jn,
-          entryDate: i.invoiceDate,
-          periodId: period.id,
-          description: `AP invoice ${i.internalBillNumber}`,
-          reference: i.externalInvoiceNumber,
-          status: JournalStatus.POSTED,
-          createdById: i.createdById,
-          submittedById: i.submittedById,
-          submittedAt: i.submittedAt,
-          approvedById: approverId,
-          approvedAt: new Date(),
-          lines: { create: lines },
-        },
+      const j = await this.finance.postJournalTx(tx, {
+        entryDate: i.invoiceDate,
+        description: `AP invoice ${i.internalBillNumber}`,
+        reference: i.externalInvoiceNumber,
+        createdById: i.createdById,
+        submittedById: i.submittedById,
+        submittedAt: i.submittedAt,
+        approvedById: approverId,
+        lines,
       });
       return tx.accountsPayableInvoice.update({
         where: { id: i.id },
@@ -753,8 +742,6 @@ export class ApService {
     const rate = p.exchangeRateToInr;
     return this.prisma.$transaction(async (tx) => {
       const date = this.day(dto.executedDate),
-        period = await this.period(tx, date),
-        jn = await this.number(tx, 'JOURNAL', 'JV', date.getUTCFullYear()),
         ap = await this.account(tx, '2000'),
         bank = await this.account(tx, '1000'),
         advance = await this.account(tx, '1500');
@@ -796,21 +783,16 @@ export class ApService {
           ? { sequence: lines.length + 1, accountId: settings.gainAccountId, debit: 0, credit: realizedFx }
           : { sequence: lines.length + 1, accountId: settings.lossAccountId, debit: realizedFx.abs(), credit: 0 });
       }
-      const j = await tx.journalEntry.create({
-        data: {
-          journalNumber: jn,
-          entryDate: date,
-          periodId: period.id,
-          description: `AP payment ${p.paymentNumber}`,
-          reference: dto.bankReference,
-          status: JournalStatus.POSTED,
-          createdById: p.createdById,
-          submittedById: p.submittedById,
-          submittedAt: p.submittedAt,
-          approvedById: p.approvedById,
-          approvedAt: p.approvedAt,
-          lines: { create: lines },
-        },
+      const j = await this.finance.postJournalTx(tx, {
+        entryDate: date,
+        description: `AP payment ${p.paymentNumber}`,
+        reference: dto.bankReference,
+        createdById: p.createdById,
+        submittedById: p.submittedById,
+        submittedAt: p.submittedAt,
+        approvedById: p.approvedById,
+        approvedAt: p.approvedAt,
+        lines,
       });
       for (const a of p.allocations) {
         const out = a.invoice.outstandingAmount.minus(a.amount);

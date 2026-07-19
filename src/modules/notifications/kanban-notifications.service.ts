@@ -162,6 +162,11 @@ export class KanbanNotificationsService {
     });
   }
 
+  async notifyQmsAction(params: { recipientId: string; actorId: string; message: string; overdue?: boolean }): Promise<void> {
+    if (params.recipientId === params.actorId && !params.overdue) return;
+    await this.prisma.notification.create({ data: { employeeId: params.recipientId, type: params.overdue ? NotificationType.QMS_ACTION_OVERDUE : NotificationType.QMS_ACTION_ASSIGNED, message: params.message } });
+  }
+
   // ── read side ────────────────────────────────────────────────────────
 
   /** The caller's notifications, most recent first. */

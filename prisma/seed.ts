@@ -522,10 +522,140 @@ export async function seed(prisma: PrismaClient): Promise<void> {
     foldersCreated += 1;
   }
 
+  // ── Finance prerequisites ────────────────────────────────────────────
+  // Without these the finance "approve → post → file → close" half is
+  // unreachable: journal posting hard-requires an OPEN accounting period, and
+  // approvals require a designated Accounts Head (the Super Admin is a finance
+  // USER but is deliberately NOT an approver). Seed them idempotently so a
+  // fresh `db seed` yields a genuinely operable finance environment.
+  const accountsVertical = await prisma.vertical.findUniqueOrThrow({
+    where: { code: 'ACCOUNTS' },
+  });
+
+  // A designated Accounts Head (the sole approver) + a separate Accounts clerk
+  // (the maker). Two distinct users so maker-checker — creator cannot approve
+  // their own document — is demonstrable out of the box.
+  const financeUsers = [
+    {
+      email: 'accounts.head@phaze-dynamics.com',
+      firstName: 'Accounts',
+      lastName: 'Head',
+      isAccountsHead: true,
+    },
+    {
+      email: 'accounts.clerk@phaze-dynamics.com',
+      firstName: 'Accounts',
+      lastName: 'Clerk',
+      isAccountsHead: false,
+    },
+  ];
+  const financePasswordHash = await bcrypt.hash(password, 10);
+  for (const u of financeUsers) {
+    const existingUser = await prisma.employee.findUnique({
+      where: { email: u.email },
+    });
+    if (existingUser) {
+      // Keep the designation/vertical correct on re-seed without disturbing
+      // anything else about an existing row.
+      await prisma.employee.update({
+        where: { id: existingUser.id },
+        data: {
+          verticalId: accountsVertical.id,
+          isAccountsHead: u.isAccountsHead,
+        },
+      });
+    } else {
+      await prisma.employee.create({
+        data: {
+          employeeId: await nextEmployeeId(prisma),
+          email: u.email,
+          passwordHash: financePasswordHash,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          role: Role.EMPLOYEE,
+          accessStatus: AccessStatus.ACTIVE,
+          verticalId: accountsVertical.id,
+          isAccountsHead: u.isAccountsHead,
+          reportingManagerId: superAdmin.id,
+        },
+      });
+    }
+  }
+
+  // Minimal company/tax settings so an invoice can be raised + GST computed.
+  await prisma.financeCompanySettings.upsert({
+    where: { id: 'INDIA' },
+    update: {},
+    create: {
+      id: 'INDIA',
+      legalName: 'Phaze Dynamics Pvt Ltd',
+      gstin: '29AAACP0000A1Z5',
+      addressLine1: '1 Industrial Area',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      stateCode: '29',
+      postalCode: '560001',
+      pan: 'AAACP0000A',
+      tan: 'BLRP00000A',
+    },
+  });
+
+  // Current India fiscal year (Apr 1 – Mar 31) with 12 OPEN monthly periods.
+  // Journal posting resolves the period by date range, so all 12 open means any
+  // in-year entry can post. FY name e.g. "FY 2026-27".
+  const now = new Date();
+  const fyStartYear =
+    now.getUTCMonth() >= 3 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+  const fyName = `FY ${fyStartYear}-${String((fyStartYear + 1) % 100).padStart(2, '0')}`;
+  const fiscalYear = await prisma.fiscalYear.upsert({
+    where: { name: fyName },
+    update: {},
+    create: {
+      name: fyName,
+      startsOn: new Date(Date.UTC(fyStartYear, 3, 1)),
+      endsOn: new Date(Date.UTC(fyStartYear + 1, 2, 31)),
+      createdById: superAdmin.id,
+    },
+  });
+  const MONTHS = [
+    'April', 'May', 'June', 'July', 'August', 'September',
+    'October', 'November', 'December', 'January', 'February', 'March',
+  ];
+  let periodsCreated = 0;
+  for (let i = 0; i < 12; i++) {
+    // Period i (0-based) is calendar month (3 + i) of fyStartYear, rolling into
+    // the next calendar year for Jan–Mar.
+    const monthIndex = (3 + i) % 12;
+    const calYear = 3 + i < 12 ? fyStartYear : fyStartYear + 1;
+    const startsOn = new Date(Date.UTC(calYear, monthIndex, 1));
+    const endsOn = new Date(Date.UTC(calYear, monthIndex + 1, 0)); // last day of month
+    const existingPeriod = await prisma.accountingPeriod.findUnique({
+      where: {
+        fiscalYearId_periodNumber: {
+          fiscalYearId: fiscalYear.id,
+          periodNumber: i + 1,
+        },
+      },
+    });
+    if (!existingPeriod) {
+      await prisma.accountingPeriod.create({
+        data: {
+          fiscalYearId: fiscalYear.id,
+          periodNumber: i + 1,
+          name: `${MONTHS[i]} ${calYear}`,
+          startsOn,
+          endsOn,
+        },
+      });
+      periodsCreated += 1;
+    }
+  }
+
   console.log(
     `Seed complete. Verticals: ${VERTICALS.length}. Leave types: ${LEAVE_TYPES.length}. ` +
       `Super admin: ${email}. Default vault folders created this run: ${foldersCreated} ` +
-      `(of ${DEFAULT_FOLDERS.length} total).`,
+      `(of ${DEFAULT_FOLDERS.length} total). Finance: Accounts Head + clerk seeded, ` +
+      `company settings set, ${fyName} with ${periodsCreated} new open period(s).`,
   );
 }
 

@@ -11,7 +11,7 @@ describe('ApService approval controls', () => {
     accountsPayableInvoice: { findUnique: jest.fn() },
     accountsPayablePayment: { findUnique: jest.fn(), update: jest.fn() },
   };
-  const service = new ApService(prisma as any, access as any);
+  const service = new ApService(prisma as any, access as any, {} as any);
   const head = { id: 'head-1' } as any;
 
   beforeEach(() => jest.clearAllMocks());

@@ -239,6 +239,31 @@ export class StockReportService {
     user: AuthenticatedUser,
   ): Promise<StockAvailabilityReportEntity | null> {
     await this.access.assertCanReadBoms(user);
+    return this.computeReport(kickoffId);
+  }
+
+  /**
+   * Compute the live stock-availability report from the snapshot, DELIBERATELY
+   * SKIPPING the BOM access gate (assertCanReadBoms).
+   *
+   * WHY ungated: the RFQ shortfall trigger (createFromKickoffShortfall) is gated
+   * to SCM Manager+ by RfqAccessService. Those users legitimately need the
+   * shortfall data to raise an RFQ, but they do NOT hold BOM-vertical read
+   * access — so routing them through the gated read() would 403 them. This
+   * method lets a caller that has ALREADY authorised the action via its own
+   * access rule read the report without also holding BOM-read access.
+   *
+   * INTERNAL, MODULE-TO-MODULE ONLY — this method MUST NEVER be wired to a
+   * controller / HTTP route. Its whole point is that it has no auth check of its
+   * own; exposing it would be a permission hole. Anything that needs an HTTP
+   * path must use the gated read() instead (which calls this after asserting
+   * BOM-read access). Callers today: read() (this service) and RfqService
+   * (already SCM-Manager-gated). Mirrors the Logistics
+   * ArService.createDraftInvoiceFromDispatch pattern.
+   */
+  async computeReport(
+    kickoffId: string,
+  ): Promise<StockAvailabilityReportEntity | null> {
     const report = await this.prisma.kickoffStockReport.findUnique({
       where: { kickoffId },
       include: {

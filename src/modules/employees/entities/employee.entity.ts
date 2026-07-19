@@ -70,6 +70,12 @@ export class EmployeeEntity {
   })
   isQcInspector!: boolean;
 
+  @ApiProperty({ description: 'Whether this employee is the sole designated QMS Head' })
+  isQmsHead!: boolean;
+
+  @ApiProperty({ description: 'Whether this employee is the sole designated Design Head' })
+  isDesignHead!: boolean;
+
   @ApiProperty({
     description:
       'Whether this employee is a designated R&D Head (technical BOM approval authority)',

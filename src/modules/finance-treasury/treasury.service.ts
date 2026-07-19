@@ -12,6 +12,7 @@ import {
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../core/database/prisma.service';
 import { FinanceAccessService } from '../finance/finance-access.service';
+import { FinanceService } from '../finance/finance.service';
 import {
   ApplyAdvanceDto,
   CreateFxRunDto,
@@ -25,6 +26,7 @@ export class TreasuryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: FinanceAccessService,
+    private readonly finance: FinanceService,
   ) {}
 
   async dashboard(user: AuthenticatedUser) {
@@ -468,10 +470,8 @@ export class TreasuryService {
       amount = new Prisma.Decimal(d.amount),
       paid = amount.equals(invoiceOutstanding);
     return this.prisma.$transaction(async (tx) => {
-      const period = await this.openPeriod(tx, date),
-        debit = await this.account(tx, debitCode),
+      const debit = await this.account(tx, debitCode),
         credit = await this.account(tx, creditCode),
-        number = await this.number(tx, 'JOURNAL', 'JV', date.getUTCFullYear()),
         appNo = await this.number(
           tx,
           'ADVANCE_APPLICATION',
@@ -479,24 +479,16 @@ export class TreasuryService {
           date.getUTCFullYear(),
         ),
         value = amount.times(rate).toDecimalPlaces(2);
-      const j = await tx.journalEntry.create({
-        data: {
-          journalNumber: number,
-          entryDate: date,
-          periodId: period.id,
-          description: `${d.side} advance application ${appNo}`,
-          reference: appNo,
-          status: 'POSTED',
-          createdById: actor,
-          approvedById: actor,
-          approvedAt: new Date(),
-          lines: {
-            create: [
-              { sequence: 1, accountId: debit.id, debit: value, credit: 0 },
-              { sequence: 2, accountId: credit.id, debit: 0, credit: value },
-            ],
-          },
-        },
+      const j = await this.finance.postJournalTx(tx, {
+        entryDate: date,
+        description: `${d.side} advance application ${appNo}`,
+        reference: appNo,
+        createdById: actor,
+        approvedById: actor,
+        lines: [
+          { accountId: debit.id, debit: value, credit: 0 },
+          { accountId: credit.id, debit: 0, credit: value },
+        ],
       });
       if (d.side === 'CUSTOMER')
         await tx.salesInvoice.update({
@@ -621,28 +613,16 @@ export class TreasuryService {
         throw new BadRequestException(
           'FX run has no revaluation variance to post',
         );
-      const number = await this.number(
-          tx,
-          'JOURNAL',
-          'JV',
-          period.endsOn.getUTCFullYear(),
-        ),
-        j = await tx.journalEntry.create({
-          data: {
-            journalNumber: number,
-            entryDate: period.endsOn,
-            periodId: period.id,
-            description: `FX revaluation ${run.runNumber}`,
-            reference: run.runNumber,
-            status: 'POSTED',
-            createdById: run.createdById,
-            submittedById: run.submittedById,
-            submittedAt: run.submittedAt,
-            approvedById: actor,
-            approvedAt: new Date(),
-            lines: { create: lines },
-          },
-        });
+      const j = await this.finance.postJournalTx(tx, {
+        entryDate: period.endsOn,
+        description: `FX revaluation ${run.runNumber}`,
+        reference: run.runNumber,
+        createdById: run.createdById,
+        submittedById: run.submittedById,
+        submittedAt: run.submittedAt,
+        approvedById: actor,
+        lines,
+      });
       return tx.fxRevaluationRun.update({
         where: { id: run.id },
         data: {

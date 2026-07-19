@@ -16,7 +16,7 @@ describe('ComplianceService controls', () => {
     accountsPayableInvoice: { findUnique: jest.fn(), update: jest.fn() },
     tdsSection: { create: jest.fn() },
   };
-  const service = new ComplianceService(prisma as any, access as any);
+  const service = new ComplianceService(prisma as any, access as any, {} as any);
   const head = { id: 'head-1' } as any;
 
   beforeEach(() => jest.clearAllMocks());

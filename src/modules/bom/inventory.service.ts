@@ -228,6 +228,15 @@ export class InventoryService {
    * (both the aggregate balance.reservedQuantity and the StockReservation rows,
    * FIFO) as part of the same movement, keeping availability consistent for the
    * next issue.
+   *
+   * INTERNAL, MODULE-TO-MODULE ONLY — this has NO access check of its own; the
+   * calling flow is responsible for authorising the action (Material Issue and
+   * Delivery Challan dispatch both gate on their own access rules first). It
+   * MUST NEVER be wired to a controller / HTTP route. It also takes an open
+   * transaction client, which structurally prevents direct HTTP exposure. Any
+   * user-facing stock-out must go through a gated service method that composes
+   * this inside its own transaction. Callers today: MaterialService (SCM
+   * Purchasing) and DeliveryChallanService (Logistics).
    */
   async issueStockOutTx(
     tx: Prisma.TransactionClient,
