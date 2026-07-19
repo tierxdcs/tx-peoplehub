@@ -11,6 +11,14 @@ import {
 import { Badge } from '../../../../components/ui/badge';
 import { Button } from '../../../../components/ui/button';
 import { Card, CardContent } from '../../../../components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '../../../../components/ui/dialog';
 import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
 import { useAuth } from '../../../../lib/auth-context';
@@ -32,6 +40,10 @@ export default function EditEmployeePage() {
   );
   const [loading, setLoading] = useState(true);
   const [designating, setDesignating] = useState(false);
+  // The generated temporary password from a force-reset — held in state ONLY to
+  // show once in the dialog below; never persisted or logged.
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   const load = useCallback(async () => {
     const [employeeRes, verticalsRes, employeesRes] = await Promise.all([
@@ -216,6 +228,32 @@ export default function EditEmployeePage() {
     }
   }
 
+  async function handleResetPassword() {
+    if (!employee) return;
+    const ok = await confirm({
+      title: `Reset ${employee.firstName} ${employee.lastName}’s password?`,
+      description:
+        'Generates a one-time temporary password (shown to you once), forces them to set a new password on next login, and signs them out of all current sessions. Use when a user is locked out or their credentials may be compromised.',
+      confirmLabel: 'Reset password',
+      destructive: true,
+    });
+    if (!ok) return;
+    setResetting(true);
+    try {
+      const res = await apiFetch<{ temporaryPassword: string }>(
+        `/employees/${employee.id}/reset-password`,
+        { method: 'PATCH' },
+      );
+      setTempPassword(res.temporaryPassword);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to reset password',
+      );
+    } finally {
+      setResetting(false);
+    }
+  }
+
   if (loading) return <p>Loading…</p>;
   if (!employee) return <p>Employee not found.</p>;
 
@@ -225,6 +263,9 @@ export default function EditEmployeePage() {
   const rndVerticalId = verticals.find((v) => v.code === 'RND')?.id;
   const isRndVertical =
     !!rndVerticalId && employee.verticalId === rndVerticalId;
+  // R&D Head eligibility mirrors the backend: R&D-vertical employees, or a
+  // SUPER_ADMIN (exempt from the vertical requirement — company-wide holder).
+  const rdHeadEligible = isRndVertical || employee.role === 'SUPER_ADMIN';
   // PM & Internal Auditor eligibility both mirror the backend: MANAGER or
   // above, any vertical.
   const managerOrAbove =
@@ -329,11 +370,13 @@ export default function EditEmployeePage() {
         </Card>
       )}
 
-      {/* R&D Head designation — R&D-vertical only (backend enforces this too).
-          Multi-holder; grants technical BOM approval + Item Master authority.
-          Shown for any R&D-vertical employee, or for an existing holder (so it
-          can always be revoked even if their vertical later changed). */}
-      {(isRndVertical || employee.isRdHead) && (
+      {/* R&D Head designation — grants technical BOM approval + Item Master
+          authority (multi-holder). The R&D Head is the BOM approver. Shown to
+          any admin so the control is discoverable; the button is enabled only
+          for R&D-vertical employees (the backend enforces the same rule), with
+          the requirement spelled out when it isn't met. Also shown for an
+          existing holder so it can always be revoked. */}
+      {(canDesignate || employee.isRdHead) && (
         <Card className="my-4 max-w-xl">
           <CardContent className="flex items-center justify-between gap-4 p-4">
             <div className="text-sm">
@@ -341,13 +384,15 @@ export default function EditEmployeePage() {
               <div className="text-muted-foreground">
                 {employee.isRdHead
                   ? 'This employee is an R&D Head and can approve/reject BOMs and manage Item Master data.'
-                  : 'Not an R&D Head. Designate to grant technical BOM approval authority.'}
+                  : rdHeadEligible
+                    ? 'Not an R&D Head. Designate to grant technical BOM approval authority (the BOM approver).'
+                    : 'Only an employee in the R&D vertical (or a SUPER_ADMIN) can be an R&D Head. Move this employee to the R&D vertical first to enable this.'}
               </div>
             </div>
             {canDesignate && (
               <Button
                 variant={employee.isRdHead ? 'destructive' : 'outline'}
-                disabled={designating || (!employee.isRdHead && !isRndVertical)}
+                disabled={designating || (!employee.isRdHead && !rdHeadEligible)}
                 onClick={() => setRdHead(!employee.isRdHead)}
               >
                 {employee.isRdHead ? 'Revoke R&D Head' : 'Designate as R&D Head'}
@@ -356,6 +401,65 @@ export default function EditEmployeePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Force password reset — Admin/SuperAdmin, for another employee who has
+          login access. Generates a one-time password + forces change + kills
+          their sessions. */}
+      {canDesignate && employee.id !== user?.sub && (
+        <Card className="my-4 max-w-xl">
+          <CardContent className="flex items-center justify-between gap-4 p-4">
+            <div className="text-sm">
+              <div className="font-medium">Reset password</div>
+              <div className="text-muted-foreground">
+                Generate a one-time temporary password, force a change on next
+                login, and sign this user out of all sessions.
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              disabled={resetting}
+              onClick={handleResetPassword}
+            >
+              {resetting ? 'Resetting…' : 'Reset password'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* One-time reveal of the generated temporary password. Not stored or
+          logged anywhere — closing the dialog discards it. */}
+      <Dialog
+        open={tempPassword !== null}
+        onOpenChange={(o) => !o && setTempPassword(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Temporary password</DialogTitle>
+            <DialogDescription>
+              Share this with {employee.firstName} securely. It is shown once —
+              it can’t be retrieved again. They must set their own password on
+              next login.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border bg-muted p-3 font-mono text-lg tracking-wide">
+            {tempPassword}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (tempPassword) {
+                  void navigator.clipboard?.writeText(tempPassword);
+                  toast.success('Copied to clipboard.');
+                }
+              }}
+            >
+              Copy
+            </Button>
+            <Button onClick={() => setTempPassword(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <EmployeeForm
         mode="edit"

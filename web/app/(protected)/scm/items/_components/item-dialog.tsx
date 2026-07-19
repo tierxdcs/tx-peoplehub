@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../../../../lib/api';
 import {
   createItem,
@@ -10,6 +10,14 @@ import {
   type Item,
   type ItemType,
 } from '../../../../lib/scm-item-master';
+import {
+  linkItemSupplier,
+  listItemSuppliers,
+  unlinkItemSupplier,
+  type ItemSupplierLink,
+} from '../../../../lib/scm-bom';
+import { listSuppliers, type Supplier } from '../../../../lib/scm-supplier';
+import { StatusBadge } from '../../../../components/ui/status-badge';
 import { useToast } from '../../../../components/ui/toaster';
 import {
   Dialog,
@@ -168,6 +176,8 @@ export function ItemDialog({
 
         {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
 
+        {isEdit && item && <ItemSuppliers itemId={item.id} />}
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             Cancel
@@ -178,5 +188,161 @@ export function ItemDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Manage the qualified suppliers linked to an item. Linking powers the BOM
+ * release hard-gate (a raw material must have a qualified supplier). Visible to
+ * everyone here; the backend enforces R&D-Head-only for link/unlink.
+ */
+function ItemSuppliers({ itemId }: { itemId: string }) {
+  const toast = useToast();
+  const [links, setLinks] = useState<ItemSupplierLink[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedSupplier, setSelectedSupplier] = useState('');
+  const [partNumber, setPartNumber] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [linkRes, supRes] = await Promise.all([
+        listItemSuppliers(itemId),
+        listSuppliers(),
+      ]);
+      setLinks(linkRes);
+      setSuppliers(supRes);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to load suppliers.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [itemId, toast]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function onAdd() {
+    if (!selectedSupplier) return;
+    setBusy(true);
+    try {
+      await linkItemSupplier(itemId, {
+        supplierId: selectedSupplier,
+        supplierPartNumber: partNumber.trim() || undefined,
+      });
+      toast.success('Supplier linked.');
+      setSelectedSupplier('');
+      setPartNumber('');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to link supplier.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onUnlink(link: ItemSupplierLink) {
+    setBusy(true);
+    try {
+      await unlinkItemSupplier(itemId, link.id);
+      toast.success('Supplier unlinked.');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to unlink supplier.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const linkedIds = new Set(links.map((l) => l.supplierId));
+  const available = suppliers.filter((s) => !linkedIds.has(s.id));
+
+  return (
+    <div className="mt-6 border-t pt-4">
+      <h3 className="mb-1 text-sm font-semibold">Suppliers</h3>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Link qualified suppliers. A raw material must have a qualified supplier
+        before its BOM can be released.
+      </p>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : links.length === 0 ? (
+        <p className="mb-3 text-sm text-muted-foreground">
+          No suppliers linked yet.
+        </p>
+      ) : (
+        <ul className="mb-3 space-y-2">
+          {links.map((link) => (
+            <li
+              key={link.id}
+              className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm"
+            >
+              <span className="font-medium">{link.supplierName}</span>
+              <StatusBadge value={link.supplierStatus} />
+              <span
+                className={
+                  link.isQualified
+                    ? 'text-xs text-green-600'
+                    : 'text-xs text-muted-foreground'
+                }
+              >
+                {link.isQualified ? 'Qualified' : 'Not qualified'}
+              </span>
+              {link.supplierPartNumber && (
+                <span className="text-xs text-muted-foreground">
+                  Part #{link.supplierPartNumber}
+                </span>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-auto"
+                onClick={() => onUnlink(link)}
+                disabled={busy}
+              >
+                Unlink
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-wrap items-end gap-2">
+        <Field label="Add supplier" htmlFor="i-supplier" className="flex-1">
+          <Select
+            id="i-supplier"
+            value={selectedSupplier}
+            onChange={(e) => setSelectedSupplier(e.target.value)}
+          >
+            <option value="">Select supplier…</option>
+            {available.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.companyName}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Part number" htmlFor="i-partno" className="flex-1">
+          <Input
+            id="i-partno"
+            value={partNumber}
+            onChange={(e) => setPartNumber(e.target.value)}
+          />
+        </Field>
+        <Button onClick={onAdd} disabled={busy || !selectedSupplier}>
+          Add
+        </Button>
+      </div>
+    </div>
   );
 }

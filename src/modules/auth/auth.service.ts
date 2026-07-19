@@ -53,6 +53,8 @@ export class AuthService {
       employee.email,
       employee.role,
       employee.verticalId,
+      employee.tokenVersion,
+      employee.mustChangePassword,
     );
   }
 
@@ -78,12 +80,19 @@ export class AuthService {
     ) {
       throw new UnauthorizedException('Invalid refresh token');
     }
+    // A reset/change bumps tokenVersion — a refresh token from before is dead,
+    // so a force-reset can't be worked around by silently refreshing.
+    if ((payload.tokenVersion ?? 0) !== employee.tokenVersion) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
 
     return this.issueTokens(
       employee.id,
       employee.email,
       employee.role,
       employee.verticalId,
+      employee.tokenVersion,
+      employee.mustChangePassword,
     );
   }
 
@@ -97,11 +106,11 @@ export class AuthService {
     employeeId: string,
     currentPassword: string,
     newPassword: string,
-  ): Promise<void> {
+  ): Promise<TokenPair> {
     const employee = await this.prisma.employee.findUnique({
       where: { id: employeeId },
     });
-    if (!employee || !employee.passwordHash) {
+    if (!employee || !employee.passwordHash || !employee.role) {
       throw new UnauthorizedException('Invalid credentials');
     }
     const valid = await bcrypt.compare(currentPassword, employee.passwordHash);
@@ -114,10 +123,25 @@ export class AuthService {
       );
     }
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    await this.prisma.employee.update({
+    // Bump tokenVersion to invalidate every OTHER session, and clear any
+    // force-reset flag. We then re-issue a fresh token pair for THIS caller
+    // (signed with the new version) so their current session keeps working —
+    // the client swaps its access token + refresh cookie.
+    const updated = await this.prisma.employee.update({
       where: { id: employeeId },
-      data: { passwordHash },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+        tokenVersion: { increment: 1 },
+      },
     });
+    return this.issueTokens(
+      updated.id,
+      updated.email,
+      updated.role as Role,
+      updated.verticalId,
+      updated.tokenVersion,
+    );
   }
 
   private async issueTokens(
@@ -125,12 +149,16 @@ export class AuthService {
     email: string,
     role: Role,
     verticalId: string | null,
+    tokenVersion: number,
+    mustChangePassword = false,
   ): Promise<TokenPair> {
     const payload: JwtAccessPayload = {
       sub: employeeId,
       email,
       role,
       verticalId,
+      tokenVersion,
+      mustChangePassword,
     };
 
     const [accessToken, refreshToken] = await Promise.all([

@@ -36,11 +36,20 @@ export interface BomEvent {
   createdAt: string;
 }
 
+export type ItemType =
+  | 'RAW_MATERIAL'
+  | 'COMPONENT'
+  | 'SUBASSEMBLY'
+  | 'FINISHED_GOOD'
+  | 'CONSUMABLE';
+
 export interface Bom {
   id: string;
-  productId: string;
-  productName: string | null;
-  productSku: string | null;
+  /** The Item Master item this BOM is FOR (keyed on Item, not Product). */
+  itemId: string;
+  itemCode: string | null;
+  itemName: string | null;
+  itemType: ItemType | null;
   revisionNumber: number;
   status: BomStatus;
   effectiveDate: string | null;
@@ -75,7 +84,7 @@ export interface BomLineInput {
 }
 
 export interface CreateBomInput {
-  productId: string;
+  itemId: string;
   effectiveDate?: string;
   revisionNotes?: string;
   lines: BomLineInput[];
@@ -95,16 +104,16 @@ export const BOM_STATUS_LABEL: Record<BomStatus, string> = {
   OBSOLETE: 'Obsolete',
 };
 
-export function listBoms(opts: { productId?: string; status?: BomStatus } = {}) {
+export function listBoms(opts: { itemId?: string; status?: BomStatus } = {}) {
   const qs = new URLSearchParams();
-  if (opts.productId) qs.set('productId', opts.productId);
+  if (opts.itemId) qs.set('itemId', opts.itemId);
   if (opts.status) qs.set('status', opts.status);
   const q = qs.toString();
   return apiFetch<Bom[]>(`/boms${q ? `?${q}` : ''}`);
 }
 
-export function listBomsForProduct(productId: string) {
-  return apiFetch<Bom[]>(`/products/${productId}/boms`);
+export function listBomsForItem(itemId: string) {
+  return apiFetch<Bom[]>(`/items/${itemId}/boms`);
 }
 
 export function pendingApprovalBoms() {
@@ -117,6 +126,39 @@ export function getBom(id: string) {
 
 export function createBom(input: CreateBomInput) {
   return apiFetch<Bom>('/boms', { method: 'POST', body: JSON.stringify(input) });
+}
+
+// ── Item ↔ Supplier links (release hard-gate) ─────────────────────────
+export interface ItemSupplierLink {
+  id: string;
+  itemId: string;
+  supplierId: string;
+  supplierName: string;
+  supplierStatus: string;
+  isQualified: boolean;
+  supplierPartNumber: string | null;
+  createdById: string;
+  createdAt: string;
+}
+
+export function listItemSuppliers(itemId: string) {
+  return apiFetch<ItemSupplierLink[]>(`/items/${itemId}/suppliers`);
+}
+
+export function linkItemSupplier(
+  itemId: string,
+  input: { supplierId: string; supplierPartNumber?: string },
+) {
+  return apiFetch<ItemSupplierLink>(`/items/${itemId}/suppliers`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function unlinkItemSupplier(itemId: string, linkId: string) {
+  return apiFetch<void>(`/items/${itemId}/suppliers/${linkId}`, {
+    method: 'DELETE',
+  });
 }
 
 export function updateBom(id: string, input: UpdateBomInput) {

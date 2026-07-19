@@ -250,6 +250,76 @@ describe('Sales (e2e)', () => {
       .expect(403);
   });
 
+  it('links a product to an Item Master item (create + update), validating the item exists', async () => {
+    const suffix = Date.now();
+    const item = await prisma.item.create({
+      data: {
+        itemCode: `FG-SALES-${suffix}`,
+        name: 'Finished Good (sales link test)',
+        itemType: 'FINISHED_GOOD',
+        baseUnitOfMeasure: 'each',
+      },
+    });
+
+    // Linking to a non-existent item is rejected.
+    await request(app.getHttpServer())
+      .post('/products')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({
+        sku: `LNK-BAD-${suffix}`,
+        name: 'Bad link',
+        unitPrice: 1,
+        unitOfMeasure: 'each',
+        itemId: '00000000-0000-0000-0000-000000000000',
+      })
+      .expect(404);
+
+    // Create with a valid link → itemId persisted + returned.
+    const created = (
+      await request(app.getHttpServer())
+        .post('/products')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({
+          sku: `LNK-${suffix}`,
+          name: 'Linked product',
+          unitPrice: 1000,
+          unitOfMeasure: 'each',
+          itemId: item.id,
+        })
+        .expect(201)
+    ).body.data;
+    createdProductIds.push(created.id);
+    expect(created.itemId).toBe(item.id);
+
+    // Update can unlink (itemId: null).
+    const unlinked = (
+      await request(app.getHttpServer())
+        .patch(`/products/${created.id}`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({ itemId: null })
+        .expect(200)
+    ).body.data;
+    expect(unlinked.itemId).toBeNull();
+
+    // Re-link via update.
+    const relinked = (
+      await request(app.getHttpServer())
+        .patch(`/products/${created.id}`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({ itemId: item.id })
+        .expect(200)
+    ).body.data;
+    expect(relinked.itemId).toBe(item.id);
+
+    // Cleanup: unlink then delete the item so afterAll product delete is unblocked.
+    await request(app.getHttpServer())
+      .patch(`/products/${created.id}`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ itemId: null })
+      .expect(200);
+    await prisma.item.delete({ where: { id: item.id } });
+  });
+
   it('runs the full pipeline: lead → opportunity → bid(>10%) → escalated approval → order', async () => {
     const suffix = Date.now();
 

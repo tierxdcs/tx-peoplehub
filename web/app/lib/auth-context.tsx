@@ -20,6 +20,12 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /**
+   * Adopt a freshly-issued access token (e.g. the one change-password returns
+   * after clearing mustChangePassword + bumping tokenVersion) and re-derive the
+   * user from it. Keeps the in-memory token and decoded user in lockstep.
+   */
+  applyAccessToken: (token: string) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -59,8 +65,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const applyAccessToken = useCallback((token: string) => {
+    setAccessToken(token);
+    setUser(decodeAccessToken(token));
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, logout, applyAccessToken }}
+    >
       {children}
     </AuthContext.Provider>
   );

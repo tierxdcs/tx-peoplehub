@@ -135,3 +135,25 @@ export class ProjectKickoffEntity {
     Object.assign(this, p);
   }
 }
+
+/**
+ * The linked Order's most-recent EXECUTED Order Confirmation Sheet, surfaced on
+ * the kickoff detail page for quick in-meeting reference. `downloadUrl` is a
+ * short-lived R2 presigned URL (same mechanism as the sales signed-copy
+ * download); null when no signed copy was uploaded. Null response overall when
+ * the order has no executed sheet (shouldn't happen given the creation gate,
+ * but the page renders the true current state rather than stale data).
+ */
+export class KickoffConfirmationSheetEntity {
+  @ApiProperty() id!: string;
+  @ApiProperty() confirmationNumber!: string;
+  @ApiProperty() revisionNumber!: number;
+  @ApiProperty({ nullable: true }) executedAt!: string | null;
+  @ApiProperty() hasSignedCopy!: boolean;
+  @ApiProperty({ nullable: true }) downloadUrl!: string | null;
+  @ApiProperty({ nullable: true }) expiresInSeconds!: number | null;
+
+  constructor(p: Partial<KickoffConfirmationSheetEntity>) {
+    Object.assign(this, p);
+  }
+}

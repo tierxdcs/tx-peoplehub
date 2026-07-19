@@ -6,6 +6,7 @@ import {
   IsString,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 export class UpdateProductDto {
@@ -41,4 +42,15 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  /**
+   * Link/unlink the manufactured Item Master item. Send an item id to link, or
+   * null to unlink. Omit to leave unchanged. (BOMs are keyed on Item; this link
+   * powers the kickoff stock-availability report.)
+   */
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @IsString()
+  itemId?: string | null;
 }

@@ -72,11 +72,26 @@ export class BomAccessService {
     );
   }
 
-  /** Read BOMs — R&D staff, Store staff, or SUPER_ADMIN. */
+  /**
+   * Read BOMs in the context of the kickoff stock report — R&D staff, Store
+   * staff, or SUPER_ADMIN. Store needs this so it can generate/read the
+   * material stock-availability report, which reads the released BOM.
+   */
   async assertCanReadBoms(user: AuthenticatedUser): Promise<void> {
     if (this.isSuperAdmin(user)) return;
     if ((await this.isRndStaff(user)) || (await this.isStoreStaff(user))) return;
     throw new ForbiddenException('Only R&D or Store users may view BOMs');
+  }
+
+  /**
+   * Browse the BOM (Engineering) module — R&D vertical only (SUPER_ADMIN
+   * included via isRndStaff). Stricter than assertCanReadBoms: Store users do
+   * NOT get the Engineering BOM pages; they still reach released-BOM data
+   * indirectly through the kickoff stock report.
+   */
+  async assertCanBrowseBoms(user: AuthenticatedUser): Promise<void> {
+    if (await this.isRndStaff(user)) return;
+    throw new ForbiddenException('Only R&D users may view the BOM module');
   }
 
   /** Create/edit/submit draft BOMs — R&D vertical only (or SUPER_ADMIN). */

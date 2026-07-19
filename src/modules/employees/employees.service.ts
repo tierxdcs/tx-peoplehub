@@ -13,6 +13,7 @@ import {
   Role,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../core/database/prisma.service';
 import { EncryptionService } from '../../core/crypto/encryption.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -773,19 +774,21 @@ export class EmployeesService {
           'Only an active employee can be designated as an R&D Head',
         );
       }
-      if (!target.verticalId) {
-        throw new BadRequestException(
-          'Only an employee in the R&D vertical can be designated as an R&D Head',
-        );
-      }
-      const vertical = await this.prisma.vertical.findUnique({
-        where: { id: target.verticalId },
-        select: { code: true },
-      });
-      if (vertical?.code !== 'RND') {
-        throw new BadRequestException(
-          'Only an employee in the R&D vertical can be designated as an R&D Head',
-        );
+      // SUPER_ADMIN is exempt from the R&D-vertical requirement — they can hold
+      // any designation company-wide (SUPER_ADMIN typically has no vertical).
+      // Everyone else must belong to the R&D vertical.
+      if (target.role !== Role.SUPER_ADMIN) {
+        const vertical = target.verticalId
+          ? await this.prisma.vertical.findUnique({
+              where: { id: target.verticalId },
+              select: { code: true },
+            })
+          : null;
+        if (vertical?.code !== 'RND') {
+          throw new BadRequestException(
+            'Only an employee in the R&D vertical (or a SUPER_ADMIN) can be designated as an R&D Head',
+          );
+        }
       }
     }
     const updated = await this.prisma.employee.update({
@@ -793,6 +796,47 @@ export class EmployeesService {
       data: { isRdHead },
     });
     return this.toEntity(updated);
+  }
+
+  /**
+   * Admin/SuperAdmin force-reset of another employee's password. Generates a
+   * strong temporary password, stores only its bcrypt hash, sets
+   * mustChangePassword (so the user must set their own on next login), and bumps
+   * tokenVersion to invalidate every existing session immediately. The plaintext
+   * is RETURNED ONCE to the caller and never persisted or logged — the audit
+   * interceptor redacts any `password` key, and this method logs nothing.
+   *
+   * Guarded rules: the target must have login access (an existing passwordHash),
+   * and an admin cannot reset their OWN password this way (that's the
+   * self-service change-password flow — a force-reset would lock them out of
+   * everything but the change screen for no reason).
+   */
+  async resetPassword(
+    id: string,
+    currentUser: AuthenticatedUser,
+  ): Promise<{ temporaryPassword: string }> {
+    if (id === currentUser.id) {
+      throw new BadRequestException(
+        'Use change-password to change your own password, not the admin reset',
+      );
+    }
+    const target = await this.findRawOrThrow(id);
+    if (!target.passwordHash) {
+      throw new BadRequestException(
+        'This employee has no login yet — grant access first',
+      );
+    }
+    const temporaryPassword = generateTemporaryPassword();
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+    await this.prisma.employee.update({
+      where: { id },
+      data: {
+        passwordHash,
+        mustChangePassword: true,
+        tokenVersion: { increment: 1 },
+      },
+    });
+    return { temporaryPassword };
   }
 
   /**
@@ -1018,4 +1062,28 @@ export class EmployeesService {
       updatedAt: employee.updatedAt,
     });
   }
+}
+
+/**
+ * Generate a strong temporary password for an admin force-reset. Uses crypto
+ * randomness, guarantees the 8-char minimum + a mix of classes (upper/lower/
+ * digit/symbol) so it passes any client-side policy, and is URL/paste-safe.
+ * The plaintext exists only in memory — returned once to the admin, never
+ * stored or logged.
+ */
+function generateTemporaryPassword(): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnpqrstuvwxyz';
+  const digit = '23456789';
+  const symbol = '!@#$%*?';
+  const all = upper + lower + digit + symbol;
+  const pick = (set: string) => set[randomBytes(1)[0] % set.length];
+  // Start with one of each class, then fill to 14 chars, then shuffle.
+  const chars = [pick(upper), pick(lower), pick(digit), pick(symbol)];
+  while (chars.length < 14) chars.push(pick(all));
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = randomBytes(1)[0] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
 }

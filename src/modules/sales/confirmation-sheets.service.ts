@@ -447,6 +447,52 @@ export class ConfirmationSheetsService {
   }
 
   /**
+   * The order's most-recent EXECUTED sheet + a freshly-presigned download URL
+   * for its signed copy — for consumers OUTSIDE the sales-access boundary that
+   * have already asserted their own access (e.g. Project Kickoff attendees
+   * viewing the executed document during a meeting). Reuses the exact same R2
+   * presign mechanism (`storage.createDownloadUrl`) as getSignedCopyDownloadUrl.
+   * Returns null when the order has no EXECUTED sheet. `downloadUrl` is null when
+   * the executed sheet has no uploaded signed copy on file.
+   */
+  async getExecutedSheetForOrder(orderId: string): Promise<{
+    id: string;
+    confirmationNumber: string;
+    revisionNumber: number;
+    executedAt: Date | null;
+    hasSignedCopy: boolean;
+    downloadUrl: string | null;
+    expiresInSeconds: number | null;
+  } | null> {
+    const latest = await this.prisma.orderConfirmationSheet.findFirst({
+      where: { orderId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!latest || latest.status !== OrderConfirmationStatus.EXECUTED) {
+      return null;
+    }
+    let downloadUrl: string | null = null;
+    let expiresInSeconds: number | null = null;
+    if (latest.signedCopyStorageKey) {
+      const presigned = await this.storage.createDownloadUrl(
+        latest.signedCopyStorageKey,
+      );
+      downloadUrl = presigned.url;
+      expiresInSeconds = presigned.expiresInSeconds;
+    }
+    return {
+      id: latest.id,
+      confirmationNumber: latest.confirmationNumber,
+      revisionNumber: latest.revisionNumber,
+      // The executed date = the Sales Head's countersignature timestamp.
+      executedAt: latest.internalSignedAt,
+      hasSignedCopy: !!latest.signedCopyStorageKey,
+      downloadUrl,
+      expiresInSeconds,
+    };
+  }
+
+  /**
    * Order gate helper (mirrors bidAssessments.latestApprovedFor): true iff the
    * order's most-recent confirmation sheet is EXECUTED. Injected into
    * OrdersService to hard-block CONFIRMED → IN_PRODUCTION.

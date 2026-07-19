@@ -13,6 +13,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { NoAudit } from '../../common/decorators/no-audit.decorator';
+import { AllowDuringForcedReset } from '../../common/decorators/allow-during-forced-reset.decorator';
 import {
   AuthenticatedUser,
   CurrentUser,
@@ -46,18 +47,24 @@ export class AuthController {
   // event worth a trail. The audit interceptor redacts *password* fields, so
   // the request body is logged safely as [REDACTED].
   @Post('change-password')
+  @AllowDuringForcedReset()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Change your own password (verifies the current one)" })
   async changePassword(
     @Body() dto: ChangePasswordDto,
     @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    await this.authService.changePassword(
+    // Bumps tokenVersion (kills other sessions) + clears any force-reset flag,
+    // and returns a fresh token pair so THIS session keeps working — swap the
+    // access token + refresh cookie the same way login does.
+    const tokens = await this.authService.changePassword(
       user.id,
       dto.currentPassword,
       dto.newPassword,
     );
-    return { success: true };
+    this.setRefreshCookie(res, tokens.refreshToken);
+    return { success: true, accessToken: tokens.accessToken };
   }
 
   @Public()

@@ -9,6 +9,13 @@ export interface AuthenticatedUser {
   // nullable at the DB level during PENDING_ACCESS.
   role: Role | null;
   verticalId: string | null;
+  /**
+   * True when an admin force-reset requires this user to set a new password
+   * before doing anything else. Set by JwtStrategy from the live employee
+   * record; enforced by MustChangePasswordGuard. Optional for callers that
+   * don't consult it.
+   */
+  mustChangePassword?: boolean;
 }
 
 /**

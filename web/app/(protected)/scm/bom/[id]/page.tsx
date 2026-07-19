@@ -184,7 +184,7 @@ export default function BomDetailPage() {
       {/* Header */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">
-          {bom.productName ?? 'BOM'}
+          {bom.itemCode ? `${bom.itemCode} — ${bom.itemName ?? ''}` : 'BOM'}
         </h1>
         <span className="text-lg text-muted-foreground">Rev {bom.revisionNumber}</span>
         <StatusBadge value={bom.status} />
@@ -225,6 +225,13 @@ export default function BomDetailPage() {
             You created this BOM; another R&D Head must approve it.
           </p>
         )}
+        {bom.status === 'PENDING_APPROVAL' && !isRndHead && (
+          <p className="text-sm text-muted-foreground">
+            Awaiting technical approval. Only a designated R&D Head can approve
+            or reject this BOM. An admin can designate an R&D-vertical employee
+            as an R&D Head from Admin → Employees.
+          </p>
+        )}
         {bom.status === 'RELEASED' && (
           <Button variant="outline" onClick={onNewRevision} disabled={busy}>
             Create New Revision
@@ -244,7 +251,8 @@ export default function BomDetailPage() {
           <CardTitle>Details</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-x-8 gap-y-2 pt-0 text-sm sm:grid-cols-2">
-          <Info label="Product SKU" value={bom.productSku ?? '—'} />
+          <Info label="Item code" value={bom.itemCode ?? '—'} />
+          <Info label="Item type" value={bom.itemType ?? '—'} />
           <Info label="Creator" value={bom.createdByName ?? '—'} />
           <Info
             label="Submitted"

@@ -163,7 +163,7 @@ export default function EditBomPage() {
       </Link>
 
       <PageHeader
-        title={`Edit BOM — ${bom.productName ?? ''} (Rev ${bom.revisionNumber})`}
+        title={`Edit BOM — ${bom.itemCode ?? ''} (Rev ${bom.revisionNumber})`}
         description="Update components and quantities, then resubmit for approval."
       />
 

@@ -5,6 +5,7 @@ import {
   ItemType,
   SignatureFont,
   StockBucket,
+  SupplierStatus,
 } from '@prisma/client';
 
 // ── Item ─────────────────────────────────────────────────────────────
@@ -61,9 +62,12 @@ export class BomEventEntity {
 
 export class BomEntity {
   @ApiProperty() id!: string;
-  @ApiProperty() productId!: string;
-  @ApiProperty({ nullable: true }) productName!: string | null;
-  @ApiProperty({ nullable: true }) productSku!: string | null;
+  /** The Item Master item this BOM is FOR (not a Product — keyed on Item). */
+  @ApiProperty() itemId!: string;
+  @ApiProperty({ nullable: true }) itemCode!: string | null;
+  @ApiProperty({ nullable: true }) itemName!: string | null;
+  @ApiProperty({ enum: ['RAW_MATERIAL', 'COMPONENT', 'SUBASSEMBLY', 'FINISHED_GOOD', 'CONSUMABLE'], nullable: true })
+  itemType!: ItemType | null;
   @ApiProperty() revisionNumber!: number;
   @ApiProperty({ enum: BomStatus }) status!: BomStatus;
   @ApiProperty({ nullable: true }) effectiveDate!: string | null;
@@ -157,6 +161,25 @@ export class ReservationEntity {
   @ApiProperty({ nullable: true }) cancelledAt!: string | null;
 
   constructor(p: Partial<ReservationEntity>) {
+    Object.assign(this, p);
+  }
+}
+
+/** A link between an Item and a qualified Supplier (powers the release gate). */
+export class ItemSupplierEntity {
+  @ApiProperty() id!: string;
+  @ApiProperty() itemId!: string;
+  @ApiProperty() supplierId!: string;
+  @ApiProperty() supplierName!: string;
+  @ApiProperty({ enum: ['PENDING_QUESTIONNAIRE', 'QUESTIONNAIRE_SUBMITTED', 'UNDER_AUDIT', 'APPROVED_PREFERRED', 'APPROVED', 'CONDITIONALLY_APPROVED', 'NOT_APPROVED'] })
+  supplierStatus!: SupplierStatus;
+  @ApiProperty({ description: 'Whether this supplier link currently qualifies the item (APPROVED / APPROVED_PREFERRED)' })
+  isQualified!: boolean;
+  @ApiProperty({ nullable: true }) supplierPartNumber!: string | null;
+  @ApiProperty() createdById!: string;
+  @ApiProperty() createdAt!: string;
+
+  constructor(p: Partial<ItemSupplierEntity>) {
     Object.assign(this, p);
   }
 }

@@ -9,8 +9,8 @@
  */
 export const BRAND = {
   /** Shown in the top bar and browser title. */
-  appName: 'WorkCore',
-  tagline: 'HR & Sales',
+  appName: 'Workcore',
+  tagline: 'Phaze ERP',
   /**
    * Logo is a placeholder glyph (a lucide icon name) until a real logo asset
    * exists — swap for an <Image> in the AppTopBar when branding is finalized.
@@ -20,10 +20,11 @@ export const BRAND = {
 
 /**
  * Company letterhead + document config for outward-facing documents (the
- * Techno Commercial Proposal, order confirmation sheets, and any future
- * printable PDF). Change these ONLY here; every printed document reads from
- * this one object. `addressLines`/`contact`/`gstin` remain for the order
- * confirmation sheet; the proposal uses the logo/wordmark + footer blocks.
+ * Techno Commercial Proposal, order confirmation sheets, project kickoff, and
+ * any future printable PDF). Change these ONLY here; every printed document
+ * reads from this one object. All documents share the same branded letterhead:
+ * the logo/wordmark on the left + a "Get in touch" contactEmail/website block
+ * on the right.
  */
 export const COMPANY = {
   name: 'Phaze Dynamics',
@@ -33,7 +34,7 @@ export const COMPANY = {
    * wordmark/display name.
    */
   legalEntityName: 'Phaze Dynamics India Pvt Ltd',
-  /** "Get in touch" block on the proposal header (top-right). */
+  /** "Get in touch" block on document headers (top-right). */
   contactEmail: 'info@phaze-dynamics.com',
   website: 'www.phaze-dynamics.com',
   /**
@@ -42,15 +43,6 @@ export const COMPANY = {
    * wordmark text.
    */
   logoPath: '/phaze-3b-logo-white.png',
-  addressLines: [
-    '[Company Address Line 1]',
-    '[City, State, PIN]',
-    '[Country]',
-  ],
-  /** Optional contact line under the address; leave '' to omit. */
-  contact: '[Phone] · [Email] · [Website]',
-  /** Optional tax/registration identifier shown in the letterhead. */
-  gstin: '[Company GSTIN]',
   /** Footer address blocks for the Techno Commercial Proposal (§7). */
   headquarters: {
     label: 'Headquarters',

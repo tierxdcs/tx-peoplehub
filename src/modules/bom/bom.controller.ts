@@ -32,13 +32,13 @@ export class BomController {
   constructor(private readonly service: BomService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List BOMs (R&D or Store)' })
+  @ApiOperation({ summary: 'List BOMs (R&D)' })
   list(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('productId') productId?: string,
+    @Query('itemId') itemId?: string,
     @Query('status') status?: BomStatus,
   ) {
-    return this.service.list(user, { productId, status });
+    return this.service.list(user, { itemId, status });
   }
 
   // Static route BEFORE :id so 'pending-approval' isn't captured as an :id.

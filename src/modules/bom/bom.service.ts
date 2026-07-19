@@ -7,18 +7,42 @@ import {
 import {
   BomEventType,
   BomStatus,
+  ItemType,
   NotificationType,
   Prisma,
+  SupplierStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { KanbanNotificationsService } from '../notifications/kanban-notifications.service';
 import { BomAccessService } from './bom-access.service';
-import { CreateBomDto, RejectBomDto, UpdateBomDto } from './dto/bom.dto';
-import { BomEntity, BomEventEntity, BomLineEntity } from './entities/bom.entity';
+import {
+  CreateBomDto,
+  LinkSupplierDto,
+  RejectBomDto,
+  UpdateBomDto,
+} from './dto/bom.dto';
+import {
+  BomEntity,
+  BomEventEntity,
+  BomLineEntity,
+  ItemSupplierEntity,
+} from './entities/bom.entity';
+import {
+  BomCycleError,
+  BomDepthError,
+  ExplodableBom,
+  explodeBom,
+} from './bom-explosion';
+
+/** Supplier statuses that qualify a supplier link for the release hard-gate. */
+const QUALIFIED_SUPPLIER_STATUSES: SupplierStatus[] = [
+  SupplierStatus.APPROVED,
+  SupplierStatus.APPROVED_PREFERRED,
+];
 
 const BOM_INCLUDE = {
-  product: { select: { name: true, sku: true } },
+  item: { select: { itemCode: true, name: true, itemType: true } },
   createdBy: { select: { firstName: true, lastName: true } },
   approvedBy: { select: { firstName: true, lastName: true } },
   lines: {
@@ -59,11 +83,11 @@ export class BomService {
   // ── Reads ────────────────────────────────────────────────────────────
   async list(
     user: AuthenticatedUser,
-    opts: { productId?: string; status?: BomStatus } = {},
+    opts: { itemId?: string; status?: BomStatus } = {},
   ): Promise<BomEntity[]> {
-    await this.access.assertCanReadBoms(user);
+    await this.access.assertCanBrowseBoms(user);
     const where: Prisma.BomWhereInput = {};
-    if (opts.productId) where.productId = opts.productId;
+    if (opts.itemId) where.itemId = opts.itemId;
     if (opts.status) where.status = opts.status;
     const rows = await this.prisma.bom.findMany({
       where,
@@ -73,10 +97,10 @@ export class BomService {
     return rows.map((r) => this.toEntity(r));
   }
 
-  async listForProduct(productId: string, user: AuthenticatedUser): Promise<BomEntity[]> {
-    await this.access.assertCanReadBoms(user);
+  async listForItem(itemId: string, user: AuthenticatedUser): Promise<BomEntity[]> {
+    await this.access.assertCanBrowseBoms(user);
     const rows = await this.prisma.bom.findMany({
-      where: { productId },
+      where: { itemId },
       include: BOM_INCLUDE,
       orderBy: { revisionNumber: 'desc' },
     });
@@ -95,7 +119,7 @@ export class BomService {
   }
 
   async get(id: string, user: AuthenticatedUser): Promise<BomEntity> {
-    await this.access.assertCanReadBoms(user);
+    await this.access.assertCanBrowseBoms(user);
     const row = await this.prisma.bom.findUnique({
       where: { id },
       include: BOM_INCLUDE_WITH_EVENTS,
@@ -108,19 +132,25 @@ export class BomService {
   async create(dto: CreateBomDto, user: AuthenticatedUser): Promise<BomEntity> {
     await this.access.assertCanAuthorBoms(user);
 
-    const product = await this.prisma.product.findUnique({
-      where: { id: dto.productId },
+    const item = await this.prisma.item.findUnique({
+      where: { id: dto.itemId },
       select: { id: true },
     });
-    if (!product) throw new NotFoundException('Product not found');
+    if (!item) throw new NotFoundException('Item not found');
 
+    // A BOM line may not reference the very item the BOM is for (a trivial cycle).
+    if (dto.lines.some((l) => l.itemId === dto.itemId)) {
+      throw new BadRequestException(
+        'A BOM line cannot reference the same item the BOM is for',
+      );
+    }
     await this.assertItemsExist(dto.lines.map((l) => l.itemId));
 
-    const nextRevision = await this.nextRevisionNumber(dto.productId);
+    const nextRevision = await this.nextRevisionNumber(dto.itemId);
     const created = await this.prisma.$transaction(async (tx) => {
       const bom = await tx.bom.create({
         data: {
-          productId: dto.productId,
+          itemId: dto.itemId,
           revisionNumber: nextRevision,
           status: BomStatus.DRAFT,
           effectiveDate: dto.effectiveDate ? new Date(dto.effectiveDate) : null,
@@ -150,7 +180,14 @@ export class BomService {
         `A BOM in status ${bom.status} cannot be edited. Released BOMs are immutable — create a new revision instead.`,
       );
     }
-    if (dto.lines) await this.assertItemsExist(dto.lines.map((l) => l.itemId));
+    if (dto.lines) {
+      if (dto.lines.some((l) => l.itemId === bom.itemId)) {
+        throw new BadRequestException(
+          'A BOM line cannot reference the same item the BOM is for',
+        );
+      }
+      await this.assertItemsExist(dto.lines.map((l) => l.itemId));
+    }
 
     await this.prisma.$transaction(async (tx) => {
       const data: Prisma.BomUpdateInput = {};
@@ -215,8 +252,8 @@ export class BomService {
       where: { isRdHead: true, status: 'ACTIVE' },
       select: { id: true },
     });
-    const product = await this.prisma.product.findUnique({
-      where: { id: bom.productId },
+    const item = await this.prisma.item.findUnique({
+      where: { id: bom.itemId },
       select: { name: true },
     });
     for (const head of heads) {
@@ -225,7 +262,7 @@ export class BomService {
         actorId: user.id,
         type: NotificationType.BOM_SUBMITTED,
         bomId: id,
-        message: `BOM Rev ${bom.revisionNumber} for ${product?.name ?? 'a product'} was submitted for approval`,
+        message: `BOM Rev ${bom.revisionNumber} for ${item?.name ?? 'an item'} was submitted for approval`,
       });
     }
     return this.get(id, user);
@@ -247,6 +284,12 @@ export class BomService {
       );
     }
 
+    // Release gates (both throw with a clear message rather than releasing):
+    //  1. Supplier hard-gate — every RAW_MATERIAL line needs a qualified supplier.
+    //  2. Cycle safety — the released tree must explode without a cycle.
+    await this.assertRawMaterialsQualified(id);
+    await this.assertNoReleaseCycle(bom.itemId, id);
+
     const signer = await this.prisma.employee.findUnique({
       where: { id: user.id },
       select: { signatureText: true, signatureFont: true },
@@ -258,7 +301,7 @@ export class BomService {
       // so the event trail records exactly this transaction's obsoletions.
       const superseded = await tx.bom.findMany({
         where: {
-          productId: bom.productId,
+          itemId: bom.itemId,
           status: BomStatus.RELEASED,
           id: { not: id },
         },
@@ -266,7 +309,7 @@ export class BomService {
       });
       await tx.bom.updateMany({
         where: {
-          productId: bom.productId,
+          itemId: bom.itemId,
           status: BomStatus.RELEASED,
           id: { not: id },
         },
@@ -373,11 +416,11 @@ export class BomService {
     });
     if (!source) throw new NotFoundException('BOM not found');
 
-    const nextRevision = await this.nextRevisionNumber(source.productId);
+    const nextRevision = await this.nextRevisionNumber(source.itemId);
     const created = await this.prisma.$transaction(async (tx) => {
       const bom = await tx.bom.create({
         data: {
-          productId: source.productId,
+          itemId: source.itemId,
           revisionNumber: nextRevision,
           status: BomStatus.DRAFT,
           revisionNotes: source.revisionNotes,
@@ -410,9 +453,9 @@ export class BomService {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────
-  private async nextRevisionNumber(productId: string): Promise<number> {
+  private async nextRevisionNumber(itemId: string): Promise<number> {
     const latest = await this.prisma.bom.findFirst({
-      where: { productId },
+      where: { itemId },
       orderBy: { revisionNumber: 'desc' },
       select: { revisionNumber: true },
     });
@@ -452,14 +495,195 @@ export class BomService {
     }));
   }
 
+  // ── Release gates ────────────────────────────────────────────────────
+  /**
+   * Supplier hard-gate: every RAW_MATERIAL line on this BOM revision must
+   * reference an Item that has at least one qualified (APPROVED /
+   * APPROVED_PREFERRED) supplier link. Throws naming the offending item(s).
+   * Only the BOM's OWN direct RAW_MATERIAL lines are checked here — child BOMs
+   * were themselves gated when they were released.
+   */
+  private async assertRawMaterialsQualified(bomId: string): Promise<void> {
+    const lines = await this.prisma.bomLine.findMany({
+      where: { bomId },
+      select: {
+        item: {
+          select: {
+            id: true,
+            itemCode: true,
+            name: true,
+            itemType: true,
+            supplierLinks: { include: { supplier: { select: { status: true } } } },
+          },
+        },
+      },
+    });
+    const unqualified: string[] = [];
+    for (const line of lines) {
+      if (line.item.itemType !== ItemType.RAW_MATERIAL) continue;
+      const hasQualified = line.item.supplierLinks.some((sl) =>
+        QUALIFIED_SUPPLIER_STATUSES.includes(sl.supplier.status),
+      );
+      if (!hasQualified) {
+        unqualified.push(`${line.item.itemCode} (${line.item.name})`);
+      }
+    }
+    if (unqualified.length > 0) {
+      throw new BadRequestException(
+        `Cannot release: the following raw material(s) have no qualified (Approved) supplier: ${unqualified.join(
+          ', ',
+        )}. Link each to an Approved supplier before releasing.`,
+      );
+    }
+  }
+
+  /**
+   * Cycle safety: verify the tree rooted at `topItemId` — treating THIS bom as
+   * the released revision for its item — explodes without a cycle. Loads every
+   * item's currently-released BOM plus this pending one, then runs the pure
+   * explosion (which throws on a cycle / excessive depth).
+   */
+  private async assertNoReleaseCycle(
+    topItemId: string,
+    pendingBomId: string,
+  ): Promise<void> {
+    // Released BOMs for all items, plus the pending one keyed to its item.
+    const released = await this.prisma.bom.findMany({
+      where: {
+        OR: [{ status: BomStatus.RELEASED }, { id: pendingBomId }],
+      },
+      select: {
+        id: true,
+        itemId: true,
+        revisionNumber: true,
+        lines: {
+          select: {
+            itemId: true,
+            quantityPerUnit: true,
+            wastagePercent: true,
+            unitOfMeasure: true,
+          },
+        },
+      },
+    });
+    // Map itemId -> BOM. The pending one wins for its item (it's about to
+    // become the released revision).
+    const byItem = new Map<string, ExplodableBom>();
+    for (const b of released) {
+      if (b.id !== pendingBomId && byItem.has(b.itemId)) continue;
+      byItem.set(b.itemId, {
+        itemId: b.itemId,
+        revisionNumber: b.revisionNumber,
+        lines: b.lines,
+      });
+    }
+    try {
+      explodeBom(topItemId, (itemId) => byItem.get(itemId) ?? null);
+    } catch (err) {
+      if (err instanceof BomCycleError || err instanceof BomDepthError) {
+        throw new BadRequestException(`Cannot release: ${err.message}`);
+      }
+      throw err;
+    }
+  }
+
+  // ── Item ↔ Supplier links (powers the hard-gate) ─────────────────────
+  async listItemSuppliers(
+    itemId: string,
+    user: AuthenticatedUser,
+  ): Promise<ItemSupplierEntity[]> {
+    await this.access.assertCanReadItems(user);
+    const rows = await this.prisma.itemSupplier.findMany({
+      where: { itemId },
+      include: { supplier: { select: { companyName: true, status: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map((r) => this.toItemSupplier(r));
+  }
+
+  async linkSupplier(
+    itemId: string,
+    dto: LinkSupplierDto,
+    user: AuthenticatedUser,
+  ): Promise<ItemSupplierEntity> {
+    // Managing supplier links is item technical data — same gate as items.
+    await this.access.assertCanManageItems(user);
+    const [item, supplier] = await Promise.all([
+      this.prisma.item.findUnique({ where: { id: itemId }, select: { id: true } }),
+      this.prisma.supplier.findUnique({
+        where: { id: dto.supplierId },
+        select: { id: true },
+      }),
+    ]);
+    if (!item) throw new NotFoundException('Item not found');
+    if (!supplier) throw new NotFoundException('Supplier not found');
+
+    const existing = await this.prisma.itemSupplier.findUnique({
+      where: { itemId_supplierId: { itemId, supplierId: dto.supplierId } },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new BadRequestException('This supplier is already linked to the item');
+    }
+    const created = await this.prisma.itemSupplier.create({
+      data: {
+        itemId,
+        supplierId: dto.supplierId,
+        supplierPartNumber: dto.supplierPartNumber ?? null,
+        createdById: user.id,
+      },
+      include: { supplier: { select: { companyName: true, status: true } } },
+    });
+    return this.toItemSupplier(created);
+  }
+
+  async unlinkSupplier(
+    itemId: string,
+    linkId: string,
+    user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.access.assertCanManageItems(user);
+    const link = await this.prisma.itemSupplier.findUnique({
+      where: { id: linkId },
+      select: { id: true, itemId: true },
+    });
+    if (!link || link.itemId !== itemId) {
+      throw new NotFoundException('Supplier link not found for this item');
+    }
+    await this.prisma.itemSupplier.delete({ where: { id: linkId } });
+  }
+
+  private toItemSupplier(r: {
+    id: string;
+    itemId: string;
+    supplierId: string;
+    supplierPartNumber: string | null;
+    createdById: string;
+    createdAt: Date;
+    supplier: { companyName: string; status: SupplierStatus };
+  }): ItemSupplierEntity {
+    return new ItemSupplierEntity({
+      id: r.id,
+      itemId: r.itemId,
+      supplierId: r.supplierId,
+      supplierName: r.supplier.companyName,
+      supplierStatus: r.supplier.status,
+      isQualified: QUALIFIED_SUPPLIER_STATUSES.includes(r.supplier.status),
+      supplierPartNumber: r.supplierPartNumber,
+      createdById: r.createdById,
+      createdAt: r.createdAt.toISOString(),
+    });
+  }
+
   private toEntity(b: BomWithRelations): BomEntity {
     const name = (e?: { firstName: string; lastName: string } | null) =>
       e ? `${e.firstName} ${e.lastName}`.trim() : null;
     return new BomEntity({
       id: b.id,
-      productId: b.productId,
-      productName: b.product?.name ?? null,
-      productSku: b.product?.sku ?? null,
+      itemId: b.itemId,
+      itemCode: b.item?.itemCode ?? null,
+      itemName: b.item?.name ?? null,
+      itemType: b.item?.itemType ?? null,
       revisionNumber: b.revisionNumber,
       status: b.status,
       effectiveDate: b.effectiveDate ? b.effectiveDate.toISOString() : null,

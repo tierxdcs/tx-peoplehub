@@ -4,10 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
-import { apiFetch, ApiError } from '../../../../lib/api';
-import type { PaginatedResult, Product } from '../../../../lib/types';
+import { ApiError } from '../../../../lib/api';
 import { createBom, type BomLineInput } from '../../../../lib/scm-bom';
-import { listItems, type Item } from '../../../../lib/scm-item-master';
+import { ITEM_TYPE_LABEL, listItems, type Item } from '../../../../lib/scm-item-master';
 import { PageContainer } from '../../../../components/ui/page-container';
 import { PageHeader } from '../../../../components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
@@ -28,11 +27,10 @@ export default function NewBomPage() {
   const router = useRouter();
   const toast = useToast();
 
-  const [products, setProducts] = useState<Product[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [productId, setProductId] = useState('');
+  const [itemId, setItemId] = useState('');
   const [effectiveDate, setEffectiveDate] = useState('');
   const [revisionNotes, setRevisionNotes] = useState('');
   const [lines, setLines] = useState<BomLineDraft[]>([emptyBomLine()]);
@@ -40,12 +38,8 @@ export default function NewBomPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      apiFetch<PaginatedResult<Product>>('/products?page=1&limit=100'),
-      listItems({ activeOnly: true }),
-    ])
-      .then(([prodRes, itemsRes]) => {
-        setProducts(prodRes.items.filter((p) => p.isActive));
+    listItems({ activeOnly: true })
+      .then((itemsRes) => {
         setItems(itemsRes);
       })
       .catch((err) =>
@@ -57,8 +51,8 @@ export default function NewBomPage() {
   }, []);
 
   async function submit() {
-    if (!productId) {
-      setError('Select a product.');
+    if (!itemId) {
+      setError('Select an item.');
       return;
     }
     const validLines = lines.filter((l) => l.itemId);
@@ -80,7 +74,7 @@ export default function NewBomPage() {
         sequence: i + 1,
       }));
       const created = await createBom({
-        productId,
+        itemId,
         effectiveDate: effectiveDate || undefined,
         revisionNotes: revisionNotes.trim() || undefined,
         lines: payloadLines,
@@ -104,7 +98,7 @@ export default function NewBomPage() {
 
       <PageHeader
         title="New BOM"
-        description="Define a product’s components and quantities."
+        description="Define an item’s components and quantities."
       />
 
       {loading ? (
@@ -113,19 +107,19 @@ export default function NewBomPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Product</CardTitle>
+              <CardTitle>Item</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-3 pt-0 sm:grid-cols-2">
-              <Field label="Product" required htmlFor="b-product">
+              <Field label="Item" required htmlFor="b-item">
                 <Select
-                  id="b-product"
-                  value={productId}
-                  onChange={(e) => setProductId(e.target.value)}
+                  id="b-item"
+                  value={itemId}
+                  onChange={(e) => setItemId(e.target.value)}
                 >
-                  <option value="">Select product…</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.sku} — {p.name}
+                  <option value="">Select item…</option>
+                  {items.map((it) => (
+                    <option key={it.id} value={it.id}>
+                      {it.itemCode} — {it.name} ({ITEM_TYPE_LABEL[it.itemType]})
                     </option>
                   ))}
                 </Select>

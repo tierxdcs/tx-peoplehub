@@ -74,6 +74,18 @@ export class ProjectKickoffController {
     return this.service.findOne(id, user);
   }
 
+  @Get(':id/confirmation-sheet')
+  @ApiOperation({
+    summary:
+      "The linked order's EXECUTED confirmation sheet + presigned signed-copy URL (null if none)",
+  })
+  getConfirmationSheet(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.getConfirmationSheet(id, user);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Edit kickoff header fields / status' })
   update(

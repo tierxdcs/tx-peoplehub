@@ -4,6 +4,17 @@ import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/core/database/prisma.service';
+import { VaultStorageService } from '../src/modules/vault/vault-storage.service';
+
+/** Deterministic R2 stand-in so presigned-URL assertions don't need live creds. */
+class FakeStorage {
+  async createDownloadUrl(storageKey: string) {
+    return { url: `https://fake-r2.local/${storageKey}?sig=abc`, expiresInSeconds: 300 };
+  }
+  async headObject(storageKey: string) {
+    return { key: storageKey, size: 1024, contentType: 'application/pdf' };
+  }
+}
 
 /**
  * Project Kickoff e2e — the module's load-bearing behaviors (spec §8):
@@ -115,7 +126,10 @@ describe('Project Kickoff (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(VaultStorageService)
+      .useValue(new FakeStorage())
+      .compile();
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
@@ -406,6 +420,66 @@ describe('Project Kickoff (e2e)', () => {
       .get(`/project-kickoffs/${kid}`)
       .set('Authorization', `Bearer ${superAdminToken}`)
       .expect(200);
+  });
+
+  it('surfaces the linked order EXECUTED confirmation sheet + presigned signed-copy URL', async () => {
+    // A fresh executed order → kickoff. The seeded EXECUTED sheet has no signed
+    // copy yet, so hasSignedCopy is false and downloadUrl is null.
+    const orderId = await seedOrder(true);
+    const sheetRow = await prisma.orderConfirmationSheet.findFirstOrThrow({
+      where: { orderId },
+    });
+    const kickoff = (
+      await request(app.getHttpServer())
+        .post('/project-kickoffs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ orderId, meetingDate: '2026-08-05T10:00:00.000Z' })
+        .expect(201)
+    ).body.data;
+    createdBoardIds.push(kickoff.kanbanBoardId);
+
+    const before = (
+      await request(app.getHttpServer())
+        .get(`/project-kickoffs/${kickoff.id}/confirmation-sheet`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200)
+    ).body.data;
+    expect(before.confirmationNumber).toBe(sheetRow.confirmationNumber);
+    expect(before.hasSignedCopy).toBe(false);
+    expect(before.downloadUrl).toBeNull();
+
+    // Attach a signed copy + executed timestamp → the endpoint now presigns a
+    // download URL (reusing the R2 mechanism, here the FakeStorage stand-in).
+    await prisma.orderConfirmationSheet.update({
+      where: { id: sheetRow.id },
+      data: {
+        signedCopyStorageKey: `order-confirmations/${sheetRow.id}/signed-copy`,
+        internalSignedAt: new Date('2026-07-19T00:00:00.000Z'),
+      },
+    });
+    const after = (
+      await request(app.getHttpServer())
+        .get(`/project-kickoffs/${kickoff.id}/confirmation-sheet`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200)
+    ).body.data;
+    expect(after.hasSignedCopy).toBe(true);
+    expect(after.downloadUrl).toContain(`order-confirmations/${sheetRow.id}/signed-copy`);
+    expect(after.executedAt).toContain('2026-07-19');
+
+    // Sanity (§ verification): if the order's latest sheet is NOT executed, the
+    // endpoint returns null rather than a stale document. Flip status and re-read.
+    await prisma.orderConfirmationSheet.update({
+      where: { id: sheetRow.id },
+      data: { status: 'DRAFT' },
+    });
+    const stale = (
+      await request(app.getHttpServer())
+        .get(`/project-kickoffs/${kickoff.id}/confirmation-sheet`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200)
+    ).body.data;
+    expect(stale).toBeNull();
   });
 
   it('delivery classification: per-line-item set/persist, vendor fields, and VENDOR→other clears vendor data', async () => {

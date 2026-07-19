@@ -75,7 +75,7 @@ export default function PendingApprovalPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Product</TableHead>
+                  <TableHead>Item</TableHead>
                   <TableHead>Revision</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Submitted by</TableHead>
@@ -112,9 +112,9 @@ export default function PendingApprovalPage() {
                       onClick={() => router.push('/scm/bom/' + b.id)}
                     >
                       <TableCell>
-                        <div className="font-medium">{b.productName ?? '—'}</div>
+                        <div className="font-medium">{b.itemCode ?? '—'}</div>
                         <div className="text-xs text-muted-foreground">
-                          {b.productSku ?? ''}
+                          {b.itemName ?? ''}
                         </div>
                       </TableCell>
                       <TableCell>Rev {b.revisionNumber}</TableCell>

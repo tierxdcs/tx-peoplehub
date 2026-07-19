@@ -312,6 +312,16 @@ model Employee {
   deactivatedAt      DateTime?
   accessStatus       AccessStatus   @default(PENDING_ACCESS)
 
+  /// Bumped on an admin force-reset (and on a self-service change) to invalidate
+  /// every previously-issued token: the access/refresh JWT carries the
+  /// tokenVersion it was signed with, and the JWT strategy rejects any token
+  /// whose version is behind the current one — logging out all other sessions.
+  tokenVersion       Int            @default(0)
+  /// Set true by an admin force-reset; the mustChangePassword guard then blocks
+  /// every request except changing the password (and logout) until the user
+  /// sets a new one, which clears this flag.
+  mustChangePassword Boolean        @default(false)
+
   /// Sales Head designation (not a Role). Exactly one active holder at a
   /// time — enforced at the service layer (designate unsets the previous
   /// holder in one transaction), not by a DB constraint.
@@ -435,6 +445,7 @@ model Employee {
   bomsApproved       Bom[]             @relation("BomApprover")
   bomsRejected       Bom[]             @relation("BomRejecter")
   bomEventsActed     BomEvent[]        @relation("BomEventActor")
+  itemSupplierLinks  ItemSupplier[]    @relation("ItemSupplierLinkedBy")
   stockAdjustments   StockAdjustment[] @relation("StockAdjustmentActor")
   reservationsMade   StockReservation[] @relation("ReservationCreator")
   reservationsCancelled StockReservation[] @relation("ReservationCanceller")
@@ -782,12 +793,18 @@ model Product {
   unitOfMeasure  String
   hsnCode        String?
   isActive       Boolean         @default(true)
+  /// Bridge to the Item Master: the manufactured Item this sellable Product
+  /// corresponds to (typically a FINISHED_GOOD). BOMs are keyed on Item, not
+  /// Product, so an order line resolves product -> item -> released BOM ->
+  /// multi-level explosion. Nullable: not every Product is manufactured.
+  itemId         String?
+  item           Item?           @relation("ProductItem", fields: [itemId], references: [id], onDelete: SetNull)
   bidLineItems   BidLineItem[]
   orderLineItems OrderLineItem[]
-  boms           Bom[]           @relation("ProductBoms")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
+  @@index([itemId])
   @@map("products")
 }
 
@@ -1900,6 +1917,7 @@ model Supplier {
   questionnaires           SupplierQuestionnaire[]
   audits                   SupplierAudit[]
   notifications            Notification[]
+  itemLinks                ItemSupplier[] @relation("SupplierItemLinks")
   createdAt                DateTime       @default(now())
   updatedAt                DateTime       @updatedAt
 
@@ -2060,10 +2078,13 @@ model Item {
   drawingSpecReference   String?
   standardLeadTimeDays   Int?
 
+  boms           Bom[]             @relation("ItemBoms")
   bomLines       BomLine[]
+  products       Product[]         @relation("ProductItem")
   stockBalances  StockBalance[]
   stockAdjustments StockAdjustment[]
   reservations   StockReservation[]
+  supplierLinks  ItemSupplier[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2073,14 +2094,39 @@ model Item {
   @@map("items")
 }
 
+/// Links a raw-material/component Item to a qualified Supplier. Powers the BOM
+/// release hard-gate: a BOM referencing a RAW_MATERIAL item cannot be released
+/// unless that item has at least one ItemSupplier whose Supplier status is
+/// APPROVED or APPROVED_PREFERRED.
+model ItemSupplier {
+  id         String   @id @default(uuid())
+  itemId     String
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  supplierId String
+  supplier   Supplier @relation("SupplierItemLinks", fields: [supplierId], references: [id], onDelete: Cascade)
+  /// Optional supplier's own part number for this item.
+  supplierPartNumber String?
+  createdById String
+  createdBy   Employee @relation("ItemSupplierLinkedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime @default(now())
+
+  @@unique([itemId, supplierId])
+  @@index([itemId])
+  @@index([supplierId])
+  @@map("item_suppliers")
+}
+
 /// One BOM revision (header) for a Product. Only one RELEASED revision is
 /// normally active at a time — enforced in the service transaction when a new
 /// revision is released (the prior RELEASED one becomes OBSOLETE). Unique
 /// (productId, revisionNumber) prevents duplicate revision numbers per product.
 model Bom {
   id            String    @id @default(uuid())
-  productId     String
-  product       Product   @relation("ProductBoms", fields: [productId], references: [id], onDelete: Restrict)
+  /// Keyed on the Item Master (NOT Product) so a SUBASSEMBLY/COMPONENT item that
+  /// is never sold as a Product still has somewhere to attach its own BOM —
+  /// this is what enables genuine multi-level explosion.
+  itemId        String
+  item          Item      @relation("ItemBoms", fields: [itemId], references: [id], onDelete: Restrict)
   revisionNumber Int
   status        BomStatus @default(DRAFT)
   effectiveDate DateTime?
@@ -2112,8 +2158,8 @@ model Bom {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([productId, revisionNumber])
-  @@index([productId])
+  @@unique([itemId, revisionNumber])
+  @@index([itemId])
   @@index([status])
   @@map("boms")
 }

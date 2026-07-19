@@ -15,6 +15,8 @@ function access(
     isSalesStaff?: boolean;
     isSalesHead?: boolean;
     isRndHead?: boolean;
+    isRndStaff?: boolean;
+    isStoreStaff?: boolean;
   } = {},
 ): Access {
   const user: DecodedAccessToken = {
@@ -29,6 +31,8 @@ function access(
     isSalesStaff: opts.isSalesStaff ?? false,
     isSalesHead: opts.isSalesHead ?? false,
     isRndHead: opts.isRndHead ?? false,
+    isRndStaff: opts.isRndStaff ?? false,
+    isStoreStaff: opts.isStoreStaff ?? false,
     payslipsEnabled: false,
   };
 }
@@ -104,20 +108,61 @@ describe('sidebarNav — the reported bug', () => {
     expect(shown).not.toContain('Leads');
   });
 
-  it('everyone sees the Engineering group (Item Master / BOM / Inventory)', () => {
-    const a = access('EMPLOYEE');
-    const shown = labels(a, activeModule('/scm/items', availableModules(a)));
-    expect(shown).toContain('Item Master');
+  it('R&D staff see the Engineering group (Products + Bills of Materials)', () => {
+    const a = access('EMPLOYEE', { isRndStaff: true });
+    const shown = labels(a, activeModule('/scm/bom', availableModules(a)));
     expect(shown).toContain('Bills of Materials');
-    expect(shown).toContain('Inventory');
-    // Non-R&D-Head does NOT see the BOM approval queue.
+    // Products management now lives under Engineering (R&D-only).
+    expect(shown).toContain('Products');
+    // Non-R&D-Head R&D staff do NOT see the BOM approval queue.
     expect(shown).not.toContain('BOM Approvals');
   });
 
-  it('an R&D Head additionally sees the BOM Approvals queue', () => {
-    const a = access('EMPLOYEE', { isRndHead: true });
+  it('a non-R&D user does NOT see the Engineering group (incl. Products)', () => {
+    const a = access('EMPLOYEE');
+    const shown = labels(a, activeModule('/profile', availableModules(a)));
+    expect(shown).not.toContain('Bills of Materials');
+    expect(shown).not.toContain('BOM Approvals');
+    expect(shown).not.toContain('Products');
+  });
+
+  it('a Sales rep no longer sees Products (moved to Engineering) but keeps Customer Master', () => {
+    const a = access('EMPLOYEE', { isSalesStaff: true });
+    const shown = labels(a, activeModule('/sales/leads', availableModules(a)));
+    expect(shown).toContain('Customer Master');
+    expect(shown).not.toContain('Products');
+  });
+
+  it('an R&D Head (R&D staff) additionally sees the BOM Approvals queue', () => {
+    const a = access('EMPLOYEE', { isRndStaff: true, isRndHead: true });
     const shown = labels(a, activeModule('/scm/bom', availableModules(a)));
+    expect(shown).toContain('Bills of Materials');
     expect(shown).toContain('BOM Approvals');
+  });
+
+  it('Store staff see Store Management but NOT the Engineering group', () => {
+    const a = access('EMPLOYEE', { isStoreStaff: true });
+    const shown = labels(a, activeModule('/scm/items', availableModules(a)));
+    expect(shown).toContain('Item Master');
+    expect(shown).toContain('Inventory');
+    // Engineering is R&D-only — Store staff no longer see BOMs in the nav.
+    expect(shown).not.toContain('Bills of Materials');
+    expect(shown).not.toContain('BOM Approvals');
+  });
+
+  it('a non-Store, non-SuperAdmin user does NOT see Store Management', () => {
+    const a = access('EMPLOYEE');
+    const shown = labels(a, activeModule('/profile', availableModules(a)));
+    expect(shown).not.toContain('Item Master');
+    expect(shown).not.toContain('Inventory');
+  });
+
+  it('SUPER_ADMIN sees both Engineering and Store Management without the flags', () => {
+    const a = access('SUPER_ADMIN');
+    const shown = labels(a, activeModule('/scm/items', availableModules(a)));
+    expect(shown).toContain('Item Master');
+    expect(shown).toContain('Inventory');
+    expect(shown).toContain('Bills of Materials');
   });
 
   // My Team / My Leave / My Attendance are no longer sidebar items — they live

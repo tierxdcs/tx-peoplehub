@@ -450,6 +450,8 @@ export interface Product {
   unitOfMeasure: string;
   hsnCode: string | null;
   isActive: boolean;
+  /** Item Master item this product is manufactured as (keyed for BOM/stock). */
+  itemId: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -43,4 +43,15 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  /**
+   * The Item Master item this Product is manufactured as (typically a
+   * FINISHED_GOOD). BOMs are keyed on Item, so this link is what lets the
+   * kickoff stock-availability report resolve the product to a released BOM.
+   * Optional — not every product is manufactured in-house.
+   */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  itemId?: string;
 }

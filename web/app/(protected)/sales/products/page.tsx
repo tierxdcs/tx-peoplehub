@@ -6,6 +6,7 @@ import { apiFetch, ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { PaginatedResult, Product } from '../../../lib/types';
 import { formatINR } from '../../../lib/sales';
+import { listItems, type Item } from '../../../lib/scm-item-master';
 import { Button } from '../../../components/ui/button';
 
 const fieldStyle: React.CSSProperties = {
@@ -188,8 +189,18 @@ function ProductForm({
   );
   const [hsnCode, setHsnCode] = useState(product?.hsnCode ?? '');
   const [isActive, setIsActive] = useState(product?.isActive ?? true);
+  const [itemId, setItemId] = useState(product?.itemId ?? '');
+  const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Item Master items for the "manufactured item" link (active only). Best-
+  // effort — a fetch failure just leaves the picker empty (link stays optional).
+  useEffect(() => {
+    listItems({ activeOnly: true })
+      .then(setItems)
+      .catch(() => setItems([]));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -210,6 +221,8 @@ function ProductForm({
             unitOfMeasure,
             hsnCode: hsnCode || undefined,
             isActive,
+            // '' → null (unlink); an id → link. Always sent so edits can clear it.
+            itemId: itemId || null,
           }),
         });
       } else {
@@ -223,6 +236,7 @@ function ProductForm({
             unitOfMeasure,
             hsnCode: hsnCode || undefined,
             isActive,
+            itemId: itemId || undefined,
           }),
         });
       }
@@ -312,6 +326,27 @@ function ProductForm({
             onChange={(e) => setHsnCode(e.target.value)}
             style={fieldStyle}
           />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', marginBottom: 4 }}>
+            Manufactured item (optional)
+          </label>
+          <select
+            value={itemId}
+            onChange={(e) => setItemId(e.target.value)}
+            style={fieldStyle}
+          >
+            <option value="">— Not linked —</option>
+            {items.map((it) => (
+              <option key={it.id} value={it.id}>
+                {it.itemCode} — {it.name}
+              </option>
+            ))}
+          </select>
+          <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+            Link to the Item Master item this product is built as. Required for
+            its BOM and the project-kickoff stock-availability report.
+          </p>
         </div>
         <div style={{ marginBottom: 12 }}>
           <label>

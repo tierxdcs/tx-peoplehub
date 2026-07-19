@@ -7,7 +7,7 @@ import { InventoryService } from './inventory.service';
 import { StockReportService } from './stock-report.service';
 import { ItemController } from './item.controller';
 import { BomController } from './bom.controller';
-import { ProductBomsController } from './product-boms.controller';
+import { ItemBomsController } from './item-boms.controller';
 import { InventoryController } from './inventory.controller';
 import { KickoffStockController } from './kickoff-stock.controller';
 
@@ -22,7 +22,7 @@ import { KickoffStockController } from './kickoff-stock.controller';
   controllers: [
     ItemController,
     BomController,
-    ProductBomsController,
+    ItemBomsController,
     InventoryController,
     KickoffStockController,
   ],

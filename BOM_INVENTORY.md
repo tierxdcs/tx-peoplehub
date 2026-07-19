@@ -12,21 +12,23 @@ formulas, and endpoints. It complements (does not replace) the code.
 
 ## 1. Domain model
 
-New Prisma models (migration `20260718130000_bom_inventory`):
+New Prisma models (migrations `20260718130000_bom_inventory` +
+`20260718140000_bom_item_keying_and_hardgate`):
 
 | Model | Table | Purpose |
 |---|---|---|
 | `Item` | `items` | Item Master — BOM lines & stock reference items here, never free-text names |
-| `Bom` | `boms` | One BOM revision (header) for a `Product` |
-| `BomLine` | `bom_lines` | One material line on a revision |
+| `Bom` | `boms` | One BOM revision (header) **for an `Item`** (see keying note) |
+| `BomLine` | `bom_lines` | One child-item line on a revision |
 | `BomEvent` | `bom_events` | Immutable workflow/approval history per BOM |
+| `ItemSupplier` | `item_suppliers` | Links an Item to a Supplier — powers the release hard-gate |
 | `StoreLocation` | `store_locations` | Physical store/warehouse |
 | `StockBalance` | `stock_balances` | On-hand / reserved / blocked per item+location |
 | `StockAdjustment` | `stock_adjustments` | Append-only stock movement history |
 | `StockReservation` | `stock_reservations` | Material earmarked for a kickoff |
 | `KickoffStockReport` | `kickoff_stock_reports` | One snapshotted report per kickoff |
 | `KickoffBomSelection` | `kickoff_bom_selections` | Which released BOM was chosen per ordered product |
-| `KickoffBomSnapshotLine` | `kickoff_bom_snapshot_lines` | Copied BOM lines (historical accuracy) |
+| `KickoffBomSnapshotLine` | `kickoff_bom_snapshot_lines` | Copied EXPLODED leaf requirements (historical accuracy) |
 
 New enums: `ItemType` (RAW_MATERIAL, COMPONENT, SUBASSEMBLY, FINISHED_GOOD,
 CONSUMABLE), `BomStatus` (DRAFT, PENDING_APPROVAL, REJECTED, RELEASED, OBSOLETE),
@@ -36,8 +38,18 @@ CONSUMABLE), `BomStatus` (DRAFT, PENDING_APPROVAL, REJECTED, RELEASED, OBSOLETE)
 
 `Employee` gains `isRdHead Boolean @default(false)`.
 
-Existing models touched only additively: `Product.boms`, `ProjectKickoff.stockReport`
-+ `stockReservations`, `Notification.relatedBomId`, `Employee.isRdHead` + back-relations.
+### BOM is keyed on Item, not Product (multi-level from the start)
+`Bom.itemId → Item` with `@@unique([itemId, revisionNumber])`. A sellable
+`Product` carries a nullable `Product.itemId` bridge to its manufactured
+(typically FINISHED_GOOD) Item. This keying is what enables **genuine
+multi-level explosion**: a SUBASSEMBLY/COMPONENT Item that is never sold as a
+Product still has its own BOM, so an order line resolves
+`product → item → released BOM → recursive explosion → raw-material leaves`.
+
+Existing models touched only additively: `Product.itemId` (nullable bridge),
+`ProjectKickoff.stockReport` + `stockReservations`, `Notification.relatedBomId`,
+`Employee.isRdHead`, `Supplier.itemLinks`, `Item.boms`/`products`/`supplierLinks`
++ back-relations.
 
 ### Decimal precision
 - Quantities: `Decimal(14,4)` (finer than money's `14,2` — per-unit BOM quantities
@@ -64,7 +76,12 @@ RELEASED ──new-revision──► (new) DRAFT       RELEASED ──(a newer r
 - **Released BOMs are immutable.** To change one, create a new revision
   (`POST /boms/:id/new-revision`) which copies the lines into a fresh DRAFT.
 - When a revision is **released**, any previously-RELEASED revision of the same
-  product is set to **OBSOLETE in the same transaction**.
+  **item** is set to **OBSOLETE in the same transaction**.
+- **Release hard-gate:** approving/releasing a BOM is BLOCKED (400, naming the
+  offending item(s)) if any direct `RAW_MATERIAL` line references an Item with no
+  linked Supplier in `APPROVED`/`APPROVED_PREFERRED` status. A child BOM's own raw
+  materials were gated when that child was released, so only the BOM's direct
+  raw-material lines are re-checked. Release also runs the cycle check (§5).
 - Every transition writes a `BomEvent` and (submit/approve/reject) a
   `Notification`; all mutations are also captured by the global `AuditInterceptor`.
 
@@ -75,12 +92,14 @@ RELEASED ──new-revision──► (new) DRAFT       RELEASED ──(a newer r
 | Action | Who |
 |---|---|
 | Designate/revoke R&D Head | ADMIN, SUPER_ADMIN — **target must be in the R&D vertical** |
-| Read items / BOMs / inventory | R&D vertical, Store (Production vertical), or SUPER_ADMIN |
+| Read items / inventory | R&D vertical, Store (Production vertical), or SUPER_ADMIN |
+| Browse the BOM (Engineering) module | **R&D vertical only** (or SUPER_ADMIN) — Store users do NOT get the BOM pages |
 | Create/update items (technical data) | **R&D Head** or SUPER_ADMIN |
+| Link/unlink item↔supplier (feeds the hard-gate) | **R&D Head** or SUPER_ADMIN |
 | Create/edit/submit BOM drafts | **R&D vertical** employee (or SUPER_ADMIN) |
 | Approve/reject a submitted BOM | **R&D Head only** — *SUPER_ADMIN is NOT sufficient* |
 | Adjust stock / reserve / cancel reservations | Store (Production vertical) or SUPER_ADMIN |
-| Generate/read stock report | anyone who can read BOMs |
+| Generate/read stock report | R&D or Store or SUPER_ADMIN (reads the released BOM indirectly) |
 
 Notes:
 - **SUPER_ADMIN can manage the R&D Head designation but does not gain BOM
@@ -115,18 +134,39 @@ bucket, timestamp). Reservations are transactional and audited.
 
 ---
 
-## 5. Requirement & availability formulas (report)
+## 5. Multi-level explosion, requirement & availability formulas (report)
 
-For each BOM snapshot line against each ordered product line:
+### Multi-level explosion (`src/modules/bom/bom-explosion.ts`)
+When a report is generated, each ordered product's Item is exploded **recursively**
+through its released BOM tree down to **leaf** items (a leaf = an item with no
+released BOM of its own — raw materials, bought components). A component that has
+its own released BOM is expanded further, not flattened. Per-level quantities
+multiply and **wastage compounds multiplicatively** at each level. Only the
+resulting leaves are snapshotted and reported; intermediate assemblies are not
+listed as requirements.
+
+**Cycle & depth safety:** the explosion tracks the ancestor path and throws
+`BomCycleError` on any revisit (A→B→A, A→A, A→B→C→A) — a clear error, never a
+hang. A hard `MAX_EXPLOSION_DEPTH = 25` backstops pathological chains
+(`BomDepthError`). A BOM line may not reference the item the BOM is for
+(rejected at create/edit), and **release runs the same cycle check** over the
+would-be-released tree (`assertNoReleaseCycle`), so a cycle can never enter the
+released set.
+
+### Requirement math
+Per exploded leaf, `quantityPerTopUnit` already folds in compounded wastage; the
+snapshot stores the pure `basePerTopUnit` and an **effective compounded wastage %**
+= `(gross/base − 1)·100`, so the report reproduces:
 
 ```
-baseRequirement  = bomLine.quantityPerUnit × orderedProductQuantity
-wastageQuantity  = baseRequirement × (wastagePercent / 100)
+baseRequirement  = leaf.basePerTopUnit × orderedProductQuantity
+wastageQuantity  = baseRequirement × (effectiveWastagePercent / 100)
 grossRequirement = baseRequirement + wastageQuantity
 ```
 
-Identical `Item` records are **aggregated across all order lines / BOMs** before
-comparison with stock. Live stock is summed across all locations for the item.
+Identical leaf `Item` records are **aggregated across all order lines, products,
+and every level of every BOM** before comparison with stock. Live stock is summed
+across all locations for the item.
 
 ```
 available          = Σ onHand − Σ reserved − Σ blocked          (across locations)
@@ -189,17 +229,22 @@ GET    /items/:id                                        read: R&D/Store
 PATCH  /items/:id                                        R&D Head
 DELETE /items/:id             (deactivate — no hard delete) R&D Head
 
-# BOM
-GET    /boms                  (productId, status)        read: R&D/Store
-POST   /boms                                             R&D vertical
+# Item ↔ Supplier links (release hard-gate)
+GET    /items/:itemId/suppliers                          read: R&D/Store
+POST   /items/:itemId/suppliers  { supplierId, ... }     R&D Head
+DELETE /items/:itemId/suppliers/:linkId                  R&D Head
+
+# BOM (keyed on Item)
+GET    /boms                  (itemId, status)           R&D only
+POST   /boms                  { itemId, lines, ... }     R&D vertical
 GET    /boms/pending-approval                            R&D Head (approval queue)
-GET    /boms/:id                                         read: R&D/Store
+GET    /boms/:id                                         R&D only
 PATCH  /boms/:id              (DRAFT/REJECTED only)      R&D vertical
 POST   /boms/:id/submit                                  R&D vertical
-POST   /boms/:id/approve                                 R&D Head (not creator)
+POST   /boms/:id/approve      (hard-gate + cycle check)  R&D Head (not creator)
 POST   /boms/:id/reject       { comment }                R&D Head (not creator)
 POST   /boms/:id/new-revision                            R&D vertical
-GET    /products/:productId/boms                         read: R&D/Store
+GET    /items/:itemId/boms                               R&D only
 
 # Inventory
 GET    /inventory             (search, storeLocationId)  read: R&D/Store
@@ -242,8 +287,12 @@ global exception filter. Mutations are audited by the global `AuditInterceptor`.
 
 ## 10. Frontend
 
-- Nav "Engineering" group (company-wide read): **Item Master**, **Bills of
-  Materials**, **Inventory**; plus **BOM Approvals** shown only to R&D Heads.
+- Nav is split by vertical:
+  - **Engineering** group (R&D vertical / SUPER_ADMIN only): **Bills of
+    Materials**; plus **BOM Approvals** shown only to R&D Heads. Gated by
+    `useIsRndStaff()`; backend `assertCanBrowseBoms` enforces it.
+  - **Store Management** group (Store = PRODUCTION vertical / SUPER_ADMIN):
+    **Item Master**, **Inventory**. Gated by `useIsStoreStaff()`.
 - Pages: `/scm/items`, `/scm/bom` (+ `/new`, `/[id]`, `/[id]/edit`,
   `/pending-approval`), `/scm/inventory`. Kickoff detail gains a
   **Material Stock Availability** section (generate/regenerate, per-item table
@@ -256,9 +305,11 @@ global exception filter. Mutations are audited by the global `AuditInterceptor`.
 
 ## 11. Explicit MVP exclusions
 
-- **The hard BOM-release gate that blocks production release for unqualified
-  materials** — the report identifies shortages but does not block.
 - **Automatic purchase requisitions / purchase orders / procurement.**
+- The kickoff stock report identifies shortages but does **not** block kickoff
+  creation. (Note: the *supplier qualification* hard-gate on **BOM release** IS
+  built — see §2/§5 — it blocks releasing a BOM with an unqualified raw material.
+  What remains out of scope is any gate on *production release / dispatch*.)
 - A full warehouse-management system (bins, lots, cycle counts, multi-UoM
   conversion) — inventory here is a focused MVP.
 - An explicit customer "required-by" date driving the EXPECTED classification

@@ -25,6 +25,7 @@ import {
   round,
   wastageQuantity,
 } from './stock-calc';
+import { ExplodableBom, explodeBom } from './bom-explosion';
 
 /**
  * Project-kickoff stock-availability report (§7–9).
@@ -55,7 +56,11 @@ export class StockReportService {
         order: {
           include: {
             lineItems: {
-              include: { product: { select: { id: true, name: true, sku: true } } },
+              include: {
+                product: {
+                  select: { id: true, name: true, sku: true, itemId: true },
+                },
+              },
             },
           },
         },
@@ -70,7 +75,6 @@ export class StockReportService {
       return this.readOrThrow(kickoffId, user);
     }
 
-    // Choose the RELEASED BOM per ordered product; validate at least one exists.
     const lineItems = kickoff.order.lineItems;
     if (lineItems.length === 0) {
       throw new BadRequestException(
@@ -78,34 +82,34 @@ export class StockReportService {
       );
     }
 
-    // Resolve the released BOM per DISTINCT product once (reused across lines).
-    const productIds = [...new Set(lineItems.map((li) => li.productId))];
-    const releasedByProduct = new Map<
-      string,
-      Prisma.BomGetPayload<{ include: { lines: true } }>
-    >();
-    for (const pid of productIds) {
-      const released = await this.prisma.bom.findFirst({
-        where: { productId: pid, status: BomStatus.RELEASED },
-        include: { lines: true },
-        orderBy: { revisionNumber: 'desc' },
-      });
-      if (released) releasedByProduct.set(pid, released);
-    }
-    if (releasedByProduct.size === 0) {
-      throw new BadRequestException(
-        'No released BOM exists for any product on this order — release a BOM before generating the report',
-      );
-    }
+    // Load ALL released BOMs once — the explosion walks item -> released BOM ->
+    // child items -> their released BOMs, multi-level, so we need the whole set.
+    const releasedByItem = await this.loadReleasedBomIndex();
 
-    // Build + persist the snapshot in one transaction.
+    // Resolve each ordered product to its manufactured Item, then to that item's
+    // released BOM. Explode the BOM to LEAF requirements (raw materials / bought
+    // components), snapshotting the exploded leaves so history stays stable even
+    // if a sub-assembly BOM is later revised.
+    const itemMeta = await this.loadItemMeta(releasedByItem);
+    let anyBom = false;
+
     await this.prisma.$transaction(async (tx) => {
       const report = await tx.kickoffStockReport.create({
         data: { kickoffId, quantityPrecision: QTY_PRECISION },
       });
       for (const li of lineItems) {
-        const bom = releasedByProduct.get(li.productId);
-        if (!bom) continue; // product without a released BOM is skipped (surfaces as UNKNOWN if referenced)
+        const topItemId = li.product.itemId;
+        if (!topItemId) continue; // product not linked to an Item → no BOM
+        const topBom = releasedByItem.get(topItemId);
+        if (!topBom) continue; // no released BOM for this product's item
+        anyBom = true;
+
+        // Explode to leaves (may throw on cycle — released trees are gated at
+        // release, but guard here too so a bad graph can't crash the report).
+        const leaves = explodeBom(topItemId, (itemId) =>
+          releasedByItem.get(itemId) ?? null,
+        );
+
         const selection = await tx.kickoffBomSelection.create({
           data: {
             reportId: report.id,
@@ -114,27 +118,35 @@ export class StockReportService {
             productName: li.product.name,
             productSku: li.product.sku,
             orderedQuantity: li.quantity,
-            bomId: bom.id,
-            bomRevisionNumber: bom.revisionNumber,
+            bomId: topBom.bomId,
+            bomRevisionNumber: topBom.revisionNumber,
           },
         });
-        if (bom.lines.length > 0) {
-          const items = await tx.item.findMany({
-            where: { id: { in: bom.lines.map((l) => l.itemId) } },
-            select: { id: true, itemCode: true, name: true },
-          });
-          const itemById = new Map(items.map((i) => [i.id, i]));
+
+        if (leaves.length > 0) {
           await tx.kickoffBomSnapshotLine.createMany({
-            data: bom.lines.map((l) => {
-              const it = itemById.get(l.itemId);
+            data: leaves.map((leaf) => {
+              const meta = itemMeta.get(leaf.itemId);
+              // Effective compounded wastage % = (gross/base − 1) · 100.
+              const effWastage = leaf.basePerTopUnit.greaterThan(0)
+                ? round(
+                    leaf.quantityPerTopUnit
+                      .dividedBy(leaf.basePerTopUnit)
+                      .minus(1)
+                      .times(100),
+                  )
+                : new Prisma.Decimal(0);
               return {
                 selectionId: selection.id,
-                itemId: l.itemId,
-                itemCode: it?.itemCode ?? l.itemId,
-                itemName: it?.name ?? 'Unknown item',
-                unitOfMeasure: l.unitOfMeasure,
-                quantityPerUnit: l.quantityPerUnit,
-                wastagePercent: l.wastagePercent,
+                itemId: leaf.itemId,
+                itemCode: meta?.itemCode ?? leaf.itemId,
+                itemName: meta?.name ?? 'Unknown item',
+                unitOfMeasure: leaf.unitOfMeasure,
+                // Snapshot the PER-TOP-UNIT base; the report multiplies by the
+                // ordered quantity. Effective wastage % is stored so gross =
+                // base·qty·(1+wastage/100) reproduces the exploded gross.
+                quantityPerUnit: leaf.basePerTopUnit,
+                wastagePercent: effWastage,
               };
             }),
           });
@@ -142,7 +154,71 @@ export class StockReportService {
       }
     });
 
+    if (!anyBom) {
+      // No product resolved to a released BOM — clean up the empty report and
+      // fail clearly (matches the pre-existing "must have a released BOM" gate).
+      await this.prisma.kickoffStockReport.delete({ where: { kickoffId } });
+      throw new BadRequestException(
+        'No released BOM exists for any product on this order — release a BOM before generating the report',
+      );
+    }
+
     return this.readOrThrow(kickoffId, user);
+  }
+
+  /**
+   * Index of every RELEASED BOM keyed by its item, shaped for explodeBom. Only
+   * the latest released revision per item is kept (there should be exactly one,
+   * but order by revision desc to be safe).
+   */
+  private async loadReleasedBomIndex(): Promise<
+    Map<string, ExplodableBom & { bomId: string }>
+  > {
+    const released = await this.prisma.bom.findMany({
+      where: { status: BomStatus.RELEASED },
+      orderBy: { revisionNumber: 'desc' },
+      select: {
+        id: true,
+        itemId: true,
+        revisionNumber: true,
+        lines: {
+          select: {
+            itemId: true,
+            quantityPerUnit: true,
+            wastagePercent: true,
+            unitOfMeasure: true,
+          },
+        },
+      },
+    });
+    const byItem = new Map<string, ExplodableBom & { bomId: string }>();
+    for (const b of released) {
+      if (byItem.has(b.itemId)) continue; // keep the highest revision (first seen)
+      byItem.set(b.itemId, {
+        bomId: b.id,
+        itemId: b.itemId,
+        revisionNumber: b.revisionNumber,
+        lines: b.lines,
+      });
+    }
+    return byItem;
+  }
+
+  /** itemCode/name for every item referenced anywhere in the released set. */
+  private async loadItemMeta(
+    releasedByItem: Map<string, ExplodableBom & { bomId: string }>,
+  ): Promise<Map<string, { itemCode: string; name: string }>> {
+    const ids = new Set<string>();
+    for (const bom of releasedByItem.values()) {
+      ids.add(bom.itemId);
+      for (const l of bom.lines) ids.add(l.itemId);
+    }
+    if (ids.size === 0) return new Map();
+    const items = await this.prisma.item.findMany({
+      where: { id: { in: [...ids] } },
+      select: { id: true, itemCode: true, name: true },
+    });
+    return new Map(items.map((i) => [i.id, { itemCode: i.itemCode, name: i.name }]));
   }
 
   /** read() but guarantees a non-null report (used right after generate). */

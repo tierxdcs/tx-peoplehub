@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { apiFetch, ApiError } from '../../lib/api';
+import { useAuth } from '../../lib/auth-context';
 import {
   Dialog,
   DialogContent,
@@ -19,9 +20,21 @@ import { useToast } from '../ui/toaster';
  * Self-service password change for the logged-in user. Verifies the current
  * password server-side, requires the new one twice (typo guard), and enforces
  * the same 8-char minimum the backend does.
+ *
+ * `forced` mode is used when an admin force-reset set mustChangePassword: the
+ * dialog can't be dismissed, and the copy tells the user why. Either way, the
+ * server returns a fresh access token (tokenVersion bumped, flag cleared) that
+ * we adopt so the current session keeps working and the forced-change gate lifts.
  */
-export function ResetPasswordDialog({ onClose }: { onClose: () => void }) {
+export function ResetPasswordDialog({
+  onClose,
+  forced = false,
+}: {
+  onClose: () => void;
+  forced?: boolean;
+}) {
   const toast = useToast();
+  const { applyAccessToken } = useAuth();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -41,10 +54,19 @@ export function ResetPasswordDialog({ onClose }: { onClose: () => void }) {
     }
     setSubmitting(true);
     try {
-      await apiFetch('/auth/change-password', {
-        method: 'POST',
-        body: JSON.stringify({ currentPassword: current, newPassword: next }),
-      });
+      const res = await apiFetch<{ accessToken?: string }>(
+        '/auth/change-password',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            currentPassword: current,
+            newPassword: next,
+          }),
+        },
+      );
+      // Adopt the freshly-issued token (clears mustChangePassword, applies the
+      // new tokenVersion so our own session survives while others are killed).
+      if (res?.accessToken) applyAccessToken(res.accessToken);
       toast.success('Password changed.');
       onClose();
     } catch (err) {
@@ -57,12 +79,29 @@ export function ResetPasswordDialog({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Dialog open onOpenChange={(o) => !o && !submitting && onClose()}>
-      <DialogContent>
+    <Dialog
+      open
+      // In forced mode the dialog can't be dismissed — the user must change
+      // their password to proceed (the backend blocks everything else anyway).
+      onOpenChange={(o) => !o && !submitting && !forced && onClose()}
+    >
+      <DialogContent
+        {...(forced
+          ? {
+              onEscapeKeyDown: (e: Event) => e.preventDefault(),
+              onPointerDownOutside: (e: Event) => e.preventDefault(),
+              onInteractOutside: (e: Event) => e.preventDefault(),
+            }
+          : {})}
+      >
         <DialogHeader>
-          <DialogTitle>Reset password</DialogTitle>
+          <DialogTitle>
+            {forced ? 'Set a new password' : 'Reset password'}
+          </DialogTitle>
           <DialogDescription>
-            Enter your current password and choose a new one.
+            {forced
+              ? 'An administrator reset your password. Enter the temporary password you were given and choose a new one to continue.'
+              : 'Enter your current password and choose a new one.'}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -111,14 +150,16 @@ export function ResetPasswordDialog({ onClose }: { onClose: () => void }) {
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={submitting}
-            >
-              Cancel
-            </Button>
+            {!forced && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+            )}
             <Button
               type="submit"
               disabled={submitting || !current || !next || !confirm}

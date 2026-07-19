@@ -248,6 +248,19 @@ export class EmployeesController {
     return this.employeesService.setRdHead(id, false);
   }
 
+  @Patch(':id/reset-password')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Force-reset an employee’s password: generate a temporary password, require change on next login, and invalidate all their sessions. The temporary password is returned ONCE.',
+  })
+  resetPassword(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.employeesService.resetPassword(id, user);
+  }
+
   @Get(':id/team')
   @Roles(Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN)
   @ApiOperation({

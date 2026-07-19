@@ -5,6 +5,13 @@ export interface DecodedAccessToken {
   email: string;
   role: Role;
   verticalId: string | null;
+  /**
+   * True when an admin force-reset requires this user to set a new password
+   * before doing anything else. Read straight from the token so the shell can
+   * route into the forced-change screen without an API call. Absent on older
+   * tokens → treated as false.
+   */
+  mustChangePassword?: boolean;
 }
 
 /**

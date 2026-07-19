@@ -73,7 +73,7 @@ export default function BomListPage() {
     <PageContainer>
       <PageHeader
         title="Bills of Material"
-        description="Product BOMs, their revisions and approval status."
+        description="Item BOMs, their revisions and approval status."
         action={
           canManage ? (
             <Button onClick={() => router.push('/scm/bom/new')}>+ New BOM</Button>
@@ -103,7 +103,7 @@ export default function BomListPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Product</TableHead>
+                <TableHead>Item</TableHead>
                 <TableHead>Revision</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Creator</TableHead>
@@ -143,9 +143,9 @@ export default function BomListPage() {
                     onClick={() => router.push('/scm/bom/' + b.id)}
                   >
                     <TableCell>
-                      <div className="font-medium">{b.productName ?? '—'}</div>
+                      <div className="font-medium">{b.itemCode ?? '—'}</div>
                       <div className="text-xs text-muted-foreground">
-                        {b.productSku ?? ''}
+                        {b.itemName ?? ''}
                       </div>
                     </TableCell>
                     <TableCell>Rev {b.revisionNumber}</TableCell>

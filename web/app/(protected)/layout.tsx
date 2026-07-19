@@ -7,6 +7,8 @@ import { useIsHrStaff } from '../lib/use-is-hr-staff';
 import { useIsSalesStaff } from '../lib/use-is-sales-staff';
 import { useIsSalesHead } from '../lib/use-is-sales-head';
 import { useIsRndHead } from '../lib/use-is-rnd-head';
+import { useIsRndStaff } from '../lib/use-is-rnd-staff';
+import { useIsStoreStaff } from '../lib/use-is-store-staff';
 import { usePendingApprovalCounts } from '../lib/use-pending-approval-counts';
 import {
   activeModule as resolveActiveModule,
@@ -17,6 +19,7 @@ import {
 } from '../lib/nav';
 import { AppTopBar } from '../components/shell/app-top-bar';
 import { Sidebar } from '../components/shell/sidebar';
+import { ResetPasswordDialog } from '../components/shell/reset-password-dialog';
 
 export default function ProtectedLayout({
   children,
@@ -29,6 +32,8 @@ export default function ProtectedLayout({
   const { isSalesStaff, loading: salesLoading } = useIsSalesStaff();
   const { isSalesHead, loading: salesHeadLoading } = useIsSalesHead();
   const { isRndHead, loading: rndHeadLoading } = useIsRndHead();
+  const { isRndStaff, loading: rndStaffLoading } = useIsRndStaff();
+  const { isStoreStaff, loading: storeLoading } = useIsStoreStaff();
   const { counts } = usePendingApprovalCounts();
   const router = useRouter();
   const pathname = usePathname();
@@ -47,6 +52,8 @@ export default function ProtectedLayout({
     salesLoading ||
     salesHeadLoading ||
     rndHeadLoading ||
+    rndStaffLoading ||
+    storeLoading ||
     !user
   ) {
     return null;
@@ -59,6 +66,8 @@ export default function ProtectedLayout({
     isSalesStaff,
     isSalesHead,
     isRndHead,
+    isRndStaff,
+    isStoreStaff,
     payslipsEnabled,
   };
 
@@ -87,6 +96,17 @@ export default function ProtectedLayout({
   function switchModule(m: ModuleKey) {
     const target = moduleHome(m, access);
     if (target) router.push(target);
+  }
+
+  // Admin force-reset gate: while mustChangePassword is set, the whole app is
+  // replaced by the non-dismissable forced-change dialog. The backend blocks
+  // every other request too, so this keeps the UI consistent with the API.
+  if (user.mustChangePassword) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <ResetPasswordDialog forced onClose={() => undefined} />
+      </div>
+    );
   }
 
   return (

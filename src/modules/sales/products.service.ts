@@ -40,6 +40,7 @@ export class ProductsService {
         `A product with SKU ${dto.sku} already exists`,
       );
     }
+    if (dto.itemId) await this.assertItemExists(dto.itemId);
     const created = await this.prisma.product.create({
       data: {
         sku: dto.sku,
@@ -49,6 +50,7 @@ export class ProductsService {
         unitOfMeasure: dto.unitOfMeasure,
         hsnCode: dto.hsnCode ?? null,
         isActive: dto.isActive ?? true,
+        itemId: dto.itemId ?? null,
       },
     });
     return this.toEntity(created);
@@ -87,6 +89,7 @@ export class ProductsService {
   ): Promise<ProductEntity> {
     await this.access.assertSalesAccess(user);
     await this.findRawOrThrow(id);
+    if (dto.itemId) await this.assertItemExists(dto.itemId);
     const updated = await this.prisma.product.update({
       where: { id },
       data: {
@@ -99,6 +102,8 @@ export class ProductsService {
         unitOfMeasure: dto.unitOfMeasure,
         hsnCode: dto.hsnCode,
         isActive: dto.isActive,
+        // Omit → unchanged; null → unlink; id → link (validated above).
+        ...(dto.itemId !== undefined ? { itemId: dto.itemId } : {}),
       },
     });
     return this.toEntity(updated);
@@ -112,6 +117,17 @@ export class ProductsService {
     return product;
   }
 
+  /** Validate a linked Item Master item exists (BOMs are keyed on Item). */
+  private async assertItemExists(itemId: string): Promise<void> {
+    const item = await this.prisma.item.findUnique({
+      where: { id: itemId },
+      select: { id: true },
+    });
+    if (!item) {
+      throw new NotFoundException('Linked item not found in the Item Master');
+    }
+  }
+
   private toEntity(product: Product): ProductEntity {
     return new ProductEntity({
       id: product.id,
@@ -122,6 +138,7 @@ export class ProductsService {
       unitOfMeasure: product.unitOfMeasure,
       hsnCode: product.hsnCode,
       isActive: product.isActive,
+      itemId: product.itemId,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
     });

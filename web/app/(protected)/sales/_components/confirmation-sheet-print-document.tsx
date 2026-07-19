@@ -3,6 +3,12 @@ import { COMPANY } from '../../../lib/theme';
 import { prettyEnum } from '../../../lib/sales';
 import { signatureStyle } from '../../../lib/signature';
 
+// Letterhead palette — matches BidPrintDocument / KickoffPrintDocument so all
+// outward-facing documents share one branded header.
+const NAVY = '#16283b';
+const ACCENT = '#e0a83d';
+const MUTED = '#6b7280';
+
 /** Render an address object/string as newline-joined lines (skips blanks). */
 function addressLines(addr: unknown): string[] {
   if (!addr) return [];
@@ -86,23 +92,38 @@ export function ConfirmationSheetPrintDocument({
           marginBottom: 20,
         }}
       >
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>{COMPANY.name}</div>
-          {COMPANY.addressLines.map((line, i) => (
-            <div key={i} style={{ fontSize: 11, color: '#333' }}>
-              {line}
-            </div>
-          ))}
-          {COMPANY.contact && (
-            <div style={{ fontSize: 11, color: '#333', marginTop: 2 }}>
-              {COMPANY.contact}
-            </div>
+        {/* Branded letterhead — logo (with wordmark fallback) + contact block,
+            matching BidPrintDocument / KickoffPrintDocument. */}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          {COMPANY.logoPath ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={COMPANY.logoPath}
+              alt={`${COMPANY.name} logo`}
+              style={{ height: 52, width: 'auto', objectFit: 'contain' }}
+            />
+          ) : (
+            <span style={{ fontSize: 22, fontWeight: 800 }}>{COMPANY.name}</span>
           )}
-          {COMPANY.gstin && (
-            <div style={{ fontSize: 11, color: '#333' }}>
-              GSTIN: {COMPANY.gstin}
+          <div style={{ marginLeft: 12, fontSize: 11, color: MUTED }}>
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: NAVY,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <span style={{ width: 8, height: 8, background: ACCENT, display: 'inline-block' }} />
+              Get in touch
             </div>
-          )}
+            <div style={{ marginTop: 3 }}>{COMPANY.contactEmail}</div>
+            <div>{COMPANY.website}</div>
+          </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 20, fontWeight: 700 }}>
@@ -111,10 +132,10 @@ export function ConfirmationSheetPrintDocument({
           <div style={{ fontSize: 12, marginTop: 4 }}>
             {sheet.confirmationNumber}
           </div>
-          <div style={{ fontSize: 11, color: '#333' }}>
+          <div style={{ fontSize: 11, color: MUTED }}>
             Revision {sheet.revisionNumber}
           </div>
-          <div style={{ fontSize: 11, color: '#333' }}>
+          <div style={{ fontSize: 11, color: MUTED }}>
             Date: {generatedOn}
           </div>
         </div>

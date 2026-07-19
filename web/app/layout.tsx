@@ -46,8 +46,8 @@ const signatureFontVars = [
 ].join(' ');
 
 export const metadata: Metadata = {
-  title: `${BRAND.appName} — ${BRAND.tagline}`,
-  description: 'HR & Sales management',
+  title: `${BRAND.appName} - ${BRAND.tagline}`,
+  description: 'Phaze ERP management system',
 };
 
 export default function RootLayout({

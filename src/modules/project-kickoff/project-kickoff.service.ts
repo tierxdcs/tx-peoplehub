@@ -24,6 +24,7 @@ import {
   ActionItemComputedStatus,
   KickoffActionItemEntity,
   KickoffAttendeeEntity,
+  KickoffConfirmationSheetEntity,
   KickoffDeliveryItemEntity,
   KickoffMilestoneEntity,
   KickoffRiskEntity,
@@ -186,6 +187,37 @@ export class ProjectKickoffService {
       include: this.fullInclude(),
     });
     return this.toEntity(row);
+  }
+
+  /**
+   * The linked Order's current EXECUTED confirmation sheet + a presigned
+   * download URL for its signed copy, for in-meeting reference on the kickoff
+   * page. Access is the same as viewing the kickoff itself. Returns null if the
+   * order's latest sheet is not (or no longer) EXECUTED — the page then shows
+   * the true current state rather than a stale document.
+   */
+  async getConfirmationSheet(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<KickoffConfirmationSheetEntity | null> {
+    await this.access.assertCanAccess(user, id);
+    const kickoff = await this.prisma.projectKickoff.findUniqueOrThrow({
+      where: { id },
+      select: { orderId: true },
+    });
+    const sheet = await this.confirmationSheets.getExecutedSheetForOrder(
+      kickoff.orderId,
+    );
+    if (!sheet) return null;
+    return new KickoffConfirmationSheetEntity({
+      id: sheet.id,
+      confirmationNumber: sheet.confirmationNumber,
+      revisionNumber: sheet.revisionNumber,
+      executedAt: sheet.executedAt ? sheet.executedAt.toISOString() : null,
+      hasSignedCopy: sheet.hasSignedCopy,
+      downloadUrl: sheet.downloadUrl,
+      expiresInSeconds: sheet.expiresInSeconds,
+    });
   }
 
   async update(

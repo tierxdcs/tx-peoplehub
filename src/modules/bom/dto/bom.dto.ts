@@ -80,7 +80,8 @@ export class BomLineInputDto {
 }
 
 export class CreateBomDto {
-  @ApiProperty() @IsString() @MinLength(1) productId!: string;
+  /** The Item Master item this BOM is FOR (keyed on Item, not Product). */
+  @ApiProperty() @IsString() @MinLength(1) itemId!: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() effectiveDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() revisionNotes?: string;
   @ApiProperty({ type: [BomLineInputDto] })
@@ -143,4 +144,10 @@ export class CreateReservationDto {
   @IsOptional()
   @IsBoolean()
   allowOverride?: boolean;
+}
+
+// ── Item ↔ Supplier link (release hard-gate) ─────────────────────────
+export class LinkSupplierDto {
+  @ApiProperty() @IsString() @MinLength(1) supplierId!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() supplierPartNumber?: string;
 }

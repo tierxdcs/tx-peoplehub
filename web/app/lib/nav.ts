@@ -31,6 +31,10 @@ export interface Access {
   isSalesHead: boolean;
   /** The current user holds the R&D Head designation (gates the BOM approval queue). */
   isRndHead: boolean;
+  /** The current user is R&D staff (RND vertical) — gates the Engineering group. */
+  isRndStaff: boolean;
+  /** The current user is Store staff (PRODUCTION vertical) — gates Store Management. */
+  isStoreStaff: boolean;
   payslipsEnabled: boolean;
 }
 
@@ -143,22 +147,40 @@ export function sharedNav(access: Access): NavGroup[] {
     ],
   });
 
-  // Engineering — Item Master + Bills of Materials + Inventory. Company-wide
-  // read (R&D + Store see items/BOMs/stock); create/approve/adjust actions are
-  // gated inside the pages by the backend. The BOM Approval Queue is shown only
-  // to R&D Heads (the approvers), mirroring the Sales-Head-gated items.
-  const engineeringItems: NavItem[] = [
-    { label: 'Item Master', href: '/scm/items' },
-    { label: 'Bills of Materials', href: '/scm/bom' },
-    { label: 'Inventory', href: '/scm/inventory' },
-  ];
-  if (access.isRndHead) {
-    engineeringItems.push({
-      label: 'BOM Approvals',
-      href: '/scm/bom/pending-approval',
+  // Engineering — Bills of Materials. R&D-only (RND vertical; SUPER_ADMIN
+  // included via isRndStaff). Create/approve actions are further gated inside
+  // the pages + backend. The BOM Approval Queue is shown only to R&D Heads (the
+  // approvers), mirroring the Sales-Head-gated items.
+  if (access.isRndStaff || flags(access.user).isSuperAdmin) {
+    const engineeringItems: NavItem[] = [
+      // Products live under Engineering: only R&D adds/edits them. Sales still
+      // reference products through bid/order line pickers (separate endpoints),
+      // they just don't get the product-management entry point here.
+      { label: 'Products', href: '/sales/products' },
+      { label: 'Bills of Materials', href: '/scm/bom' },
+    ];
+    if (access.isRndHead) {
+      engineeringItems.push({
+        label: 'BOM Approvals',
+        href: '/scm/bom/pending-approval',
+      });
+    }
+    groups.push({ heading: 'Engineering', items: engineeringItems });
+  }
+
+  // Store Management — Item Master + Inventory. Shown to Store staff (the
+  // PRODUCTION vertical) and SUPER_ADMIN; item create/edit + stock adjustments
+  // are gated inside the pages by the backend. R&D can still reach Item Master
+  // and inventory read via direct links; the nav group is Store-scoped.
+  if (access.isStoreStaff || flags(access.user).isSuperAdmin) {
+    groups.push({
+      heading: 'Store Management',
+      items: [
+        { label: 'Item Master', href: '/scm/items' },
+        { label: 'Inventory', href: '/scm/inventory' },
+      ],
     });
   }
-  groups.push({ heading: 'Engineering', items: engineeringItems });
 
   return groups;
 }
@@ -246,10 +268,9 @@ export function salesNav(access: Access): NavGroup[] {
     { heading: 'Pipeline', items: pipeline },
     {
       heading: 'Master Data',
-      items: [
-        { label: 'Customer Master', href: '/sales/customers' },
-        { label: 'Products', href: '/sales/products' },
-      ],
+      // Products moved to the Engineering group (R&D-only management). Customer
+      // Master stays here — it's Sales-owned.
+      items: [{ label: 'Customer Master', href: '/sales/customers' }],
     },
   ];
 }

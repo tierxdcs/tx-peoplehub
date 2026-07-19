@@ -112,9 +112,31 @@ export interface EligibleOrder {
   customerName: string;
 }
 
+/** The linked order's EXECUTED confirmation sheet, surfaced on the kickoff page. */
+export interface KickoffConfirmationSheet {
+  id: string;
+  confirmationNumber: string;
+  revisionNumber: number;
+  executedAt: string | null;
+  hasSignedCopy: boolean;
+  /** Short-lived R2 presigned URL for the signed copy; null if none uploaded. */
+  downloadUrl: string | null;
+  expiresInSeconds: number | null;
+}
+
 // ── Kickoff ──────────────────────────────────────────────────────────
 export function listKickoffs() {
   return apiFetch<ProjectKickoff[]>('/project-kickoffs');
+}
+
+/**
+ * The linked order's current EXECUTED confirmation sheet (+ presigned signed-copy
+ * URL), for in-meeting reference. Returns null if the order has no executed sheet.
+ */
+export function getKickoffConfirmationSheet(id: string) {
+  return apiFetch<KickoffConfirmationSheet | null>(
+    `/project-kickoffs/${id}/confirmation-sheet`,
+  );
 }
 
 /** Orders eligible for a new kickoff — PM/SUPER_ADMIN only (403 otherwise). */

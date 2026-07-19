@@ -16,6 +16,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { MustChangePasswordGuard } from './common/guards/must-change-password.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { VerticalsModule } from './modules/verticals/verticals.module';
@@ -72,6 +73,10 @@ import { HealthModule } from './modules/health/health.module';
     },
     // Global JWT auth (opt out with @Public()).
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // Blocks all routes (except @Public / @AllowDuringForcedReset) while the
+    // user's mustChangePassword flag is set. Registered AFTER JwtAuthGuard so
+    // request.user is populated when it runs.
+    { provide: APP_GUARD, useClass: MustChangePasswordGuard },
   ],
 })
 export class AppModule {}

@@ -41,6 +41,8 @@ describe('PayrollComputationService', () => {
     status: EmployeeStatus.ACTIVE,
     deactivatedAt: null,
     accessStatus: 'ACTIVE' as any,
+    tokenVersion: 0,
+    mustChangePassword: false,
     isSalesHead: false,
     isScrumMaster: false,
     isProjectManager: false,
