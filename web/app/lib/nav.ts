@@ -35,6 +35,9 @@ export interface Access {
   isRndStaff: boolean;
   /** The current user is Store staff (PRODUCTION vertical) — gates Store Management. */
   isStoreStaff: boolean;
+  isFinanceUser: boolean;
+  isFinanceAuditor?: boolean;
+  isAccountsHead: boolean;
   payslipsEnabled: boolean;
 }
 
@@ -96,7 +99,8 @@ export function sharedNav(access: Access): NavGroup[] {
   // /team, /leave, /attendance routes still resolve directly (bookmarks, deep
   // links), they're just no longer surfaced in the sidebar.
   const me: NavItem[] = [{ label: 'My Profile', href: '/profile' }];
-  if (access.payslipsEnabled) me.push({ label: 'My Payslips', href: '/payslips' });
+  if (access.payslipsEnabled)
+    me.push({ label: 'My Payslips', href: '/payslips' });
   groups.push({ heading: 'Me', items: me });
 
   if (isManager) {
@@ -135,15 +139,17 @@ export function sharedNav(access: Access): NavGroup[] {
     items: [{ label: 'Project Kickoff', href: '/project-kickoff' }],
   });
 
-  // SCM — vendor + supplier qualification. Two visually and functionally
-  // distinct sections (mirroring the fully-separate backend entities), never
-  // merged or tabbed. Company-wide read, so everyone sees the nav items;
-  // creation/audit actions are gated inside the pages by the backend.
+  // SCM — vendor + supplier qualification plus Purchase Orders. Raising a PO is
+  // a purchasing (SCM) activity, distinct from the Stores receiving flow, so it
+  // lives here next to the trading partners it references. Company-wide read
+  // (like Vendors/Suppliers), so everyone sees the nav items; PO create is
+  // gated to SCM Manager+ by the backend and self-guarded in the page.
   groups.push({
     heading: 'SCM',
     items: [
       { label: 'Vendors', href: '/scm/vendors' },
       { label: 'Suppliers', href: '/scm/suppliers' },
+      { label: 'Purchase Orders', href: '/stores/purchase-orders' },
     ],
   });
 
@@ -173,12 +179,53 @@ export function sharedNav(access: Access): NavGroup[] {
   // are gated inside the pages by the backend. R&D can still reach Item Master
   // and inventory read via direct links; the nav group is Store-scoped.
   if (access.isStoreStaff || flags(access.user).isSuperAdmin) {
+    // Store Management: master data (Item Master, Inventory) plus the receiving
+    // flow (GRN + QC → NCR) and Material Issue. Purchase Orders live in the SCM
+    // group (raising a PO is a purchasing activity). Same audience (PRODUCTION
+    // vertical + SUPER_ADMIN); QC is gated to isQcInspector by the backend —
+    // the pages self-guard those actions.
     groups.push({
       heading: 'Store Management',
       items: [
         { label: 'Item Master', href: '/scm/items' },
         { label: 'Inventory', href: '/scm/inventory' },
+        { label: 'GRN Register', href: '/stores/grn' },
+        { label: 'Non-Conformance', href: '/stores/ncr' },
+        { label: 'Material Issue', href: '/stores/material-issue' },
       ],
+    });
+  }
+
+  if (access.isFinanceUser || access.isAccountsHead) {
+    const financeItems: NavItem[] = [
+      { label: 'Sales Invoices', href: '/finance/ar/invoices' },
+      { label: 'Customer Receipts', href: '/finance/ar/receipts' },
+      { label: 'AR Summary', href: '/finance/ar/summary' },
+      { label: 'Vendor Invoices', href: '/finance/ap/invoices' },
+      { label: 'Vendor Payments', href: '/finance/ap/payments' },
+      { label: 'AP Summary', href: '/finance/ap/summary' },
+      { label: 'Payment Calendar', href: '/finance/payment-calendar' },
+      { label: 'Credit & Debit Notes', href: '/finance/adjustments' },
+      { label: 'GST, TDS & Forecast', href: '/finance/compliance' },
+      { label: 'Statutory Filings', href: '/finance/filings' },
+      { label: 'Period Close', href: '/finance/period-close' },
+      { label: 'Bank Reconciliation', href: '/finance/bank-reconciliation' },
+      { label: 'Exports & Audit Pack', href: '/finance/exports' },
+      { label: 'Budgets', href: '/finance/budgets' },
+      { label: 'Fixed Assets', href: '/finance/fixed-assets' },
+      { label: 'Schedules & Analytics', href: '/finance/management' },
+      { label: 'Treasury & Credit', href: '/finance/treasury' },
+      { label: 'Chart of Accounts', href: '/finance/accounts' },
+      { label: 'Journal Entries', href: '/finance/journals' },
+      { label: 'Financial Reports', href: '/finance/reports' },
+      { label: 'Executive Reporting', href: '/finance/executive' },
+      { label: 'Production Readiness', href: '/finance/production-readiness' },
+    ];
+    groups.push({ heading: 'Finance & Accounts', items: financeItems });
+  } else if (access.isFinanceAuditor) {
+    groups.push({
+      heading: 'Finance Audit',
+      items: [{ label: 'Executive Reporting', href: '/finance/executive' }],
     });
   }
 
@@ -197,6 +244,9 @@ export function hrNav(access: Access): NavGroup[] {
         { label: 'Employees', href: '/admin/employees' },
         { label: 'Verticals', href: '/admin/verticals' },
         { label: 'Pending Access', href: '/admin/pending-access' },
+        ...(flags(access.user).isSuperAdmin
+          ? [{ label: 'Finance Auditors', href: '/admin/finance-auditors' }]
+          : []),
         {
           label: 'Bid Assessment Questions',
           href: '/admin/bid-assessment-questions',
@@ -221,7 +271,10 @@ export function hrNav(access: Access): NavGroup[] {
       heading: 'Leave & Attendance',
       items: [
         { label: 'All Pending Approvals', href: '/admin/leave-approvals' },
-        { label: 'Attendance Corrections', href: '/admin/attendance-corrections' },
+        {
+          label: 'Attendance Corrections',
+          href: '/admin/attendance-corrections',
+        },
       ],
     });
     groups.push({
@@ -247,7 +300,10 @@ export function salesNav(access: Access): NavGroup[] {
     { label: 'Orders', href: '/sales/orders' },
   ];
   if (isManager || isSuperAdmin) {
-    pipeline.push({ label: 'Bid Approvals', href: '/sales/bids/pending-approval' });
+    pipeline.push({
+      label: 'Bid Approvals',
+      href: '/sales/bids/pending-approval',
+    });
   }
   // Bid/No-Bid assessment review — only the designated Sales Head (any Sales
   // role) or SUPER_ADMIN. The page also self-guards, but gating the nav item
@@ -293,7 +349,10 @@ export function sidebarNav(
 }
 
 /** First reachable route for a module — used for post-login landing + toggle. */
-export function moduleHome(module: ModuleKey, access: Access): string | undefined {
+export function moduleHome(
+  module: ModuleKey,
+  access: Access,
+): string | undefined {
   return moduleNav(module, access)[0]?.items[0]?.href;
 }
 

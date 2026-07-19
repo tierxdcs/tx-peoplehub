@@ -31,7 +31,9 @@ export interface Employee {
   isScrumMaster: boolean;
   isProjectManager: boolean;
   isInternalAuditor: boolean;
+  isQcInspector: boolean;
   isRdHead: boolean;
+  isAccountsHead: boolean;
   officialEmail: string | null;
   signatureText?: string | null;
   signatureFont?: SignatureFont | null;

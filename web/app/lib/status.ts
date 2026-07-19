@@ -59,6 +59,25 @@ const VARIANT_BY_VALUE: Record<string, BadgeVariant> = {
   SHORTAGE: 'destructive',
   UNKNOWN: 'muted',
 
+  // Stores — Purchase Order statuses (DRAFT/CANCELLED mapped below/above).
+  ISSUED: 'info',
+  PARTIALLY_RECEIVED: 'info',
+  FULLY_RECEIVED: 'success',
+
+  // Stores — GRN + QC statuses. PENDING_QC is caution; a partial pass is a
+  // warning (something was rejected); full fail is red.
+  PENDING_QC: 'warning',
+  QC_PASSED: 'success',
+  QC_PARTIAL: 'warning',
+  QC_FAILED: 'destructive',
+
+  // Stores — NCR statuses (OPEN mapped below as amber).
+  DISPOSITIONED: 'info',
+
+  // Stores — Material Indent statuses (OPEN/CANCELLED shared).
+  PARTIALLY_ISSUED: 'info',
+  FULLY_ISSUED: 'success',
+
   // ---- pending / caution (amber) ----
   PENDING: 'warning',
   PENDING_APPROVAL: 'warning',

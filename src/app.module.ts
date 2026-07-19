@@ -31,7 +31,16 @@ import { ProjectKickoffModule } from './modules/project-kickoff/project-kickoff.
 import { ScmModule } from './modules/scm/scm.module';
 import { ScmSupplierModule } from './modules/scm-supplier/scm-supplier.module';
 import { BomModule } from './modules/bom/bom.module';
+import { FinanceModule } from './modules/finance/finance.module';
+import { FinanceArModule } from './modules/finance-ar/finance-ar.module';
+import { FinanceApModule } from './modules/finance-ap/finance-ap.module';
+import { FinanceComplianceModule } from './modules/finance-compliance/finance-compliance.module';
+import { FinanceOperationsModule } from './modules/finance-operations/finance-operations.module';
+import { FinanceManagementModule } from './modules/finance-management/finance-management.module';
+import { ScmPurchasingModule } from './modules/scm-purchasing/scm-purchasing.module';
 import { HealthModule } from './modules/health/health.module';
+import { FinanceTreasuryModule } from './modules/finance-treasury/finance-treasury.module';
+import { FinanceReportingModule } from './modules/finance-reporting/finance-reporting.module';
 
 @Module({
   imports: [
@@ -57,6 +66,15 @@ import { HealthModule } from './modules/health/health.module';
     ScmModule,
     ScmSupplierModule,
     BomModule,
+    FinanceModule,
+    FinanceArModule,
+    FinanceApModule,
+    FinanceComplianceModule,
+    FinanceOperationsModule,
+    FinanceManagementModule,
+    FinanceTreasuryModule,
+    FinanceReportingModule,
+    ScmPurchasingModule,
     HealthModule,
   ],
   providers: [

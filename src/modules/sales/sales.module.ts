@@ -60,6 +60,13 @@ import { ConfirmationSheetsService } from './confirmation-sheets.service';
     OrdersService,
     ConfirmationSheetsService,
   ],
-  exports: [BidsService, BidAssessmentsService, ConfirmationSheetsService],
+  exports: [
+    BidsService,
+    BidAssessmentsService,
+    ConfirmationSheetsService,
+    // Shared year-prefixed numbering (PO-#### reuses the same mechanism +
+    // sales_sequences table); exported so the Purchasing module can inject it.
+    SalesNumberingService,
+  ],
 })
 export class SalesModule {}

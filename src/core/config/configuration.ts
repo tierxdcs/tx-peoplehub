@@ -30,4 +30,8 @@ export default () => ({
     url: process.env.GOTENBERG_URL,
     timeoutMs: parseInt(process.env.GOTENBERG_TIMEOUT_MS ?? '60000', 10),
   },
+  gst: {
+    gatewayUrl: process.env.GST_GATEWAY_URL,
+    gatewayToken: process.env.GST_GATEWAY_TOKEN,
+  },
 });

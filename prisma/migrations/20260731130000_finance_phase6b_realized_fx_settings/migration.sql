@@ -1,0 +1,1 @@
+CREATE TABLE "finance_fx_settings" ("id" TEXT NOT NULL DEFAULT 'INDIA', "gainAccountId" TEXT NOT NULL, "lossAccountId" TEXT NOT NULL, "updatedById" TEXT NOT NULL, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "finance_fx_settings_pkey" PRIMARY KEY ("id"));

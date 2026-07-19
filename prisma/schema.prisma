@@ -316,11 +316,11 @@ model Employee {
   /// every previously-issued token: the access/refresh JWT carries the
   /// tokenVersion it was signed with, and the JWT strategy rejects any token
   /// whose version is behind the current one — logging out all other sessions.
-  tokenVersion       Int            @default(0)
+  tokenVersion       Int     @default(0)
   /// Set true by an admin force-reset; the mustChangePassword guard then blocks
   /// every request except changing the password (and logout) until the user
   /// sets a new one, which clears this flag.
-  mustChangePassword Boolean        @default(false)
+  mustChangePassword Boolean @default(false)
 
   /// Sales Head designation (not a Role). Exactly one active holder at a
   /// time — enforced at the service layer (designate unsets the previous
@@ -353,6 +353,18 @@ model Employee {
   /// SUPER_ADMIN can manage this designation but does NOT automatically receive
   /// BOM approval authority — only a real isRdHead holder may approve a BOM.
   isRdHead Boolean @default(false)
+
+  /// Finance/Accounts Head capability (not a Role). Exactly one active holder
+  /// at a time, assigned only by SUPER_ADMIN. Accounts-vertical staff prepare
+  /// finance records; only this holder may approve/post them.
+  isAccountsHead Boolean @default(false)
+
+  /// QC Inspector capability (not a Role). Inspects incoming goods (GRN QC gate)
+  /// — deliberately SEPARATE from isInternalAuditor (supplier auditing vs.
+  /// incoming-goods inspection are different people). MULTIPLE holders allowed;
+  /// SUPER_ADMIN is always a QC inspector regardless of this flag; MANAGER-or-
+  /// above only, same pattern as Internal Auditor.
+  isQcInspector Boolean @default(false)
 
   /// Internal e-signature (a display layer, NOT a legally-binding e-sign).
   /// Self-service typed text rendered in a chosen signature-style font;
@@ -423,11 +435,11 @@ model Employee {
   notifications          Notification[]       @relation("NotificationRecipient")
 
   // Project Kickoff back-relations.
-  projectKickoffsCreated ProjectKickoff[]  @relation("KickoffCreator")
-  kickoffAttendances     KickoffAttendee[] @relation("KickoffAttendeeEmployee")
-  kickoffMilestonesOwned KickoffMilestone[] @relation("KickoffMilestoneOwner")
+  projectKickoffsCreated  ProjectKickoff[]    @relation("KickoffCreator")
+  kickoffAttendances      KickoffAttendee[]   @relation("KickoffAttendeeEmployee")
+  kickoffMilestonesOwned  KickoffMilestone[]  @relation("KickoffMilestoneOwner")
   kickoffActionItemsOwned KickoffActionItem[] @relation("KickoffActionItemOwner")
-  kickoffRisksOwned      KickoffRisk[]     @relation("KickoffRiskOwner")
+  kickoffRisksOwned       KickoffRisk[]       @relation("KickoffRiskOwner")
 
   // Vendor Qualification (SCM) back-relations.
   vendorsCreated        Vendor[]                    @relation("VendorCreator")
@@ -440,15 +452,68 @@ model Employee {
   supplierAuditsConducted SupplierAudit[]               @relation("SupplierAuditor")
 
   // BOM / Item Master / Inventory back-relations.
-  bomsCreated        Bom[]             @relation("BomCreator")
-  bomsSubmitted      Bom[]             @relation("BomSubmitter")
-  bomsApproved       Bom[]             @relation("BomApprover")
-  bomsRejected       Bom[]             @relation("BomRejecter")
-  bomEventsActed     BomEvent[]        @relation("BomEventActor")
-  itemSupplierLinks  ItemSupplier[]    @relation("ItemSupplierLinkedBy")
-  stockAdjustments   StockAdjustment[] @relation("StockAdjustmentActor")
-  reservationsMade   StockReservation[] @relation("ReservationCreator")
-  reservationsCancelled StockReservation[] @relation("ReservationCanceller")
+  bomsCreated       Bom[]              @relation("BomCreator")
+  bomsSubmitted     Bom[]              @relation("BomSubmitter")
+  bomsApproved      Bom[]              @relation("BomApprover")
+  bomsRejected      Bom[]              @relation("BomRejecter")
+  bomEventsActed    BomEvent[]         @relation("BomEventActor")
+  itemSupplierLinks ItemSupplier[]     @relation("ItemSupplierLinkedBy")
+  stockAdjustments  StockAdjustment[]  @relation("StockAdjustmentActor")
+  reservationsMade  StockReservation[] @relation("ReservationCreator")
+
+  // Finance & Accounts back-relations.
+  fiscalYearsCreated       FiscalYear[]             @relation("FiscalYearCreator")
+  accountsCreated          LedgerAccount[]          @relation("LedgerAccountCreator")
+  costCentersCreated       CostCenter[]             @relation("CostCenterCreator")
+  exchangeRatesCreated     ExchangeRate[]           @relation("ExchangeRateCreator")
+  journalsCreated          JournalEntry[]           @relation("JournalCreator")
+  journalsSubmitted        JournalEntry[]           @relation("JournalSubmitter")
+  journalsApproved         JournalEntry[]           @relation("JournalApprover")
+  journalsRejected         JournalEntry[]           @relation("JournalRejecter")
+  journalsReversed         JournalEntry[]           @relation("JournalReverser")
+  billingMilestonesCreated BillingMilestone[]       @relation("BillingMilestoneCreator")
+  salesInvoicesCreated     SalesInvoice[]           @relation("SalesInvoiceCreator")
+  salesInvoicesSubmitted   SalesInvoice[]           @relation("SalesInvoiceSubmitter")
+  salesInvoicesApproved    SalesInvoice[]           @relation("SalesInvoiceApprover")
+  receiptsCreated          CustomerReceipt[]        @relation("CustomerReceiptCreator")
+  receiptsSubmitted        CustomerReceipt[]        @relation("CustomerReceiptSubmitter")
+  receiptsApproved         CustomerReceipt[]        @relation("CustomerReceiptApprover")
+  apInvoicesCreated        AccountsPayableInvoice[] @relation("ApInvoiceCreator")
+  apInvoicesSubmitted      AccountsPayableInvoice[] @relation("ApInvoiceSubmitter")
+  apInvoicesApproved       AccountsPayableInvoice[] @relation("ApInvoiceApprover")
+  apPaymentsCreated        AccountsPayablePayment[] @relation("ApPaymentCreator")
+  apPaymentsSubmitted      AccountsPayablePayment[] @relation("ApPaymentSubmitter")
+  apPaymentsApproved       AccountsPayablePayment[] @relation("ApPaymentApprover")
+  financeNotesCreated      FinanceAdjustmentNote[]  @relation("FinanceNoteCreator")
+  financeNotesSubmitted    FinanceAdjustmentNote[]  @relation("FinanceNoteSubmitter")
+  financeNotesApproved     FinanceAdjustmentNote[]  @relation("FinanceNoteApprover")
+  periodClosesPrepared     PeriodClose[]            @relation("PeriodClosePreparer")
+  periodClosesApproved     PeriodClose[]            @relation("PeriodCloseApprover")
+  tdsSectionsCreated       TdsSection[]             @relation("TdsSectionCreator")
+  itcReconciliations       AccountsPayableInvoice[] @relation("ApInvoiceItcReconciler")
+  bankAccountsCreated      FinanceBankAccount[]     @relation("BankAccountCreator")
+  bankStatementsImported   BankStatement[]          @relation("BankStatementImporter")
+  bankStatementsSubmitted  BankStatement[]          @relation("BankStatementSubmitter")
+  bankStatementsApproved   BankStatement[]          @relation("BankStatementApprover")
+  bankMatchesConfirmed     BankTransactionMatch[]   @relation("BankMatchConfirmer")
+  budgetsCreated           FinanceBudget[]          @relation("BudgetCreator")
+  budgetsSubmitted         FinanceBudget[]          @relation("BudgetSubmitter")
+  budgetsApproved          FinanceBudget[]          @relation("BudgetApprover")
+  fixedAssetsCreated       FixedAsset[]             @relation("FixedAssetCreator")
+  fixedAssetsApproved      FixedAsset[]             @relation("FixedAssetApprover")
+  financeSchedulesCreated  FinanceSchedule[]        @relation("FinanceScheduleCreator")
+  financeSchedulesApproved FinanceSchedule[]        @relation("FinanceScheduleApprover")
+  reservationsCancelled    StockReservation[]       @relation("ReservationCanceller")
+
+  // Purchasing (Stores) back-relations.
+  purchaseOrdersCreated PurchaseOrder[]        @relation("PurchaseOrderCreator")
+  grnsReceived          GoodsReceiptNote[]     @relation("GrnReceivedBy")
+  grnsInspected         GoodsReceiptNote[]     @relation("GrnInspectedBy")
+  grnsSupervised        GoodsReceiptNote[]     @relation("GrnSupervisorSignOff")
+  ncrsRaised            NonConformanceReport[] @relation("NcrRaisedBy")
+  ncrsDispositioned     NonConformanceReport[] @relation("NcrDispositionedBy")
+  materialIndentsRaised MaterialIndent[]       @relation("MaterialIndentRaisedBy")
+  materialIssuesIssued  MaterialIssueNote[]    @relation("MaterialIssueIssuedBy")
 
   auditLogs AuditLog[] @relation("AuditActor")
   createdAt DateTime   @default(now())
@@ -744,21 +809,23 @@ model SalesSequence {
 /// A customer account owned by a Sales rep. shippingAddress defaults to
 /// billingAddress at the application layer when null.
 model Customer {
-  id              String            @id @default(uuid())
-  name            String
-  gstin           String?
-  billingAddress  Json
-  shippingAddress Json?
-  industry        String?
-  ownerId         String
-  owner           Employee          @relation("CustomerOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  status          CustomerStatus    @default(ACTIVE)
-  contacts        CustomerContact[]
-  opportunities   Opportunity[]
-  bids            Bid[]
-  orders          Order[]
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id               String            @id @default(uuid())
+  name             String
+  gstin            String?
+  billingAddress   Json
+  shippingAddress  Json?
+  industry         String?
+  ownerId          String
+  owner            Employee          @relation("CustomerOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  status           CustomerStatus    @default(ACTIVE)
+  contacts         CustomerContact[]
+  opportunities    Opportunity[]
+  bids             Bid[]
+  orders           Order[]
+  salesInvoices    SalesInvoice[]
+  customerReceipts CustomerReceipt[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   @@index([ownerId])
   @@index([status])
@@ -785,24 +852,25 @@ model CustomerContact {
 /// item snapshots the price at creation time rather than referencing this
 /// live (see BidLineItem.unitPrice).
 model Product {
-  id             String          @id @default(uuid())
-  sku            String          @unique
-  name           String
-  description    String?
-  unitPrice      Decimal         @db.Decimal(14, 2)
-  unitOfMeasure  String
-  hsnCode        String?
-  isActive       Boolean         @default(true)
+  id                String             @id @default(uuid())
+  sku               String             @unique
+  name              String
+  description       String?
+  unitPrice         Decimal            @db.Decimal(14, 2)
+  unitOfMeasure     String
+  hsnCode           String?
+  isActive          Boolean            @default(true)
   /// Bridge to the Item Master: the manufactured Item this sellable Product
   /// corresponds to (typically a FINISHED_GOOD). BOMs are keyed on Item, not
   /// Product, so an order line resolves product -> item -> released BOM ->
   /// multi-level explosion. Nullable: not every Product is manufactured.
-  itemId         String?
-  item           Item?           @relation("ProductItem", fields: [itemId], references: [id], onDelete: SetNull)
-  bidLineItems   BidLineItem[]
-  orderLineItems OrderLineItem[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  itemId            String?
+  item              Item?              @relation("ProductItem", fields: [itemId], references: [id], onDelete: SetNull)
+  bidLineItems      BidLineItem[]
+  orderLineItems    OrderLineItem[]
+  salesInvoiceLines SalesInvoiceLine[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([itemId])
   @@map("products")
@@ -947,6 +1015,8 @@ model Order {
   lineItems          OrderLineItem[]
   confirmationSheets OrderConfirmationSheet[]
   projectKickoffs    ProjectKickoff[]
+  billingMilestones  BillingMilestone[]
+  salesInvoices      SalesInvoice[]
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
 
@@ -957,19 +1027,19 @@ model Order {
 }
 
 model OrderLineItem {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   orderId   String
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
-  quantity  Decimal  @db.Decimal(14, 2)
-  unitPrice Decimal  @db.Decimal(14, 2)
-  lineTotal Decimal  @db.Decimal(14, 2)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity  Decimal @db.Decimal(14, 2)
+  unitPrice Decimal @db.Decimal(14, 2)
+  lineTotal Decimal @db.Decimal(14, 2)
 
   /// Per-line delivery classification, set at project kickoff. Nullable — an
   /// order line has no classification until a PM assigns one. Additive to the
   /// existing bid→order flow (conversion leaves these null).
-  deliveryType OrderLineDeliveryType?
+  deliveryType           OrderLineDeliveryType?
   /// PLACEHOLDER (see below): free-text vendor name captured when deliveryType
   /// = VENDOR, until an Approved Vendor Master module exists. Intentionally NOT
   /// a FK — there is no Vendor entity yet. When the Vendor Master is built,
@@ -1360,18 +1430,18 @@ model VaultExternalAccessLog {
 /// (KanbanBoardMember) only, plus SUPER_ADMIN as a full override. Created by a
 /// Scrum Master or SUPER_ADMIN; the creator is auto-added as a member.
 model KanbanBoard {
-  id          String              @id @default(uuid())
-  name        String
-  createdById String
-  createdBy   Employee            @relation("KanbanBoardCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  status      KanbanBoardStatus   @default(ACTIVE)
-  members     KanbanBoardMember[]
-  lists       KanbanList[]
-  sprints     KanbanSprint[]
-  labels      KanbanLabel[]
+  id              String              @id @default(uuid())
+  name            String
+  createdById     String
+  createdBy       Employee            @relation("KanbanBoardCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  status          KanbanBoardStatus   @default(ACTIVE)
+  members         KanbanBoardMember[]
+  lists           KanbanList[]
+  sprints         KanbanSprint[]
+  labels          KanbanLabel[]
   projectKickoffs ProjectKickoff[]
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   @@index([status])
   @@map("kanban_boards")
@@ -1439,32 +1509,32 @@ model KanbanSprint {
 /// A card in a list. Members create/edit/move/comment; only SM/SUPER_ADMIN may
 /// set sprintId. assigneeId must be a member of the card's board.
 model KanbanCard {
-  id            String               @id @default(uuid())
-  listId        String
-  list          KanbanList           @relation(fields: [listId], references: [id], onDelete: Cascade)
-  title         String
-  description   String?              @db.Text
-  assigneeId    String?
-  assignee      Employee?            @relation("KanbanCardAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  startDate     DateTime?
-  dueDate       DateTime?
-  priority      LeadPriority         @default(MEDIUM)
-  sprintId      String?
-  sprint        KanbanSprint?        @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  id                String               @id @default(uuid())
+  listId            String
+  list              KanbanList           @relation(fields: [listId], references: [id], onDelete: Cascade)
+  title             String
+  description       String?              @db.Text
+  assigneeId        String?
+  assignee          Employee?            @relation("KanbanCardAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  startDate         DateTime?
+  dueDate           DateTime?
+  priority          LeadPriority         @default(MEDIUM)
+  sprintId          String?
+  sprint            KanbanSprint?        @relation(fields: [sprintId], references: [id], onDelete: SetNull)
   /// Fractional ordering within the list — inserting between two cards uses a
   /// value between their positions, so a move is a single-row update (no
   /// reindex). Re-spaced only when adjacent values get too close.
-  position      Float
-  createdById   String
-  createdBy     Employee             @relation("KanbanCardCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  status        KanbanCardStatus     @default(ACTIVE)
-  comments      KanbanCardComment[]
-  activity      KanbanCardActivity[]
-  notifications Notification[]
-  labels        KanbanCardLabel[]
+  position          Float
+  createdById       String
+  createdBy         Employee             @relation("KanbanCardCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  status            KanbanCardStatus     @default(ACTIVE)
+  comments          KanbanCardComment[]
+  activity          KanbanCardActivity[]
+  notifications     Notification[]
+  labels            KanbanCardLabel[]
   kickoffActionItem KickoffActionItem?
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
   @@index([listId, position])
   @@index([sprintId])
@@ -1535,26 +1605,26 @@ model KanbanCardActivity {
 /// pending-approvals counters (things needing ACTION). Poll-based, like the
 /// rest of the app's notification surfaces.
 model Notification {
-  id            String           @id @default(uuid())
-  employeeId    String
-  employee      Employee         @relation("NotificationRecipient", fields: [employeeId], references: [id], onDelete: Cascade)
-  type          NotificationType
+  id                String           @id @default(uuid())
+  employeeId        String
+  employee          Employee         @relation("NotificationRecipient", fields: [employeeId], references: [id], onDelete: Cascade)
+  type              NotificationType
   /// Deep-link target for card-based notifications (Kanban). Null for others.
-  relatedCardId String?
-  relatedCard   KanbanCard?      @relation(fields: [relatedCardId], references: [id], onDelete: Cascade)
+  relatedCardId     String?
+  relatedCard       KanbanCard?      @relation(fields: [relatedCardId], references: [id], onDelete: Cascade)
   /// Deep-link target for vendor-based notifications (SCM). Null for others.
   /// A notification carries at most one related-entity id, by type.
-  relatedVendorId String?
-  relatedVendor   Vendor?    @relation(fields: [relatedVendorId], references: [id], onDelete: Cascade)
+  relatedVendorId   String?
+  relatedVendor     Vendor?          @relation(fields: [relatedVendorId], references: [id], onDelete: Cascade)
   /// Deep-link target for supplier-based notifications (SCM raw-materials).
   relatedSupplierId String?
-  relatedSupplier   Supplier?  @relation(fields: [relatedSupplierId], references: [id], onDelete: Cascade)
+  relatedSupplier   Supplier?        @relation(fields: [relatedSupplierId], references: [id], onDelete: Cascade)
   /// Deep-link target for BOM workflow notifications (R&D). Null for others.
-  relatedBomId String?
-  relatedBom   Bom?       @relation(fields: [relatedBomId], references: [id], onDelete: Cascade)
-  message       String
-  isRead        Boolean          @default(false)
-  createdAt     DateTime         @default(now())
+  relatedBomId      String?
+  relatedBom        Bom?             @relation(fields: [relatedBomId], references: [id], onDelete: Cascade)
+  message           String
+  isRead            Boolean          @default(false)
+  createdAt         DateTime         @default(now())
 
   @@index([employeeId, isRead])
   @@map("notifications")
@@ -1597,29 +1667,30 @@ enum KickoffRiskStatus {
 }
 
 model ProjectKickoff {
-  id              String             @id @default(uuid())
-  orderId         String
-  order           Order              @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  projectName     String
-  meetingDate     DateTime
-  meetingMode     KickoffMeetingMode @default(VIRTUAL)
-  meetingLocation String?
-  overviewAndScope String?           @db.Text
-  minutesNotes    String?            @db.Text
-  status          KickoffStatus      @default(DRAFT)
+  id               String             @id @default(uuid())
+  orderId          String
+  order            Order              @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  projectName      String
+  meetingDate      DateTime
+  meetingMode      KickoffMeetingMode @default(VIRTUAL)
+  meetingLocation  String?
+  overviewAndScope String?            @db.Text
+  minutesNotes     String?            @db.Text
+  status           KickoffStatus      @default(DRAFT)
   /// The project board auto-provisioned at creation (§5). Restrict so a board
   /// backing a kickoff can't be deleted out from under it.
-  kanbanBoardId   String
-  kanbanBoard     KanbanBoard        @relation(fields: [kanbanBoardId], references: [id], onDelete: Restrict)
-  createdById     String
-  createdBy       Employee           @relation("KickoffCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  kanbanBoardId    String
+  kanbanBoard      KanbanBoard        @relation(fields: [kanbanBoardId], references: [id], onDelete: Restrict)
+  createdById      String
+  createdBy        Employee           @relation("KickoffCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
-  attendees   KickoffAttendee[]
-  milestones  KickoffMilestone[]
-  actionItems KickoffActionItem[]
-  risks       KickoffRisk[]
-  stockReport      KickoffStockReport?
-  stockReservations StockReservation[] @relation("KickoffReservations")
+  attendees         KickoffAttendee[]
+  milestones        KickoffMilestone[]
+  actionItems       KickoffActionItem[]
+  risks             KickoffRisk[]
+  stockReport       KickoffStockReport?
+  stockReservations StockReservation[]  @relation("KickoffReservations")
+  materialIndents   MaterialIndent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1733,29 +1804,32 @@ enum VendorAuditType {
 }
 
 model Vendor {
-  id                    String         @id @default(uuid())
+  id                       String                   @id @default(uuid())
   /// Plain, matchable company name — the future reconciliation target for
   /// Project Kickoff's free-text vendorName. Deliberately not normalized away.
-  companyName           String
-  registeredAddress     String         @db.Text
-  factoryAddress        String         @db.Text
-  yearEstablished       String
-  numberOfEmployees     String
-  annualTurnover        String
-  msmeUdyamCertificate  String?
-  contactPersonName     String
+  companyName              String
+  registeredAddress        String                   @db.Text
+  factoryAddress           String                   @db.Text
+  yearEstablished          String
+  numberOfEmployees        String
+  annualTurnover           String
+  msmeUdyamCertificate     String?
+  contactPersonName        String
   contactPersonDesignation String
-  contactEmail          String
-  contactPhone          String
-  website               String?
-  status                VendorStatus @default(PENDING_QUESTIONNAIRE)
-  createdById           String
-  createdBy             Employee       @relation("VendorCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  questionnaires        VendorQuestionnaire[]
-  audits                VendorAudit[]
-  notifications         Notification[]
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
+  contactEmail             String
+  contactPhone             String
+  website                  String?
+  status                   VendorStatus             @default(PENDING_QUESTIONNAIRE)
+  createdById              String
+  createdBy                Employee                 @relation("VendorCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  questionnaires           VendorQuestionnaire[]
+  audits                   VendorAudit[]
+  notifications            Notification[]
+  purchaseOrders           PurchaseOrder[]
+  apInvoices               AccountsPayableInvoice[]
+  apPayments               AccountsPayablePayment[]
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
 
   @@index([status])
   @@map("vendors")
@@ -1765,32 +1839,32 @@ model Vendor {
 /// column per VSAQ section) — 100+ narrative fields don't each need a column;
 /// only Vendor's own fields and the audit scores are individually queryable.
 model VendorQuestionnaire {
-  id           String                      @id @default(uuid())
-  vendorId   String
-  vendor     Vendor                    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  id             String                    @id @default(uuid())
+  vendorId       String
+  vendor         Vendor                    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   revisionNumber Int                       @default(1)
-  status       VendorQuestionnaireStatus @default(SENT)
-  submittedAt  DateTime?
+  status         VendorQuestionnaireStatus @default(SENT)
+  submittedAt    DateTime?
 
   // One JSON blob per VSAQ section (§1–18). Null until the vendor fills it.
-  businessProfile        Json?
+  businessProfile         Json?
   manufacturingCapability Json?
-  equipmentDetails       Json?
-  productionCapacity     Json?
-  qualityManagement      Json?
-  engineeringCapability  Json?
-  supplyChain            Json?
-  traceability           Json?
-  logistics              Json?
-  sustainability         Json?
-  informationSecurity    Json?
-  businessContinuity     Json?
-  ehs                    Json?
-  financialInformation   Json?
-  customerSupport        Json?
-  compliance             Json?
-  references             Json?
-  declaration            Json?
+  equipmentDetails        Json?
+  productionCapacity      Json?
+  qualityManagement       Json?
+  engineeringCapability   Json?
+  supplyChain             Json?
+  traceability            Json?
+  logistics               Json?
+  sustainability          Json?
+  informationSecurity     Json?
+  businessContinuity      Json?
+  ehs                     Json?
+  financialInformation    Json?
+  customerSupport         Json?
+  compliance              Json?
+  references              Json?
+  declaration             Json?
 
   /// Uploaded quality-certificate files (R2-backed, guarded by Vault's rules).
   /// [{ storageKey, name, sizeBytes, contentType }] — metadata only.
@@ -1809,16 +1883,16 @@ model VendorQuestionnaire {
 /// Token-based public invite to fill a questionnaire — same shape as Vault's
 /// external share link (crypto token, expiry, revoke, optional password).
 model VendorQuestionnaireInvite {
-  id              String                @id @default(uuid())
+  id              String              @id @default(uuid())
   questionnaireId String
   questionnaire   VendorQuestionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
-  token           String                @unique
+  token           String              @unique
   expiresAt       DateTime
   revokedAt       DateTime?
   passwordHash    String?
   createdById     String
-  createdBy       Employee              @relation("VendorInviteCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  createdAt       DateTime              @default(now())
+  createdBy       Employee            @relation("VendorInviteCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt       DateTime            @default(now())
 
   @@index([questionnaireId])
   @@map("vendor_questionnaire_invites")
@@ -1828,15 +1902,15 @@ model VendorQuestionnaireInvite {
 /// classification are COMPUTED on read from the 10 weighted scores (sum=100) —
 /// never stored. Finalizing sets Vendor.status to the classification.
 model VendorAudit {
-  id              String                @id @default(uuid())
-  vendorId      String
-  vendor        Vendor              @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  id              String              @id @default(uuid())
+  vendorId        String
+  vendor          Vendor              @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   questionnaireId String
   questionnaire   VendorQuestionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Restrict)
   auditType       VendorAuditType
   auditDate       DateTime
   auditorId       String
-  auditor         Employee              @relation("VendorAuditor", fields: [auditorId], references: [id], onDelete: Restrict)
+  auditor         Employee            @relation("VendorAuditor", fields: [auditorId], references: [id], onDelete: Restrict)
 
   // Weighted category scores — maxes 20/10/20/10/5/10/10/5/5/5 = 100.
   manufacturingCapabilityScore Decimal @db.Decimal(5, 2)
@@ -1850,7 +1924,7 @@ model VendorAudit {
   ehsScore                     Decimal @db.Decimal(5, 2)
   customerReferencesScore      Decimal @db.Decimal(5, 2)
 
-  auditNotes String?  @db.Text
+  auditNotes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1896,12 +1970,12 @@ enum SupplierFilledBy {
 }
 
 model Supplier {
-  id                       String         @id @default(uuid())
+  id                       String                   @id @default(uuid())
   /// Plain, matchable company name (future Item↔Supplier reconciliation).
   companyName              String
-  registeredAddress        String         @db.Text
+  registeredAddress        String                   @db.Text
   /// Factory / origin location of the raw materials.
-  factoryAddress           String         @db.Text
+  factoryAddress           String                   @db.Text
   yearEstablished          String
   numberOfEmployees        String
   annualTurnover           String
@@ -1911,15 +1985,18 @@ model Supplier {
   contactEmail             String
   contactPhone             String
   website                  String?
-  status                   SupplierStatus @default(PENDING_QUESTIONNAIRE)
+  status                   SupplierStatus           @default(PENDING_QUESTIONNAIRE)
   createdById              String
-  createdBy                Employee       @relation("SupplierCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy                Employee                 @relation("SupplierCreator", fields: [createdById], references: [id], onDelete: Restrict)
   questionnaires           SupplierQuestionnaire[]
   audits                   SupplierAudit[]
   notifications            Notification[]
-  itemLinks                ItemSupplier[] @relation("SupplierItemLinks")
-  createdAt                DateTime       @default(now())
-  updatedAt                DateTime       @updatedAt
+  itemLinks                ItemSupplier[]           @relation("SupplierItemLinks")
+  purchaseOrders           PurchaseOrder[]
+  apInvoices               AccountsPayableInvoice[]
+  apPayments               AccountsPayablePayment[]
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
 
   @@index([status])
   @@map("suppliers")
@@ -2000,7 +2077,7 @@ model SupplierAudit {
   financialStabilityScore            Decimal @db.Decimal(5, 2)
   referencesScore                    Decimal @db.Decimal(5, 2)
 
-  auditNotes String?  @db.Text
+  auditNotes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2065,26 +2142,31 @@ enum StockBucket {
 /// free-text material names. Items are never hard-deleted when referenced —
 /// they are marked inactive instead.
 model Item {
-  id                     String   @id @default(uuid())
-  itemCode               String   @unique
-  name                   String
-  description            String?  @db.Text
-  itemType               ItemType
-  baseUnitOfMeasure      String
-  isActive               Boolean  @default(true)
+  id                    String   @id @default(uuid())
+  itemCode              String   @unique
+  name                  String
+  description           String?  @db.Text
+  itemType              ItemType
+  baseUnitOfMeasure     String
+  isActive              Boolean  @default(true)
   /// Default wastage % applied to BOM lines using this item unless the line
   /// overrides it. Optional. Decimal(5,2).
-  defaultWastagePercent  Decimal? @db.Decimal(5, 2)
-  drawingSpecReference   String?
-  standardLeadTimeDays   Int?
+  defaultWastagePercent Decimal? @db.Decimal(5, 2)
+  drawingSpecReference  String?
+  standardLeadTimeDays  Int?
 
-  boms           Bom[]             @relation("ItemBoms")
-  bomLines       BomLine[]
-  products       Product[]         @relation("ProductItem")
-  stockBalances  StockBalance[]
-  stockAdjustments StockAdjustment[]
-  reservations   StockReservation[]
-  supplierLinks  ItemSupplier[]
+  boms               Bom[]                  @relation("ItemBoms")
+  bomLines           BomLine[]
+  products           Product[]              @relation("ProductItem")
+  stockBalances      StockBalance[]
+  stockAdjustments   StockAdjustment[]
+  reservations       StockReservation[]
+  supplierLinks      ItemSupplier[]
+  purchaseOrderLines PurchaseOrderLine[]
+  grnLines           GoodsReceiptNoteLine[]
+  ncrs               NonConformanceReport[]
+  materialIndents    MaterialIndent[]
+  materialIssueNotes MaterialIssueNote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2099,16 +2181,16 @@ model Item {
 /// unless that item has at least one ItemSupplier whose Supplier status is
 /// APPROVED or APPROVED_PREFERRED.
 model ItemSupplier {
-  id         String   @id @default(uuid())
-  itemId     String
-  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  supplierId String
-  supplier   Supplier @relation("SupplierItemLinks", fields: [supplierId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(uuid())
+  itemId             String
+  item               Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  supplierId         String
+  supplier           Supplier @relation("SupplierItemLinks", fields: [supplierId], references: [id], onDelete: Cascade)
   /// Optional supplier's own part number for this item.
   supplierPartNumber String?
-  createdById String
-  createdBy   Employee @relation("ItemSupplierLinkedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  createdAt   DateTime @default(now())
+  createdById        String
+  createdBy          Employee @relation("ItemSupplierLinkedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt          DateTime @default(now())
 
   @@unique([itemId, supplierId])
   @@index([itemId])
@@ -2121,38 +2203,38 @@ model ItemSupplier {
 /// revision is released (the prior RELEASED one becomes OBSOLETE). Unique
 /// (productId, revisionNumber) prevents duplicate revision numbers per product.
 model Bom {
-  id            String    @id @default(uuid())
+  id             String    @id @default(uuid())
   /// Keyed on the Item Master (NOT Product) so a SUBASSEMBLY/COMPONENT item that
   /// is never sold as a Product still has somewhere to attach its own BOM —
   /// this is what enables genuine multi-level explosion.
-  itemId        String
-  item          Item      @relation("ItemBoms", fields: [itemId], references: [id], onDelete: Restrict)
+  itemId         String
+  item           Item      @relation("ItemBoms", fields: [itemId], references: [id], onDelete: Restrict)
   revisionNumber Int
-  status        BomStatus @default(DRAFT)
-  effectiveDate DateTime?
-  revisionNotes String?   @db.Text
+  status         BomStatus @default(DRAFT)
+  effectiveDate  DateTime?
+  revisionNotes  String?   @db.Text
 
-  createdById   String
-  createdBy     Employee  @relation("BomCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  submittedById String?
-  submittedBy   Employee? @relation("BomSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
-  submittedAt   DateTime?
-  approvedById  String?
-  approvedBy    Employee? @relation("BomApprover", fields: [approvedById], references: [id], onDelete: SetNull)
-  approvedAt    DateTime?
-  rejectedById  String?
-  rejectedBy    Employee? @relation("BomRejecter", fields: [rejectedById], references: [id], onDelete: SetNull)
-  rejectedAt    DateTime?
-  rejectionComment String? @db.Text
+  createdById      String
+  createdBy        Employee  @relation("BomCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedById    String?
+  submittedBy      Employee? @relation("BomSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt      DateTime?
+  approvedById     String?
+  approvedBy       Employee? @relation("BomApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt       DateTime?
+  rejectedById     String?
+  rejectedBy       Employee? @relation("BomRejecter", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedAt       DateTime?
+  rejectionComment String?   @db.Text
 
   /// Signature snapshot captured at approval (mirrors OrderConfirmationSheet /
   /// Bid): the approver's typed-signature text + font at the moment of approval.
   approverSignatureTextSnapshot String?
   approverSignatureFontSnapshot SignatureFont?
 
-  lines  BomLine[]
-  events BomEvent[]
-  notifications Notification[]
+  lines             BomLine[]
+  events            BomEvent[]
+  notifications     Notification[]
   kickoffSelections KickoffBomSelection[]
 
   createdAt DateTime @default(now())
@@ -2206,14 +2288,16 @@ model BomEvent {
 
 /// A physical store / warehouse location that holds stock.
 model StoreLocation {
-  id        String  @id @default(uuid())
-  code      String  @unique
-  name      String
-  isActive  Boolean @default(true)
+  id       String  @id @default(uuid())
+  code     String  @unique
+  name     String
+  isActive Boolean @default(true)
 
-  stockBalances    StockBalance[]
-  stockAdjustments StockAdjustment[]
-  reservations     StockReservation[]
+  stockBalances      StockBalance[]
+  stockAdjustments   StockAdjustment[]
+  reservations       StockReservation[]
+  grnLines           GoodsReceiptNoteLine[]
+  materialIssueNotes MaterialIssueNote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2274,15 +2358,15 @@ model StockAdjustment {
 /// belonging to the SAME kickoff as already-earmarked (not a competing demand),
 /// so it never double-counts them.
 model StockReservation {
-  id              String        @id @default(uuid())
+  id              String         @id @default(uuid())
   kickoffId       String
   kickoff         ProjectKickoff @relation("KickoffReservations", fields: [kickoffId], references: [id], onDelete: Cascade)
   itemId          String
-  item            Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  item            Item           @relation(fields: [itemId], references: [id], onDelete: Restrict)
   storeLocationId String
-  storeLocation   StoreLocation @relation(fields: [storeLocationId], references: [id], onDelete: Restrict)
-  quantity        Decimal       @db.Decimal(14, 4)
-  isActive        Boolean       @default(true)
+  storeLocation   StoreLocation  @relation(fields: [storeLocationId], references: [id], onDelete: Restrict)
+  quantity        Decimal        @db.Decimal(14, 4)
+  isActive        Boolean        @default(true)
 
   createdById   String
   createdBy     Employee  @relation("ReservationCreator", fields: [createdById], references: [id], onDelete: Restrict)
@@ -2302,12 +2386,12 @@ model StockReservation {
 
 /// One stock-availability report per kickoff (created on first generate).
 model KickoffStockReport {
-  id          String         @id @default(uuid())
-  kickoffId   String         @unique
-  kickoff     ProjectKickoff @relation(fields: [kickoffId], references: [id], onDelete: Cascade)
-  generatedAt DateTime       @default(now())
+  id                String         @id @default(uuid())
+  kickoffId         String         @unique
+  kickoff           ProjectKickoff @relation(fields: [kickoffId], references: [id], onDelete: Cascade)
+  generatedAt       DateTime       @default(now())
   /// Chosen decimal precision for requirement math, recorded for provenance.
-  quantityPrecision Int      @default(4)
+  quantityPrecision Int            @default(4)
 
   bomSelections KickoffBomSelection[]
 
@@ -2321,17 +2405,17 @@ model KickoffStockReport {
 /// snapshot time. Stores the revision id + number for provenance; the copied
 /// lines below preserve historical accuracy independent of the live BOM.
 model KickoffBomSelection {
-  id             String   @id @default(uuid())
-  reportId       String
-  report         KickoffStockReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  id                String             @id @default(uuid())
+  reportId          String
+  report            KickoffStockReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   /// The order line item this selection was generated for.
-  orderLineItemId String
-  productId       String
-  productName     String
-  productSku      String
-  orderedQuantity Decimal  @db.Decimal(14, 4)
-  bomId           String
-  bom             Bom      @relation(fields: [bomId], references: [id], onDelete: Restrict)
+  orderLineItemId   String
+  productId         String
+  productName       String
+  productSku        String
+  orderedQuantity   Decimal            @db.Decimal(14, 4)
+  bomId             String
+  bom               Bom                @relation(fields: [bomId], references: [id], onDelete: Restrict)
   bomRevisionNumber Int
 
   lines KickoffBomSnapshotLine[]
@@ -2346,18 +2430,1968 @@ model KickoffBomSelection {
 /// (item identity, quantities, wastage, UoM) that the report is reproducible
 /// even after the source BOM is obsoleted or edited into a new revision.
 model KickoffBomSnapshotLine {
-  id           String  @id @default(uuid())
-  selectionId  String
-  selection    KickoffBomSelection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
-  itemId       String
-  itemCode     String
-  itemName     String
-  unitOfMeasure String
-  quantityPerUnit Decimal @db.Decimal(14, 4)
-  wastagePercent  Decimal @db.Decimal(5, 2)
+  id              String              @id @default(uuid())
+  selectionId     String
+  selection       KickoffBomSelection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+  itemId          String
+  itemCode        String
+  itemName        String
+  unitOfMeasure   String
+  quantityPerUnit Decimal             @db.Decimal(14, 4)
+  wastagePercent  Decimal             @db.Decimal(5, 2)
 
   createdAt DateTime @default(now())
 
   @@index([selectionId])
   @@map("kickoff_bom_snapshot_lines")
+}
+
+// ── Finance & Accounts foundation ───────────────────────────────────────
+
+enum FiscalYearStatus {
+  OPEN
+  SOFT_CLOSED
+  CLOSED
+}
+
+enum AccountingPeriodStatus {
+  OPEN
+  SOFT_CLOSED
+  CLOSED
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  COST_OF_GOODS_SOLD
+  EXPENSE
+  OTHER_INCOME
+  OTHER_EXPENSE
+}
+
+enum CashFlowCategory {
+  OPERATING
+  INVESTING
+  FINANCING
+  NON_CASH
+}
+
+enum NormalBalance {
+  DEBIT
+  CREDIT
+}
+
+enum JournalStatus {
+  DRAFT
+  PENDING_APPROVAL
+  POSTED
+  REJECTED
+  REVERSED
+}
+
+/// India financial year (1 April through 31 March). Periods are generated as
+/// twelve calendar months and lock posting independently.
+model FiscalYear {
+  id          String             @id @default(uuid())
+  name        String             @unique
+  startsOn    DateTime
+  endsOn      DateTime
+  status      FiscalYearStatus   @default(OPEN)
+  createdById String
+  createdBy   Employee           @relation("FiscalYearCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  periods     AccountingPeriod[]
+  budgets     FinanceBudget[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([startsOn, endsOn])
+  @@map("fiscal_years")
+}
+
+model AccountingPeriod {
+  id                  String                     @id @default(uuid())
+  fiscalYearId        String
+  fiscalYear          FiscalYear                 @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
+  periodNumber        Int
+  name                String
+  startsOn            DateTime
+  endsOn              DateTime
+  status              AccountingPeriodStatus     @default(OPEN)
+  journals            JournalEntry[]
+  periodClose         PeriodClose?
+  budgetLines         FinanceBudgetLine[]
+  depreciationEntries AssetDepreciationEntry[]
+  scheduleExecutions  FinanceScheduleExecution[]
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+
+  @@unique([fiscalYearId, periodNumber])
+  @@index([startsOn, endsOn])
+  @@map("accounting_periods")
+}
+
+model LedgerAccount {
+  id                                String               @id @default(uuid())
+  code                              String               @unique
+  name                              String
+  accountType                       AccountType
+  normalBalance                     NormalBalance
+  description                       String?              @db.Text
+  parentId                          String?
+  parent                            LedgerAccount?       @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children                          LedgerAccount[]      @relation("AccountHierarchy")
+  isControlAccount                  Boolean              @default(false)
+  isActive                          Boolean              @default(true)
+  cashFlowCategory                  CashFlowCategory?
+  createdById                       String
+  createdBy                         Employee             @relation("LedgerAccountCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  journalLines                      JournalLine[]
+  bankAccounts                      FinanceBankAccount[]
+  budgetLines                       FinanceBudgetLine[]
+  fixedAssetCosts                   FixedAsset[]         @relation("FixedAssetCostAccount")
+  fixedAssetAccumulatedDepreciation FixedAsset[]         @relation("FixedAssetAccumulatedDepAccount")
+  fixedAssetDepreciationExpenses    FixedAsset[]         @relation("FixedAssetDepExpenseAccount")
+  fixedAssetAcquisitionCredits      FixedAsset[]         @relation("FixedAssetAcquisitionCreditAccount")
+  scheduleDebits                    FinanceSchedule[]    @relation("FinanceScheduleDebitAccount")
+  scheduleCredits                   FinanceSchedule[]    @relation("FinanceScheduleCreditAccount")
+  createdAt                         DateTime             @default(now())
+  updatedAt                         DateTime             @updatedAt
+
+  @@index([accountType, isActive])
+  @@index([parentId])
+  @@map("ledger_accounts")
+}
+
+enum ManagementPackStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PUBLISHED
+}
+
+enum YearEndRolloverStatus {
+  DRAFT
+  PENDING_APPROVAL
+  COMPLETED
+}
+
+model FinanceAuditorGrant {
+  id          String    @id @default(uuid())
+  employeeId  String    @unique
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  grantedById String
+  grantedAt   DateTime  @default(now())
+  revokedById String?
+  revokedAt   DateTime?
+
+  @@index([isActive, expiresAt])
+  @@map("finance_auditor_grants")
+}
+
+model ManagementReportPack {
+  id            String               @id @default(uuid())
+  packNumber    String               @unique
+  title         String
+  periodFrom    DateTime
+  periodTo      DateTime
+  status        ManagementPackStatus @default(DRAFT)
+  snapshot      Json
+  createdById   String
+  submittedById String?
+  submittedAt   DateTime?
+  approvedById  String?
+  approvedAt    DateTime?
+  publishedAt   DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([status, periodTo])
+  @@map("management_report_packs")
+}
+
+model YearEndRollover {
+  id                        String                  @id @default(uuid())
+  sourceFiscalYearId        String                  @unique
+  targetFiscalYearId        String
+  status                    YearEndRolloverStatus   @default(DRAFT)
+  retainedEarningsAccountId String
+  snapshot                  Json
+  createdById               String
+  submittedById             String?
+  submittedAt               DateTime?
+  approvedById              String?
+  approvedAt                DateTime?
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
+  openingBalances           AccountOpeningBalance[]
+
+  @@index([status])
+  @@map("year_end_rollovers")
+}
+
+model AccountOpeningBalance {
+  id           String          @id @default(uuid())
+  rolloverId   String
+  rollover     YearEndRollover @relation(fields: [rolloverId], references: [id], onDelete: Cascade)
+  fiscalYearId String
+  accountId    String
+  debit        Decimal         @default(0) @db.Decimal(18, 2)
+  credit       Decimal         @default(0) @db.Decimal(18, 2)
+  createdAt    DateTime        @default(now())
+
+  @@unique([fiscalYearId, accountId])
+  @@index([rolloverId])
+  @@map("account_opening_balances")
+}
+
+model CostCenter {
+  id               String              @id @default(uuid())
+  code             String              @unique
+  name             String
+  description      String?             @db.Text
+  isActive         Boolean             @default(true)
+  createdById      String
+  createdBy        Employee            @relation("CostCenterCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  journalLines     JournalLine[]
+  budgetLines      FinanceBudgetLine[]
+  financeSchedules FinanceSchedule[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@map("cost_centers")
+}
+
+/// Supported document currency. INR is the functional/base currency.
+model Currency {
+  code          String         @id @db.VarChar(3)
+  name          String
+  symbol        String
+  decimalPlaces Int            @default(2)
+  isBase        Boolean        @default(false)
+  isActive      Boolean        @default(true)
+  exchangeRates ExchangeRate[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@map("currencies")
+}
+
+/// Manually maintained rate: one unit of foreign currency expressed in INR.
+model ExchangeRate {
+  id           String   @id @default(uuid())
+  currencyCode String   @db.VarChar(3)
+  currency     Currency @relation(fields: [currencyCode], references: [code], onDelete: Restrict)
+  effectiveOn  DateTime
+  rateToInr    Decimal  @db.Decimal(18, 6)
+  source       String
+  createdById  String
+  createdBy    Employee @relation("ExchangeRateCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt    DateTime @default(now())
+
+  @@unique([currencyCode, effectiveOn])
+  @@index([effectiveOn])
+  @@map("exchange_rates")
+}
+
+model FinanceSequence {
+  entity    String
+  year      Int
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@id([entity, year])
+  @@map("finance_sequences")
+}
+
+/// Manual journal header. Only POSTED entries contribute to financial reports.
+/// Posted entries are immutable; correction is by an explicit reversal.
+model JournalEntry {
+  id                String                    @id @default(uuid())
+  journalNumber     String                    @unique
+  entryDate         DateTime
+  periodId          String
+  period            AccountingPeriod          @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  description       String                    @db.Text
+  reference         String?
+  status            JournalStatus             @default(DRAFT)
+  createdById       String
+  createdBy         Employee                  @relation("JournalCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedById     String?
+  submittedBy       Employee?                 @relation("JournalSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt       DateTime?
+  approvedById      String?
+  approvedBy        Employee?                 @relation("JournalApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt        DateTime?
+  rejectedById      String?
+  rejectedBy        Employee?                 @relation("JournalRejecter", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedAt        DateTime?
+  rejectionComment  String?                   @db.Text
+  reversedById      String?
+  reversedBy        Employee?                 @relation("JournalReverser", fields: [reversedById], references: [id], onDelete: SetNull)
+  reversedAt        DateTime?
+  reversalOfId      String?                   @unique
+  reversalOf        JournalEntry?             @relation("JournalReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversalEntry     JournalEntry?             @relation("JournalReversal")
+  lines             JournalLine[]
+  salesInvoice      SalesInvoice?             @relation("SalesInvoiceJournal")
+  customerReceipt   CustomerReceipt?          @relation("CustomerReceiptJournal")
+  apInvoice         AccountsPayableInvoice?   @relation("ApInvoiceJournal")
+  apPayment         AccountsPayablePayment?   @relation("ApPaymentJournal")
+  financeNote       FinanceAdjustmentNote?    @relation("FinanceNoteJournal")
+  bankMatches       BankTransactionMatch[]
+  depreciationEntry AssetDepreciationEntry?
+  scheduleExecution FinanceScheduleExecution?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([entryDate, status])
+  @@index([periodId, status])
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id               String        @id @default(uuid())
+  journalId        String
+  journal          JournalEntry  @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  sequence         Int
+  accountId        String
+  account          LedgerAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  description      String?
+  debit            Decimal       @default(0) @db.Decimal(18, 2)
+  credit           Decimal       @default(0) @db.Decimal(18, 2)
+  costCenterId     String?
+  costCenter       CostCenter?   @relation(fields: [costCenterId], references: [id], onDelete: Restrict)
+  projectReference String?
+
+  @@unique([journalId, sequence])
+  @@index([accountId])
+  @@index([costCenterId])
+  @@map("journal_lines")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Purchasing (Stores Phase 1) — Purchase Orders. GRN/QC/material-issue are
+// later phases; this is the self-contained foundation.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// PO lifecycle. Phase 1 only performs the MANUAL transitions
+/// DRAFT → ISSUED → CANCELLED. PARTIALLY_RECEIVED / FULLY_RECEIVED are reserved
+/// here so Phase 2 can plug in receipt-based derivation (computed from GRN data)
+/// without a migration — the enum values already exist.
+enum PurchaseOrderStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_RECEIVED
+  FULLY_RECEIVED
+  CANCELLED
+}
+
+/// A purchase order raised on exactly ONE trading partner — either a Supplier
+/// (raw-material qualification track) or a Vendor (general qualification track).
+/// Exactly-one-of is enforced in the service AND by a DB CHECK constraint added
+/// in the migration. There is deliberately NO stored received-quantity anywhere;
+/// receipt progress is computed from GRN data in a later phase.
+model PurchaseOrder {
+  id       String              @id @default(uuid())
+  /// PO-YYYY-#### via the shared year-prefixed sequence (SalesNumberingService),
+  /// resetting annually like Bids/Orders.
+  poNumber String              @unique
+  status   PurchaseOrderStatus @default(DRAFT)
+
+  /// Exactly one of supplierId / vendorId is set (CHECK constraint in migration).
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  vendorId   String?
+  vendor     Vendor?   @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+
+  orderDate            DateTime  @default(now())
+  expectedDeliveryDate DateTime?
+  notes                String?   @db.Text
+
+  createdById String
+  createdBy   Employee  @relation("PurchaseOrderCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  /// Set when the PO moves DRAFT → ISSUED.
+  issuedAt    DateTime?
+  /// Set when the PO is CANCELLED.
+  cancelledAt DateTime?
+
+  lines             PurchaseOrderLine[]
+  goodsReceiptNotes GoodsReceiptNote[]
+  apInvoices        AccountsPayableInvoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([supplierId])
+  @@index([vendorId])
+  @@map("purchase_orders")
+}
+
+/// One ordered line. lineTotal is stored (orderedQuantity × unitPrice, computed
+/// at write) mirroring OrderLineItem. unitOfMeasure is snapshotted from the Item
+/// at creation. NO receivedQuantity — that is computed from GRN data later.
+model PurchaseOrderLine {
+  id              String        @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  itemId          String
+  item            Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  orderedQuantity Decimal       @db.Decimal(14, 4)
+  unitPrice       Decimal       @db.Decimal(14, 2)
+  /// UoM snapshot at PO time (Item.baseUnitOfMeasure can change later).
+  unitOfMeasure   String
+  lineTotal       Decimal       @db.Decimal(14, 2)
+  notes           String?       @db.Text
+  sequence        Int           @default(0)
+
+  grnLines       GoodsReceiptNoteLine[]
+  apInvoiceLines AccountsPayableInvoiceLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([purchaseOrderId])
+  @@index([itemId])
+  @@map("purchase_order_lines")
+}
+
+// ── Finance Phase 2: Accounts Receivable ────────────────────────────────
+
+enum BillingMilestoneStatus {
+  PLANNED
+  READY_TO_INVOICE
+  INVOICED
+  CANCELLED
+}
+
+enum SalesInvoiceStatus {
+  DRAFT
+  PENDING_APPROVAL
+  REJECTED
+  GST_PENDING
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum ReceiptStatus {
+  DRAFT
+  PENDING_APPROVAL
+  REJECTED
+  POSTED
+  REVERSED
+}
+
+enum GstDocumentType {
+  TAX_INVOICE
+  EWAY_BILL
+}
+
+enum GstSubmissionStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum ComplianceReturnStatus {
+  DRAFT
+  PREPARED
+  PENDING_APPROVAL
+  APPROVED
+  SUBMITTED
+  FILED
+  FAILED
+}
+
+enum GstReturnType {
+  GSTR1
+  GSTR3B
+}
+
+enum Gstr2bMatchStatus {
+  UNMATCHED
+  MATCHED
+  MISMATCHED
+  IGNORED
+}
+
+enum TdsReturnQuarter {
+  Q1
+  Q2
+  Q3
+  Q4
+}
+
+model FinanceCompanySettings {
+  id              String   @id @default("INDIA")
+  legalName       String
+  gstin           String
+  addressLine1    String
+  addressLine2    String?
+  city            String
+  state           String
+  stateCode       String
+  postalCode      String
+  eInvoiceEnabled Boolean  @default(true)
+  eWayBillEnabled Boolean  @default(true)
+  pan             String?
+  tan             String?
+  updatedAt       DateTime @updatedAt
+
+  @@map("finance_company_settings")
+}
+
+/// Provider-neutral production controls. Account mappings are keyed by the
+/// seeded control code (for example "1000" for the primary bank account) and
+/// point to the active ledger code selected by the Finance Head.
+model FinanceProductionSettings {
+  id                    String   @id @default("INDIA")
+  controlAccountMap     Json     @default("{}")
+  gstMaxAttempts        Int      @default(5)
+  gstRetryDelayMinutes  Int      @default(15)
+  emailDeliveryEnabled  Boolean  @default(false)
+  updatedById           String?
+  updatedAt             DateTime @updatedAt
+
+  @@map("finance_production_settings")
+}
+
+enum FinanceReadinessStatus {
+  READY
+  ACTION_REQUIRED
+}
+
+model FinanceReadinessRun {
+  id        String                 @id @default(uuid())
+  status    FinanceReadinessStatus
+  checks    Json
+  runById   String
+  runAt     DateTime               @default(now())
+
+  @@index([runAt])
+  @@map("finance_readiness_runs")
+}
+
+model FinanceImportBatch {
+  id             String   @id @default(uuid())
+  kind           String
+  sourceFileName String
+  sourceChecksum String   @unique
+  rowCount       Int
+  journalEntryId String?
+  errors         Json     @default("[]")
+  createdById    String
+  createdAt      DateTime @default(now())
+
+  @@index([kind, createdAt])
+  @@map("finance_import_batches")
+}
+
+model BillingMilestone {
+  id          String                 @id @default(uuid())
+  orderId     String
+  order       Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  name        String
+  description String?                @db.Text
+  percentage  Decimal?               @db.Decimal(5, 2)
+  fixedAmount Decimal?               @db.Decimal(18, 2)
+  plannedDate DateTime?
+  achievedAt  DateTime?
+  status      BillingMilestoneStatus @default(PLANNED)
+  sequence    Int                    @default(0)
+  createdById String
+  createdBy   Employee               @relation("BillingMilestoneCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  invoices    SalesInvoice[]
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@index([orderId, status])
+  @@map("billing_milestones")
+}
+
+model SalesInvoice {
+  id                         String                  @id @default(uuid())
+  invoiceNumber              String                  @unique
+  invoiceDate                DateTime
+  dueDate                    DateTime
+  customerId                 String
+  customer                   Customer                @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  orderId                    String?
+  order                      Order?                  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  milestoneId                String?
+  milestone                  BillingMilestone?       @relation(fields: [milestoneId], references: [id], onDelete: Restrict)
+  customerPoReference        String?
+  currencyCode               String                  @db.VarChar(3)
+  exchangeRateToInr          Decimal                 @default(1) @db.Decimal(18, 6)
+  billingAddressSnapshot     Json
+  shippingAddressSnapshot    Json?
+  customerGstinSnapshot      String?
+  placeOfSupplyState         String
+  placeOfSupplyStateCode     String
+  status                     SalesInvoiceStatus      @default(DRAFT)
+  subtotal                   Decimal                 @db.Decimal(18, 2)
+  discountAmount             Decimal                 @default(0) @db.Decimal(18, 2)
+  taxableAmount              Decimal                 @db.Decimal(18, 2)
+  cgstAmount                 Decimal                 @default(0) @db.Decimal(18, 2)
+  sgstAmount                 Decimal                 @default(0) @db.Decimal(18, 2)
+  igstAmount                 Decimal                 @default(0) @db.Decimal(18, 2)
+  otherCharges               Decimal                 @default(0) @db.Decimal(18, 2)
+  roundOff                   Decimal                 @default(0) @db.Decimal(18, 2)
+  totalAmount                Decimal                 @db.Decimal(18, 2)
+  paidAmount                 Decimal                 @default(0) @db.Decimal(18, 2)
+  outstandingAmount          Decimal                 @db.Decimal(18, 2)
+  paymentTerms               String?
+  createdById                String
+  createdBy                  Employee                @relation("SalesInvoiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedById              String?
+  submittedBy                Employee?               @relation("SalesInvoiceSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt                DateTime?
+  approvedById               String?
+  approvedBy                 Employee?               @relation("SalesInvoiceApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt                 DateTime?
+  rejectionComment           String?                 @db.Text
+  creditOverrideReason       String?                 @db.Text
+  creditOverrideApprovedById String?
+  creditOverrideApprovedAt   DateTime?
+  issuedAt                   DateTime?
+  journalEntryId             String?                 @unique
+  journalEntry               JournalEntry?           @relation("SalesInvoiceJournal", fields: [journalEntryId], references: [id], onDelete: Restrict)
+  irn                        String?                 @unique
+  irnAcknowledgementNumber   String?
+  irnAcknowledgementDate     DateTime?
+  signedQrCode               String?                 @db.Text
+  eWayBillNumber             String?                 @unique
+  eWayBillGeneratedAt        DateTime?
+  eWayBillValidUntil         DateTime?
+  lines                      SalesInvoiceLine[]
+  allocations                ReceiptAllocation[]
+  gstSubmissions             GstSubmission[]
+  adjustmentNotes            FinanceAdjustmentNote[]
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+
+  @@index([customerId, dueDate, status])
+  @@index([orderId])
+  @@map("sales_invoices")
+}
+
+model SalesInvoiceLine {
+  id              String       @id @default(uuid())
+  invoiceId       String
+  invoice         SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sequence        Int
+  productId       String?
+  product         Product?     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  description     String
+  hsnSacCode      String
+  quantity        Decimal      @db.Decimal(14, 4)
+  unitOfMeasure   String
+  unitPrice       Decimal      @db.Decimal(18, 2)
+  discountPercent Decimal      @default(0) @db.Decimal(5, 2)
+  taxableAmount   Decimal      @db.Decimal(18, 2)
+  cgstRate        Decimal      @default(0) @db.Decimal(5, 2)
+  cgstAmount      Decimal      @default(0) @db.Decimal(18, 2)
+  sgstRate        Decimal      @default(0) @db.Decimal(5, 2)
+  sgstAmount      Decimal      @default(0) @db.Decimal(18, 2)
+  igstRate        Decimal      @default(0) @db.Decimal(5, 2)
+  igstAmount      Decimal      @default(0) @db.Decimal(18, 2)
+  lineTotal       Decimal      @db.Decimal(18, 2)
+
+  @@unique([invoiceId, sequence])
+  @@index([productId])
+  @@map("sales_invoice_lines")
+}
+
+model CustomerReceipt {
+  id                String                 @id @default(uuid())
+  receiptNumber     String                 @unique
+  receiptDate       DateTime
+  customerId        String
+  customer          Customer               @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  currencyCode      String                 @db.VarChar(3)
+  exchangeRateToInr Decimal                @default(1) @db.Decimal(18, 6)
+  amount            Decimal                @db.Decimal(18, 2)
+  tdsDeducted       Decimal                @default(0) @db.Decimal(18, 2)
+  bankCharges       Decimal                @default(0) @db.Decimal(18, 2)
+  unappliedAmount   Decimal                @db.Decimal(18, 2)
+  paymentMethod     String
+  bankReference     String
+  notes             String?                @db.Text
+  status            ReceiptStatus          @default(DRAFT)
+  createdById       String
+  createdBy         Employee               @relation("CustomerReceiptCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedById     String?
+  submittedBy       Employee?              @relation("CustomerReceiptSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt       DateTime?
+  approvedById      String?
+  approvedBy        Employee?              @relation("CustomerReceiptApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt        DateTime?
+  rejectionComment  String?                @db.Text
+  journalEntryId    String?                @unique
+  journalEntry      JournalEntry?          @relation("CustomerReceiptJournal", fields: [journalEntryId], references: [id], onDelete: Restrict)
+  allocations       ReceiptAllocation[]
+  bankMatches       BankTransactionMatch[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([customerId, receiptDate])
+  @@map("customer_receipts")
+}
+
+model ReceiptAllocation {
+  id        String          @id @default(uuid())
+  receiptId String
+  receipt   CustomerReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  invoiceId String
+  invoice   SalesInvoice    @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amount    Decimal         @db.Decimal(18, 2)
+  createdAt DateTime        @default(now())
+
+  @@unique([receiptId, invoiceId])
+  @@index([invoiceId])
+  @@map("receipt_allocations")
+}
+
+model GstSubmission {
+  id              String              @id @default(uuid())
+  documentType    GstDocumentType
+  status          GstSubmissionStatus @default(PENDING)
+  invoiceId       String
+  invoice         SalesInvoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  idempotencyKey  String              @unique
+  requestPayload  Json
+  responsePayload Json?
+  attemptCount    Int                 @default(0)
+  lastAttemptAt   DateTime?
+  errorCode       String?
+  errorMessage    String?             @db.Text
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([status, createdAt])
+  @@map("gst_submissions")
+}
+
+/// Prepared GST return with immutable preparation snapshot and filing evidence.
+model GstReturn {
+  id                  String                 @id @default(uuid())
+  returnType          GstReturnType
+  financialYear       String
+  taxPeriod           String
+  status              ComplianceReturnStatus @default(DRAFT)
+  summary             Json?
+  payload             Json?
+  preparedById        String?
+  preparedAt          DateTime?
+  submittedById       String?
+  submittedAt         DateTime?
+  approvedById        String?
+  approvedAt          DateTime?
+  filedAt             DateTime?
+  arn                 String?
+  providerReference   String?
+  acknowledgementData Json?
+  errorMessage        String?                @db.Text
+  attemptCount        Int                    @default(0)
+  lastAttemptAt       DateTime?
+  createdById         String
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  evidence            ComplianceEvidence[]   @relation("GstReturnEvidence")
+
+  @@unique([returnType, taxPeriod])
+  @@index([status, taxPeriod])
+  @@map("gst_returns")
+}
+
+/// One normalized line imported from a portal/provider GSTR-2B download.
+model Gstr2bLine {
+  id                 String            @id @default(uuid())
+  taxPeriod          String
+  sourceChecksum     String
+  supplierGstin      String
+  supplierName       String?
+  invoiceNumber      String
+  invoiceDate        DateTime
+  taxableAmount      Decimal           @db.Decimal(18, 2)
+  cgstAmount         Decimal           @default(0) @db.Decimal(18, 2)
+  sgstAmount         Decimal           @default(0) @db.Decimal(18, 2)
+  igstAmount         Decimal           @default(0) @db.Decimal(18, 2)
+  cessAmount         Decimal           @default(0) @db.Decimal(18, 2)
+  itcAvailable       Boolean           @default(true)
+  matchStatus        Gstr2bMatchStatus @default(UNMATCHED)
+  matchedApInvoiceId String?
+  mismatchReason     String?           @db.Text
+  importedById       String
+  importedAt         DateTime          @default(now())
+  reconciledById     String?
+  reconciledAt       DateTime?
+
+  @@unique([taxPeriod, sourceChecksum])
+  @@index([taxPeriod, matchStatus])
+  @@index([supplierGstin, invoiceNumber])
+  @@map("gstr2b_lines")
+}
+
+model TdsReturn {
+  id                 String                 @id @default(uuid())
+  financialYear      String
+  quarter            TdsReturnQuarter
+  formType           String                 @default("26Q")
+  status             ComplianceReturnStatus @default(DRAFT)
+  summary            Json?
+  payload            Json?
+  challanDetails     Json?
+  preparedById       String?
+  preparedAt         DateTime?
+  submittedById      String?
+  submittedAt        DateTime?
+  approvedById       String?
+  approvedAt         DateTime?
+  filedAt            DateTime?
+  acknowledgementNo  String?
+  form16aEvidence    Json?
+  errorMessage       String?                @db.Text
+  createdById        String
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  challanAllocations TdsChallanAllocation[]
+  evidence           ComplianceEvidence[]   @relation("TdsReturnEvidence")
+
+  @@unique([financialYear, quarter, formType])
+  @@index([status, financialYear])
+  @@map("tds_returns")
+}
+
+model TaxPartyProfile {
+  id                          String           @id @default(uuid())
+  partyType                   PayablePartyType
+  partyId                     String
+  legalName                   String
+  pan                         String
+  tan                         String?
+  residentialStatus           String           @default("RESIDENT")
+  lowerDeductionCertificateNo String?
+  lowerDeductionRate          Decimal?         @db.Decimal(5, 2)
+  certificateValidUntil       DateTime?
+  isActive                    Boolean          @default(true)
+  createdById                 String
+  createdAt                   DateTime         @default(now())
+  updatedAt                   DateTime         @updatedAt
+
+  @@unique([partyType, partyId])
+  @@index([pan, isActive])
+  @@map("tax_party_profiles")
+}
+
+model TdsChallan {
+  id              String                 @id @default(uuid())
+  challanNumber   String                 @unique
+  bsrCode         String
+  challanSerialNo String
+  depositDate     DateTime
+  financialYear   String
+  sectionCode     String
+  taxAmount       Decimal                @db.Decimal(18, 2)
+  interestAmount  Decimal                @default(0) @db.Decimal(18, 2)
+  feeAmount       Decimal                @default(0) @db.Decimal(18, 2)
+  totalAmount     Decimal                @db.Decimal(18, 2)
+  createdById     String
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  allocations     TdsChallanAllocation[]
+
+  @@unique([bsrCode, depositDate, challanSerialNo])
+  @@index([financialYear, sectionCode])
+  @@map("tds_challans")
+}
+
+model TdsChallanAllocation {
+  id          String     @id @default(uuid())
+  challanId   String
+  challan     TdsChallan @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  tdsReturnId String
+  tdsReturn   TdsReturn  @relation(fields: [tdsReturnId], references: [id], onDelete: Cascade)
+  amount      Decimal    @db.Decimal(18, 2)
+  createdById String
+  createdAt   DateTime   @default(now())
+
+  @@unique([challanId, tdsReturnId])
+  @@index([tdsReturnId])
+  @@map("tds_challan_allocations")
+}
+
+model ComplianceEvidence {
+  id           String     @id @default(uuid())
+  gstReturnId  String?
+  gstReturn    GstReturn? @relation("GstReturnEvidence", fields: [gstReturnId], references: [id], onDelete: Cascade)
+  tdsReturnId  String?
+  tdsReturn    TdsReturn? @relation("TdsReturnEvidence", fields: [tdsReturnId], references: [id], onDelete: Cascade)
+  evidenceType String
+  fileName     String
+  contentType  String
+  storageKey   String     @unique
+  sizeBytes    Int?
+  confirmedAt  DateTime?
+  uploadedById String
+  createdAt    DateTime   @default(now())
+
+  @@index([gstReturnId])
+  @@index([tdsReturnId])
+  @@map("compliance_evidence")
+}
+
+model ComplianceDueDate {
+  id                 String    @id @default(uuid())
+  obligation         String
+  taxPeriod          String
+  dueDate            DateTime
+  reminderDays       Int       @default(5)
+  completedAt        DateTime?
+  completedReference String?
+  createdById        String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([obligation, taxPeriod])
+  @@index([dueDate, completedAt])
+  @@map("compliance_due_dates")
+}
+
+// ── Stores Phase 2: Goods Receipt + QC Inspection Gate + NCR ─────────────
+//
+// The QC gate is the defining rule of this phase: creating/submitting a GRN
+// produces ZERO stock movement. A GRN sits in PENDING_QC until a QC inspector
+// records accepted/rejected quantities per line. ONLY the accepted quantity
+// then generates a STOCK_IN (a positive ON_HAND StockAdjustment + StockBalance
+// increment) in the finalize transaction. Rejected quantity never enters stock
+// and instead spawns a NonConformanceReport. "Previously received" and the
+// PO's PARTIALLY/FULLY_RECEIVED status are computed on read from accepted
+// quantities — never stored.
+
+enum GoodsReceiptNoteStatus {
+  DRAFT
+  PENDING_QC
+  QC_PASSED
+  QC_PARTIAL
+  QC_FAILED
+  CANCELLED
+}
+
+/// Condition of the packaging as received at the GRN gate (spec §3.1).
+enum PackingCondition {
+  GOOD
+  DAMAGED
+  PARTIALLY_DAMAGED
+}
+
+enum NonConformanceReportStatus {
+  OPEN
+  DISPOSITIONED
+  CLOSED
+}
+
+/// How a QC rejection is dispositioned once an NCR is raised.
+enum NcrDispositionType {
+  RETURN_TO_SUPPLIER
+  SCRAP
+  USE_AS_IS
+  REWORK
+}
+
+/// A receipt of goods against a Purchase Order. Submitting it moves DRAFT →
+/// PENDING_QC with NO stock impact. QC finalization is a separate step.
+model GoodsReceiptNote {
+  id        String                 @id @default(uuid())
+  /// GRN-YYYY-#### via the shared year-prefixed sequence (SalesNumberingService).
+  grnNumber String                 @unique
+  status    GoodsReceiptNoteStatus @default(DRAFT)
+
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+
+  receivedById String
+  receivedBy   Employee @relation("GrnReceivedBy", fields: [receivedById], references: [id], onDelete: Restrict)
+  receivedDate DateTime @default(now())
+
+  /// Set when a QC inspector finalizes inspection.
+  inspectedById String?
+  inspectedBy   Employee? @relation("GrnInspectedBy", fields: [inspectedById], references: [id], onDelete: SetNull)
+  inspectedAt   DateTime?
+
+  /// Logistics / receiving details captured at the gate (spec §3.1). All
+  /// nullable — older GRNs (and DRAFTs) may leave any of them unset.
+  vendorDeliveryChallanNumber String?
+  deliveryChallanDate         DateTime?
+  vehicleOrAwbNumber          String?
+  driverOrCourier             String?
+  totalPackagesReceived       Int?
+  packingCondition            PackingCondition?
+
+  /// Stores supervisor who signed off the receipt (distinct from receivedBy).
+  supervisorSignOffId String?
+  supervisorSignOff   Employee? @relation("GrnSupervisorSignOff", fields: [supervisorSignOffId], references: [id], onDelete: SetNull)
+
+  /// Free-text receiving remarks (spec's receivingRemarks). Structured logistics
+  /// data lives in the dedicated columns above, NOT here.
+  notes String? @db.Text
+
+  lines GoodsReceiptNoteLine[]
+  ncrs  NonConformanceReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([purchaseOrderId])
+  @@map("goods_receipt_notes")
+}
+
+/// One received line. acceptedQuantity/rejectedQuantity are null until QC
+/// finalization; after finalization accepted + rejected == receivedQuantity.
+model GoodsReceiptNoteLine {
+  id    String           @id @default(uuid())
+  grnId String
+  grn   GoodsReceiptNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+
+  purchaseOrderLineId String
+  purchaseOrderLine   PurchaseOrderLine @relation(fields: [purchaseOrderLineId], references: [id], onDelete: Restrict)
+
+  itemId String
+  item   Item   @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  /// Where accepted stock lands on QC pass.
+  storeLocationId String
+  storeLocation   StoreLocation @relation(fields: [storeLocationId], references: [id], onDelete: Restrict)
+
+  receivedQuantity Decimal  @db.Decimal(14, 4)
+  acceptedQuantity Decimal? @db.Decimal(14, 4)
+  rejectedQuantity Decimal? @db.Decimal(14, 4)
+  rejectionReason  String?  @db.Text
+  sequence         Int      @default(0)
+
+  /// At most one NCR per rejected line.
+  ncr            NonConformanceReport?
+  apInvoiceLines AccountsPayableInvoiceLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([grnId])
+  @@index([purchaseOrderLineId])
+  @@index([itemId])
+  @@map("goods_receipt_note_lines")
+}
+
+/// Raised automatically whenever QC rejects any quantity on a GRN line. Carries
+/// its own disposition workflow (return / scrap / use-as-is / rework).
+model NonConformanceReport {
+  id        String                     @id @default(uuid())
+  /// NCR-YYYY-#### via the shared year-prefixed sequence.
+  ncrNumber String                     @unique
+  status    NonConformanceReportStatus @default(OPEN)
+
+  grnId String
+  grn   GoodsReceiptNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+
+  grnLineId String               @unique
+  grnLine   GoodsReceiptNoteLine @relation(fields: [grnLineId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   Item   @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  rejectedQuantity Decimal @db.Decimal(14, 4)
+  rejectionReason  String? @db.Text
+
+  disposition      NcrDispositionType?
+  dispositionNotes String?             @db.Text
+
+  raisedById String
+  raisedBy   Employee @relation("NcrRaisedBy", fields: [raisedById], references: [id], onDelete: Restrict)
+
+  dispositionedById String?
+  dispositionedBy   Employee? @relation("NcrDispositionedBy", fields: [dispositionedById], references: [id], onDelete: SetNull)
+  dispositionedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([grnId])
+  @@map("non_conformance_reports")
+}
+
+// ── Finance Phase 3: Accounts Payable and Payments ─────────────────────
+
+enum PayablePartyType {
+  SUPPLIER
+  VENDOR
+}
+
+enum ApInvoiceStatus {
+  DRAFT
+  PENDING_MATCH
+  MATCH_EXCEPTION
+  PENDING_APPROVAL
+  REJECTED
+  APPROVED
+  PARTIALLY_PAID
+  PAID
+  DISPUTED
+  CANCELLED
+}
+
+enum ThreeWayMatchStatus {
+  NOT_APPLICABLE
+  MATCHED
+  QUANTITY_MISMATCH
+  PRICE_MISMATCH
+  QUANTITY_AND_PRICE_MISMATCH
+}
+
+enum ApPaymentStatus {
+  DRAFT
+  PENDING_APPROVAL
+  REJECTED
+  APPROVED
+  EXECUTED
+  REVERSED
+}
+
+model AccountsPayableInvoice {
+  id                    String                       @id @default(uuid())
+  internalBillNumber    String                       @unique
+  partyType             PayablePartyType
+  supplierId            String?
+  supplier              Supplier?                    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  vendorId              String?
+  vendor                Vendor?                      @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  partyId               String
+  externalInvoiceNumber String
+  invoiceDate           DateTime
+  receivedDate          DateTime
+  dueDate               DateTime
+  purchaseOrderId       String?
+  purchaseOrder         PurchaseOrder?               @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  currencyCode          String                       @db.VarChar(3)
+  exchangeRateToInr     Decimal                      @default(1) @db.Decimal(18, 6)
+  supplierGstinSnapshot String?
+  taxableAmount         Decimal                      @db.Decimal(18, 2)
+  inputCgstAmount       Decimal                      @default(0) @db.Decimal(18, 2)
+  inputSgstAmount       Decimal                      @default(0) @db.Decimal(18, 2)
+  inputIgstAmount       Decimal                      @default(0) @db.Decimal(18, 2)
+  otherCharges          Decimal                      @default(0) @db.Decimal(18, 2)
+  tdsSectionCode        String?
+  tdsRatePercent        Decimal?                     @db.Decimal(5, 2)
+  tdsTaxableBase        Decimal?                     @db.Decimal(18, 2)
+  tdsAmount             Decimal                      @default(0) @db.Decimal(18, 2)
+  totalAmount           Decimal                      @db.Decimal(18, 2)
+  paidAmount            Decimal                      @default(0) @db.Decimal(18, 2)
+  outstandingAmount     Decimal                      @db.Decimal(18, 2)
+  status                ApInvoiceStatus              @default(DRAFT)
+  matchStatus           ThreeWayMatchStatus          @default(NOT_APPLICABLE)
+  matchDetails          Json?
+  matchOverrideReason   String?                      @db.Text
+  paymentHold           Boolean                      @default(false)
+  paymentHoldReason     String?                      @db.Text
+  itcStatus             GstItcStatus                 @default(PENDING_RECONCILIATION)
+  itcReconciliationNote String?                      @db.Text
+  itcReconciledAt       DateTime?
+  itcReconciledById     String?
+  itcReconciledBy       Employee?                    @relation("ApInvoiceItcReconciler", fields: [itcReconciledById], references: [id], onDelete: SetNull)
+  notes                 String?                      @db.Text
+  createdById           String
+  createdBy             Employee                     @relation("ApInvoiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedById         String?
+  submittedBy           Employee?                    @relation("ApInvoiceSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt           DateTime?
+  approvedById          String?
+  approvedBy            Employee?                    @relation("ApInvoiceApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt            DateTime?
+  rejectionComment      String?                      @db.Text
+  journalEntryId        String?                      @unique
+  journalEntry          JournalEntry?                @relation("ApInvoiceJournal", fields: [journalEntryId], references: [id], onDelete: Restrict)
+  lines                 AccountsPayableInvoiceLine[]
+  paymentAllocations    ApPaymentAllocation[]
+  adjustmentNotes       FinanceAdjustmentNote[]
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+
+  @@unique([partyType, partyId, externalInvoiceNumber])
+  @@index([partyType, partyId, dueDate, status])
+  @@index([purchaseOrderId])
+  @@index([itcStatus, invoiceDate])
+  @@map("accounts_payable_invoices")
+}
+
+model AccountsPayableInvoiceLine {
+  id                  String                 @id @default(uuid())
+  invoiceId           String
+  invoice             AccountsPayableInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sequence            Int
+  description         String
+  hsnSacCode          String?
+  purchaseOrderLineId String?
+  purchaseOrderLine   PurchaseOrderLine?     @relation(fields: [purchaseOrderLineId], references: [id], onDelete: Restrict)
+  grnLineId           String?
+  grnLine             GoodsReceiptNoteLine?  @relation(fields: [grnLineId], references: [id], onDelete: Restrict)
+  quantity            Decimal                @db.Decimal(14, 4)
+  unitOfMeasure       String
+  unitPrice           Decimal                @db.Decimal(18, 2)
+  taxableAmount       Decimal                @db.Decimal(18, 2)
+  taxAmount           Decimal                @default(0) @db.Decimal(18, 2)
+  lineTotal           Decimal                @db.Decimal(18, 2)
+
+  @@unique([invoiceId, sequence])
+  @@index([purchaseOrderLineId])
+  @@index([grnLineId])
+  @@map("accounts_payable_invoice_lines")
+}
+
+model AccountsPayablePayment {
+  id                String                 @id @default(uuid())
+  paymentNumber     String                 @unique
+  partyType         PayablePartyType
+  supplierId        String?
+  supplier          Supplier?              @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  vendorId          String?
+  vendor            Vendor?                @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  partyId           String
+  plannedDate       DateTime
+  executedDate      DateTime?
+  currencyCode      String                 @db.VarChar(3)
+  exchangeRateToInr Decimal                @default(1) @db.Decimal(18, 6)
+  amount            Decimal                @db.Decimal(18, 2)
+  paymentMethod     String
+  bankReference     String?
+  notes             String?                @db.Text
+  status            ApPaymentStatus        @default(DRAFT)
+  createdById       String
+  createdBy         Employee               @relation("ApPaymentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedById     String?
+  submittedBy       Employee?              @relation("ApPaymentSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt       DateTime?
+  approvedById      String?
+  approvedBy        Employee?              @relation("ApPaymentApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt        DateTime?
+  rejectionComment  String?                @db.Text
+  journalEntryId    String?                @unique
+  journalEntry      JournalEntry?          @relation("ApPaymentJournal", fields: [journalEntryId], references: [id], onDelete: Restrict)
+  allocations       ApPaymentAllocation[]
+  bankMatches       BankTransactionMatch[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([partyType, partyId, plannedDate, status])
+  @@map("accounts_payable_payments")
+}
+
+model ApPaymentAllocation {
+  id        String                 @id @default(uuid())
+  paymentId String
+  payment   AccountsPayablePayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoiceId String
+  invoice   AccountsPayableInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amount    Decimal                @db.Decimal(18, 2)
+  createdAt DateTime               @default(now())
+
+  @@unique([paymentId, invoiceId])
+  @@index([invoiceId])
+  @@map("ap_payment_allocations")
+}
+
+// ── Finance Phase 4: Compliance, adjustments and period close ─────────
+
+enum GstItcStatus {
+  PENDING_RECONCILIATION
+  MATCHED_GSTR2B
+  MISMATCHED
+  INELIGIBLE
+  DEFERRED
+}
+
+enum FinanceNoteSide {
+  ACCOUNTS_RECEIVABLE
+  ACCOUNTS_PAYABLE
+}
+
+enum FinanceNoteType {
+  CREDIT_NOTE
+  DEBIT_NOTE
+}
+
+enum FinanceNoteStatus {
+  DRAFT
+  PENDING_APPROVAL
+  REJECTED
+  POSTED
+  CANCELLED
+}
+
+enum PeriodCloseStatus {
+  PREPARING
+  PENDING_APPROVAL
+  REJECTED
+  COMPLETED
+}
+
+enum CloseTaskStatus {
+  PENDING
+  COMPLETED
+  NOT_APPLICABLE
+}
+
+enum ReconciliationExceptionStatus {
+  OPEN
+  RESOLVED
+  WAIVED
+}
+
+enum ReconciliationSeverity {
+  INFO
+  WARNING
+  BLOCKING
+}
+
+model TdsSection {
+  id            String    @id @default(uuid())
+  sectionCode   String
+  description   String
+  ratePercent   Decimal   @db.Decimal(5, 2)
+  thresholdInr  Decimal   @default(0) @db.Decimal(18, 2)
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  isActive      Boolean   @default(true)
+  createdById   String
+  createdBy     Employee  @relation("TdsSectionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([sectionCode, effectiveFrom])
+  @@index([isActive, effectiveFrom])
+  @@map("tds_sections")
+}
+
+model FinanceAdjustmentNote {
+  id               String                  @id @default(uuid())
+  noteNumber       String                  @unique
+  side             FinanceNoteSide
+  noteType         FinanceNoteType
+  noteDate         DateTime
+  reason           String                  @db.Text
+  salesInvoiceId   String?
+  salesInvoice     SalesInvoice?           @relation(fields: [salesInvoiceId], references: [id], onDelete: Restrict)
+  apInvoiceId      String?
+  apInvoice        AccountsPayableInvoice? @relation(fields: [apInvoiceId], references: [id], onDelete: Restrict)
+  taxableAmount    Decimal                 @db.Decimal(18, 2)
+  cgstAmount       Decimal                 @default(0) @db.Decimal(18, 2)
+  sgstAmount       Decimal                 @default(0) @db.Decimal(18, 2)
+  igstAmount       Decimal                 @default(0) @db.Decimal(18, 2)
+  totalAmount      Decimal                 @db.Decimal(18, 2)
+  status           FinanceNoteStatus       @default(DRAFT)
+  createdById      String
+  createdBy        Employee                @relation("FinanceNoteCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedById    String?
+  submittedBy      Employee?               @relation("FinanceNoteSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt      DateTime?
+  approvedById     String?
+  approvedBy       Employee?               @relation("FinanceNoteApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt       DateTime?
+  rejectionComment String?                 @db.Text
+  journalEntryId   String?                 @unique
+  journalEntry     JournalEntry?           @relation("FinanceNoteJournal", fields: [journalEntryId], references: [id], onDelete: Restrict)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@index([side, noteType, noteDate])
+  @@index([salesInvoiceId])
+  @@index([apInvoiceId])
+  @@map("finance_adjustment_notes")
+}
+
+model PeriodClose {
+  id                String                  @id @default(uuid())
+  periodId          String                  @unique
+  period            AccountingPeriod        @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  status            PeriodCloseStatus       @default(PREPARING)
+  checklist         Json
+  preparationNote   String?                 @db.Text
+  preparedById      String
+  preparedBy        Employee                @relation("PeriodClosePreparer", fields: [preparedById], references: [id], onDelete: Restrict)
+  submittedAt       DateTime?
+  approvedById      String?
+  approvedBy        Employee?               @relation("PeriodCloseApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt        DateTime?
+  rejectionComment  String?                 @db.Text
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  tasks             PeriodCloseTask[]
+  reconciliationRun CloseReconciliationRun?
+
+  @@index([status])
+  @@map("period_closes")
+}
+
+model PeriodCloseTask {
+  id            String          @id @default(uuid())
+  periodCloseId String
+  periodClose   PeriodClose     @relation(fields: [periodCloseId], references: [id], onDelete: Cascade)
+  taskCode      String
+  title         String
+  category      String
+  sequence      Int
+  isRequired    Boolean         @default(true)
+  status        CloseTaskStatus @default(PENDING)
+  notes         String?         @db.Text
+  completedById String?
+  completedAt   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@unique([periodCloseId, taskCode])
+  @@index([periodCloseId, status])
+  @@map("period_close_tasks")
+}
+
+model CloseReconciliationRun {
+  id            String                    @id @default(uuid())
+  periodCloseId String                    @unique
+  periodClose   PeriodClose               @relation(fields: [periodCloseId], references: [id], onDelete: Cascade)
+  status        String
+  summary       Json
+  generatedById String
+  generatedAt   DateTime                  @default(now())
+  exceptions    ReconciliationException[]
+
+  @@map("close_reconciliation_runs")
+}
+
+model ReconciliationException {
+  id             String                        @id @default(uuid())
+  runId          String
+  run            CloseReconciliationRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  exceptionKey   String
+  controlType    String
+  title          String
+  severity       ReconciliationSeverity
+  status         ReconciliationExceptionStatus @default(OPEN)
+  ledgerAmount   Decimal?                      @db.Decimal(18, 2)
+  sourceAmount   Decimal?                      @db.Decimal(18, 2)
+  variance       Decimal?                      @db.Decimal(18, 2)
+  details        Json?
+  assignedToId   String?
+  resolutionNote String?                       @db.Text
+  resolvedById   String?
+  resolvedAt     DateTime?
+  createdAt      DateTime                      @default(now())
+  updatedAt      DateTime                      @updatedAt
+
+  @@unique([runId, exceptionKey])
+  @@index([status, severity])
+  @@map("reconciliation_exceptions")
+}
+
+// ── Finance Phase 5A: statement import and bank reconciliation ─────────
+
+enum BankStatementStatus {
+  DRAFT
+  PENDING_APPROVAL
+  REJECTED
+  APPROVED
+}
+
+enum BankLineResolution {
+  PENDING
+  MATCHED
+  UNMATCHED_ACCEPTED
+}
+
+enum BankMatchType {
+  CUSTOMER_RECEIPT
+  VENDOR_PAYMENT
+  JOURNAL_ENTRY
+}
+
+model FinanceBankAccount {
+  id                 String          @id @default(uuid())
+  accountName        String
+  bankName           String
+  accountNumberLast4 String          @db.VarChar(4)
+  ifscCode           String?
+  currencyCode       String          @default("INR") @db.VarChar(3)
+  ledgerAccountId    String
+  ledgerAccount      LedgerAccount   @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict)
+  isActive           Boolean         @default(true)
+  createdById        String
+  createdBy          Employee        @relation("BankAccountCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  statements         BankStatement[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([isActive])
+  @@map("finance_bank_accounts")
+}
+
+model BankStatement {
+  id               String              @id @default(uuid())
+  statementNumber  String              @unique
+  bankAccountId    String
+  bankAccount      FinanceBankAccount  @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  periodFrom       DateTime
+  periodTo         DateTime
+  openingBalance   Decimal             @db.Decimal(18, 2)
+  closingBalance   Decimal             @db.Decimal(18, 2)
+  sourceFileName   String
+  sourceFileHash   String              @unique
+  status           BankStatementStatus @default(DRAFT)
+  importedById     String
+  importedBy       Employee            @relation("BankStatementImporter", fields: [importedById], references: [id], onDelete: Restrict)
+  submittedById    String?
+  submittedBy      Employee?           @relation("BankStatementSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt      DateTime?
+  approvedById     String?
+  approvedBy       Employee?           @relation("BankStatementApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt       DateTime?
+  rejectionComment String?             @db.Text
+  lines            BankStatementLine[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([bankAccountId, periodFrom, periodTo])
+  @@index([status])
+  @@map("bank_statements")
+}
+
+model BankStatementLine {
+  id              String                @id @default(uuid())
+  statementId     String
+  statement       BankStatement         @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  sequence        Int
+  transactionDate DateTime
+  valueDate       DateTime?
+  description     String                @db.Text
+  bankReference   String?
+  debitAmount     Decimal               @default(0) @db.Decimal(18, 2)
+  creditAmount    Decimal               @default(0) @db.Decimal(18, 2)
+  runningBalance  Decimal?              @db.Decimal(18, 2)
+  resolution      BankLineResolution    @default(PENDING)
+  exceptionReason String?               @db.Text
+  match           BankTransactionMatch?
+  createdAt       DateTime              @default(now())
+
+  @@unique([statementId, sequence])
+  @@index([transactionDate])
+  @@index([resolution])
+  @@map("bank_statement_lines")
+}
+
+model BankTransactionMatch {
+  id                String                  @id @default(uuid())
+  statementLineId   String                  @unique
+  statementLine     BankStatementLine       @relation(fields: [statementLineId], references: [id], onDelete: Cascade)
+  matchType         BankMatchType
+  customerReceiptId String?                 @unique
+  customerReceipt   CustomerReceipt?        @relation(fields: [customerReceiptId], references: [id], onDelete: Restrict)
+  apPaymentId       String?                 @unique
+  apPayment         AccountsPayablePayment? @relation(fields: [apPaymentId], references: [id], onDelete: Restrict)
+  journalEntryId    String?                 @unique
+  journalEntry      JournalEntry?           @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  confidenceScore   Decimal                 @db.Decimal(5, 2)
+  matchReason       String
+  confirmedById     String?
+  confirmedBy       Employee?               @relation("BankMatchConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
+  confirmedAt       DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@map("bank_transaction_matches")
+}
+
+// ── Finance Phase 5B: management accounting and automation ─────────────
+
+enum FinanceBudgetStatus {
+  DRAFT
+  PENDING_APPROVAL
+  REJECTED
+  APPROVED
+  LOCKED
+}
+
+enum FixedAssetStatus {
+  DRAFT
+  PENDING_APPROVAL
+  REJECTED
+  ACTIVE
+  DISPOSED
+  WRITTEN_OFF
+}
+
+enum FinanceScheduleType {
+  RECURRING_JOURNAL
+  ACCRUAL
+  PREPAYMENT
+  PROVISION
+}
+
+enum FxRevaluationStatus {
+  DRAFT
+  PENDING_APPROVAL
+  POSTED
+  REVERSED
+}
+
+enum FinanceAdvanceSide {
+  CUSTOMER
+  VENDOR
+}
+
+enum FinanceScheduleStatus {
+  DRAFT
+  PENDING_APPROVAL
+  REJECTED
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+model FinanceBudget {
+  id               String              @id @default(uuid())
+  name             String
+  fiscalYearId     String
+  fiscalYear       FiscalYear          @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
+  status           FinanceBudgetStatus @default(DRAFT)
+  notes            String?             @db.Text
+  createdById      String
+  createdBy        Employee            @relation("BudgetCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedById    String?
+  submittedBy      Employee?           @relation("BudgetSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt      DateTime?
+  approvedById     String?
+  approvedBy       Employee?           @relation("BudgetApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt       DateTime?
+  rejectionComment String?             @db.Text
+  lines            FinanceBudgetLine[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@unique([fiscalYearId, name])
+  @@index([status])
+  @@map("finance_budgets")
+}
+
+model FinanceBudgetLine {
+  id               String           @id @default(uuid())
+  budgetId         String
+  budget           FinanceBudget    @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  periodId         String
+  period           AccountingPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  accountId        String
+  account          LedgerAccount    @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  costCenterId     String?
+  costCenter       CostCenter?      @relation(fields: [costCenterId], references: [id], onDelete: Restrict)
+  projectReference String?
+  amount           Decimal          @db.Decimal(18, 2)
+  notes            String?          @db.Text
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([budgetId, periodId, accountId, costCenterId, projectReference])
+  @@index([periodId, accountId])
+  @@index([costCenterId])
+  @@map("finance_budget_lines")
+}
+
+model FixedAsset {
+  id                               String                   @id @default(uuid())
+  assetNumber                      String                   @unique
+  name                             String
+  description                      String?                  @db.Text
+  status                           FixedAssetStatus         @default(DRAFT)
+  purchaseDate                     DateTime
+  capitalizationDate               DateTime
+  originalCost                     Decimal                  @db.Decimal(18, 2)
+  residualValue                    Decimal                  @default(0) @db.Decimal(18, 2)
+  usefulLifeMonths                 Int
+  accumulatedDepreciation          Decimal                  @default(0) @db.Decimal(18, 2)
+  lastDepreciatedThrough           DateTime?
+  location                         String?
+  serialNumber                     String?
+  vendorReference                  String?
+  assetAccountId                   String
+  assetAccount                     LedgerAccount            @relation("FixedAssetCostAccount", fields: [assetAccountId], references: [id], onDelete: Restrict)
+  accumulatedDepreciationAccountId String
+  accumulatedDepreciationAccount   LedgerAccount            @relation("FixedAssetAccumulatedDepAccount", fields: [accumulatedDepreciationAccountId], references: [id], onDelete: Restrict)
+  depreciationExpenseAccountId     String
+  depreciationExpenseAccount       LedgerAccount            @relation("FixedAssetDepExpenseAccount", fields: [depreciationExpenseAccountId], references: [id], onDelete: Restrict)
+  acquisitionCreditAccountId       String
+  acquisitionCreditAccount         LedgerAccount            @relation("FixedAssetAcquisitionCreditAccount", fields: [acquisitionCreditAccountId], references: [id], onDelete: Restrict)
+  createdById                      String
+  createdBy                        Employee                 @relation("FixedAssetCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedById                     String?
+  approvedBy                       Employee?                @relation("FixedAssetApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt                       DateTime?
+  rejectionComment                 String?                  @db.Text
+  depreciationEntries              AssetDepreciationEntry[]
+  createdAt                        DateTime                 @default(now())
+  updatedAt                        DateTime                 @updatedAt
+
+  @@index([status])
+  @@index([capitalizationDate])
+  @@map("fixed_assets")
+}
+
+model AssetDepreciationEntry {
+  id             String           @id @default(uuid())
+  assetId        String
+  asset          FixedAsset       @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  periodId       String
+  period         AccountingPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  amount         Decimal          @db.Decimal(18, 2)
+  journalEntryId String           @unique
+  journalEntry   JournalEntry     @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  createdAt      DateTime         @default(now())
+
+  @@unique([assetId, periodId])
+  @@index([periodId])
+  @@map("asset_depreciation_entries")
+}
+
+model FinanceSchedule {
+  id               String                     @id @default(uuid())
+  scheduleNumber   String                     @unique
+  name             String
+  description      String?                    @db.Text
+  scheduleType     FinanceScheduleType
+  status           FinanceScheduleStatus      @default(DRAFT)
+  debitAccountId   String
+  debitAccount     LedgerAccount              @relation("FinanceScheduleDebitAccount", fields: [debitAccountId], references: [id], onDelete: Restrict)
+  creditAccountId  String
+  creditAccount    LedgerAccount              @relation("FinanceScheduleCreditAccount", fields: [creditAccountId], references: [id], onDelete: Restrict)
+  amountPerRun     Decimal                    @db.Decimal(18, 2)
+  startDate        DateTime
+  nextRunDate      DateTime
+  endDate          DateTime?
+  remainingRuns    Int?
+  costCenterId     String?
+  costCenter       CostCenter?                @relation(fields: [costCenterId], references: [id], onDelete: Restrict)
+  projectReference String?
+  createdById      String
+  createdBy        Employee                   @relation("FinanceScheduleCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedById     String?
+  approvedBy       Employee?                  @relation("FinanceScheduleApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt       DateTime?
+  rejectionComment String?                    @db.Text
+  executions       FinanceScheduleExecution[]
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  @@index([status, nextRunDate])
+  @@map("finance_schedules")
+}
+
+model FinanceScheduleExecution {
+  id             String           @id @default(uuid())
+  scheduleId     String
+  schedule       FinanceSchedule  @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  runDate        DateTime
+  periodId       String
+  period         AccountingPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  amount         Decimal          @db.Decimal(18, 2)
+  journalEntryId String           @unique
+  journalEntry   JournalEntry     @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  createdAt      DateTime         @default(now())
+
+  @@unique([scheduleId, runDate])
+  @@index([periodId])
+  @@map("finance_schedule_executions")
+}
+
+model CustomerCreditControl {
+  id               String    @id @default(uuid())
+  customerId       String    @unique
+  creditLimitInr   Decimal   @db.Decimal(18, 2)
+  overdueGraceDays Int       @default(0)
+  blockOnLimit     Boolean   @default(true)
+  blockOnOverdue   Boolean   @default(true)
+  reviewDate       DateTime?
+  notes            String?   @db.Text
+  createdById      String
+  updatedById      String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("customer_credit_controls")
+}
+
+model FinanceFxSettings {
+  id            String   @id @default("INDIA")
+  gainAccountId String
+  lossAccountId String
+  updatedById   String
+  updatedAt     DateTime @updatedAt
+
+  @@map("finance_fx_settings")
+}
+
+model FxRevaluationRun {
+  id              String              @id @default(uuid())
+  runNumber       String              @unique
+  periodId        String              @unique
+  status          FxRevaluationStatus @default(DRAFT)
+  closingRates    Json
+  totalGainInr    Decimal             @default(0) @db.Decimal(18, 2)
+  totalLossInr    Decimal             @default(0) @db.Decimal(18, 2)
+  gainAccountId   String
+  lossAccountId   String
+  createdById     String
+  submittedById   String?
+  submittedAt     DateTime?
+  approvedById    String?
+  approvedAt      DateTime?
+  journalEntryId  String?             @unique
+  reversalEntryId String?             @unique
+  reversedAt      DateTime?
+  lines           FxRevaluationLine[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([status, periodId])
+  @@map("fx_revaluation_runs")
+}
+
+model FxRevaluationLine {
+  id                 String           @id @default(uuid())
+  runId              String
+  run                FxRevaluationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  side               String
+  documentId         String
+  documentNumber     String
+  partyName          String
+  currencyCode       String           @db.VarChar(3)
+  foreignOutstanding Decimal          @db.Decimal(18, 2)
+  originalRate       Decimal          @db.Decimal(18, 6)
+  closingRate        Decimal          @db.Decimal(18, 6)
+  carryingAmountInr  Decimal          @db.Decimal(18, 2)
+  revaluedAmountInr  Decimal          @db.Decimal(18, 2)
+  gainLossInr        Decimal          @db.Decimal(18, 2)
+
+  @@unique([runId, side, documentId])
+  @@index([runId, currencyCode])
+  @@map("fx_revaluation_lines")
+}
+
+model FinanceAdvanceApplication {
+  id                String             @id @default(uuid())
+  applicationNumber String             @unique
+  side              FinanceAdvanceSide
+  sourceId          String
+  targetInvoiceId   String
+  applicationDate   DateTime
+  currencyCode      String             @db.VarChar(3)
+  amount            Decimal            @db.Decimal(18, 2)
+  exchangeRateToInr Decimal            @default(1) @db.Decimal(18, 6)
+  journalEntryId    String             @unique
+  createdById       String
+  approvedById      String
+  createdAt         DateTime           @default(now())
+
+  @@index([side, sourceId])
+  @@index([side, targetInvoiceId])
+  @@map("finance_advance_applications")
+}
+
+// ── Stores Phase 3: Material Indent + Issue ──────────────────────────────
+//
+// Production raises a MaterialIndent for stock; Stores fulfils it with one or
+// more MaterialIssueNotes. Each issue generates a STOCK_OUT (a negative ON_HAND
+// StockAdjustment + StockBalance decrement) through the SAME ledger path as
+// the rest of inventory, and — crucially — reuses the existing availability
+// rule (available = onHand − reserved − blocked) so material reserved for one
+// project (via the BOM/Kickoff StockReservation system) can never be issued to
+// a different one. Short issues are allowed; the indent's status is DERIVED
+// from cumulative issued vs requested, never stored/set by hand.
+
+enum MaterialIndentStatus {
+  OPEN
+  PARTIALLY_ISSUED
+  FULLY_ISSUED
+  CANCELLED
+}
+
+/// Production's request for material against stock. Optionally tied to a
+/// project kickoff, which is what lets the issue honour that project's own
+/// reservations (and refuse to consume another project's).
+model MaterialIndent {
+  id           String               @id @default(uuid())
+  /// IND-YYYY-#### via the shared year-prefixed sequence (SalesNumberingService).
+  indentNumber String               @unique
+  status       MaterialIndentStatus @default(OPEN)
+
+  /// Optional link to the project this material is for. Drives reservation-aware
+  /// issuing: an issue against a kickoff-linked indent may draw on that
+  /// kickoff's reservations; a null link may only draw on unreserved stock.
+  projectKickoffId String?
+  projectKickoff   ProjectKickoff? @relation(fields: [projectKickoffId], references: [id], onDelete: SetNull)
+
+  itemId String
+  item   Item   @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  requestedQuantity Decimal   @db.Decimal(14, 4)
+  requiredByDate    DateTime?
+  notes             String?   @db.Text
+
+  raisedById String
+  raisedBy   Employee @relation("MaterialIndentRaisedBy", fields: [raisedById], references: [id], onDelete: Restrict)
+
+  issueNotes MaterialIssueNote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([itemId])
+  @@index([projectKickoffId])
+  @@map("material_indents")
+}
+
+/// A Stores issue of material against an indent. Each note issues a quantity
+/// from a specific store/bin location, generating a STOCK_OUT. Cumulative
+/// issued quantity across notes drives the parent indent's derived status.
+model MaterialIssueNote {
+  id        String @id @default(uuid())
+  /// MIN-YYYY-#### via the shared year-prefixed sequence.
+  minNumber String @unique
+
+  materialIndentId String
+  materialIndent   MaterialIndent @relation(fields: [materialIndentId], references: [id], onDelete: Restrict)
+
+  itemId String
+  item   Item   @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  storeLocationId String
+  storeLocation   StoreLocation @relation(fields: [storeLocationId], references: [id], onDelete: Restrict)
+
+  issuedQuantity Decimal @db.Decimal(14, 4)
+  /// Free-text bin location within the store (matches the reference ERP).
+  binLocation    String?
+  notes          String? @db.Text
+
+  issuedById String
+  issuedBy   Employee @relation("MaterialIssueIssuedBy", fields: [issuedById], references: [id], onDelete: Restrict)
+  issuedAt   DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([materialIndentId])
+  @@index([itemId])
+  @@map("material_issue_notes")
 }

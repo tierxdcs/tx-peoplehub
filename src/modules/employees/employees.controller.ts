@@ -231,6 +231,23 @@ export class EmployeesController {
     return this.employeesService.setInternalAuditor(id, false);
   }
 
+  @Patch(':id/designate-qc-inspector')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Designate this employee as a QC Inspector (MANAGER or above; multiple allowed)',
+  })
+  designateQcInspector(@Param('id') id: string) {
+    return this.employeesService.setQcInspector(id, true);
+  }
+
+  @Patch(':id/revoke-qc-inspector')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Revoke this employee’s QC Inspector designation' })
+  revokeQcInspector(@Param('id') id: string) {
+    return this.employeesService.setQcInspector(id, false);
+  }
+
   @Patch(':id/designate-rd-head')
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
   @ApiOperation({
@@ -246,6 +263,23 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Revoke this employee’s R&D Head designation' })
   revokeRdHead(@Param('id') id: string) {
     return this.employeesService.setRdHead(id, false);
+  }
+
+  @Patch(':id/designate-accounts-head')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Designate the sole Finance/Accounts Head (unsets the previous holder atomically)',
+  })
+  designateAccountsHead(@Param('id') id: string) {
+    return this.employeesService.designateAccountsHead(id);
+  }
+
+  @Patch(':id/revoke-accounts-head')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Revoke the Finance/Accounts Head designation' })
+  revokeAccountsHead(@Param('id') id: string) {
+    return this.employeesService.revokeAccountsHead(id);
   }
 
   @Patch(':id/reset-password')

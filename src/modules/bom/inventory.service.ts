@@ -211,6 +211,124 @@ export class InventoryService {
     return this.toBalanceEntity(fresh);
   }
 
+  /**
+   * Reservation-aware STOCK_OUT, composed INTO a caller's transaction (so the
+   * caller can create its own record — e.g. a MaterialIssueNote — atomically
+   * with the stock movement). This is the single implementation of the
+   * "can I take this stock out?" rule; Material Issue reuses it rather than
+   * re-deriving availability.
+   *
+   * The rule (same `available()` used everywhere): an issue may consume the
+   * unreserved available stock (onHand − reserved − blocked) PLUS the quantity
+   * reserved for THIS kickoff (if `kickoffId` is given). It may NEVER consume
+   * stock reserved for a different project — that reserved quantity is simply
+   * not part of this issue's effective availability, so the guard rejects it.
+   *
+   * Whatever portion is drawn from this kickoff's own reservation is released
+   * (both the aggregate balance.reservedQuantity and the StockReservation rows,
+   * FIFO) as part of the same movement, keeping availability consistent for the
+   * next issue.
+   */
+  async issueStockOutTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      itemId: string;
+      storeLocationId: string;
+      quantity: Prisma.Decimal;
+      reason: string;
+      actorId: string;
+      /** When set, this kickoff's own reservations are drawable. */
+      kickoffId?: string | null;
+    },
+  ): Promise<void> {
+    const { itemId, storeLocationId, quantity, reason, actorId, kickoffId } =
+      params;
+    if (quantity.lessThanOrEqualTo(0)) {
+      throw new BadRequestException('Issue quantity must be positive');
+    }
+
+    const balance = await tx.stockBalance.upsert({
+      where: { itemId_storeLocationId: { itemId, storeLocationId } },
+      create: { itemId, storeLocationId },
+      update: {},
+    });
+
+    const available = InventoryService.available(balance);
+
+    // Reservations belonging to THIS kickoff at THIS location are earmarked for
+    // this project and therefore drawable by this issue. Reservations for any
+    // other project are not, so they never enter effectiveAvailable.
+    let reservedForThisKickoff = new Prisma.Decimal(0);
+    if (kickoffId) {
+      const own = await tx.stockReservation.findMany({
+        where: { kickoffId, itemId, storeLocationId, isActive: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      reservedForThisKickoff = own.reduce(
+        (s, r) => s.plus(r.quantity),
+        new Prisma.Decimal(0),
+      );
+    }
+    const effectiveAvailable = available.plus(reservedForThisKickoff);
+
+    if (quantity.greaterThan(effectiveAvailable)) {
+      throw new BadRequestException(
+        `Issue of ${quantity} exceeds issuable stock (${effectiveAvailable}) at this location — it would drive available stock negative or consume material reserved for another project`,
+      );
+    }
+
+    // Portion that has to come out of this kickoff's reservation (only once the
+    // unreserved available is exhausted). Bounded by reservedForThisKickoff via
+    // the guard above.
+    const fromReservation = quantity.greaterThan(available)
+      ? quantity.minus(available)
+      : new Prisma.Decimal(0);
+
+    await tx.stockBalance.update({
+      where: { id: balance.id },
+      data: {
+        onHandQuantity: balance.onHandQuantity.minus(quantity),
+        reservedQuantity: balance.reservedQuantity.minus(fromReservation),
+      },
+    });
+
+    // Consume this kickoff's StockReservation rows FIFO for the drawn portion,
+    // so reservedForThisKickoff stays accurate for subsequent issues.
+    if (fromReservation.greaterThan(0) && kickoffId) {
+      let remaining = fromReservation;
+      const own = await tx.stockReservation.findMany({
+        where: { kickoffId, itemId, storeLocationId, isActive: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      for (const r of own) {
+        if (remaining.lessThanOrEqualTo(0)) break;
+        const take = Prisma.Decimal.min(remaining, r.quantity);
+        const nextQty = r.quantity.minus(take);
+        await tx.stockReservation.update({
+          where: { id: r.id },
+          data: {
+            quantity: nextQty,
+            ...(nextQty.lessThanOrEqualTo(0)
+              ? { isActive: false, cancelledById: actorId, cancelledAt: new Date() }
+              : {}),
+          },
+        });
+        remaining = remaining.minus(take);
+      }
+    }
+
+    await tx.stockAdjustment.create({
+      data: {
+        itemId,
+        storeLocationId,
+        bucket: StockBucket.ON_HAND,
+        quantityChange: quantity.negated(),
+        reason,
+        actorId,
+      },
+    });
+  }
+
   async adjustmentHistory(
     itemId: string,
     user: AuthenticatedUser,

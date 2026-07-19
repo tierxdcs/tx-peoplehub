@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { PrismaService } from './core/database/prisma.service';
 
@@ -12,11 +13,15 @@ async function bootstrap() {
   // eslint-disable-next-line no-console
   console.log(`Booting tx-peoplehub API (PORT=${process.env.PORT ?? '3000'})`);
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
   const config = app.get(ConfigService);
 
   // Parse cookies (refresh-token cookie for the auth flow).
   app.use(cookieParser());
+  // Finance statement CSVs are submitted as UTF-8 text inside JSON. Keep a
+  // bounded 5 MB limit rather than Express's 100 KB default.
+  app.use(json({ limit: '5mb' }));
+  app.use(urlencoded({ extended: true, limit: '5mb' }));
 
   // Validate + transform all incoming DTOs; strip unknown properties.
   app.useGlobalPipes(

@@ -31,6 +31,8 @@ export default function RootPage() {
         isSalesStaff,
         isSalesHead: false,
         isRndHead: false,
+        isFinanceUser: false,
+        isAccountsHead: false,
         isRndStaff: false,
         isStoreStaff: false,
         payslipsEnabled,

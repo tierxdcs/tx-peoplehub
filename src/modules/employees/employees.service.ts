@@ -674,6 +674,41 @@ export class EmployeesService {
   }
 
   /**
+   * Designate the sole Finance/Accounts Head. SUPER_ADMIN authorization is
+   * enforced by the controller. The target may be in any vertical, per the
+   * business rule, but must be active. Existing holders are unset atomically.
+   */
+  async designateAccountsHead(id: string): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (target.status !== EmployeeStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Only an active employee can be designated as Finance/Accounts Head',
+      );
+    }
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.employee.updateMany({
+        where: { isAccountsHead: true, id: { not: id } },
+        data: { isAccountsHead: false },
+      });
+      return tx.employee.update({
+        where: { id },
+        data: { isAccountsHead: true },
+      });
+    });
+    return this.toEntity(updated);
+  }
+
+  async revokeAccountsHead(id: string): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (!target.isAccountsHead) return this.toEntity(target);
+    const updated = await this.prisma.employee.update({
+      where: { id },
+      data: { isAccountsHead: false },
+    });
+    return this.toEntity(updated);
+  }
+
+  /**
    * Designate / revoke a Scrum Master. Unlike Sales Head, MULTIPLE holders are
    * allowed (company-wide capability), so this is a simple per-employee flag
    * set — no "unset others" step.
@@ -756,6 +791,41 @@ export class EmployeesService {
     const updated = await this.prisma.employee.update({
       where: { id },
       data: { isInternalAuditor },
+    });
+    return this.toEntity(updated);
+  }
+
+  /**
+   * QC Inspector designation — multi-holder capability, MANAGER-or-above only,
+   * SUPER_ADMIN always implicit in the access layer. This is DISTINCT from
+   * Internal Auditor: an internal auditor qualifies suppliers, a QC inspector
+   * inspects incoming goods (GRN quantities) at the QC gate. They are usually
+   * different people, hence a separate flag.
+   */
+  async setQcInspector(
+    id: string,
+    isQcInspector: boolean,
+  ): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (isQcInspector) {
+      if (target.status !== EmployeeStatus.ACTIVE) {
+        throw new BadRequestException(
+          'Only an active employee can be designated as a QC Inspector',
+        );
+      }
+      const eligible =
+        target.role === Role.MANAGER ||
+        target.role === Role.ADMIN ||
+        target.role === Role.SUPER_ADMIN;
+      if (!eligible) {
+        throw new BadRequestException(
+          'Only an employee with role MANAGER or above can be a QC Inspector',
+        );
+      }
+    }
+    const updated = await this.prisma.employee.update({
+      where: { id },
+      data: { isQcInspector },
     });
     return this.toEntity(updated);
   }
@@ -1054,7 +1124,9 @@ export class EmployeesService {
       isScrumMaster: employee.isScrumMaster,
       isProjectManager: employee.isProjectManager,
       isInternalAuditor: employee.isInternalAuditor,
+      isQcInspector: employee.isQcInspector,
       isRdHead: employee.isRdHead,
+      isAccountsHead: employee.isAccountsHead,
       officialEmail: employee.officialEmail,
       signatureText: employee.signatureText,
       signatureFont: employee.signatureFont,

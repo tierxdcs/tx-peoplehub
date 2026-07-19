@@ -9,6 +9,7 @@ import { useIsSalesHead } from '../lib/use-is-sales-head';
 import { useIsRndHead } from '../lib/use-is-rnd-head';
 import { useIsRndStaff } from '../lib/use-is-rnd-staff';
 import { useIsStoreStaff } from '../lib/use-is-store-staff';
+import { useFinanceAccess } from '../lib/use-finance-access';
 import { usePendingApprovalCounts } from '../lib/use-pending-approval-counts';
 import {
   activeModule as resolveActiveModule,
@@ -34,6 +35,12 @@ export default function ProtectedLayout({
   const { isRndHead, loading: rndHeadLoading } = useIsRndHead();
   const { isRndStaff, loading: rndStaffLoading } = useIsRndStaff();
   const { isStoreStaff, loading: storeLoading } = useIsStoreStaff();
+  const {
+    isFinanceUser,
+    isAccountsHead,
+    isFinanceAuditor,
+    loading: financeLoading,
+  } = useFinanceAccess();
   const { counts } = usePendingApprovalCounts();
   const router = useRouter();
   const pathname = usePathname();
@@ -54,6 +61,7 @@ export default function ProtectedLayout({
     rndHeadLoading ||
     rndStaffLoading ||
     storeLoading ||
+    financeLoading ||
     !user
   ) {
     return null;
@@ -68,6 +76,9 @@ export default function ProtectedLayout({
     isRndHead,
     isRndStaff,
     isStoreStaff,
+    isFinanceUser,
+    isFinanceAuditor,
+    isAccountsHead,
     payslipsEnabled,
   };
 
@@ -87,7 +98,8 @@ export default function ProtectedLayout({
         '/admin/leave-approvals': counts.leaveApprovals,
         '/admin/pending-access': counts.hrPendingAccess,
         '/sales/bids/pending-approval': counts.bidDiscountApprovals,
-        '/sales/bid-assessments/pending-approval': counts.bidAssessmentApprovals,
+        '/sales/bid-assessments/pending-approval':
+          counts.bidAssessmentApprovals,
         '/sales/confirmation-sheets/pending-approval':
           counts.confirmationSheetsPending,
       }

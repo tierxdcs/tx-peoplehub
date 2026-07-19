@@ -1,9 +1,11 @@
 import {
   AccessStatus,
+  AccountType,
   BidAssessmentQuestionType,
   LeaveAccrualType,
   PrismaClient,
   Role,
+  NormalBalance,
   VaultFolderType,
   VaultVisibilityScope,
 } from '@prisma/client';
@@ -22,6 +24,183 @@ const VERTICALS: Array<{ name: string; code: string }> = [
 /// Default store/warehouse locations for the inventory MVP (idempotent).
 const STORE_LOCATIONS: Array<{ code: string; name: string }> = [
   { code: 'MAIN', name: 'Main Store' },
+];
+
+const CURRENCIES = [
+  { code: 'INR', name: 'Indian Rupee', symbol: '₹', isBase: true },
+  { code: 'USD', name: 'US Dollar', symbol: '$', isBase: false },
+  { code: 'CAD', name: 'Canadian Dollar', symbol: 'C$', isBase: false },
+  { code: 'EUR', name: 'Euro', symbol: '€', isBase: false },
+];
+
+const BASE_ACCOUNTS: Array<{
+  code: string;
+  name: string;
+  accountType: AccountType;
+  normalBalance: NormalBalance;
+  isControlAccount?: boolean;
+}> = [
+  {
+    code: '1000',
+    name: 'Cash and Bank',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: '1100',
+    name: 'Accounts Receivable',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+    isControlAccount: true,
+  },
+  {
+    code: '1200',
+    name: 'Inventory',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+    isControlAccount: true,
+  },
+  {
+    code: '1300',
+    name: 'Input GST',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+    isControlAccount: true,
+  },
+  {
+    code: '1400',
+    name: 'TDS Receivable',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+    isControlAccount: true,
+  },
+  {
+    code: '1500',
+    name: 'Supplier Advances',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+    isControlAccount: true,
+  },
+  {
+    code: '1600',
+    name: 'Property, Plant and Equipment',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+    isControlAccount: true,
+  },
+  {
+    code: '1650',
+    name: 'Accumulated Depreciation',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.CREDIT,
+    isControlAccount: true,
+  },
+  {
+    code: '1700',
+    name: 'Prepaid Expenses',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: '2000',
+    name: 'Accounts Payable',
+    accountType: AccountType.LIABILITY,
+    normalBalance: NormalBalance.CREDIT,
+    isControlAccount: true,
+  },
+  {
+    code: '2100',
+    name: 'Output GST',
+    accountType: AccountType.LIABILITY,
+    normalBalance: NormalBalance.CREDIT,
+    isControlAccount: true,
+  },
+  {
+    code: '2200',
+    name: 'TDS Payable',
+    accountType: AccountType.LIABILITY,
+    normalBalance: NormalBalance.CREDIT,
+    isControlAccount: true,
+  },
+  {
+    code: '2300',
+    name: 'Customer Advances',
+    accountType: AccountType.LIABILITY,
+    normalBalance: NormalBalance.CREDIT,
+    isControlAccount: true,
+  },
+  {
+    code: '2400',
+    name: 'Accrued Expenses',
+    accountType: AccountType.LIABILITY,
+    normalBalance: NormalBalance.CREDIT,
+  },
+  {
+    code: '3000',
+    name: 'Owner Equity',
+    accountType: AccountType.EQUITY,
+    normalBalance: NormalBalance.CREDIT,
+  },
+  {
+    code: '4000',
+    name: 'Sales Revenue',
+    accountType: AccountType.REVENUE,
+    normalBalance: NormalBalance.CREDIT,
+  },
+  {
+    code: '5000',
+    name: 'Cost of Goods Sold',
+    accountType: AccountType.COST_OF_GOODS_SOLD,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: '6000',
+    name: 'Employee Costs',
+    accountType: AccountType.EXPENSE,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: '6100',
+    name: 'Administrative Expenses',
+    accountType: AccountType.EXPENSE,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: '6200',
+    name: 'Sales and Marketing Expenses',
+    accountType: AccountType.EXPENSE,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: '6300',
+    name: 'R&D Expenses',
+    accountType: AccountType.EXPENSE,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: '6400',
+    name: 'Finance Costs',
+    accountType: AccountType.EXPENSE,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: '6500',
+    name: 'Depreciation Expense',
+    accountType: AccountType.EXPENSE,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: '7000',
+    name: 'Other Income',
+    accountType: AccountType.OTHER_INCOME,
+    normalBalance: NormalBalance.CREDIT,
+  },
+  {
+    code: '8000',
+    name: 'Other Expenses',
+    accountType: AccountType.OTHER_EXPENSE,
+    normalBalance: NormalBalance.DEBIT,
+  },
 ];
 
 const LEAVE_TYPES: Array<{
@@ -247,6 +426,19 @@ export async function seed(prisma: PrismaClient): Promise<void> {
     });
   }
 
+  for (const currency of CURRENCIES) {
+    await prisma.currency.upsert({
+      where: { code: currency.code },
+      update: {
+        name: currency.name,
+        symbol: currency.symbol,
+        isBase: currency.isBase,
+        isActive: true,
+      },
+      create: currency,
+    });
+  }
+
   // Seed the Bid/No-Bid questionnaire only when empty (no unique key to
   // upsert on) — preserves any Admin edits on re-seed.
   const questionCount = await prisma.bidAssessmentQuestion.count();
@@ -263,7 +455,8 @@ export async function seed(prisma: PrismaClient): Promise<void> {
     }
   }
 
-  const email = process.env.SEED_ADMIN_EMAIL ?? 'nithin.gangadhar@phaze-dynamics.com';
+  const email =
+    process.env.SEED_ADMIN_EMAIL ?? 'nithin.gangadhar@phaze-dynamics.com';
   const password = process.env.SEED_ADMIN_PASSWORD ?? 'ChangeMe123!';
   const passwordHash = await bcrypt.hash(password, 10);
 
@@ -281,6 +474,14 @@ export async function seed(prisma: PrismaClient): Promise<void> {
         accessStatus: AccessStatus.ACTIVE,
       },
     }));
+
+  for (const account of BASE_ACCOUNTS) {
+    await prisma.ledgerAccount.upsert({
+      where: { code: account.code },
+      update: {},
+      create: { ...account, createdById: superAdmin.id },
+    });
+  }
 
   // Default Vault folders — owned by the SUPER_ADMIN, seeded idempotently
   // (created only when an identical DEFAULT folder isn't already present).

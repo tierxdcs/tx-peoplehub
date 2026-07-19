@@ -177,6 +177,38 @@ export default function EditEmployeePage() {
     }
   }
 
+  async function setQcInspector(next: boolean) {
+    if (!employee) return;
+    const ok = await confirm({
+      title: next ? 'Designate QC Inspector' : 'Revoke QC Inspector',
+      description: next
+        ? `Designate ${employee.firstName} ${employee.lastName} as a QC Inspector? They’ll be able to inspect incoming goods and finalize the QC gate on Goods Receipt Notes.`
+        : `Revoke ${employee.firstName} ${employee.lastName}’s QC Inspector designation?`,
+      confirmLabel: next ? 'Designate' : 'Revoke',
+      destructive: !next,
+    });
+    if (!ok) return;
+    setDesignating(true);
+    try {
+      await apiFetch(
+        `/employees/${employee.id}/${next ? 'designate' : 'revoke'}-qc-inspector`,
+        { method: 'PATCH' },
+      );
+      toast.success(
+        next ? 'QC Inspector designated' : 'QC Inspector revoked',
+      );
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to update QC Inspector designation',
+      );
+    } finally {
+      setDesignating(false);
+    }
+  }
+
   async function setRdHead(next: boolean) {
     if (!employee) return;
     const ok = await confirm({
@@ -202,6 +234,32 @@ export default function EditEmployeePage() {
           ? err.message
           : 'Failed to update R&D Head designation',
       );
+    } finally {
+      setDesignating(false);
+    }
+  }
+
+  async function setAccountsHead(next: boolean) {
+    if (!employee) return;
+    const ok = await confirm({
+      title: next ? 'Designate Finance/Accounts Head' : 'Revoke Finance/Accounts Head',
+      description: next
+        ? `Designate ${employee.firstName} ${employee.lastName} as the sole Finance/Accounts Head? Any existing holder will be replaced.`
+        : `Revoke ${employee.firstName} ${employee.lastName}’s Finance/Accounts Head designation? Finance approvals will stop until a new head is assigned.`,
+      confirmLabel: next ? 'Designate' : 'Revoke',
+      destructive: !next,
+    });
+    if (!ok) return;
+    setDesignating(true);
+    try {
+      await apiFetch(
+        `/employees/${employee.id}/${next ? 'designate' : 'revoke'}-accounts-head`,
+        { method: 'PATCH' },
+      );
+      toast.success(next ? 'Finance/Accounts Head designated' : 'Finance/Accounts Head revoked');
+      await load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to update Finance/Accounts Head');
     } finally {
       setDesignating(false);
     }
@@ -284,7 +342,11 @@ export default function EditEmployeePage() {
         {employee.isInternalAuditor && (
           <Badge variant="info">Internal Auditor</Badge>
         )}
+        {employee.isQcInspector && (
+          <Badge variant="info">QC Inspector</Badge>
+        )}
         {employee.isRdHead && <Badge variant="info">R&D Head</Badge>}
+        {employee.isAccountsHead && <Badge variant="info">Finance/Accounts Head</Badge>}
       </h1>
 
       {/* Sales Head designation — only meaningful for Sales-vertical staff. */}
@@ -370,6 +432,36 @@ export default function EditEmployeePage() {
         </Card>
       )}
 
+      {/* QC Inspector designation — role MANAGER or above, any vertical.
+          Multi-holder flag flip; inspects incoming goods at the GRN QC gate.
+          Distinct from Internal Auditor (supplier auditing vs. incoming-goods
+          inspection). */}
+      {managerOrAbove && (
+        <Card className="my-4 max-w-xl">
+          <CardContent className="flex items-center justify-between gap-4 p-4">
+            <div className="text-sm">
+              <div className="font-medium">QC Inspector designation</div>
+              <div className="text-muted-foreground">
+                {employee.isQcInspector
+                  ? 'This employee is a QC Inspector and can inspect incoming goods and finalize the GRN QC gate.'
+                  : 'Not a QC Inspector. Designate to allow inspecting incoming goods on Goods Receipt Notes.'}
+              </div>
+            </div>
+            {canDesignate && (
+              <Button
+                variant={employee.isQcInspector ? 'destructive' : 'outline'}
+                disabled={designating}
+                onClick={() => setQcInspector(!employee.isQcInspector)}
+              >
+                {employee.isQcInspector
+                  ? 'Revoke QC Inspector'
+                  : 'Designate as QC Inspector'}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* R&D Head designation — grants technical BOM approval + Item Master
           authority (multi-holder). The R&D Head is the BOM approver. Shown to
           any admin so the control is discoverable; the button is enabled only
@@ -396,6 +488,30 @@ export default function EditEmployeePage() {
                 onClick={() => setRdHead(!employee.isRdHead)}
               >
                 {employee.isRdHead ? 'Revoke R&D Head' : 'Designate as R&D Head'}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {(isSuperAdmin || employee.isAccountsHead) && (
+        <Card className="my-4 max-w-xl">
+          <CardContent className="flex items-center justify-between gap-4 p-4">
+            <div className="text-sm">
+              <div className="font-medium">Finance/Accounts Head designation</div>
+              <div className="text-muted-foreground">
+                {employee.isAccountsHead
+                  ? 'This employee is the sole approver for all Finance & Accounts transactions.'
+                  : 'Designate as the sole Finance & Accounts approver. Any current holder will be replaced.'}
+              </div>
+            </div>
+            {isSuperAdmin && (
+              <Button
+                variant={employee.isAccountsHead ? 'destructive' : 'outline'}
+                disabled={designating}
+                onClick={() => setAccountsHead(!employee.isAccountsHead)}
+              >
+                {employee.isAccountsHead ? 'Revoke Accounts Head' : 'Designate as Accounts Head'}
               </Button>
             )}
           </CardContent>

@@ -1,0 +1,1 @@
+import {Module} from '@nestjs/common'; import {FinanceModule} from '../finance/finance.module'; import {TreasuryController} from './treasury.controller'; import {TreasuryService} from './treasury.service'; @Module({imports:[FinanceModule],controllers:[TreasuryController],providers:[TreasuryService]}) export class FinanceTreasuryModule{}

@@ -66,9 +66,21 @@ export class EmployeeEntity {
 
   @ApiProperty({
     description:
+      'Whether this employee is a designated QC Inspector (incoming-goods QC gate authority)',
+  })
+  isQcInspector!: boolean;
+
+  @ApiProperty({
+    description:
       'Whether this employee is a designated R&D Head (technical BOM approval authority)',
   })
   isRdHead!: boolean;
+
+  @ApiProperty({
+    description:
+      'Whether this employee is the sole designated Finance/Accounts Head',
+  })
+  isAccountsHead!: boolean;
 
   @ApiProperty({ nullable: true })
   officialEmail!: string | null;

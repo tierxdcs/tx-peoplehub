@@ -175,6 +175,39 @@ describe('EmployeesService', () => {
     });
   });
 
+  describe('Finance/Accounts Head designation', () => {
+    it('rejects designation of an inactive employee', async () => {
+      prisma.employee.findUnique.mockResolvedValue({
+        ...employee,
+        status: EmployeeStatus.INACTIVE,
+        isAccountsHead: false,
+      });
+      await expect(
+        service.designateAccountsHead(employee.id),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('atomically clears the previous holder and designates the target', async () => {
+      const target = { ...employee, isAccountsHead: false };
+      const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      const update = jest
+        .fn()
+        .mockResolvedValue({ ...target, isAccountsHead: true });
+      prisma.employee.findUnique.mockResolvedValue(target);
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({ employee: { updateMany, update } }),
+      );
+
+      const result = await service.designateAccountsHead(employee.id);
+
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { isAccountsHead: true, id: { not: employee.id } },
+        data: { isAccountsHead: false },
+      });
+      expect(result.isAccountsHead).toBe(true);
+    });
+  });
+
   describe('update', () => {
     it('rejects reassigning an employee to report to themselves', async () => {
       prisma.employee.findUnique.mockResolvedValueOnce(employee); // findRawOrThrow

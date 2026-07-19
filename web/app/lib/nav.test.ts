@@ -31,6 +31,8 @@ function access(
     isSalesStaff: opts.isSalesStaff ?? false,
     isSalesHead: opts.isSalesHead ?? false,
     isRndHead: opts.isRndHead ?? false,
+    isFinanceUser: false,
+    isAccountsHead: false,
     isRndStaff: opts.isRndStaff ?? false,
     isStoreStaff: opts.isStoreStaff ?? false,
     payslipsEnabled: false,
@@ -155,6 +157,27 @@ describe('sidebarNav — the reported bug', () => {
     const shown = labels(a, activeModule('/profile', availableModules(a)));
     expect(shown).not.toContain('Item Master');
     expect(shown).not.toContain('Inventory');
+  });
+
+  it('Purchase Orders live in the company-wide SCM group (everyone sees it)', () => {
+    const a = access('EMPLOYEE');
+    const shown = labels(a, activeModule('/profile', availableModules(a)));
+    expect(shown).toContain('Purchase Orders');
+  });
+
+  it('Store staff see the Store Management receiving items (GRN / NCR / Material Issue)', () => {
+    const a = access('EMPLOYEE', { isStoreStaff: true });
+    const shown = labels(a, activeModule('/stores/grn', availableModules(a)));
+    expect(shown).toContain('GRN Register');
+    expect(shown).toContain('Non-Conformance');
+    expect(shown).toContain('Material Issue');
+  });
+
+  it('a non-Store, non-SuperAdmin user does NOT see the Store receiving items', () => {
+    const a = access('EMPLOYEE');
+    const shown = labels(a, activeModule('/profile', availableModules(a)));
+    expect(shown).not.toContain('GRN Register');
+    expect(shown).not.toContain('Material Issue');
   });
 
   it('SUPER_ADMIN sees both Engineering and Store Management without the flags', () => {

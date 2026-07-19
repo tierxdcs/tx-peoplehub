@@ -65,4 +65,6 @@ export const envValidationSchema = Joi.object({
   GOTENBERG_URL: Joi.string().uri().optional(),
   // Per-conversion timeout in ms (Office → PDF can be slow for large docs).
   GOTENBERG_TIMEOUT_MS: Joi.number().default(60000),
+  GST_GATEWAY_URL: Joi.string().uri().optional(),
+  GST_GATEWAY_TOKEN: Joi.string().optional(),
 });
