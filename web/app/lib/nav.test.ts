@@ -96,8 +96,8 @@ describe('sidebarNav — the reported bug', () => {
       access('SUPER_ADMIN'),
       access('EMPLOYEE'),
     ]) {
-      const module = activeModule('/dashboard', availableModules(a));
-      const groups = sidebarNav(a, module);
+      const activeNavModule = activeModule('/dashboard', availableModules(a));
+      const groups = sidebarNav(a, activeNavModule);
       expect(groups[0]).toEqual({
         heading: 'Home',
         items: [{ label: 'Dashboard', href: '/dashboard' }],
