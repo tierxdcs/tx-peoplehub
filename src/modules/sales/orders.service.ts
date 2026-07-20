@@ -40,7 +40,12 @@ const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 type OrderLineItemWithProduct = OrderLineItem & {
   product: { name: string; sku: string };
 };
-type OrderWithLines = Order & { lineItems: OrderLineItemWithProduct[] };
+type OrderWithLines = Order & {
+  lineItems: OrderLineItemWithProduct[];
+  enquiryCreator?: { firstName: string; lastName: string } | null;
+  owner: { firstName: string; lastName: string };
+  businessUnit?: { name: string; colorHex: string } | null;
+};
 
 @Injectable()
 export class OrdersService {
@@ -96,6 +101,8 @@ export class OrdersService {
           bidId: bid.id,
           customerId: bid.customerId,
           ownerId: bid.createdById,
+          enquiryCreatorId: bid.enquiryCreatorId,
+          businessUnitId: bid.businessUnitId,
           // Snapshot the accepted bid's total as the order's booked value.
           totalAmount: bid.totalAmount,
           lineItems: {
@@ -107,7 +114,12 @@ export class OrdersService {
             })),
           },
         },
-        include: { lineItems: { include: { product: true } } },
+        include: {
+          lineItems: { include: { product: true } },
+          enquiryCreator: { select: { firstName: true, lastName: true } },
+          owner: { select: { firstName: true, lastName: true } },
+          businessUnit: { select: { name: true, colorHex: true } },
+        },
       });
     });
     return this.toEntity(created);
@@ -124,7 +136,12 @@ export class OrdersService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
         where,
-        include: { lineItems: { include: { product: true } } },
+        include: {
+          lineItems: { include: { product: true } },
+          enquiryCreator: { select: { firstName: true, lastName: true } },
+          owner: { select: { firstName: true, lastName: true } },
+          businessUnit: { select: { name: true, colorHex: true } },
+        },
         skip: query.skip,
         take: query.limit,
         orderBy: { createdAt: 'desc' },
@@ -174,7 +191,10 @@ export class OrdersService {
     const updated = await this.prisma.order.update({
       where: { id },
       data: { status: target },
-      include: { lineItems: { include: { product: true } } },
+      include: {
+        lineItems: { include: { product: true } },
+        owner: { select: { firstName: true, lastName: true } },
+      },
     });
     return this.toEntity(updated);
   }
@@ -182,7 +202,12 @@ export class OrdersService {
   private async findRawOrThrow(id: string): Promise<OrderWithLines> {
     const order = await this.prisma.order.findUnique({
       where: { id },
-      include: { lineItems: { include: { product: true } } },
+      include: {
+        lineItems: { include: { product: true } },
+        enquiryCreator: { select: { firstName: true, lastName: true } },
+        owner: { select: { firstName: true, lastName: true } },
+        businessUnit: { select: { name: true, colorHex: true } },
+      },
     });
     if (!order) {
       throw new NotFoundException('Order not found');
@@ -201,6 +226,14 @@ export class OrdersService {
       productionRunId: order.productionRunId,
       shipmentId: order.shipmentId,
       ownerId: order.ownerId,
+      enquiryCreatorId: order.enquiryCreatorId,
+      enquiryCreatorName: order.enquiryCreator
+        ? `${order.enquiryCreator.firstName} ${order.enquiryCreator.lastName}`.trim()
+        : null,
+      ownerName: `${order.owner.firstName} ${order.owner.lastName}`.trim(),
+      businessUnitId: order.businessUnitId,
+      businessUnitName: order.businessUnit?.name ?? null,
+      businessUnitColorHex: order.businessUnit?.colorHex ?? null,
       lineItems: order.lineItems.map(
         (li) =>
           new OrderLineItemEntity({

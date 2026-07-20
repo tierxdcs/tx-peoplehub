@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, CalendarDays, Download, FileText } from 'lucide-react';
+import {
+  ArrowLeft,
+  CalendarDays,
+  Download,
+  FileText,
+  UserRound,
+} from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
 import { Bid, Customer, Employee } from '../../../../lib/types';
@@ -20,6 +26,7 @@ import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
+import { BusinessUnitLabel } from '../../../../components/ui/business-unit-label';
 import { ProcessFlow } from '../../../../components/ui/process-flow';
 import { bidFlow } from '../../../../lib/record-flows';
 import {
@@ -101,7 +108,11 @@ export default function BidDetailPage() {
   async function act(
     path: string,
     body?: Record<string, unknown>,
-    confirmOpts?: { title: string; description?: string; destructive?: boolean },
+    confirmOpts?: {
+      title: string;
+      description?: string;
+      destructive?: boolean;
+    },
   ) {
     // Every action confirms first. A caller may supply a specific prompt;
     // otherwise fall back to a generic one so nothing fires unconfirmed.
@@ -201,336 +212,368 @@ export default function BidDetailPage() {
       />
 
       <PageContainer>
-      <Link
-        href="/sales/bids"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Bids
-      </Link>
+        <Link
+          href="/sales/bids"
+          className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" /> Bids
+        </Link>
 
-      {/* Header row: number + status on the left, actions on the right */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {bid.bidNumber}
-          </h1>
-          <StatusBadge value={bid.status} />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={printProposal}>
-            <Download /> Download PDF
-          </Button>
-          {(bid.status === 'DRAFT' || bid.status === 'REJECTED') && (
-            <Button
-              disabled={acting}
-              onClick={() =>
-                act(
-                  'submit',
-                  undefined,
-                  Number(bid.discountPercent) > 10
-                    ? {
-                        title: 'Submit for approval?',
-                        description:
-                          'Discount exceeds 10% — this will route to your manager for approval.',
-                      }
-                    : undefined,
-                )
-              }
-            >
-              {acting ? '…' : 'Submit'}
+        {/* Header row: number + status on the left, actions on the right */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {bid.bidNumber}
+            </h1>
+            <StatusBadge value={bid.status} />
+            <BusinessUnitLabel
+              name={bid.businessUnitName}
+              colorHex={bid.businessUnitColorHex}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={printProposal}>
+              <Download /> Download PDF
             </Button>
-          )}
-          {bid.status === 'APPROVED' && (
-            <Button
-              disabled={acting}
-              onClick={() =>
-                act('status', { status: 'SENT' }, {
-                  title: 'Mark as Sent?',
-                  description: 'Record this bid as sent to the customer.',
-                })
-              }
-            >
-              Mark as Sent
-            </Button>
-          )}
-          {bid.status === 'SENT' && (
-            <Button
-              disabled={acting}
-              onClick={() =>
-                act('status', { status: 'ACCEPTED' }, {
-                  title: 'Mark as Accepted?',
-                  description: 'Record the customer as having accepted this bid.',
-                })
-              }
-            >
-              Mark as Accepted
-            </Button>
-          )}
-          {bid.status === 'ACCEPTED' &&
-            (bid.convertedOrderId ? (
-              // Already converted — a bid maps to at most one order. Offer a
-              // link to it instead of a dead "Convert" that the API rejects.
+            {(bid.status === 'DRAFT' || bid.status === 'REJECTED') && (
+              <Button
+                disabled={acting}
+                onClick={() =>
+                  act(
+                    'submit',
+                    undefined,
+                    Number(bid.discountPercent) > 10
+                      ? {
+                          title: 'Submit for approval?',
+                          description:
+                            'Discount exceeds 10% — this will route to your manager for approval.',
+                        }
+                      : undefined,
+                  )
+                }
+              >
+                {acting ? '…' : 'Submit'}
+              </Button>
+            )}
+            {bid.status === 'APPROVED' && (
+              <Button
+                disabled={acting}
+                onClick={() =>
+                  act(
+                    'status',
+                    { status: 'SENT' },
+                    {
+                      title: 'Mark as Sent?',
+                      description: 'Record this bid as sent to the customer.',
+                    },
+                  )
+                }
+              >
+                Mark as Sent
+              </Button>
+            )}
+            {bid.status === 'SENT' && (
+              <Button
+                disabled={acting}
+                onClick={() =>
+                  act(
+                    'status',
+                    { status: 'ACCEPTED' },
+                    {
+                      title: 'Mark as Accepted?',
+                      description:
+                        'Record the customer as having accepted this bid.',
+                    },
+                  )
+                }
+              >
+                Mark as Accepted
+              </Button>
+            )}
+            {bid.status === 'ACCEPTED' &&
+              (bid.convertedOrderId ? (
+                // Already converted — a bid maps to at most one order. Offer a
+                // link to it instead of a dead "Convert" that the API rejects.
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    router.push(`/sales/orders/${bid.convertedOrderId}`)
+                  }
+                >
+                  View Order
+                </Button>
+              ) : (
+                <Button disabled={acting} onClick={convertToOrder}>
+                  Convert to Order
+                </Button>
+              ))}
+            {(bid.status === 'DRAFT' || bid.status === 'REJECTED') && (
               <Button
                 variant="outline"
                 onClick={() =>
-                  router.push(`/sales/orders/${bid.convertedOrderId}`)
+                  router.push(
+                    `/sales/bids/new?opportunityId=${bid.opportunityId}`,
+                  )
                 }
               >
-                View Order
+                New revised bid
               </Button>
-            ) : (
-              <Button disabled={acting} onClick={convertToOrder}>
-                Convert to Order
-              </Button>
-            ))}
-          {(bid.status === 'DRAFT' || bid.status === 'REJECTED') && (
-            <Button
-              variant="outline"
-              onClick={() =>
-                router.push(`/sales/bids/new?opportunityId=${bid.opportunityId}`)
-              }
-            >
-              New revised bid
-            </Button>
-          )}
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Live flow indicator — current stage derived from the bid's status. */}
-      <ProcessFlow
-        title="Bid progress"
-        className="mb-4"
-        {...bidFlow(bid.status)}
-      />
+        {/* Live flow indicator — current stage derived from the bid's status. */}
+        <ProcessFlow
+          title="Bid progress"
+          className="mb-4"
+          {...bidFlow(bid.status)}
+        />
 
-      {/* Metadata card: Valid until / Tender reference, two-column with icons */}
-      <Card className="mb-4">
-        <CardContent className="grid gap-6 p-6 sm:grid-cols-2">
-          <div className="flex items-start gap-3">
-            <CalendarDays className="mt-0.5 size-5 text-muted-foreground" />
-            <div>
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Valid until
-              </div>
-              <div className="mt-0.5 text-sm font-medium">
-                {bid.validUntil.slice(0, 10)}
+        {/* Metadata card: Valid until / Tender reference, two-column with icons */}
+        <Card className="mb-4">
+          <CardContent className="grid gap-6 p-6 sm:grid-cols-3">
+            <div className="flex items-start gap-3">
+              <CalendarDays className="mt-0.5 size-5 text-muted-foreground" />
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Valid until
+                </div>
+                <div className="mt-0.5 text-sm font-medium">
+                  {bid.validUntil.slice(0, 10)}
+                </div>
               </div>
             </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <FileText className="mt-0.5 size-5 text-muted-foreground" />
-            <div>
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Tender reference
-              </div>
-              <div className="mt-0.5 text-sm font-medium">
-                {bid.tenderReferenceNumber || '—'}
+            <div className="flex items-start gap-3">
+              <UserRound className="mt-0.5 size-5 text-muted-foreground" />
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Owner
+                </div>
+                <div className="mt-0.5 text-sm font-medium">
+                  {bid.ownerName}
+                </div>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Technical specification card */}
-      {bid.technicalSpecification && (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              Technical specification
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="whitespace-pre-wrap text-sm">
-              {bid.technicalSpecification}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Attachments (reference links) */}
-      {bid.attachments && bid.attachments.length > 0 && (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              Attachments (reference links)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 pt-0 text-sm">
-            {bid.attachments.map((a, i) => (
-              <div key={i}>
-                {String((a as Record<string, unknown>).filename ?? '')}{' '}
-                {(a as Record<string, unknown>).url ? (
-                  <a
-                    className="text-primary underline-offset-4 hover:underline"
-                    href={String((a as Record<string, unknown>).url)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {String((a as Record<string, unknown>).url)}
-                  </a>
-                ) : null}
+            <div className="flex items-start gap-3">
+              <FileText className="mt-0.5 size-5 text-muted-foreground" />
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Tender reference
+                </div>
+                <div className="mt-0.5 text-sm font-medium">
+                  {bid.tenderReferenceNumber || '—'}
+                </div>
               </div>
-            ))}
+            </div>
           </CardContent>
         </Card>
-      )}
 
-      {/* Line items — full width */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>Line items</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Unit Price</TableHead>
-                <TableHead className="text-right">Disc %</TableHead>
-                <TableHead className="text-right">Line Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(bid.lineItems ?? []).map((li) => (
-                <TableRow key={li.id}>
-                  <TableCell>
-                    <ProductCell name={li.productName} sku={li.productSku} />
-                  </TableCell>
-                  <TableCell className="text-right">{li.quantity}</TableCell>
-                  <TableCell className="text-right">
-                    {formatINR(li.unitPrice)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {li.lineDiscountPercent ?? '—'}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatINR(li.lineTotal)}
-                  </TableCell>
-                </TableRow>
+        {/* Technical specification card */}
+        {bid.technicalSpecification && (
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                Technical specification
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="whitespace-pre-wrap text-sm">
+                {bid.technicalSpecification}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Attachments (reference links) */}
+        {bid.attachments && bid.attachments.length > 0 && (
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                Attachments (reference links)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 pt-0 text-sm">
+              {bid.attachments.map((a, i) => (
+                <div key={i}>
+                  {String((a as Record<string, unknown>).filename ?? '')}{' '}
+                  {(a as Record<string, unknown>).url ? (
+                    <a
+                      className="text-primary underline-offset-4 hover:underline"
+                      href={String((a as Record<string, unknown>).url)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {String((a as Record<string, unknown>).url)}
+                    </a>
+                  ) : null}
+                </div>
               ))}
-              {(bid.lineItems ?? []).length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="text-center text-muted-foreground"
-                  >
-                    No line items.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Summary block — right-aligned, fixed width */}
-      <div className="mb-6 flex justify-end">
-        <Card className="w-full max-w-[320px]">
-          <CardContent className="space-y-2 p-4 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span>{formatINR(bid.subtotal)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">
-                Discount ({bid.discountPercent}%)
-              </span>
-              <span>−{formatINR(bid.discountAmount)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">
-                Tax
-                {bid.taxType
-                  ? ` (${prettyEnum(bid.taxType)} ${bid.taxRate}%)`
-                  : ''}
-              </span>
-              <span>{formatINR(bid.taxAmount)}</span>
-            </div>
-            <div className="my-1 border-t" />
-            <div className="flex justify-between text-lg font-semibold">
-              <span>Total</span>
-              <span>{formatINR(bid.totalAmount)}</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {bid.approverComments && (
-        <p className="mb-4 text-sm">
-          <span className="font-semibold">Approver comments:</span>{' '}
-          {bid.approverComments}
-        </p>
-      )}
-
-      {/* Approver's e-signature, shown once the bid is approved. */}
-      {bid.status === 'APPROVED' && (
+        {/* Line items — full width */}
         <Card className="mb-4">
           <CardHeader>
-            <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              Approved by
-            </CardTitle>
+            <CardTitle>Line items</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <SignatureDisplay
-              text={bid.approverSignatureTextSnapshot}
-              font={bid.approverSignatureFontSnapshot}
-              date={bid.approvedAt ? bid.approvedAt.slice(0, 10) : null}
-            />
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Unit Price</TableHead>
+                  <TableHead className="text-right">Disc %</TableHead>
+                  <TableHead className="text-right">Line Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(bid.lineItems ?? []).map((li) => (
+                  <TableRow key={li.id}>
+                    <TableCell>
+                      <ProductCell name={li.productName} sku={li.productSku} />
+                    </TableCell>
+                    <TableCell className="text-right">{li.quantity}</TableCell>
+                    <TableCell className="text-right">
+                      {formatINR(li.unitPrice)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {li.lineDiscountPercent ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatINR(li.lineTotal)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {(bid.lineItems ?? []).length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="text-center text-muted-foreground"
+                    >
+                      No line items.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
-      )}
 
-      {/* Approve/reject controls for the assigned approver */}
-      {canApprove && !hasSignature && (
-        <div className="mb-4">
-          <SignatureSetupInline
-            onSaved={() => setHasSignature(true)}
-          />
+        {/* Summary block — right-aligned, fixed width */}
+        <div className="mb-6 flex justify-end">
+          <Card className="w-full max-w-[320px]">
+            <CardContent className="space-y-2 p-4 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{formatINR(bid.subtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">
+                  Discount ({bid.discountPercent}%)
+                </span>
+                <span>−{formatINR(bid.discountAmount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">
+                  Tax
+                  {bid.taxType
+                    ? ` (${prettyEnum(bid.taxType)} ${bid.taxRate}%)`
+                    : ''}
+                </span>
+                <span>{formatINR(bid.taxAmount)}</span>
+              </div>
+              <div className="my-1 border-t" />
+              <div className="flex justify-between text-lg font-semibold">
+                <span>Total</span>
+                <span>{formatINR(bid.totalAmount)}</span>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      )}
-      {canApprove && (
-        <Card className="mb-4">
-          <CardContent className="flex flex-wrap items-center gap-2 p-4">
-            <Input
-              className="max-w-xs"
-              placeholder="Comments (optional)"
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-            />
-            <Button
-              disabled={acting}
-              onClick={() =>
-                act('approve', { approverComments: comments || undefined }, {
-                  title: 'Approve this bid?',
-                  description: 'The bid will be marked APPROVED.',
-                })
-              }
-            >
-              Approve
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={acting}
-              onClick={() =>
-                act('reject', { approverComments: comments || undefined }, {
-                  title: 'Reject this bid?',
-                  description: 'The bid will be marked REJECTED.',
-                  destructive: true,
-                })
-              }
-            >
-              Reject
-            </Button>
-          </CardContent>
-        </Card>
-      )}
 
-      {bid.status === 'PENDING_APPROVAL' && !canApprove && (
-        <p className="text-sm text-muted-foreground">
-          Awaiting approval from the assigned manager.
-        </p>
-      )}
+        {bid.approverComments && (
+          <p className="mb-4 text-sm">
+            <span className="font-semibold">Approver comments:</span>{' '}
+            {bid.approverComments}
+          </p>
+        )}
+
+        {/* Approver's e-signature, shown once the bid is approved. */}
+        {bid.status === 'APPROVED' && (
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                Approved by
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <SignatureDisplay
+                text={bid.approverSignatureTextSnapshot}
+                font={bid.approverSignatureFontSnapshot}
+                date={bid.approvedAt ? bid.approvedAt.slice(0, 10) : null}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Approve/reject controls for the assigned approver */}
+        {canApprove && !hasSignature && (
+          <div className="mb-4">
+            <SignatureSetupInline onSaved={() => setHasSignature(true)} />
+          </div>
+        )}
+        {canApprove && (
+          <Card className="mb-4">
+            <CardContent className="flex flex-wrap items-center gap-2 p-4">
+              <Input
+                className="max-w-xs"
+                placeholder="Comments (optional)"
+                value={comments}
+                onChange={(e) => setComments(e.target.value)}
+              />
+              <Button
+                disabled={acting}
+                onClick={() =>
+                  act(
+                    'approve',
+                    { approverComments: comments || undefined },
+                    {
+                      title: 'Approve this bid?',
+                      description: 'The bid will be marked APPROVED.',
+                    },
+                  )
+                }
+              >
+                Approve
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={acting}
+                onClick={() =>
+                  act(
+                    'reject',
+                    { approverComments: comments || undefined },
+                    {
+                      title: 'Reject this bid?',
+                      description: 'The bid will be marked REJECTED.',
+                      destructive: true,
+                    },
+                  )
+                }
+              >
+                Reject
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {bid.status === 'PENDING_APPROVAL' && !canApprove && (
+          <p className="text-sm text-muted-foreground">
+            Awaiting approval from the assigned manager.
+          </p>
+        )}
       </PageContainer>
     </>
   );

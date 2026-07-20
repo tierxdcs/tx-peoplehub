@@ -3,12 +3,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ReceiptText } from 'lucide-react';
+import { ArrowLeft, ReceiptText, UserRound } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
 import { useIsSalesHead } from '../../../../lib/use-is-sales-head';
 import { Customer, Order, OrderStatus } from '../../../../lib/types';
-import { ORDER_NEXT_STATUSES, formatINR, prettyEnum } from '../../../../lib/sales';
+import {
+  ORDER_NEXT_STATUSES,
+  formatINR,
+  prettyEnum,
+} from '../../../../lib/sales';
 import { PageContainer } from '../../../../components/ui/page-container';
 import {
   Card,
@@ -20,6 +24,7 @@ import { Button } from '../../../../components/ui/button';
 import { Select } from '../../../../components/ui/select';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
+import { BusinessUnitLabel } from '../../../../components/ui/business-unit-label';
 import { ProcessFlow } from '../../../../components/ui/process-flow';
 import { orderFlow } from '../../../../lib/record-flows';
 import {
@@ -157,6 +162,10 @@ export default function OrderDetailPage() {
           {order.orderNumber}
         </h1>
         <StatusBadge value={order.status} />
+        <BusinessUnitLabel
+          name={order.businessUnitName}
+          colorHex={order.businessUnitColorHex}
+        />
       </div>
 
       {/* Live flow indicator — stage derived from the order's status. */}
@@ -168,13 +177,22 @@ export default function OrderDetailPage() {
 
       {/* Metadata card: Total (prominent) + Linked bid (link) */}
       <Card className="mb-4">
-        <CardContent className="grid gap-6 p-6 sm:grid-cols-2">
+        <CardContent className="grid gap-6 p-6 sm:grid-cols-3">
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Total
             </div>
             <div className="mt-1 text-2xl font-semibold">
               {formatINR(order.totalAmount)}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Owner
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-sm font-medium">
+              <UserRound className="size-4 text-muted-foreground" />
+              {order.ownerName}
             </div>
           </div>
           <div>
@@ -269,9 +287,7 @@ export default function OrderDetailPage() {
                 </Select>
                 <Button
                   onClick={updateStatus}
-                  disabled={
-                    acting || !nextStatus || blockedPendingConfirmation
-                  }
+                  disabled={acting || !nextStatus || blockedPendingConfirmation}
                 >
                   {acting ? '…' : 'Update'}
                 </Button>

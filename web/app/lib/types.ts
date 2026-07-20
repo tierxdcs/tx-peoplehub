@@ -3,17 +3,11 @@ import { Role } from './jwt';
 export type EmployeeStatus = 'ACTIVE' | 'INACTIVE';
 export type AccessStatus = 'PENDING_ACCESS' | 'ACTIVE' | 'INACTIVE';
 export type EmploymentType =
-  | 'FULL_TIME_PERMANENT'
-  | 'CONTRACT'
-  | 'INTERN'
-  | 'PART_TIME';
+  'FULL_TIME_PERMANENT' | 'CONTRACT' | 'INTERN' | 'PART_TIME';
 
 /** Fixed set of signature-style fonts (mirrors the backend SignatureFont enum). */
 export type SignatureFont =
-  | 'DANCING_SCRIPT'
-  | 'CAVEAT'
-  | 'PACIFICO'
-  | 'GREAT_VIBES';
+  'DANCING_SCRIPT' | 'CAVEAT' | 'PACIFICO' | 'GREAT_VIBES';
 
 export interface Employee {
   id: string;
@@ -110,10 +104,7 @@ export interface BankDetails {
 
 export type LeaveAccrualType = 'FIXED_ANNUAL' | 'MONTHLY_ACCRUAL' | 'UNTRACKED';
 export type LeaveRequestStatus =
-  | 'PENDING'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'CANCELLED';
+  'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'ON_LEAVE' | 'HALF_DAY';
 
 export interface LeaveType {
@@ -177,11 +168,7 @@ export interface SalaryStructure {
 }
 
 export type StatutoryConfigType =
-  | 'PF'
-  | 'ESI'
-  | 'PROFESSIONAL_TAX'
-  | 'TDS_SLAB'
-  | 'STANDARD_DEDUCTION';
+  'PF' | 'ESI' | 'PROFESSIONAL_TAX' | 'TDS_SLAB' | 'STANDARD_DEDUCTION';
 
 export interface StatutoryConfig {
   id: string;
@@ -234,17 +221,11 @@ export interface Payslip {
 
 export type VaultFolderType = 'PERSONAL' | 'DEFAULT' | 'CUSTOM';
 export type VaultVisibilityScope =
-  | 'PRIVATE'
-  | 'TEAM'
-  | 'VERTICAL'
-  | 'COMPANY_WIDE';
+  'PRIVATE' | 'TEAM' | 'VERTICAL' | 'COMPANY_WIDE';
 export type VaultFolderStatus = 'ACTIVE' | 'ARCHIVED';
 export type VaultFileStatus = 'PENDING' | 'ACTIVE' | 'DELETED';
 export type VaultPreviewStatus =
-  | 'PENDING'
-  | 'READY'
-  | 'FAILED'
-  | 'NOT_APPLICABLE';
+  'PENDING' | 'READY' | 'FAILED' | 'NOT_APPLICABLE';
 export type VaultSharePermission = 'VIEW' | 'EDIT';
 export type VaultShareResourceType = 'FILE' | 'FOLDER';
 
@@ -383,17 +364,9 @@ export interface PublicSharedResource {
 export type CustomerStatus = 'ACTIVE' | 'INACTIVE';
 export type LeadPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 export type LeadSource =
-  | 'REFERRAL'
-  | 'WEBSITE'
-  | 'COLD_OUTREACH'
-  | 'EVENT'
-  | 'OTHER';
+  'REFERRAL' | 'WEBSITE' | 'COLD_OUTREACH' | 'EVENT' | 'OTHER';
 export type LeadStatus =
-  | 'NEW'
-  | 'CONTACTED'
-  | 'QUALIFIED'
-  | 'DISQUALIFIED'
-  | 'CONVERTED';
+  'NEW' | 'CONTACTED' | 'QUALIFIED' | 'DISQUALIFIED' | 'CONVERTED';
 export type OpportunityStage =
   | 'PROSPECTING'
   | 'QUALIFICATION'
@@ -456,6 +429,24 @@ export interface Product {
   isActive: boolean;
   /** Item Master item this product is manufactured as (keyed for BOM/stock). */
   itemId: string | null;
+  /** Business unit this product belongs to (required for new products). */
+  businessUnitId: string | null;
+  businessUnitName: string | null;
+  businessUnitColorHex: string | null;
+  /** True while the BU was auto-selected by inference and not yet confirmed. */
+  autoAssignedBusinessUnit: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BusinessUnit {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  isActive: boolean;
+  displayOrder: number;
+  colorHex: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -472,6 +463,12 @@ export interface Lead {
   source: LeadSource;
   status: LeadStatus;
   ownerId: string;
+  ownerName: string;
+  enquiryCreatorId: string;
+  enquiryCreatorName: string;
+  businessUnitId: string;
+  businessUnitName: string;
+  businessUnitColorHex: string;
   disqualifiedReason: string | null;
   convertedToOpportunityId: string | null;
   createdAt: string;
@@ -487,6 +484,12 @@ export interface Opportunity {
   estimatedValue: string;
   expectedCloseDate: string;
   ownerId: string;
+  ownerName: string;
+  enquiryCreatorId: string;
+  enquiryCreatorName: string;
+  businessUnitId: string;
+  businessUnitName: string;
+  businessUnitColorHex: string;
   lostReason: string | null;
   createdAt: string;
   updatedAt: string;
@@ -525,6 +528,12 @@ export interface Bid {
   taxAmount: string;
   totalAmount: string;
   createdById: string;
+  ownerName: string;
+  enquiryCreatorId: string;
+  enquiryCreatorName: string;
+  businessUnitId: string;
+  businessUnitName: string;
+  businessUnitColorHex: string;
   approverId: string | null;
   approvedAt: string | null;
   approverComments: string | null;
@@ -557,11 +566,18 @@ export interface Order {
   /** Outbound finished-goods final-QC clearance (dispatch precondition). */
   finalQcStatus?: 'PENDING' | 'CLEARED';
   /** Derived dispatch fulfilment progress. */
-  fulfilmentStatus?: 'NOT_DISPATCHED' | 'PARTIALLY_DISPATCHED' | 'FULLY_DISPATCHED';
+  fulfilmentStatus?:
+    'NOT_DISPATCHED' | 'PARTIALLY_DISPATCHED' | 'FULLY_DISPATCHED';
   totalAmount: string;
   productionRunId: string | null;
   shipmentId: string | null;
   ownerId: string;
+  ownerName: string;
+  enquiryCreatorId: string | null;
+  enquiryCreatorName: string | null;
+  businessUnitId: string | null;
+  businessUnitName: string | null;
+  businessUnitColorHex: string | null;
   lineItems?: OrderLineItem[];
   createdAt: string;
   updatedAt: string;
@@ -633,16 +649,9 @@ export interface OrderConfirmationSheet {
 
 // ---- Bid/No-Bid decision gate ----
 
-export type BidAssessmentQuestionType =
-  | 'BOOLEAN'
-  | 'TEXT'
-  | 'SCALE'
-  | 'SELECT';
+export type BidAssessmentQuestionType = 'BOOLEAN' | 'TEXT' | 'SCALE' | 'SELECT';
 
-export type BidAssessmentStatus =
-  | 'PENDING_REVIEW'
-  | 'APPROVED'
-  | 'REJECTED';
+export type BidAssessmentStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
 
 export interface BidAssessmentQuestion {
   id: string;

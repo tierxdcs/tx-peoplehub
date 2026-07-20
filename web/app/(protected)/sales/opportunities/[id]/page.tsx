@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, CalendarDays, Plus } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Plus, UserRound } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import {
   Bid,
@@ -28,6 +28,7 @@ import { Textarea } from '../../../../components/ui/textarea';
 import { Field } from '../../../../components/ui/field';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
+import { BusinessUnitLabel } from '../../../../components/ui/business-unit-label';
 import {
   Table,
   TableBody,
@@ -154,17 +155,33 @@ export default function OpportunityDetailPage() {
       </Link>
 
       {/* Header: opportunity name as title */}
-      <h1 className="mb-6 text-2xl font-semibold tracking-tight">{opp.name}</h1>
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight">{opp.name}</h1>
+        <BusinessUnitLabel
+          className="mt-2"
+          name={opp.businessUnitName}
+          colorHex={opp.businessUnitColorHex}
+        />
+      </div>
 
       {/* Metadata card: Stage / Estimated value / Expected close */}
       <Card className="mb-4">
-        <CardContent className="grid gap-6 p-6 sm:grid-cols-3">
+        <CardContent className="grid gap-6 p-6 sm:grid-cols-4">
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Stage
             </div>
             <div className="mt-1.5">
               <StatusBadge value={opp.stage} />
+            </div>
+          </div>
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Owner
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-sm font-medium">
+              <UserRound className="size-4 text-muted-foreground" />
+              {opp.ownerName}
             </div>
           </div>
           <div>

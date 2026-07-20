@@ -62,6 +62,9 @@ describe('LeadsService', () => {
       id: 'lead-1',
       status: LeadStatus.NEW,
       ownerId: 'emp-1',
+      enquiryCreatorId: 'emp-1',
+      enquiryCreator: { firstName: 'Sales', lastName: 'Rep' },
+      owner: { firstName: 'Sales', lastName: 'Rep' },
     });
     await expect(
       service.convert('lead-1', convertDto, rep),
@@ -73,6 +76,9 @@ describe('LeadsService', () => {
       id: 'lead-1',
       status: LeadStatus.CONVERTED,
       ownerId: 'emp-1',
+      enquiryCreatorId: 'emp-1',
+      enquiryCreator: { firstName: 'Sales', lastName: 'Rep' },
+      owner: { firstName: 'Sales', lastName: 'Rep' },
     });
     await expect(
       service.convert('lead-1', convertDto, rep),
@@ -84,6 +90,9 @@ describe('LeadsService', () => {
       id: 'lead-1',
       status: LeadStatus.QUALIFIED,
       ownerId: 'emp-1',
+      enquiryCreatorId: 'emp-1',
+      enquiryCreator: { firstName: 'Sales', lastName: 'Rep' },
+      owner: { firstName: 'Sales', lastName: 'Rep' },
       companyName: 'Globex',
       contactName: 'Priya',
       email: null,
@@ -103,6 +112,9 @@ describe('LeadsService', () => {
       id: 'lead-1',
       status: LeadStatus.QUALIFIED,
       ownerId: 'emp-1',
+      enquiryCreatorId: 'emp-1',
+      enquiryCreator: { firstName: 'Sales', lastName: 'Rep' },
+      owner: { firstName: 'Sales', lastName: 'Rep' },
       companyName: 'Globex',
       contactName: 'Priya',
       email: 'p@globex.com',
@@ -119,6 +131,9 @@ describe('LeadsService', () => {
       estimatedValue: new Prisma.Decimal(convertDto.estimatedValue),
       expectedCloseDate: new Date(convertDto.expectedCloseDate),
       ownerId: 'emp-1',
+      enquiryCreatorId: 'emp-1',
+      enquiryCreator: { firstName: 'Sales', lastName: 'Rep' },
+      owner: { firstName: 'Sales', lastName: 'Rep' },
       lostReason: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -136,6 +151,13 @@ describe('LeadsService', () => {
     expect(customerCreate).toHaveBeenCalled();
     expect(result.id).toBe('opp-1');
     expect(result.customerId).toBe('cust-1');
+    expect(result.enquiryCreatorId).toBe('emp-1');
+    expect(result.enquiryCreatorName).toBe('Sales Rep');
+    expect(oppCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ enquiryCreatorId: 'emp-1' }),
+      }),
+    );
     // Lead marked CONVERTED and linked to the new opportunity.
     const leadUpdateArg = leadUpdate.mock.calls[0][0];
     expect(leadUpdateArg.data.status).toBe(LeadStatus.CONVERTED);
@@ -168,6 +190,9 @@ describe('LeadsService', () => {
         source: 'OTHER',
         status: LeadStatus.NEW,
         ownerId: 'other-emp',
+        enquiryCreatorId: 'other-emp',
+        enquiryCreator: { firstName: 'Peer', lastName: 'Rep' },
+        owner: { firstName: 'Peer', lastName: 'Rep' },
         disqualifiedReason: null,
         convertedToOpportunityId: null,
         createdAt: new Date(),

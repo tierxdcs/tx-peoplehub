@@ -11,7 +11,10 @@ import { Card, CardContent } from '../../../components/ui/card';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
+import { RegisterToolbar } from '../_components/register-toolbar';
 import { Skeleton } from '../../../components/ui/skeleton';
+import { BusinessUnitLabel } from '../../../components/ui/business-unit-label';
+import { useBusinessUnitOptions } from '../../../lib/business-units';
 import {
   Table,
   TableBody,
@@ -48,7 +51,10 @@ export default function OrdersPage() {
   const [summaryRows, setSummaryRows] = useState<Order[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [businessUnitFilter, setBusinessUnitFilter] = useState('');
+  const { businessUnits } = useBusinessUnitOptions();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,11 +89,16 @@ export default function OrdersPage() {
     void load();
   }, [load]);
 
-  const filtered = useMemo(
-    () =>
-      orders.filter((order) => !statusFilter || order.status === statusFilter),
-    [orders, statusFilter],
-  );
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return orders.filter(
+      (order) =>
+        (!statusFilter || order.status === statusFilter) &&
+        (!businessUnitFilter || order.businessUnitId === businessUnitFilter) &&
+        (!q ||
+          `${order.orderNumber} ${order.ownerName}`.toLowerCase().includes(q)),
+    );
+  }, [orders, search, statusFilter, businessUnitFilter]);
 
   const summary = useMemo(() => {
     const active = summaryRows.filter((order) => order.status !== 'CANCELLED');
@@ -124,32 +135,45 @@ export default function OrdersPage() {
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
-      <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
-        <h2 className="text-lg font-semibold">Order Register</h2>
-        <div className="w-full sm:w-48">
-          <label
-            htmlFor="order-status-filter"
-            className="mb-1 block text-xs font-medium text-muted-foreground"
-          >
-            Status
-          </label>
-          <Select
-            id="order-status-filter"
-            value={statusFilter}
-            onChange={(event) => {
-              setStatusFilter(event.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All statuses</option>
-            {STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {prettyEnum(status)}
-              </option>
-            ))}
-          </Select>
-        </div>
-      </div>
+      <RegisterToolbar
+        title="Order Register"
+        search={search}
+        onSearchChange={(v) => {
+          setSearch(v);
+          setPage(1);
+        }}
+        searchPlaceholder="Search order # or owner"
+      >
+        <Select
+          aria-label="Status"
+          className="w-full sm:w-44"
+          value={statusFilter}
+          onChange={(event) => {
+            setStatusFilter(event.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">All statuses</option>
+          {STATUSES.map((status) => (
+            <option key={status} value={status}>
+              {prettyEnum(status)}
+            </option>
+          ))}
+        </Select>
+        <Select
+          aria-label="Business unit"
+          className="w-full sm:w-52"
+          value={businessUnitFilter}
+          onChange={(event) => setBusinessUnitFilter(event.target.value)}
+        >
+          <option value="">All business units</option>
+          {businessUnits.map((unit) => (
+            <option key={unit.id} value={unit.id}>
+              {unit.name}
+            </option>
+          ))}
+        </Select>
+      </RegisterToolbar>
 
       <Card>
         <CardContent className="p-0">
@@ -158,8 +182,10 @@ export default function OrdersPage() {
               <TableRow>
                 <TableHead>Order #</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Business Unit</TableHead>
                 <TableHead>Fulfilment</TableHead>
                 <TableHead>Total</TableHead>
+                <TableHead>Owner</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -168,7 +194,7 @@ export default function OrdersPage() {
               {loading ? (
                 Array.from({ length: 5 }).map((_, row) => (
                   <TableRow key={row}>
-                    {Array.from({ length: 6 }).map((__, column) => (
+                    {Array.from({ length: 8 }).map((__, column) => (
                       <TableCell key={column}>
                         <Skeleton className="h-4 w-24" />
                       </TableCell>
@@ -178,7 +204,7 @@ export default function OrdersPage() {
               ) : filtered.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={8}
                     className="py-8 text-center text-muted-foreground"
                   >
                     {statusFilter
@@ -202,11 +228,18 @@ export default function OrdersPage() {
                       <StatusBadge value={order.status} />
                     </TableCell>
                     <TableCell>
+                      <BusinessUnitLabel
+                        name={order.businessUnitName}
+                        colorHex={order.businessUnitColorHex}
+                      />
+                    </TableCell>
+                    <TableCell>
                       <StatusBadge
                         value={order.fulfilmentStatus ?? 'NOT_DISPATCHED'}
                       />
                     </TableCell>
                     <TableCell>{formatINR(order.totalAmount)}</TableCell>
+                    <TableCell>{order.ownerName}</TableCell>
                     <TableCell>
                       {new Date(order.createdAt).toLocaleDateString('en-IN')}
                     </TableCell>

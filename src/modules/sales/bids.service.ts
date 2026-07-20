@@ -47,6 +47,9 @@ type BidLineItemWithProduct = BidLineItem & {
 type BidWithLines = Bid & {
   lineItems: BidLineItemWithProduct[];
   orders?: { id: string }[];
+  enquiryCreator?: { firstName: string; lastName: string };
+  opportunity?: { owner: { firstName: string; lastName: string } };
+  businessUnit?: { name: string; colorHex: string };
 };
 
 @Injectable()
@@ -65,6 +68,7 @@ export class BidsService {
 
     const opportunity = await this.prisma.opportunity.findUnique({
       where: { id: dto.opportunityId },
+      select: { id: true, enquiryCreatorId: true, businessUnitId: true },
     });
     if (!opportunity) {
       throw new NotFoundException(
@@ -97,6 +101,14 @@ export class BidsService {
     const products = await this.prisma.product.findMany({
       where: { id: { in: dto.lineItems.map((li) => li.productId) } },
     });
+    const mismatchedProduct = products.find(
+      (product) => product.businessUnitId !== opportunity.businessUnitId,
+    );
+    if (mismatchedProduct) {
+      throw new BadRequestException(
+        `Product ${mismatchedProduct.sku} belongs to a different business unit than this opportunity`,
+      );
+    }
     const priceById = new Map(products.map((p) => [p.id, p.unitPrice]));
 
     const discountPercent = new Prisma.Decimal(dto.discountPercent ?? 0);
@@ -162,9 +174,18 @@ export class BidsService {
           taxAmount: totals.taxAmount,
           totalAmount: totals.totalAmount,
           createdById: user.id,
+          enquiryCreatorId: opportunity.enquiryCreatorId,
+          businessUnitId: opportunity.businessUnitId,
           lineItems: { create: lineData },
         },
-        include: { lineItems: { include: { product: true } } },
+        include: {
+          lineItems: { include: { product: true } },
+          enquiryCreator: { select: { firstName: true, lastName: true } },
+          opportunity: {
+            select: { owner: { select: { firstName: true, lastName: true } } },
+          },
+          businessUnit: { select: { name: true, colorHex: true } },
+        },
       });
     });
     return this.toEntity(created);
@@ -183,7 +204,14 @@ export class BidsService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.bid.findMany({
         where,
-        include: { lineItems: { include: { product: true } } },
+        include: {
+          lineItems: { include: { product: true } },
+          enquiryCreator: { select: { firstName: true, lastName: true } },
+          opportunity: {
+            select: { owner: { select: { firstName: true, lastName: true } } },
+          },
+          businessUnit: { select: { name: true, colorHex: true } },
+        },
         skip: query.skip,
         take: query.limit,
         orderBy: { createdAt: 'desc' },
@@ -238,7 +266,14 @@ export class BidsService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.bid.findMany({
         where,
-        include: { lineItems: { include: { product: true } } },
+        include: {
+          lineItems: { include: { product: true } },
+          enquiryCreator: { select: { firstName: true, lastName: true } },
+          opportunity: {
+            select: { owner: { select: { firstName: true, lastName: true } } },
+          },
+          businessUnit: { select: { name: true, colorHex: true } },
+        },
         skip: query.skip,
         take: query.limit,
         orderBy: { createdAt: 'asc' },
@@ -461,6 +496,11 @@ export class BidsService {
       where: { id },
       include: {
         lineItems: { include: { product: true } },
+        enquiryCreator: { select: { firstName: true, lastName: true } },
+        opportunity: {
+          select: { owner: { select: { firstName: true, lastName: true } } },
+        },
+        businessUnit: { select: { name: true, colorHex: true } },
         // The converted order (if any) — a bid converts to at most one.
         orders: { select: { id: true }, take: 1 },
       },
@@ -491,6 +531,16 @@ export class BidsService {
       taxAmount: bid.taxAmount.toString(),
       totalAmount: bid.totalAmount.toString(),
       createdById: bid.createdById,
+      enquiryCreatorId: bid.enquiryCreatorId,
+      enquiryCreatorName: bid.enquiryCreator
+        ? `${bid.enquiryCreator.firstName} ${bid.enquiryCreator.lastName}`.trim()
+        : '',
+      ownerName: bid.opportunity?.owner
+        ? `${bid.opportunity.owner.firstName} ${bid.opportunity.owner.lastName}`.trim()
+        : '',
+      businessUnitId: bid.businessUnitId,
+      businessUnitName: bid.businessUnit?.name ?? '',
+      businessUnitColorHex: bid.businessUnit?.colorHex ?? '#64748B',
       approverId: bid.approverId,
       approvedAt: bid.approvedAt,
       approverComments: bid.approverComments,

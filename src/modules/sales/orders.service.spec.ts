@@ -112,6 +112,7 @@ describe('OrdersService', () => {
         bidId: data.bidId,
         customerId: data.customerId,
         ownerId: data.ownerId,
+        owner: { firstName: 'Sales', lastName: 'Rep' },
         status: OrderStatus.CONFIRMED,
         totalAmount: data.totalAmount,
         productionRunId: null,
@@ -145,6 +146,7 @@ describe('OrdersService', () => {
         id: 'order-1',
         status: OrderStatus.CONFIRMED,
         ownerId: 'emp-1',
+        owner: { firstName: 'Sales', lastName: 'Rep' },
         lineItems: [],
       });
       prisma.order.update.mockResolvedValue({
@@ -157,6 +159,7 @@ describe('OrdersService', () => {
         productionRunId: null,
         shipmentId: null,
         ownerId: 'emp-1',
+        owner: { firstName: 'Sales', lastName: 'Rep' },
         lineItems: [],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -174,6 +177,7 @@ describe('OrdersService', () => {
         id: 'order-1',
         status: OrderStatus.CONFIRMED,
         ownerId: 'emp-1',
+        owner: { firstName: 'Sales', lastName: 'Rep' },
         lineItems: [],
       });
       await expect(
@@ -186,6 +190,7 @@ describe('OrdersService', () => {
         id: 'order-1',
         status: OrderStatus.DELIVERED,
         ownerId: 'emp-1',
+        owner: { firstName: 'Sales', lastName: 'Rep' },
         lineItems: [],
       });
       await expect(
@@ -216,6 +221,7 @@ describe('OrdersService', () => {
         productionRunId: null,
         shipmentId: null,
         ownerId: 'other-emp',
+        owner: { firstName: 'Peer', lastName: 'Rep' },
         lineItems: [],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -232,6 +238,7 @@ describe('OrdersService', () => {
         id: 'order-peer',
         status: OrderStatus.CONFIRMED,
         ownerId: 'other-emp',
+        owner: { firstName: 'Peer', lastName: 'Rep' },
         lineItems: [],
       });
       access.assertCanAccessOwned.mockRejectedValue(

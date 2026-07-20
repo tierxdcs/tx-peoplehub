@@ -32,6 +32,27 @@ export class ProductEntity {
   })
   itemId!: string | null;
 
+  @ApiProperty({
+    nullable: true,
+    description: 'Business unit this product belongs to.',
+  })
+  businessUnitId!: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    description: 'Business unit name (denormalized for list display).',
+  })
+  businessUnitName!: string | null;
+
+  @ApiProperty({ nullable: true })
+  businessUnitColorHex!: string | null;
+
+  @ApiProperty({
+    description:
+      'True while the BU was auto-selected by inference and not yet confirmed.',
+  })
+  autoAssignedBusinessUnit!: boolean;
+
   @ApiProperty()
   createdAt!: Date;
 

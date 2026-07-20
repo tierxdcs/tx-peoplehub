@@ -19,6 +19,20 @@ export class CreateProductDto {
   @MinLength(1)
   name!: string;
 
+  @ApiProperty({ description: 'Business unit this product belongs to (required)' })
+  @IsString()
+  @MinLength(1)
+  businessUnitId!: string;
+
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      'True when businessUnitId was auto-selected by keyword inference and not yet confirmed by the user.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  autoAssignedBusinessUnit?: boolean;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

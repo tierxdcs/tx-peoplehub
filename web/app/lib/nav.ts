@@ -320,7 +320,10 @@ export function hrNav(access: Access): NavGroup[] {
         { label: 'Verticals', href: '/admin/verticals' },
         { label: 'Pending Access', href: '/admin/pending-access' },
         ...(flags(access.user).isSuperAdmin
-          ? [{ label: 'Finance Auditors', href: '/admin/finance-auditors' }]
+          ? [
+              { label: 'Business Units', href: '/admin/business-units' },
+              { label: 'Finance Auditors', href: '/admin/finance-auditors' },
+            ]
           : []),
         {
           label: 'Bid Assessment Questions',

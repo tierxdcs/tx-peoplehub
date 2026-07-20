@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Lead, LeadStatus, Prisma, Role } from '@prisma/client';
+import { LeadStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import {
@@ -21,6 +21,14 @@ import {
   isSuperAdmin,
 } from './common/sales-access.service';
 import { SalesNumberingService } from './common/sales-numbering.service';
+
+type LeadWithCreator = Prisma.LeadGetPayload<{
+  include: {
+    enquiryCreator: { select: { firstName: true; lastName: true } };
+    owner: { select: { firstName: true; lastName: true } };
+    businessUnit: { select: { name: true; colorHex: true } };
+  };
+}>;
 
 @Injectable()
 export class LeadsService {
@@ -55,6 +63,13 @@ export class LeadsService {
           priority: dto.priority ?? undefined,
           source: dto.source ?? undefined,
           ownerId,
+          enquiryCreatorId: user.id,
+          businessUnitId: dto.businessUnitId,
+        },
+        include: {
+          enquiryCreator: { select: { firstName: true, lastName: true } },
+          owner: { select: { firstName: true, lastName: true } },
+          businessUnit: { select: { name: true, colorHex: true } },
         },
       });
     });
@@ -74,6 +89,11 @@ export class LeadsService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.lead.findMany({
         where,
+        include: {
+          enquiryCreator: { select: { firstName: true, lastName: true } },
+          owner: { select: { firstName: true, lastName: true } },
+          businessUnit: { select: { name: true, colorHex: true } },
+        },
         skip: query.skip,
         take: query.limit,
         orderBy: { createdAt: 'desc' },
@@ -126,6 +146,7 @@ export class LeadsService {
         email: dto.email,
         phone: dto.phone,
         requirement: dto.requirement,
+        businessUnitId: dto.businessUnitId,
         priority: dto.priority,
         source: dto.source,
         status: dto.status,
@@ -133,6 +154,11 @@ export class LeadsService {
           dto.status === LeadStatus.DISQUALIFIED
             ? dto.disqualifiedReason
             : dto.disqualifiedReason,
+      },
+      include: {
+        enquiryCreator: { select: { firstName: true, lastName: true } },
+        owner: { select: { firstName: true, lastName: true } },
+        businessUnit: { select: { name: true, colorHex: true } },
       },
     });
     return this.toEntity(updated);
@@ -208,6 +234,13 @@ export class LeadsService {
           estimatedValue: new Prisma.Decimal(dto.estimatedValue),
           expectedCloseDate: new Date(dto.expectedCloseDate),
           ownerId: lead.ownerId,
+          enquiryCreatorId: lead.enquiryCreatorId,
+          businessUnitId: lead.businessUnitId,
+        },
+        include: {
+          enquiryCreator: { select: { firstName: true, lastName: true } },
+          owner: { select: { firstName: true, lastName: true } },
+          businessUnit: { select: { name: true, colorHex: true } },
         },
       });
 
@@ -245,15 +278,22 @@ export class LeadsService {
     return requestedOwnerId;
   }
 
-  private async findRawOrThrow(id: string): Promise<Lead> {
-    const lead = await this.prisma.lead.findUnique({ where: { id } });
+  private async findRawOrThrow(id: string): Promise<LeadWithCreator> {
+    const lead = await this.prisma.lead.findUnique({
+      where: { id },
+      include: {
+        enquiryCreator: { select: { firstName: true, lastName: true } },
+        owner: { select: { firstName: true, lastName: true } },
+        businessUnit: { select: { name: true, colorHex: true } },
+      },
+    });
     if (!lead) {
       throw new NotFoundException('Lead not found');
     }
     return lead;
   }
 
-  private toEntity(lead: Lead): LeadEntity {
+  private toEntity(lead: LeadWithCreator): LeadEntity {
     return new LeadEntity({
       id: lead.id,
       leadNumber: lead.leadNumber,
@@ -266,6 +306,14 @@ export class LeadsService {
       source: lead.source,
       status: lead.status,
       ownerId: lead.ownerId,
+      ownerName:
+        `${lead.owner.firstName} ${lead.owner.lastName}`.trim(),
+      enquiryCreatorId: lead.enquiryCreatorId,
+      enquiryCreatorName:
+        `${lead.enquiryCreator.firstName} ${lead.enquiryCreator.lastName}`.trim(),
+      businessUnitId: lead.businessUnitId,
+      businessUnitName: lead.businessUnit?.name ?? '',
+      businessUnitColorHex: lead.businessUnit?.colorHex ?? '#64748B',
       disqualifiedReason: lead.disqualifiedReason,
       convertedToOpportunityId: lead.convertedToOpportunityId,
       createdAt: lead.createdAt,
@@ -282,6 +330,11 @@ export class LeadsService {
     estimatedValue: Prisma.Decimal;
     expectedCloseDate: Date;
     ownerId: string;
+    owner: { firstName: string; lastName: string };
+    enquiryCreatorId: string;
+    enquiryCreator: { firstName: string; lastName: string };
+    businessUnitId: string;
+    businessUnit: { name: string; colorHex: string };
     lostReason: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -295,6 +348,13 @@ export class LeadsService {
       estimatedValue: o.estimatedValue.toString(),
       expectedCloseDate: o.expectedCloseDate,
       ownerId: o.ownerId,
+      ownerName: `${o.owner.firstName} ${o.owner.lastName}`.trim(),
+      enquiryCreatorId: o.enquiryCreatorId,
+      enquiryCreatorName:
+        `${o.enquiryCreator.firstName} ${o.enquiryCreator.lastName}`.trim(),
+      businessUnitId: o.businessUnitId,
+      businessUnitName: o.businessUnit?.name ?? '',
+      businessUnitColorHex: o.businessUnit?.colorHex ?? '#64748B',
       lostReason: o.lostReason,
       createdAt: o.createdAt,
       updatedAt: o.updatedAt,

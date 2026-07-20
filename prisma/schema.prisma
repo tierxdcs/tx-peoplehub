@@ -291,6 +291,31 @@ model Vertical {
   @@map("verticals")
 }
 
+/// Business unit a product belongs to (Phaze Edge / Infrastructure / …). A
+/// table rather than an enum — mirrors Vertical, so a seventh BU can be added
+/// without a migration. Deactivating hides it from the new-product dropdown but
+/// never breaks products already tagged with it (soft-disable, not delete).
+model BusinessUnit {
+  id            String        @id @default(uuid())
+  name          String        @unique
+  /// Short form, used for keyword-rule matching + compact display.
+  code          String        @unique
+  description   String?
+  isActive      Boolean       @default(true)
+  /// Sort order in dropdowns / management screen.
+  displayOrder  Int           @default(0)
+  colorHex      String        @default("#2563EB")
+  products      Product[]
+  leads         Lead[]
+  opportunities Opportunity[]
+  bids          Bid[]
+  orders        Order[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("business_units")
+}
+
 /// Internal employee. Authenticates via email + bcrypt password hash.
 /// verticalId/reportingManagerId are required for every role except
 /// SUPER_ADMIN — enforced in the service layer, not expressible as a plain
@@ -411,12 +436,16 @@ model Employee {
   attendanceRecords      Attendance[]
 
   // Sales ownership / authorship back-relations.
-  customersOwned     Customer[]    @relation("CustomerOwner")
-  leadsOwned         Lead[]        @relation("LeadOwner")
-  opportunitiesOwned Opportunity[] @relation("OpportunityOwner")
-  bidsCreated        Bid[]         @relation("BidCreator")
-  bidsApproved       Bid[]         @relation("BidApprover")
-  ordersOwned        Order[]       @relation("OrderOwner")
+  customersOwned          Customer[]    @relation("CustomerOwner")
+  leadsOwned              Lead[]        @relation("LeadOwner")
+  leadsOriginated         Lead[]        @relation("LeadEnquiryCreator")
+  opportunitiesOwned      Opportunity[] @relation("OpportunityOwner")
+  opportunitiesOriginated Opportunity[] @relation("OpportunityEnquiryCreator")
+  bidsCreated             Bid[]         @relation("BidCreator")
+  bidsOriginated          Bid[]         @relation("BidEnquiryCreator")
+  bidsApproved            Bid[]         @relation("BidApprover")
+  ordersOwned             Order[]       @relation("OrderOwner")
+  ordersOriginated        Order[]       @relation("OrderEnquiryCreator")
 
   bidAssessmentsSubmitted BidDecisionAssessment[] @relation("BidAssessmentSubmitter")
   bidAssessmentsReviewed  BidDecisionAssessment[] @relation("BidAssessmentReviewer")
@@ -868,27 +897,38 @@ model CustomerContact {
 /// item snapshots the price at creation time rather than referencing this
 /// live (see BidLineItem.unitPrice).
 model Product {
-  id                String             @id @default(uuid())
-  sku               String             @unique
-  name              String
-  description       String?
-  unitPrice         Decimal            @db.Decimal(14, 2)
-  unitOfMeasure     String
-  hsnCode           String?
-  isActive          Boolean            @default(true)
+  id                       String             @id @default(uuid())
+  sku                      String             @unique
+  name                     String
+  description              String?
+  unitPrice                Decimal            @db.Decimal(14, 2)
+  unitOfMeasure            String
+  hsnCode                  String?
+  isActive                 Boolean            @default(true)
   /// Bridge to the Item Master: the manufactured Item this sellable Product
   /// corresponds to (typically a FINISHED_GOOD). BOMs are keyed on Item, not
   /// Product, so an order line resolves product -> item -> released BOM ->
   /// multi-level explosion. Nullable: not every Product is manufactured.
-  itemId            String?
-  item              Item?              @relation("ProductItem", fields: [itemId], references: [id], onDelete: SetNull)
-  bidLineItems      BidLineItem[]
-  orderLineItems    OrderLineItem[]
-  salesInvoiceLines SalesInvoiceLine[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  itemId                   String?
+  item                     Item?              @relation("ProductItem", fields: [itemId], references: [id], onDelete: SetNull)
+  /// Business unit this product belongs to. Required for new products
+  /// (enforced in the DTO); nullable at the DB level only so the required FK
+  /// can be added to an already-populated table, then backfilled. Restrict on
+  /// delete so a BU in use can't be hard-deleted (it is soft-disabled instead).
+  businessUnitId           String?
+  businessUnit             BusinessUnit?      @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  /// True while the businessUnitId was auto-assigned by keyword inference and
+  /// not yet confirmed by a human — drives the "Auto-selected" indicator and
+  /// the still-auto-assigned review filter. Cleared once a user sets/saves it.
+  autoAssignedBusinessUnit Boolean            @default(false)
+  bidLineItems             BidLineItem[]
+  orderLineItems           OrderLineItem[]
+  salesInvoiceLines        SalesInvoiceLine[]
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
 
   @@index([itemId])
+  @@index([businessUnitId])
   @@map("products")
 }
 
@@ -905,6 +945,11 @@ model Lead {
   status                   LeadStatus   @default(NEW)
   ownerId                  String
   owner                    Employee     @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  /// Immutable incentive attribution: the user who originally entered the enquiry.
+  enquiryCreatorId         String
+  enquiryCreator           Employee     @relation("LeadEnquiryCreator", fields: [enquiryCreatorId], references: [id], onDelete: Restrict)
+  businessUnitId           String
+  businessUnit             BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
   disqualifiedReason       String?
   convertedToOpportunityId String?      @unique
   convertedToOpportunity   Opportunity? @relation("LeadConversion", fields: [convertedToOpportunityId], references: [id], onDelete: SetNull)
@@ -912,6 +957,8 @@ model Lead {
   updatedAt                DateTime     @updatedAt
 
   @@index([ownerId])
+  @@index([enquiryCreatorId])
+  @@index([businessUnitId])
   @@index([status])
   @@map("leads")
 }
@@ -928,6 +975,10 @@ model Opportunity {
   expectedCloseDate DateTime
   ownerId           String
   owner             Employee                @relation("OpportunityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  enquiryCreatorId  String
+  enquiryCreator    Employee                @relation("OpportunityEnquiryCreator", fields: [enquiryCreatorId], references: [id], onDelete: Restrict)
+  businessUnitId    String
+  businessUnit      BusinessUnit            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
   lostReason        String?
   bids              Bid[]
   bidAssessments    BidDecisionAssessment[]
@@ -935,6 +986,8 @@ model Opportunity {
   updatedAt         DateTime                @updatedAt
 
   @@index([ownerId])
+  @@index([enquiryCreatorId])
+  @@index([businessUnitId])
   @@index([stage])
   @@map("opportunities")
 }
@@ -971,6 +1024,10 @@ model Bid {
   totalAmount                   Decimal        @default(0) @db.Decimal(14, 2)
   createdById                   String
   createdBy                     Employee       @relation("BidCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  enquiryCreatorId              String
+  enquiryCreator                Employee       @relation("BidEnquiryCreator", fields: [enquiryCreatorId], references: [id], onDelete: Restrict)
+  businessUnitId                String
+  businessUnit                  BusinessUnit   @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
   approverId                    String?
   approver                      Employee?      @relation("BidApprover", fields: [approverId], references: [id], onDelete: SetNull)
   approvedAt                    DateTime?
@@ -987,6 +1044,8 @@ model Bid {
   @@index([customerId])
   @@index([status])
   @@index([createdById])
+  @@index([enquiryCreatorId])
+  @@index([businessUnitId])
   @@map("bids")
 }
 
@@ -1040,6 +1099,12 @@ model Order {
   shipmentId         String?
   ownerId            String
   owner              Employee                 @relation("OrderOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  /// Set for sales-pipeline orders. Nullable for system-created orders that
+  /// have no originating enquiry.
+  enquiryCreatorId   String?
+  enquiryCreator     Employee?                @relation("OrderEnquiryCreator", fields: [enquiryCreatorId], references: [id], onDelete: Restrict)
+  businessUnitId     String?
+  businessUnit       BusinessUnit?            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
   lineItems          OrderLineItem[]
   confirmationSheets OrderConfirmationSheet[]
   projectKickoffs    ProjectKickoff[]
@@ -1050,6 +1115,8 @@ model Order {
   updatedAt          DateTime                 @updatedAt
 
   @@index([ownerId])
+  @@index([enquiryCreatorId])
+  @@index([businessUnitId])
   @@index([customerId])
   @@index([status])
   @@map("orders")
@@ -5950,20 +6017,20 @@ model Rfq {
   projectKickoffId String?
   projectKickoff   ProjectKickoff? @relation(fields: [projectKickoffId], references: [id], onDelete: SetNull)
 
-  submissionDeadline     DateTime
-  requiredByDate         DateTime?
-  deliveryLocation       String?   @db.Text
-  paymentTermsRequested  String?
+  submissionDeadline    DateTime
+  requiredByDate        DateTime?
+  deliveryLocation      String?   @db.Text
+  paymentTermsRequested String?
 
   /// The winning invitee. Named relation so it doesn't clash with the
   /// Rfq→RfqInvitee list relation below.
-  awardedInviteeId String?      @unique
-  awardedInvitee   RfqInvitee?  @relation("RfqAwardedInvitee", fields: [awardedInviteeId], references: [id], onDelete: SetNull)
-  awardDecisionById String?
-  awardDecisionBy   Employee?   @relation("RfqAwardDecisionBy", fields: [awardDecisionById], references: [id], onDelete: SetNull)
-  awardDecisionAt   DateTime?
+  awardedInviteeId   String?     @unique
+  awardedInvitee     RfqInvitee? @relation("RfqAwardedInvitee", fields: [awardedInviteeId], references: [id], onDelete: SetNull)
+  awardDecisionById  String?
+  awardDecisionBy    Employee?   @relation("RfqAwardDecisionBy", fields: [awardDecisionById], references: [id], onDelete: SetNull)
+  awardDecisionAt    DateTime?
   /// Mandatory when the awarded quote is NOT the lowest total (service-enforced).
-  awardJustification String?    @db.Text
+  awardJustification String?     @db.Text
 
   createdById String
   createdBy   Employee @relation("RfqCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
@@ -6009,22 +6076,22 @@ model RfqInvitee {
   vendor     Vendor?   @relation(fields: [vendorId], references: [id], onDelete: Restrict)
 
   /// Shared token-invite mechanism (see src/common/utils/token-invite.ts).
-  inviteToken   String    @unique
+  inviteToken    String    @unique
   tokenExpiresAt DateTime
-  passwordHash  String?
-  revokedAt     DateTime?
+  passwordHash   String?
+  revokedAt      DateTime?
 
   /// The invitee's qualification classification snapshotted AT INVITE TIME —
   /// the award decision reflects what was known then, not later changes.
   qualificationStatusSnapshot String
 
-  quoteStatus  RfqQuoteStatus @default(INVITED)
-  submittedAt  DateTime?
-  declineReason String?       @db.Text
+  quoteStatus   RfqQuoteStatus @default(INVITED)
+  submittedAt   DateTime?
+  declineReason String?        @db.Text
 
-  quote          RfqQuote?
+  quote         RfqQuote?
   /// Back-relation for Rfq.awardedInvitee (named to disambiguate).
-  awardedForRfq  Rfq?         @relation("RfqAwardedInvitee")
+  awardedForRfq Rfq?      @relation("RfqAwardedInvitee")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -6043,11 +6110,11 @@ model RfqQuote {
   quotedLeadTimeDays  Int?
   paymentTermsOffered String?
   validityDays        Int?
-  notes               String?  @db.Text
+  notes               String? @db.Text
   /// R2 object refs, reusing the vault storage guardrails.
   attachmentFileKeys  Json?
   /// Snapshot of the summed line totals at submission.
-  totalQuotedValue    Decimal  @db.Decimal(18, 2) @default(0)
+  totalQuotedValue    Decimal @default(0) @db.Decimal(18, 2)
 
   /// Save-and-resume: a quote row exists in draft until submittedAt is set on
   /// the parent invitee. Lines are upserted on each save.

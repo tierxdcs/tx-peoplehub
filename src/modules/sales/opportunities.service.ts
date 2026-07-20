@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Opportunity, OpportunityStage, Prisma, Role } from '@prisma/client';
+import { OpportunityStage, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import {
@@ -18,6 +18,14 @@ import {
   SalesAccessService,
   isSuperAdmin,
 } from './common/sales-access.service';
+
+type OpportunityWithCreator = Prisma.OpportunityGetPayload<{
+  include: {
+    enquiryCreator: { select: { firstName: true; lastName: true } };
+    owner: { select: { firstName: true; lastName: true } };
+    businessUnit: { select: { name: true; colorHex: true } };
+  };
+}>;
 
 @Injectable()
 export class OpportunitiesService {
@@ -49,6 +57,13 @@ export class OpportunitiesService {
         expectedCloseDate: new Date(dto.expectedCloseDate),
         customerId: dto.customerId ?? null,
         ownerId,
+        enquiryCreatorId: user.id,
+        businessUnitId: dto.businessUnitId,
+      },
+      include: {
+        enquiryCreator: { select: { firstName: true, lastName: true } },
+        owner: { select: { firstName: true, lastName: true } },
+        businessUnit: { select: { name: true, colorHex: true } },
       },
     });
     return this.toEntity(created);
@@ -65,6 +80,11 @@ export class OpportunitiesService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.opportunity.findMany({
         where,
+        include: {
+          enquiryCreator: { select: { firstName: true, lastName: true } },
+          owner: { select: { firstName: true, lastName: true } },
+          businessUnit: { select: { name: true, colorHex: true } },
+        },
         skip: query.skip,
         take: query.limit,
         orderBy: { createdAt: 'desc' },
@@ -130,6 +150,11 @@ export class OpportunitiesService {
             ? dto.lostReason
             : undefined,
       },
+      include: {
+        enquiryCreator: { select: { firstName: true, lastName: true } },
+        owner: { select: { firstName: true, lastName: true } },
+        businessUnit: { select: { name: true, colorHex: true } },
+      },
     });
     return this.toEntity(updated);
   }
@@ -155,15 +180,22 @@ export class OpportunitiesService {
     return requestedOwnerId;
   }
 
-  private async findRawOrThrow(id: string): Promise<Opportunity> {
-    const opp = await this.prisma.opportunity.findUnique({ where: { id } });
+  private async findRawOrThrow(id: string): Promise<OpportunityWithCreator> {
+    const opp = await this.prisma.opportunity.findUnique({
+      where: { id },
+      include: {
+        enquiryCreator: { select: { firstName: true, lastName: true } },
+        owner: { select: { firstName: true, lastName: true } },
+        businessUnit: { select: { name: true, colorHex: true } },
+      },
+    });
     if (!opp) {
       throw new NotFoundException('Opportunity not found');
     }
     return opp;
   }
 
-  private toEntity(o: Opportunity): OpportunityEntity {
+  private toEntity(o: OpportunityWithCreator): OpportunityEntity {
     return new OpportunityEntity({
       id: o.id,
       leadId: o.leadId,
@@ -173,6 +205,13 @@ export class OpportunitiesService {
       estimatedValue: o.estimatedValue.toString(),
       expectedCloseDate: o.expectedCloseDate,
       ownerId: o.ownerId,
+      enquiryCreatorId: o.enquiryCreatorId,
+      enquiryCreatorName:
+        `${o.enquiryCreator.firstName} ${o.enquiryCreator.lastName}`.trim(),
+      ownerName: `${o.owner.firstName} ${o.owner.lastName}`.trim(),
+      businessUnitId: o.businessUnitId,
+      businessUnitName: o.businessUnit.name,
+      businessUnitColorHex: o.businessUnit.colorHex,
       lostReason: o.lostReason,
       createdAt: o.createdAt,
       updatedAt: o.updatedAt,

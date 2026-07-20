@@ -42,6 +42,12 @@ export class UpdateLeadDto {
   @MinLength(1)
   requirement?: string;
 
+  @ApiPropertyOptional({ description: 'Business unit this enquiry belongs to' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  businessUnitId?: string;
+
   @ApiPropertyOptional({ enum: LeadPriority })
   @IsOptional()
   @IsEnum(LeadPriority)

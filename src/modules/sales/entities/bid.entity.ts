@@ -23,7 +23,9 @@ export class BidLineItemEntity {
   })
   productDescription!: string | null;
 
-  @ApiProperty({ description: 'Resolved product unit of measure (for display)' })
+  @ApiProperty({
+    description: 'Resolved product unit of measure (for display)',
+  })
   productUnitOfMeasure!: string;
 
   @ApiProperty({ description: 'Decimal serialized as string' })
@@ -67,7 +69,8 @@ export class BidEntity {
 
   @ApiProperty({
     nullable: true,
-    description: 'One-line quotation subject (Subject line + opening paragraph)',
+    description:
+      'One-line quotation subject (Subject line + opening paragraph)',
   })
   quotationSubject!: string | null;
 
@@ -106,6 +109,26 @@ export class BidEntity {
 
   @ApiProperty()
   createdById!: string;
+
+  @ApiProperty({
+    description: 'Immutable user credited with originating the enquiry',
+  })
+  enquiryCreatorId!: string;
+
+  @ApiProperty()
+  enquiryCreatorName!: string;
+
+  @ApiProperty({ description: 'Current owner (via the opportunity)' })
+  ownerName!: string;
+
+  @ApiProperty()
+  businessUnitId!: string;
+
+  @ApiProperty()
+  businessUnitName!: string;
+
+  @ApiProperty()
+  businessUnitColorHex!: string;
 
   @ApiProperty({ nullable: true })
   approverId!: string | null;

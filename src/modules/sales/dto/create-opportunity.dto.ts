@@ -24,6 +24,10 @@ export class CreateOpportunityDto {
   @IsDateString()
   expectedCloseDate!: string;
 
+  @ApiProperty({ description: 'Business unit credited for this opportunity' })
+  @IsUUID()
+  businessUnitId!: string;
+
   @ApiPropertyOptional({ description: 'Link to an existing customer' })
   @IsOptional()
   @IsUUID()

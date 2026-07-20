@@ -78,6 +78,27 @@ export class OrderEntity {
   @ApiProperty()
   ownerId!: string;
 
+  @ApiProperty({ description: 'Current owner' })
+  ownerName!: string;
+
+  @ApiProperty({
+    nullable: true,
+    description: 'Immutable user credited with originating the enquiry',
+  })
+  enquiryCreatorId!: string | null;
+
+  @ApiProperty({ nullable: true })
+  enquiryCreatorName!: string | null;
+
+  @ApiProperty({ nullable: true })
+  businessUnitId!: string | null;
+
+  @ApiProperty({ nullable: true })
+  businessUnitName!: string | null;
+
+  @ApiProperty({ nullable: true })
+  businessUnitColorHex!: string | null;
+
   @ApiProperty({ type: [OrderLineItemEntity], required: false })
   lineItems?: OrderLineItemEntity[];
 

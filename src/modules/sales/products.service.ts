@@ -20,6 +20,11 @@ import { SalesAccessService } from './common/sales-access.service';
  * user may read it; create/edit is restricted to MANAGER and above at the
  * controller layer. All monetary values are Decimal, serialized to string.
  */
+/** Shared include so every ProductEntity carries its BU name for list display. */
+const PRODUCT_INCLUDE = {
+  businessUnit: { select: { name: true, colorHex: true } },
+} as const;
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -41,6 +46,7 @@ export class ProductsService {
       );
     }
     if (dto.itemId) await this.assertItemExists(dto.itemId);
+    await this.assertBusinessUnitAssignable(dto.businessUnitId);
     const created = await this.prisma.product.create({
       data: {
         sku: dto.sku,
@@ -51,7 +57,10 @@ export class ProductsService {
         hsnCode: dto.hsnCode ?? null,
         isActive: dto.isActive ?? true,
         itemId: dto.itemId ?? null,
+        businessUnitId: dto.businessUnitId,
+        autoAssignedBusinessUnit: dto.autoAssignedBusinessUnit ?? false,
       },
+      include: PRODUCT_INCLUDE,
     });
     return this.toEntity(created);
   }
@@ -66,6 +75,7 @@ export class ProductsService {
         skip: query.skip,
         take: query.limit,
         orderBy: { createdAt: 'desc' },
+        include: PRODUCT_INCLUDE,
       }),
       this.prisma.product.count(),
     ]);
@@ -90,6 +100,12 @@ export class ProductsService {
     await this.access.assertSalesAccess(user);
     await this.findRawOrThrow(id);
     if (dto.itemId) await this.assertItemExists(dto.itemId);
+    // A businessUnitId in the payload is a deliberate manual choice: validate it
+    // (allowing an already-active unit) and clear the auto-assigned flag so
+    // later name/description edits never overwrite this human decision.
+    if (dto.businessUnitId !== undefined) {
+      await this.assertBusinessUnitAssignable(dto.businessUnitId);
+    }
     const updated = await this.prisma.product.update({
       where: { id },
       data: {
@@ -104,13 +120,25 @@ export class ProductsService {
         isActive: dto.isActive,
         // Omit → unchanged; null → unlink; id → link (validated above).
         ...(dto.itemId !== undefined ? { itemId: dto.itemId } : {}),
+        ...(dto.businessUnitId !== undefined
+          ? {
+              businessUnitId: dto.businessUnitId,
+              autoAssignedBusinessUnit: false,
+            }
+          : {}),
       },
+      include: PRODUCT_INCLUDE,
     });
     return this.toEntity(updated);
   }
 
-  private async findRawOrThrow(id: string): Promise<Product> {
-    const product = await this.prisma.product.findUnique({ where: { id } });
+  private async findRawOrThrow(
+    id: string,
+  ): Promise<Product & { businessUnit: { name: string; colorHex: string } | null }> {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: PRODUCT_INCLUDE,
+    });
     if (!product) {
       throw new NotFoundException('Product not found');
     }
@@ -128,7 +156,30 @@ export class ProductsService {
     }
   }
 
-  private toEntity(product: Product): ProductEntity {
+  /**
+   * Validate a business unit exists and is active before assigning it. A
+   * deactivated unit is rejected for new assignments (it's hidden from the
+   * dropdown) — products already tagged with it keep it, since those aren't
+   * re-validated here.
+   */
+  private async assertBusinessUnitAssignable(id: string): Promise<void> {
+    const bu = await this.prisma.businessUnit.findUnique({
+      where: { id },
+      select: { isActive: true },
+    });
+    if (!bu) throw new NotFoundException('Business unit not found');
+    if (!bu.isActive) {
+      throw new ConflictException(
+        'That business unit is inactive and cannot be assigned',
+      );
+    }
+  }
+
+  private toEntity(
+    product: Product & {
+      businessUnit?: { name: string; colorHex: string } | null;
+    },
+  ): ProductEntity {
     return new ProductEntity({
       id: product.id,
       sku: product.sku,
@@ -139,6 +190,10 @@ export class ProductsService {
       hsnCode: product.hsnCode,
       isActive: product.isActive,
       itemId: product.itemId,
+      businessUnitId: product.businessUnitId,
+      businessUnitName: product.businessUnit?.name ?? null,
+      businessUnitColorHex: product.businessUnit?.colorHex ?? null,
+      autoAssignedBusinessUnit: product.autoAssignedBusinessUnit,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
     });

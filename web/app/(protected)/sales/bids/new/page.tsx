@@ -115,7 +115,9 @@ export default function NewBidPage() {
       setError('Valid-until date is required');
       return;
     }
-    const validLines = lines.filter((l) => l.productId && Number(l.quantity) > 0);
+    const validLines = lines.filter(
+      (l) => l.productId && Number(l.quantity) > 0,
+    );
     if (validLines.length === 0) {
       setError('Add at least one line item with a product and quantity');
       return;
@@ -132,7 +134,12 @@ export default function NewBidPage() {
     try {
       const attachments =
         attachmentName || attachmentUrl
-          ? [{ filename: attachmentName || undefined, url: attachmentUrl || undefined }]
+          ? [
+              {
+                filename: attachmentName || undefined,
+                url: attachmentUrl || undefined,
+              },
+            ]
           : undefined;
       const bid = await apiFetch<Bid>('/bids', {
         method: 'POST',
@@ -169,7 +176,9 @@ export default function NewBidPage() {
       <h1>New Bid</h1>
       <form onSubmit={handleSubmit} style={{ maxWidth: 720 }}>
         <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Opportunity</label>
+          <label style={{ display: 'block', marginBottom: 4 }}>
+            Opportunity
+          </label>
           <select
             value={opportunityId}
             onChange={(e) => setOpportunityId(e.target.value)}
@@ -191,7 +200,9 @@ export default function NewBidPage() {
         </div>
 
         <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Valid until</label>
+          <label style={{ display: 'block', marginBottom: 4 }}>
+            Valid until
+          </label>
           <input
             type="date"
             value={validUntil}
@@ -266,7 +277,9 @@ export default function NewBidPage() {
         </div>
 
         <h3>Line items</h3>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
+        <table
+          style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}
+        >
           <thead>
             <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
               <th>Product</th>
@@ -295,11 +308,18 @@ export default function NewBidPage() {
                       style={{ padding: 4, minWidth: 180 }}
                     >
                       <option value="">Select…</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.sku})
-                        </option>
-                      ))}
+                      {products
+                        .filter(
+                          (candidate) =>
+                            !selectedOpp ||
+                            candidate.businessUnitId ===
+                              selectedOpp.businessUnitId,
+                        )
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.sku})
+                          </option>
+                        ))}
                     </select>
                   </td>
                   <td>{product ? formatINR(product.unitPrice) : '—'}</td>

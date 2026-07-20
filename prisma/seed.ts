@@ -21,6 +21,25 @@ const VERTICALS: Array<{ name: string; code: string }> = [
   { name: 'Design', code: 'DESIGN' },
 ];
 
+/// Business units a product can belong to. Idempotent upsert by `code`.
+/// displayOrder controls dropdown/management ordering. `update` intentionally
+/// refreshes name/description/order so tweaks to this list propagate on re-seed,
+/// while never resurrecting a manually deactivated unit (isActive is omitted).
+const BUSINESS_UNITS: Array<{
+  name: string;
+  code: string;
+  description: string;
+  displayOrder: number;
+  colorHex: string;
+}> = [
+  { name: 'Phaze Edge', code: 'EDGE', description: 'Edge and micro data-centre solutions.', displayOrder: 1, colorHex: '#2563EB' },
+  { name: 'Phaze Infrastructure', code: 'INFRA', description: 'Racks, cabinets, enclosures and physical infrastructure.', displayOrder: 2, colorHex: '#64748B' },
+  { name: 'Phaze Hyperscale', code: 'HYPERSCALE', description: 'Hyperscale and OCP/ORV-class deployments.', displayOrder: 3, colorHex: '#7C3AED' },
+  { name: 'Phaze MOD', code: 'MOD', description: 'Modular and containerised data-centre systems.', displayOrder: 4, colorHex: '#0891B2' },
+  { name: 'Phaze Intelligence', code: 'INTELLIGENCE', description: 'Monitoring, software and intelligent systems.', displayOrder: 5, colorHex: '#D97706' },
+  { name: 'Phaze Services', code: 'SERVICES', description: 'Services, support and everything not otherwise classified.', displayOrder: 6, colorHex: '#059669' },
+];
+
 /// Default store/warehouse locations for the inventory MVP (idempotent).
 const STORE_LOCATIONS: Array<{ code: string; name: string }> = [
   { code: 'MAIN', name: 'Main Store' },
@@ -404,6 +423,21 @@ export async function seed(prisma: PrismaClient): Promise<void> {
       where: { code: vertical.code },
       update: {},
       create: vertical,
+    });
+  }
+
+  for (const bu of BUSINESS_UNITS) {
+    await prisma.businessUnit.upsert({
+      where: { code: bu.code },
+      // Refresh descriptive fields on re-seed, but leave isActive alone so a
+      // deliberately deactivated unit is never silently reactivated.
+      update: {
+        name: bu.name,
+        description: bu.description,
+        displayOrder: bu.displayOrder,
+        colorHex: bu.colorHex,
+      },
+      create: bu,
     });
   }
 

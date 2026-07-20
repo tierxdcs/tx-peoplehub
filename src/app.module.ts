@@ -20,6 +20,7 @@ import { MustChangePasswordGuard } from './common/guards/must-change-password.gu
 import { AuthModule } from './modules/auth/auth.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { VerticalsModule } from './modules/verticals/verticals.module';
+import { BusinessUnitsModule } from './modules/business-units/business-units.module';
 import { LeaveModule } from './modules/leave/leave.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
@@ -59,6 +60,7 @@ import { DesignModule } from './modules/design/design.module';
     AuthModule,
     EmployeesModule,
     VerticalsModule,
+    BusinessUnitsModule,
     LeaveModule,
     AttendanceModule,
     PayrollModule,

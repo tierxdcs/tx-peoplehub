@@ -4,8 +4,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { Customer, PaginatedResult } from '../../../lib/types';
-import { badgeStyle } from '../../../lib/sales';
 import { Button } from '../../../components/ui/button';
+import { Card, CardContent } from '../../../components/ui/card';
+import { PageContainer } from '../../../components/ui/page-container';
+import { PageHeader } from '../../../components/ui/page-header';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { StatusBadge } from '../../../components/ui/status-badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../components/ui/table';
 
 const fieldStyle: React.CSSProperties = {
   width: '100%',
@@ -20,8 +32,7 @@ function addressLine(addr: unknown): string {
   if (typeof addr === 'object') {
     const a = addr as Record<string, unknown>;
     return (
-      [a.line1, a.city, a.state].filter(Boolean).join(', ') ||
-      JSON.stringify(a)
+      [a.line1, a.city, a.state].filter(Boolean).join(', ') || JSON.stringify(a)
     );
   }
   return String(addr);
@@ -35,25 +46,45 @@ interface ContactDraft {
   isPrimary: boolean;
 }
 
+const PAGE_SIZE = 20;
+
+function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <Card className="min-w-[160px] flex-1">
+      <CardContent className="p-4">
+        <div className="text-sm font-medium text-muted-foreground">{label}</div>
+        <div className="mt-1 text-2xl font-semibold">{value}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [summaryRows, setSummaryRows] = useState<Customer[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Customer | 'new' | null>(null);
-  const limit = 20;
-
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await apiFetch<PaginatedResult<Customer>>(
-        `/customers?page=${page}&limit=${limit}`,
+        `/customers?page=${page}&limit=${PAGE_SIZE}`,
       );
       setCustomers(res.items);
       setTotal(res.total);
+      if (page === 1 && res.total <= res.items.length) {
+        setSummaryRows(res.items);
+      } else {
+        const summary = await apiFetch<PaginatedResult<Customer>>(
+          '/customers?page=1&limit=100',
+        );
+        setSummaryRows(summary.items);
+      }
     } catch {
       setError('Failed to load customers');
     } finally {
@@ -76,106 +107,142 @@ export default function CustomersPage() {
     [customers, search],
   );
 
+  const summary = useMemo(
+    () => ({
+      active: summaryRows.filter((customer) => customer.status === 'ACTIVE')
+        .length,
+      gstRegistered: summaryRows.filter((customer) => Boolean(customer.gstin))
+        .length,
+      industries: new Set(
+        summaryRows
+          .map((customer) => customer.industry?.trim())
+          .filter((industry): industry is string => Boolean(industry)),
+      ).size,
+    }),
+    [summaryRows],
+  );
+
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <h1>Customer Master</h1>
-        <Button onClick={() => setEditing('new')}>
-          <Plus /> New Customer
-        </Button>
+    <PageContainer>
+      <PageHeader
+        title="Customer Master"
+        description="Maintain customer identity, GST registration, addresses and contacts in one register."
+        action={
+          <Button onClick={() => setEditing('new')}>
+            <Plus className="h-4 w-4" /> New Customer
+          </Button>
+        }
+      />
+
+      <div className="mb-6 flex flex-wrap gap-3">
+        <StatCard label="Total Customers" value={total} />
+        <StatCard label="Active" value={summary.active} />
+        <StatCard label="GST Registered" value={summary.gstRegistered} />
+        <StatCard label="Industries" value={summary.industries} />
       </div>
 
-      <div style={{ marginBottom: 16 }}>
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
+      <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
+        <h2 className="text-lg font-semibold">Customer Register</h2>
         <input
+          aria-label="Search customers"
           placeholder="Search name, GSTIN, industry"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: 6 }}
+          className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring sm:w-72"
         />
       </div>
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
-      {loading ? (
-        <p>Loading…</p>
-      ) : (
-        <>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
-                <th>Name</th>
-                <th>GSTIN</th>
-                <th>Industry</th>
-                <th>Billing</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((c) => (
-                <tr key={c.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td>{c.name}</td>
-                  <td>{c.gstin ?? '—'}</td>
-                  <td>{c.industry ?? '—'}</td>
-                  <td>{addressLine(c.billingAddress)}</td>
-                  <td>
-                    <span
-                      style={badgeStyle(
-                        c.status === 'ACTIVE' ? '#27ae60' : '#7f8c8d',
-                      )}
-                    >
-                      {c.status}
-                    </span>
-                  </td>
-                  <td>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditing(c)}
-                    >
-                      Edit
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={6} style={{ padding: 12, color: '#666' }}>
-                    No customers.
-                  </td>
-                </tr>
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>GSTIN</TableHead>
+                <TableHead>Industry</TableHead>
+                <TableHead>Billing Address</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                Array.from({ length: 5 }).map((_, row) => (
+                  <TableRow key={row}>
+                    {Array.from({ length: 6 }).map((__, column) => (
+                      <TableCell key={column}>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={6}
+                    className="py-8 text-center text-muted-foreground"
+                  >
+                    {search
+                      ? 'No customers match your search on this page.'
+                      : 'No customers yet.'}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filtered.map((customer) => (
+                  <TableRow key={customer.id}>
+                    <TableCell className="font-medium">
+                      {customer.name}
+                    </TableCell>
+                    <TableCell>{customer.gstin ?? '—'}</TableCell>
+                    <TableCell>{customer.industry ?? '—'}</TableCell>
+                    <TableCell className="max-w-[320px] truncate">
+                      {addressLine(customer.billingAddress)}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge value={customer.status} />
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditing(customer)}
+                      >
+                        Edit Customer
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-          <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Prev
-            </Button>
-            <span>
-              Page {page} of {Math.max(1, Math.ceil(total / limit))}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page * limit >= total}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </>
-      )}
+      <div className="mt-4 flex items-center gap-3">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page <= 1 || loading}
+          onClick={() => setPage((current) => current - 1)}
+        >
+          Previous
+        </Button>
+        <span className="text-sm text-muted-foreground">
+          Page {page} of {pageCount}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page >= pageCount || loading}
+          onClick={() => setPage((current) => current + 1)}
+        >
+          Next
+        </Button>
+      </div>
 
       {editing && (
         <CustomerForm
@@ -187,7 +254,7 @@ export default function CustomersPage() {
           }}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }
 
@@ -239,7 +306,13 @@ function CustomerForm({
   function addContact() {
     setContacts((cs) => [
       ...cs,
-      { name: '', email: '', phone: '', designation: '', isPrimary: cs.length === 0 },
+      {
+        name: '',
+        email: '',
+        phone: '',
+        designation: '',
+        isPrimary: cs.length === 0,
+      },
     ]);
   }
 
@@ -287,7 +360,9 @@ function CustomerForm({
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to save customer');
+      setError(
+        err instanceof ApiError ? err.message : 'Failed to save customer',
+      );
     } finally {
       setSubmitting(false);
     }
@@ -345,7 +420,8 @@ function CustomerForm({
         </div>
         <div style={{ marginBottom: 12 }}>
           <label style={{ display: 'block', marginBottom: 4 }}>
-            Billing address (plain text or JSON with a &quot;state&quot; key for GST)
+            Billing address (plain text or JSON with a &quot;state&quot; key for
+            GST)
           </label>
           <textarea
             value={billing}
@@ -385,7 +461,9 @@ function CustomerForm({
             manage contacts); existing ones are shown read-only on edit. */}
         {isEdit ? (
           <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', marginBottom: 4 }}>Contacts</label>
+            <label style={{ display: 'block', marginBottom: 4 }}>
+              Contacts
+            </label>
             {customer!.contacts && customer!.contacts.length > 0 ? (
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 {customer!.contacts.map((c) => (
@@ -402,7 +480,9 @@ function CustomerForm({
           </div>
         ) : (
           <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', marginBottom: 4 }}>Contacts</label>
+            <label style={{ display: 'block', marginBottom: 4 }}>
+              Contacts
+            </label>
             {contacts.map((c, i) => (
               <div
                 key={i}

@@ -45,6 +45,10 @@ export class CreateLeadDto {
   @IsEnum(LeadSource)
   source?: LeadSource;
 
+  @ApiProperty({ description: 'Business unit credited for this enquiry' })
+  @IsUUID()
+  businessUnitId!: string;
+
   @ApiPropertyOptional({
     description:
       'Owning Sales rep. Defaults to the creating user; only MANAGER/SUPER_ADMIN may assign another owner.',

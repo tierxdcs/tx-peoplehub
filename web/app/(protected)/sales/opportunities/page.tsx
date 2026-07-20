@@ -15,7 +15,10 @@ import { Card, CardContent } from '../../../components/ui/card';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
+import { RegisterToolbar } from '../_components/register-toolbar';
 import { Skeleton } from '../../../components/ui/skeleton';
+import { BusinessUnitLabel } from '../../../components/ui/business-unit-label';
+import { useBusinessUnitOptions } from '../../../lib/business-units';
 import {
   Table,
   TableBody,
@@ -52,7 +55,10 @@ export default function OpportunitiesPage() {
   const [summaryRows, setSummaryRows] = useState<Opportunity[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('');
+  const [businessUnitFilter, setBusinessUnitFilter] = useState('');
+  const { businessUnits } = useBusinessUnitOptions();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,13 +93,19 @@ export default function OpportunitiesPage() {
     void load();
   }, [load]);
 
-  const filtered = useMemo(
-    () =>
-      opportunities.filter(
-        (opportunity) => !stageFilter || opportunity.stage === stageFilter,
-      ),
-    [opportunities, stageFilter],
-  );
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return opportunities.filter(
+      (opportunity) =>
+        (!stageFilter || opportunity.stage === stageFilter) &&
+        (!businessUnitFilter ||
+          opportunity.businessUnitId === businessUnitFilter) &&
+        (!q ||
+          `${opportunity.name} ${opportunity.ownerName}`
+            .toLowerCase()
+            .includes(q)),
+    );
+  }, [opportunities, search, stageFilter, businessUnitFilter]);
 
   const summary = useMemo(() => {
     const active = summaryRows.filter(
@@ -145,32 +157,45 @@ export default function OpportunitiesPage() {
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
-      <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
-        <h2 className="text-lg font-semibold">Opportunity Register</h2>
-        <div className="w-full sm:w-48">
-          <label
-            htmlFor="opportunity-stage-filter"
-            className="mb-1 block text-xs font-medium text-muted-foreground"
-          >
-            Stage
-          </label>
-          <Select
-            id="opportunity-stage-filter"
-            value={stageFilter}
-            onChange={(event) => {
-              setStageFilter(event.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All stages</option>
-            {STAGES.map((stage) => (
-              <option key={stage} value={stage}>
-                {prettyEnum(stage)}
-              </option>
-            ))}
-          </Select>
-        </div>
-      </div>
+      <RegisterToolbar
+        title="Opportunity Register"
+        search={search}
+        onSearchChange={(v) => {
+          setSearch(v);
+          setPage(1);
+        }}
+        searchPlaceholder="Search name or owner"
+      >
+        <Select
+          aria-label="Stage"
+          className="w-full sm:w-44"
+          value={stageFilter}
+          onChange={(event) => {
+            setStageFilter(event.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">All stages</option>
+          {STAGES.map((stage) => (
+            <option key={stage} value={stage}>
+              {prettyEnum(stage)}
+            </option>
+          ))}
+        </Select>
+        <Select
+          aria-label="Business unit"
+          className="w-full sm:w-52"
+          value={businessUnitFilter}
+          onChange={(event) => setBusinessUnitFilter(event.target.value)}
+        >
+          <option value="">All business units</option>
+          {businessUnits.map((unit) => (
+            <option key={unit.id} value={unit.id}>
+              {unit.name}
+            </option>
+          ))}
+        </Select>
+      </RegisterToolbar>
 
       <Card>
         <CardContent className="p-0">
@@ -179,7 +204,9 @@ export default function OpportunitiesPage() {
               <TableRow>
                 <TableHead>Opportunity</TableHead>
                 <TableHead>Stage</TableHead>
+                <TableHead>Business Unit</TableHead>
                 <TableHead>Estimated Value</TableHead>
+                <TableHead>Owner</TableHead>
                 <TableHead>Expected Close</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -188,7 +215,7 @@ export default function OpportunitiesPage() {
               {loading ? (
                 Array.from({ length: 5 }).map((_, row) => (
                   <TableRow key={row}>
-                    {Array.from({ length: 5 }).map((__, column) => (
+                    {Array.from({ length: 7 }).map((__, column) => (
                       <TableCell key={column}>
                         <Skeleton className="h-4 w-24" />
                       </TableCell>
@@ -198,7 +225,7 @@ export default function OpportunitiesPage() {
               ) : filtered.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={7}
                     className="py-8 text-center text-muted-foreground"
                   >
                     {stageFilter
@@ -224,8 +251,15 @@ export default function OpportunitiesPage() {
                       <StatusBadge value={opportunity.stage} />
                     </TableCell>
                     <TableCell>
+                      <BusinessUnitLabel
+                        name={opportunity.businessUnitName}
+                        colorHex={opportunity.businessUnitColorHex}
+                      />
+                    </TableCell>
+                    <TableCell>
                       {formatINR(opportunity.estimatedValue)}
                     </TableCell>
+                    <TableCell>{opportunity.ownerName}</TableCell>
                     <TableCell>
                       {new Date(
                         opportunity.expectedCloseDate,

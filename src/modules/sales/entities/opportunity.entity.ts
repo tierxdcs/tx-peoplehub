@@ -26,6 +26,26 @@ export class OpportunityEntity {
   @ApiProperty()
   ownerId!: string;
 
+  @ApiProperty({ description: 'Current owner (may differ from the creator)' })
+  ownerName!: string;
+
+  @ApiProperty({
+    description: 'Immutable user credited with originating the enquiry',
+  })
+  enquiryCreatorId!: string;
+
+  @ApiProperty()
+  enquiryCreatorName!: string;
+
+  @ApiProperty()
+  businessUnitId!: string;
+
+  @ApiProperty()
+  businessUnitName!: string;
+
+  @ApiProperty()
+  businessUnitColorHex!: string;
+
   @ApiProperty({ nullable: true })
   lostReason!: string | null;
 

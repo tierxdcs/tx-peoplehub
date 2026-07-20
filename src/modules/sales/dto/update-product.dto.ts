@@ -44,6 +44,17 @@ export class UpdateProductDto {
   isActive?: boolean;
 
   /**
+   * Change the business unit. Setting this is treated as a MANUAL choice — the
+   * service clears autoAssignedBusinessUnit so later name/description edits
+   * never re-run inference over it. Cannot be cleared to null (BU is required).
+   */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  businessUnitId?: string;
+
+  /**
    * Link/unlink the manufactured Item Master item. Send an item id to link, or
    * null to unlink. Omit to leave unchanged. (BOMs are keyed on Item; this link
    * powers the kickoff stock-availability report.)

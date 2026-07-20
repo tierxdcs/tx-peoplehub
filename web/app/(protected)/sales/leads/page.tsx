@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '../../../lib/auth-context';
 import { apiFetch, ApiError } from '../../../lib/api';
 import {
   Lead,
@@ -19,11 +20,16 @@ import { PageHeader } from '../../../components/ui/page-header';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Badge } from '../../../components/ui/badge';
 import { StatusBadge } from '../../../components/ui/status-badge';
+import { BusinessUnitLabel } from '../../../components/ui/business-unit-label';
+import { BusinessUnitHelp } from '../../../components/ui/business-unit-help';
+import { useBusinessUnitOptions } from '../../../lib/business-units';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
+import { RegisterToolbar } from '../_components/register-toolbar';
 import { Textarea } from '../../../components/ui/textarea';
 import { Field } from '../../../components/ui/field';
+import { Label } from '../../../components/ui/label';
 import { Skeleton } from '../../../components/ui/skeleton';
 import {
   Dialog,
@@ -59,14 +65,38 @@ export default function LeadsPage() {
   const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
+  const { user } = useAuth();
+
+  /**
+   * Who may edit a lead: its owner, or a Manager/Admin/SuperAdmin (managers can
+   * edit their downstream team's leads — the backend enforces the precise
+   * team-scope on write, so here we just surface the button for owner + manager+
+   * and let a plain employee edit only their own).
+   */
+  const canEditLead = useCallback(
+    (lead: Lead) => {
+      if (!user) return false;
+      if (lead.ownerId === user.sub) return true;
+      return (
+        user.role === 'MANAGER' ||
+        user.role === 'ADMIN' ||
+        user.role === 'SUPER_ADMIN'
+      );
+    },
+    [user],
+  );
   const [leads, setLeads] = useState<Lead[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [editTarget, setEditTarget] = useState<Lead | null>(null);
   const [convertTarget, setConvertTarget] = useState<Lead | null>(null);
   const [acting, setActing] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [businessUnitFilter, setBusinessUnitFilter] = useState('');
+  const { businessUnits } = useBusinessUnitOptions();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,7 +105,9 @@ export default function LeadsPage() {
       // Everything needed for the blended pipeline view + summary cards.
       const [leadsRes, oppsRes, ordersRes] = await Promise.all([
         apiFetch<PaginatedResult<Lead>>('/leads?page=1&limit=100'),
-        apiFetch<PaginatedResult<Opportunity>>('/opportunities?page=1&limit=100'),
+        apiFetch<PaginatedResult<Opportunity>>(
+          '/opportunities?page=1&limit=100',
+        ),
         apiFetch<PaginatedResult<Order>>('/orders?page=1&limit=100'),
       ]);
       setLeads(leadsRes.items);
@@ -129,7 +161,9 @@ export default function LeadsPage() {
       toast.success(`${lead.leadNumber} qualified.`);
       await load();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to qualify lead');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to qualify lead',
+      );
     } finally {
       setActing(null);
     }
@@ -175,9 +209,7 @@ export default function LeadsPage() {
           size="sm"
           variant="outline"
           onClick={() =>
-            router.push(
-              `/sales/opportunities/${lead.convertedToOpportunityId}`,
-            )
+            router.push(`/sales/opportunities/${lead.convertedToOpportunityId}`)
           }
         >
           View Opportunity
@@ -204,26 +236,43 @@ export default function LeadsPage() {
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
-      <h2 className="mb-2 text-lg font-semibold">Lead Register</h2>
+      <RegisterToolbar
+        title="Lead Register"
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search company, contact or lead #"
+      >
+        <Select
+          aria-label="Business unit"
+          className="w-full sm:w-52"
+          value={businessUnitFilter}
+          onChange={(event) => setBusinessUnitFilter(event.target.value)}
+        >
+          <option value="">All business units</option>
+          {businessUnits.map((unit) => (
+            <option key={unit.id} value={unit.id}>
+              {unit.name}
+            </option>
+          ))}
+        </Select>
+      </RegisterToolbar>
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Lead ID</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Contact</TableHead>
+                <TableHead>Lead</TableHead>
                 <TableHead>Requirement</TableHead>
+                <TableHead>Owner</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Actions</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 7 }).map((__, j) => (
+                    {Array.from({ length: 5 }).map((__, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-4 w-24" />
                       </TableCell>
@@ -233,42 +282,93 @@ export default function LeadsPage() {
               ) : leads.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={5}
                     className="py-8 text-center text-muted-foreground"
                   >
                     No leads yet.
                   </TableCell>
                 </TableRow>
               ) : (
-                leads.map((lead) => {
-                  const opp = lead.convertedToOpportunityId
-                    ? oppById.get(lead.convertedToOpportunityId)
-                    : null;
-                  const display = leadDisplayStatus(lead, opp);
-                  return (
-                    <TableRow key={lead.id}>
-                      <TableCell className="font-medium">
-                        {lead.leadNumber}
-                      </TableCell>
-                      <TableCell>{lead.companyName}</TableCell>
-                      <TableCell>{lead.contactName}</TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {lead.requirement}
-                      </TableCell>
-                      <TableCell>
-                        {/* Blended lead-status / opportunity-stage label,
+                leads
+                  .filter((lead) => {
+                    if (
+                      businessUnitFilter &&
+                      lead.businessUnitId !== businessUnitFilter
+                    )
+                      return false;
+                    const q = search.trim().toLowerCase();
+                    if (
+                      q &&
+                      !`${lead.companyName} ${lead.contactName} ${lead.leadNumber} ${lead.requirement}`
+                        .toLowerCase()
+                        .includes(q)
+                    )
+                      return false;
+                    return true;
+                  })
+                  .map((lead) => {
+                    const opp = lead.convertedToOpportunityId
+                      ? oppById.get(lead.convertedToOpportunityId)
+                      : null;
+                    const display = leadDisplayStatus(lead, opp);
+                    return (
+                      <TableRow key={lead.id}>
+                        {/* Lead identity: company primary, id + contact beneath. */}
+                        <TableCell>
+                          <div className="font-medium">{lead.companyName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {lead.leadNumber} · {lead.contactName}
+                          </div>
+                        </TableCell>
+                        {/* Requirement + its business-unit chip stacked. */}
+                        <TableCell className="max-w-xs">
+                          <div className="truncate">{lead.requirement}</div>
+                          <div className="mt-1">
+                            <BusinessUnitLabel
+                              name={lead.businessUnitName}
+                              colorHex={lead.businessUnitColorHex}
+                            />
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {lead.ownerName}
+                        </TableCell>
+                        {/* Status primary, priority as a quieter line beneath. */}
+                        <TableCell>
+                          {/* Blended lead-status / opportunity-stage label,
                             rendered with the app-wide status colors. */}
-                        <Badge variant={statusVariant(display.toUpperCase().replace(/ /g, '_'))}>
-                          {display}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge value={lead.priority} />
-                      </TableCell>
-                      <TableCell>{renderAction(lead)}</TableCell>
-                    </TableRow>
-                  );
-                })
+                          <Badge
+                            variant={statusVariant(
+                              display.toUpperCase().replace(/ /g, '_'),
+                            )}
+                          >
+                            {display}
+                          </Badge>
+                          <div className="mt-1">
+                            <StatusBadge value={lead.priority} />
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {/* Edit: only the owner (or a manager/admin) may
+                                edit, and only before conversion (the backend
+                                blocks editing CONVERTED leads). */}
+                            {lead.status !== 'CONVERTED' &&
+                              canEditLead(lead) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditTarget(lead)}
+                                >
+                                  Edit
+                                </Button>
+                              )}
+                            {renderAction(lead)}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
               )}
             </TableBody>
           </Table>
@@ -281,6 +381,18 @@ export default function LeadsPage() {
           onSaved={() => {
             setShowNew(false);
             toast.success('Lead created.');
+            load();
+          }}
+        />
+      )}
+
+      {editTarget && (
+        <NewLeadForm
+          lead={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={() => {
+            setEditTarget(null);
+            toast.success('Lead updated.');
             load();
           }}
         />
@@ -313,19 +425,29 @@ const SOURCES: LeadSource[] = [
 ];
 
 function NewLeadForm({
+  lead,
   onClose,
   onSaved,
 }: {
+  /** When provided, the form edits this lead (PATCH); otherwise it creates. */
+  lead?: Lead;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [companyName, setCompanyName] = useState('');
-  const [contactName, setContactName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [requirement, setRequirement] = useState('');
-  const [priority, setPriority] = useState<LeadPriority>('MEDIUM');
-  const [source, setSource] = useState<LeadSource>('OTHER');
+  const isEdit = !!lead;
+  const [companyName, setCompanyName] = useState(lead?.companyName ?? '');
+  const [contactName, setContactName] = useState(lead?.contactName ?? '');
+  const [email, setEmail] = useState(lead?.email ?? '');
+  const [phone, setPhone] = useState(lead?.phone ?? '');
+  const [requirement, setRequirement] = useState(lead?.requirement ?? '');
+  const [priority, setPriority] = useState<LeadPriority>(
+    lead?.priority ?? 'MEDIUM',
+  );
+  const [source, setSource] = useState<LeadSource>(lead?.source ?? 'OTHER');
+  const { businessUnits } = useBusinessUnitOptions();
+  const [businessUnitId, setBusinessUnitId] = useState(
+    lead?.businessUnitId ?? '',
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -335,27 +457,33 @@ function NewLeadForm({
     if (!companyName) next.companyName = 'Company is required';
     if (!contactName) next.contactName = 'Contact is required';
     if (!requirement) next.requirement = 'Requirement is required';
+    if (!businessUnitId) next.businessUnitId = 'Business unit is required';
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
+    const body = JSON.stringify({
+      companyName,
+      contactName,
+      email: email || undefined,
+      phone: phone || undefined,
+      requirement,
+      priority,
+      source,
+      businessUnitId,
+    });
     setSubmitting(true);
     try {
-      await apiFetch('/leads', {
-        method: 'POST',
-        body: JSON.stringify({
-          companyName,
-          contactName,
-          email: email || undefined,
-          phone: phone || undefined,
-          requirement,
-          priority,
-          source,
-        }),
+      await apiFetch(isEdit ? `/leads/${lead.id}` : '/leads', {
+        method: isEdit ? 'PATCH' : 'POST',
+        body,
       });
       onSaved();
     } catch (err) {
       setErrors({
-        _form: err instanceof ApiError ? err.message : 'Failed to create lead',
+        _form:
+          err instanceof ApiError
+            ? err.message
+            : `Failed to ${isEdit ? 'update' : 'create'} lead`,
       });
     } finally {
       setSubmitting(false);
@@ -366,7 +494,7 @@ function NewLeadForm({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New Enquiry</DialogTitle>
+          <DialogTitle>{isEdit ? 'Edit Enquiry' : 'New Enquiry'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label="Company name" required error={errors.companyName}>
@@ -401,6 +529,32 @@ function NewLeadForm({
               aria-invalid={!!errors.requirement}
             />
           </Field>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <Label>
+                Business unit
+                <span className="ml-0.5 text-destructive">*</span>
+              </Label>
+              <BusinessUnitHelp businessUnits={businessUnits} />
+            </div>
+            <Select
+              value={businessUnitId}
+              onChange={(e) => setBusinessUnitId(e.target.value)}
+              aria-invalid={!!errors.businessUnitId}
+            >
+              <option value="">Select business unit</option>
+              {businessUnits.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  {unit.name}
+                </option>
+              ))}
+            </Select>
+            {errors.businessUnitId && (
+              <p className="text-xs font-medium text-destructive">
+                {errors.businessUnitId}
+              </p>
+            )}
+          </div>
           <div className="flex gap-3">
             <Field label="Priority" className="flex-1">
               <Select
@@ -436,7 +590,7 @@ function NewLeadForm({
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>
-              {submitting ? 'Saving…' : 'Create Lead'}
+              {submitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Lead'}
             </Button>
           </DialogFooter>
         </form>
@@ -518,14 +672,22 @@ function ConvertLeadForm({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Field label="Opportunity name" required error={errors.opportunityName}>
+          <Field
+            label="Opportunity name"
+            required
+            error={errors.opportunityName}
+          >
             <Input
               value={opportunityName}
               onChange={(e) => setOpportunityName(e.target.value)}
               aria-invalid={!!errors.opportunityName}
             />
           </Field>
-          <Field label="Estimated value (₹)" required error={errors.estimatedValue}>
+          <Field
+            label="Estimated value (₹)"
+            required
+            error={errors.estimatedValue}
+          >
             <Input
               type="number"
               min={0}
