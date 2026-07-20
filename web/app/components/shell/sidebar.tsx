@@ -3,12 +3,131 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown } from 'lucide-react';
+import {
+  BadgeCheck,
+  Banknote,
+  BarChart3,
+  Boxes,
+  Building2,
+  CalendarDays,
+  CalendarRange,
+  CheckSquare2,
+  ChevronDown,
+  ClipboardCheck,
+  ClipboardList,
+  Columns3,
+  ContactRound,
+  FileCheck2,
+  FileText,
+  FolderOpen,
+  Gauge,
+  IndianRupee,
+  LayoutDashboard,
+  ListChecks,
+  Package,
+  PackageCheck,
+  ReceiptText,
+  Rocket,
+  ScrollText,
+  Settings2,
+  ShieldCheck,
+  ShoppingCart,
+  Target,
+  Truck,
+  UserPlus,
+  Users,
+  UsersRound,
+  Warehouse,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
 import type { NavGroup } from '../../lib/nav';
 import { cn } from '../../lib/utils';
 import { Badge } from '../ui/badge';
 
 const COLLAPSE_KEY = 'sidebar:collapsedGroups';
+
+/**
+ * Route-aware icon selection keeps the nav model serializable and guarantees
+ * every current/future menu entry receives an icon. More-specific routes must
+ * be checked before their broader module prefixes.
+ */
+function iconForHref(href: string): LucideIcon {
+  if (href === '/dashboard') return LayoutDashboard;
+  if (href === '/vault' || href.includes('/documents')) return FolderOpen;
+  if (href === '/kanban') return Columns3;
+  if (href.includes('/sprints')) return CalendarRange;
+  if (href === '/project-kickoff') return Rocket;
+
+  if (href.includes('pending-approval') || href.includes('leave-approvals'))
+    return BadgeCheck;
+  if (href.includes('attendance')) return CalendarDays;
+  if (href.includes('employees') || href.includes('/roster')) return Users;
+  if (href.includes('onboard') || href.includes('pending-access'))
+    return UserPlus;
+  if (href.includes('verticals')) return Building2;
+  if (href.includes('auditor')) return ShieldCheck;
+  if (
+    href.includes('payroll') ||
+    href.includes('salary') ||
+    href.includes('payslip')
+  )
+    return IndianRupee;
+  if (href.includes('statutory')) return ScrollText;
+
+  if (href.includes('/leads')) return ContactRound;
+  if (href.includes('/opportunities')) return Target;
+  if (href.includes('/bids') || href.includes('confirmation-sheets'))
+    return FileText;
+  if (href.includes('/orders') || href.includes('purchase-orders'))
+    return ShoppingCart;
+  if (href.includes('/customers')) return Building2;
+  if (href.includes('/products') || href.includes('/items')) return Package;
+
+  if (href.includes('/vendors') || href.includes('/suppliers'))
+    return UsersRound;
+  if (href.includes('/rfqs')) return FileCheck2;
+  if (href.includes('/bom')) return Boxes;
+  if (href.includes('/inventory')) return Warehouse;
+  if (href.includes('/grn')) return PackageCheck;
+  if (href.includes('material-issue')) return Warehouse;
+  if (href.includes('/dispatch')) return Truck;
+  if (href.includes('/otd')) return Gauge;
+
+  if (href.includes('/invoices') || href.includes('/adjustments'))
+    return ReceiptText;
+  if (href.includes('/payments') || href.includes('/receipts')) return Banknote;
+  if (href.includes('calendar')) return CalendarDays;
+  if (href.includes('/accounts') || href.includes('/journals'))
+    return ScrollText;
+  if (
+    href.includes('/reports') ||
+    href.includes('/analytics') ||
+    href.includes('/summary')
+  )
+    return BarChart3;
+  if (
+    href.includes('compliance') ||
+    href.includes('filings') ||
+    href.includes('period-close')
+  )
+    return ShieldCheck;
+
+  if (href.includes('/inspections') || href.includes('/audits'))
+    return ClipboardCheck;
+  if (href.includes('/plans') || href.includes('/templates'))
+    return ClipboardList;
+  if (
+    href.includes('/ncr') ||
+    href.includes('/capas') ||
+    href.includes('/complaints')
+  )
+    return Wrench;
+  if (href.includes('/calibration')) return Gauge;
+  if (href.includes('/design')) return Settings2;
+
+  return CheckSquare2;
+}
 
 /**
  * Per-module left nav. Renders only the groups/items passed in (already
@@ -93,6 +212,7 @@ export function Sidebar({
                   {group.items.map((item) => {
                     const active = item.href === activeHref;
                     const count = badges?.[item.href];
+                    const ItemIcon = iconForHref(item.href);
                     return (
                       <li key={item.href}>
                         <Link
@@ -104,7 +224,13 @@ export function Sidebar({
                               : 'text-foreground/80 hover:bg-accent hover:text-accent-foreground',
                           )}
                         >
-                          <span>{item.label}</span>
+                          <span className="flex min-w-0 items-center gap-2">
+                            <ItemIcon
+                              aria-hidden="true"
+                              className="size-4 shrink-0 opacity-75"
+                            />
+                            <span className="truncate">{item.label}</span>
+                          </span>
                           {typeof count === 'number' && count > 0 && (
                             <Badge
                               variant="destructive"
