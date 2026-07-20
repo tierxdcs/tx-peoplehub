@@ -56,7 +56,9 @@ export class UpdateListDto {
 }
 
 export class ReorderListDto {
-  @ApiProperty({ description: 'New fractional position (midpoint of neighbours)' })
+  @ApiProperty({
+    description: 'New fractional position (midpoint of neighbours)',
+  })
   @IsNumber()
   position!: number;
 }

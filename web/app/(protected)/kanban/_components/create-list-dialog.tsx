@@ -51,7 +51,9 @@ export function CreateListDialog({
       toast.success('List created.');
       onCreated(list);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to create list.');
+      setError(
+        err instanceof ApiError ? err.message : 'Failed to create list.',
+      );
       setSubmitting(false);
     }
   }
@@ -78,7 +80,7 @@ export function CreateListDialog({
               checked={isDoneList}
               onCheckedChange={(v) => setIsDoneList(v === true)}
             />
-            Mark as a “done” list (cards here are never flagged overdue)
+            Cards moved here count as done
           </label>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>

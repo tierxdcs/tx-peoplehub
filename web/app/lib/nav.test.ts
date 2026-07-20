@@ -91,7 +91,7 @@ describe('sidebarNav — the reported bug', () => {
     const shown = labels(a, activeModule('/leave', mods));
     expect(shown).toContain('Leads');
     expect(shown).toContain('Bid Approvals'); // manager-only sales item
-    expect(shown).toContain('My Profile'); // shared self-service entry present
+    expect(shown).not.toContain('My Profile'); // available from account dropdown
     // Must NOT leak HR-admin items.
     expect(shown).not.toContain('Employees');
     expect(shown).not.toContain('Payroll Runs');
@@ -102,14 +102,14 @@ describe('sidebarNav — the reported bug', () => {
     const shown = labels(a, activeModule('/sales/leads', availableModules(a)));
     expect(shown).toContain('Leads');
     expect(shown).not.toContain('Bid Approvals');
-    expect(shown).toContain('My Profile');
+    expect(shown).not.toContain('My Profile');
   });
 
   it('an HR EMPLOYEE sees HR People tools + shared items, no Sales', () => {
     const a = access('EMPLOYEE', { isHrStaff: true });
     const shown = labels(a, activeModule('/hr/roster', availableModules(a)));
     expect(shown).toContain('Roster');
-    expect(shown).toContain('My Profile');
+    expect(shown).not.toContain('My Profile');
     expect(shown).not.toContain('Leads');
   });
 
@@ -228,15 +228,13 @@ describe('sidebarNav — the reported bug', () => {
     expect(shown).toContain('Bills of Materials');
   });
 
-  // My Team / My Leave / My Attendance are no longer sidebar items — they live
-  // as tabs inside the profile page. The sidebar now shows a single "My
-  // Profile" entry for everyone; the per-role gating (e.g. My Team) moved into
-  // the profile page itself.
-  it('every role sees the shared My Profile entry, not the old sub-links', () => {
+  // Personal profile and self-service tabs are reached from the account
+  // dropdown/profile page and are not duplicated in the sidebar.
+  it('does not duplicate profile or its tabs in the sidebar', () => {
     for (const role of ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE'] as const) {
       const a = access(role);
       const shown = labels(a, activeModule('/profile', availableModules(a)));
-      expect(shown).toContain('My Profile');
+      expect(shown).not.toContain('My Profile');
       expect(shown).not.toContain('My Team');
       expect(shown).not.toContain('My Leave');
       expect(shown).not.toContain('My Attendance');
@@ -247,7 +245,7 @@ describe('sidebarNav — the reported bug', () => {
     const a = access('EMPLOYEE');
     const shown = labels(a, activeModule('/leave', availableModules(a)));
     expect(shown).toEqual(
-      expect.arrayContaining(['My Profile', 'Documents', 'Boards']),
+      expect.arrayContaining(['Documents', 'Boards']),
     );
     expect(shown).not.toContain('Leads');
     expect(shown).not.toContain('Roster');
@@ -273,18 +271,23 @@ describe('sidebarNav — the reported bug', () => {
 });
 
 describe('landingRoute', () => {
-  it('sends a Sales-only manager into Sales', () => {
-    expect(landingRoute(access('MANAGER', { isSalesStaff: true }))).toBe('/sales/leads');
+  // The personal dashboard is now the single post-login landing for every role.
+  it('sends every role to the personal dashboard', () => {
+    expect(landingRoute(access('MANAGER', { isSalesStaff: true }))).toBe('/dashboard');
+    expect(landingRoute(access('EMPLOYEE', { isSalesStaff: true }))).toBe('/dashboard');
+    expect(landingRoute(access('ADMIN'))).toBe('/dashboard');
+    expect(landingRoute(access('SUPER_ADMIN'))).toBe('/dashboard');
+    expect(landingRoute(access('MANAGER', { isHrStaff: true }))).toBe('/dashboard');
+    expect(landingRoute(access('EMPLOYEE'))).toBe('/dashboard');
   });
-  it('sends a Sales-only employee into Sales', () => {
-    expect(landingRoute(access('EMPLOYEE', { isSalesStaff: true }))).toBe('/sales/leads');
-  });
-  it('keeps Admin/SuperAdmin on the HR-admin home', () => {
-    expect(landingRoute(access('ADMIN'))).toBe('/admin/employees');
-    expect(landingRoute(access('SUPER_ADMIN'))).toBe('/admin/employees');
-  });
-  it('sends an HR/module-less manager to /team and employee to /profile', () => {
-    expect(landingRoute(access('MANAGER', { isHrStaff: true }))).toBe('/team');
-    expect(landingRoute(access('EMPLOYEE'))).toBe('/profile');
+});
+
+describe('sharedNav — dashboard', () => {
+  it('every role gets the Dashboard nav item', () => {
+    for (const role of ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE'] as const) {
+      const a = access(role);
+      const shown = labels(a, activeModule('/dashboard', availableModules(a)));
+      expect(shown).toContain('Dashboard');
+    }
   });
 });

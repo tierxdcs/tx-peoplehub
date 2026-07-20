@@ -115,7 +115,9 @@ export class KanbanController {
 
   @Delete('boards/:id/members/:employeeId')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Remove a board member (Scrum Master / SUPER_ADMIN)' })
+  @ApiOperation({
+    summary: 'Remove a board member (Scrum Master / SUPER_ADMIN)',
+  })
   async removeMember(
     @Param('id') id: string,
     @Param('employeeId') employeeId: string,
@@ -142,7 +144,9 @@ export class KanbanController {
   }
 
   @Patch('lists/:id')
-  @ApiOperation({ summary: 'Edit a list name / done-flag (Scrum Master / SUPER_ADMIN)' })
+  @ApiOperation({
+    summary: 'Edit a list name / done-flag (Scrum Master / SUPER_ADMIN)',
+  })
   updateList(
     @Param('id') id: string,
     @Body() dto: UpdateListDto,
@@ -152,13 +156,35 @@ export class KanbanController {
   }
 
   @Patch('lists/:id/reorder')
-  @ApiOperation({ summary: 'Reorder a list within its board (Scrum Master / SUPER_ADMIN)' })
+  @ApiOperation({
+    summary: 'Reorder a list within its board (Scrum Master / SUPER_ADMIN)',
+  })
   reorderList(
     @Param('id') id: string,
     @Body() dto: ReorderListDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.lists.reorderList(id, dto, user);
+  }
+
+  @Delete('lists/:id')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Delete an empty non-done list (Scrum Master / SUPER_ADMIN)',
+  })
+  async deleteList(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.lists.deleteList(id, user);
+  }
+
+  @Get('done-list-backfill-report')
+  @ApiOperation({
+    summary: 'Review done-list choices made by the migration (SUPER_ADMIN)',
+  })
+  doneListBackfillReport(@CurrentUser() user: AuthenticatedUser) {
+    return this.boards.doneListBackfillReport(user);
   }
 
   // ── Sprints ────────────────────────────────────────────────────────
@@ -204,6 +230,18 @@ export class KanbanController {
     return this.cards.listBoardCards(id, query, user);
   }
 
+  @Get('boards/:id/vertical-progress')
+  @ApiOperation({
+    summary:
+      'Per-vertical completion for a board (cards done/total by vertical) — any member',
+  })
+  boardVerticalProgress(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cards.boardVerticalProgress(id, user);
+  }
+
   @Get('lists/:listId/cards')
   @ApiOperation({ summary: 'Cards in a list (any board member)' })
   listCards(
@@ -221,6 +259,16 @@ export class KanbanController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.cards.create(listId, dto, user);
+  }
+
+  // Static route declared BEFORE cards/:id so 'mine' isn't captured as an :id.
+  @Get('cards/mine')
+  @ApiOperation({
+    summary:
+      'Active cards assigned to the current user across all boards (personal dashboard)',
+  })
+  myCards(@CurrentUser() user: AuthenticatedUser) {
+    return this.cards.myCards(user);
   }
 
   @Get('cards/:id')

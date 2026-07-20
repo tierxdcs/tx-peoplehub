@@ -31,6 +31,10 @@ import {
   ProjectKickoffEntity,
 } from './entities/project-kickoff.entity';
 import { UpdateDeliveryItemDto } from './dto/project-kickoff.dto';
+import {
+  deriveProjectProgress,
+  type ProjectProgressView,
+} from './project-progress';
 
 /** Employee shape needed to render an owner/attendee name. */
 type EmployeeName = { firstName: string; lastName: string } | null;
@@ -161,7 +165,9 @@ export class ProjectKickoffService {
   async findAll(user: AuthenticatedUser): Promise<ProjectKickoffEntity[]> {
     // Visible kickoffs: created by me, or I'm an internal attendee — or all for
     // SUPER_ADMIN. Filtered in the query so we never over-fetch.
-    const where: Prisma.ProjectKickoffWhereInput = this.access.isSuperAdmin(user)
+    const where: Prisma.ProjectKickoffWhereInput = this.access.isSuperAdmin(
+      user,
+    )
       ? {}
       : {
           OR: [
@@ -175,6 +181,170 @@ export class ProjectKickoffService {
       include: this.fullInclude(),
     });
     return Promise.all(rows.map((r) => this.toEntity(r)));
+  }
+
+  /**
+   * Lightweight dashboard projection for projects the caller participates in.
+   * Visibility exactly matches kickoff access: creator, internal attendee, or
+   * SUPER_ADMIN. Stage lamps are derived from source records, never edited.
+   */
+  async progressForUser(
+    user: AuthenticatedUser,
+  ): Promise<ProjectProgressView[]> {
+    const where: Prisma.ProjectKickoffWhereInput = this.access.isSuperAdmin(
+      user,
+    )
+      ? {}
+      : {
+          OR: [
+            { createdById: user.id },
+            { attendees: { some: { employeeId: user.id } } },
+          ],
+        };
+    const kickoffs = await this.prisma.projectKickoff.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        projectName: true,
+        status: true,
+        meetingDate: true,
+        updatedAt: true,
+        orderId: true,
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            finalQcStatus: true,
+            fulfilmentStatus: true,
+            updatedAt: true,
+            deliveryChallans: {
+              select: { status: true, updatedAt: true },
+              where: { status: { not: 'CANCELLED' } },
+            },
+          },
+        },
+        milestones: {
+          select: { status: true, targetDate: true, updatedAt: true },
+        },
+        actionItems: {
+          select: {
+            dueDate: true,
+            updatedAt: true,
+            kanbanCard: {
+              select: {
+                status: true,
+                list: { select: { isDoneList: true } },
+              },
+            },
+          },
+        },
+        risks: {
+          select: {
+            status: true,
+            likelihood: true,
+            impact: true,
+            updatedAt: true,
+          },
+        },
+        rfqs: { select: { status: true, updatedAt: true } },
+      },
+    });
+    if (!kickoffs.length) return [];
+
+    const kickoffIds = kickoffs.map((kickoff) => kickoff.id);
+    const orderIds = kickoffs.map((kickoff) => kickoff.orderId);
+    const [designProjects, inspections] = await Promise.all([
+      this.prisma.designProject.findMany({
+        where: { projectKickoffId: { in: kickoffIds } },
+        select: {
+          id: true,
+          projectKickoffId: true,
+          status: true,
+          updatedAt: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      this.prisma.qmsInspection.findMany({
+        where: {
+          OR: [
+            { projectKickoffId: { in: kickoffIds } },
+            { orderId: { in: orderIds } },
+          ],
+          status: { not: 'CANCELLED' },
+        },
+        select: {
+          projectKickoffId: true,
+          orderId: true,
+          status: true,
+          updatedAt: true,
+        },
+      }),
+    ]);
+    const now = Date.now();
+
+    return kickoffs.map((kickoff) => {
+      const designProject = designProjects.find(
+        (project) => project.projectKickoffId === kickoff.id,
+      );
+      const relatedInspections = inspections.filter(
+        (inspection) =>
+          inspection.projectKickoffId === kickoff.id ||
+          inspection.orderId === kickoff.orderId,
+      );
+      const timestamps = [
+        kickoff.updatedAt,
+        kickoff.order.updatedAt,
+        ...kickoff.milestones.map((item) => item.updatedAt),
+        ...kickoff.actionItems.map((item) => item.updatedAt),
+        ...kickoff.risks.map((item) => item.updatedAt),
+        ...kickoff.rfqs.map((item) => item.updatedAt),
+        ...kickoff.order.deliveryChallans.map((item) => item.updatedAt),
+        ...relatedInspections.map((item) => item.updatedAt),
+        ...(designProject ? [designProject.updatedAt] : []),
+      ];
+      const updatedAt = new Date(
+        Math.max(...timestamps.map((value) => value.getTime())),
+      );
+
+      return deriveProjectProgress({
+        kickoffId: kickoff.id,
+        projectName: kickoff.projectName,
+        kickoffStatus: kickoff.status,
+        meetingDate: kickoff.meetingDate,
+        updatedAt,
+        order: kickoff.order,
+        designProject: designProject
+          ? { id: designProject.id, status: designProject.status }
+          : null,
+        rfqStatuses: kickoff.rfqs.map((rfq) => rfq.status),
+        inspectionStatuses: relatedInspections.map(
+          (inspection) => inspection.status,
+        ),
+        dispatchStatuses: kickoff.order.deliveryChallans.map(
+          (challan) => challan.status,
+        ),
+        overdueMilestones: kickoff.milestones.filter(
+          (milestone) =>
+            milestone.status !== 'COMPLETED' &&
+            (milestone.status === 'DELAYED' ||
+              milestone.targetDate.getTime() < now),
+        ).length,
+        overdueActions: kickoff.actionItems.filter(
+          (action) =>
+            !!action.dueDate &&
+            action.dueDate.getTime() < now &&
+            action.kanbanCard?.status === KanbanCardStatus.ACTIVE &&
+            !action.kanbanCard.list.isDoneList,
+        ).length,
+        openHighRisks: kickoff.risks.filter(
+          (risk) =>
+            risk.status === 'OPEN' &&
+            (risk.impact === 'HIGH' || risk.likelihood === 'HIGH'),
+        ).length,
+      });
+    });
   }
 
   async findOne(
@@ -229,11 +399,15 @@ export class ProjectKickoffService {
     await this.prisma.projectKickoff.update({
       where: { id },
       data: {
-        ...(dto.projectName !== undefined ? { projectName: dto.projectName } : {}),
+        ...(dto.projectName !== undefined
+          ? { projectName: dto.projectName }
+          : {}),
         ...(dto.meetingDate !== undefined
           ? { meetingDate: new Date(dto.meetingDate) }
           : {}),
-        ...(dto.meetingMode !== undefined ? { meetingMode: dto.meetingMode } : {}),
+        ...(dto.meetingMode !== undefined
+          ? { meetingMode: dto.meetingMode }
+          : {}),
         ...(dto.meetingLocation !== undefined
           ? { meetingLocation: dto.meetingLocation }
           : {}),
@@ -420,14 +594,19 @@ export class ProjectKickoffService {
     const item = await this.prisma.kickoffActionItem.update({
       where: { id: actionItemId },
       data: {
-        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.description !== undefined
+          ? { description: dto.description }
+          : {}),
         ...(dueDate !== undefined ? { dueDate } : {}),
       },
       include: this.actionItemInclude(),
     });
 
     // Keep the linked card's title/due date in sync with the action item.
-    if (existing.kanbanCardId && (dto.description !== undefined || dueDate !== undefined)) {
+    if (
+      existing.kanbanCardId &&
+      (dto.description !== undefined || dueDate !== undefined)
+    ) {
       await this.prisma.kanbanCard.update({
         where: { id: existing.kanbanCardId },
         data: {
@@ -493,7 +672,9 @@ export class ProjectKickoffService {
     const r = await this.prisma.kickoffRisk.update({
       where: { id: riskId },
       data: {
-        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.description !== undefined
+          ? { description: dto.description }
+          : {}),
         ...(dto.likelihood !== undefined ? { likelihood: dto.likelihood } : {}),
         ...(dto.impact !== undefined ? { impact: dto.impact } : {}),
         ...(dto.mitigationPlan !== undefined
@@ -544,7 +725,9 @@ export class ProjectKickoffService {
       select: { id: true },
     });
     if (!line) {
-      throw new NotFoundException('Line item not found on this kickoff’s order');
+      throw new NotFoundException(
+        'Line item not found on this kickoff’s order',
+      );
     }
 
     const data: Prisma.OrderLineItemUpdateInput = {};
@@ -666,9 +849,7 @@ export class ProjectKickoffService {
       milestones: row.milestones.map((m) => this.toMilestone(m)),
       actionItems: row.actionItems.map((i) => this.toActionItem(i)),
       risks: row.risks.map((r) => this.toRisk(r)),
-      deliveryItems: row.order.lineItems.map((li) =>
-        this.toDeliveryItem(li),
-      ),
+      deliveryItems: row.order.lineItems.map((li) => this.toDeliveryItem(li)),
     });
   }
 

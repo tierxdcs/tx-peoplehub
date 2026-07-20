@@ -20,6 +20,8 @@ import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
+import { ProcessFlow } from '../../../../components/ui/process-flow';
+import { vendorFlow } from '../../../../lib/record-flows';
 import {
   Table,
   TableBody,
@@ -170,6 +172,13 @@ export default function VendorDetailPage() {
         </h1>
         <StatusBadge value={vendor.status} />
       </div>
+
+      {/* Live flow indicator — qualification stage derived from status. */}
+      <ProcessFlow
+        title="Qualification progress"
+        className="mb-4"
+        {...vendorFlow(vendor.status)}
+      />
 
       {/* Basic info */}
       <Card className="mb-4">

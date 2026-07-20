@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { KanbanCardStatus, KanbanSprintDuration } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -46,7 +50,9 @@ export class KanbanListsService {
       where: { boardId },
       orderBy: { position: 'asc' },
       include: {
-        _count: { select: { cards: { where: { status: KanbanCardStatus.ACTIVE } } } },
+        _count: {
+          select: { cards: { where: { status: KanbanCardStatus.ACTIVE } } },
+        },
       },
     });
     return lists.map((l) => this.toListEntity(l, l._count.cards));
@@ -59,14 +65,22 @@ export class KanbanListsService {
     user: AuthenticatedUser,
   ): Promise<KanbanListEntity> {
     await this.access.assertCanManageBoard(user, boardId);
-    const list = await this.prisma.kanbanList.create({
-      data: {
-        boardId,
-        name: dto.name,
-        position: dto.position,
-        isDoneList: dto.isDoneList ?? false,
-        createdById: user.id,
-      },
+    const list = await this.prisma.$transaction(async (tx) => {
+      if (dto.isDoneList) {
+        await tx.kanbanList.updateMany({
+          where: { boardId, isDoneList: true },
+          data: { isDoneList: false },
+        });
+      }
+      return tx.kanbanList.create({
+        data: {
+          boardId,
+          name: dto.name,
+          position: dto.position,
+          isDoneList: dto.isDoneList ?? false,
+          createdById: user.id,
+        },
+      });
     });
     return this.toListEntity(list, 0);
   }
@@ -79,17 +93,51 @@ export class KanbanListsService {
   ): Promise<KanbanListEntity> {
     const list = await this.getListOrThrow(id);
     await this.access.assertCanManageBoard(user, list.boardId);
-    const updated = await this.prisma.kanbanList.update({
-      where: { id },
-      data: {
-        ...(dto.name !== undefined ? { name: dto.name } : {}),
-        ...(dto.isDoneList !== undefined ? { isDoneList: dto.isDoneList } : {}),
-      },
-      include: {
-        _count: { select: { cards: { where: { status: KanbanCardStatus.ACTIVE } } } },
-      },
+    if (list.isDoneList && dto.isDoneList === false)
+      throw new BadRequestException(
+        'A board must always have one done list. Designate another list as done first.',
+      );
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (dto.isDoneList === true) {
+        await tx.kanbanList.updateMany({
+          where: { boardId: list.boardId, isDoneList: true, id: { not: id } },
+          data: { isDoneList: false },
+        });
+      }
+      return tx.kanbanList.update({
+        where: { id },
+        data: {
+          ...(dto.name !== undefined ? { name: dto.name } : {}),
+          ...(dto.isDoneList !== undefined
+            ? { isDoneList: dto.isDoneList }
+            : {}),
+        },
+        include: {
+          _count: {
+            select: { cards: { where: { status: KanbanCardStatus.ACTIVE } } },
+          },
+        },
+      });
     });
     return this.toListEntity(updated, updated._count.cards);
+  }
+
+  /** Delete an empty, non-done list. The board's sole done list is protected. */
+  async deleteList(id: string, user: AuthenticatedUser): Promise<void> {
+    const list = await this.getListOrThrow(id);
+    await this.access.assertCanManageBoard(user, list.boardId);
+    if (list.isDoneList)
+      throw new BadRequestException(
+        'The board done list cannot be deleted. Designate another list as done first.',
+      );
+    const activeCards = await this.prisma.kanbanCard.count({
+      where: { listId: id, status: KanbanCardStatus.ACTIVE },
+    });
+    if (activeCards)
+      throw new BadRequestException(
+        'Move all active cards before deleting this list.',
+      );
+    await this.prisma.kanbanList.delete({ where: { id } });
   }
 
   /**
@@ -131,7 +179,9 @@ export class KanbanListsService {
       where: { id },
       data: { position },
       include: {
-        _count: { select: { cards: { where: { status: KanbanCardStatus.ACTIVE } } } },
+        _count: {
+          select: { cards: { where: { status: KanbanCardStatus.ACTIVE } } },
+        },
       },
     });
     return this.toListEntity(updated, updated._count.cards);
@@ -139,10 +189,10 @@ export class KanbanListsService {
 
   private async getListOrThrow(
     id: string,
-  ): Promise<{ id: string; boardId: string }> {
+  ): Promise<{ id: string; boardId: string; isDoneList: boolean }> {
     const list = await this.prisma.kanbanList.findUnique({
       where: { id },
-      select: { id: true, boardId: true },
+      select: { id: true, boardId: true, isDoneList: true },
     });
     if (!list) throw new NotFoundException('List not found');
     return list;
@@ -179,7 +229,9 @@ export class KanbanListsService {
       where: { boardId },
       orderBy: { startDate: 'asc' },
       include: {
-        _count: { select: { cards: { where: { status: KanbanCardStatus.ACTIVE } } } },
+        _count: {
+          select: { cards: { where: { status: KanbanCardStatus.ACTIVE } } },
+        },
       },
     });
     return sprints.map((s) => this.toSprintEntity(s, s._count.cards));
@@ -210,7 +262,9 @@ export class KanbanListsService {
       where: { boardId: { in: boardIds } },
       orderBy: { startDate: 'asc' },
       include: {
-        _count: { select: { cards: { where: { status: KanbanCardStatus.ACTIVE } } } },
+        _count: {
+          select: { cards: { where: { status: KanbanCardStatus.ACTIVE } } },
+        },
       },
     });
     for (const s of sprints) {

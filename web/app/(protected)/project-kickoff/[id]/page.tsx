@@ -47,6 +47,8 @@ import {
 } from '../../../components/ui/dialog';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { StatusBadge } from '../../../components/ui/status-badge';
+import { ProcessFlow } from '../../../components/ui/process-flow';
+import { kickoffFlow } from '../../../lib/record-flows';
 import { EmptyState } from '../../../components/ui/empty-state';
 import {
   Table,
@@ -232,6 +234,17 @@ export default function KickoffDetailPage() {
             </Button>
           </div>
         </div>
+
+        {/* Live flow indicator — stage derived from status + attendee/action counts. */}
+        <ProcessFlow
+          title="Kickoff progress"
+          className="mb-4"
+          {...kickoffFlow({
+            status: kickoff.status,
+            attendeeCount: kickoff.attendees?.length ?? 0,
+            actionItemCount: kickoff.actionItems?.length ?? 0,
+          })}
+        />
 
         <SignedConfirmationSheetCard kickoffId={kickoff.id} />
         <OverviewSection kickoff={kickoff} onSaved={(k) => setKickoff(k)} />

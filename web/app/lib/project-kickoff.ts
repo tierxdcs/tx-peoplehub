@@ -12,19 +12,12 @@ import { apiFetch } from './api';
 export type KickoffMeetingMode = 'IN_PERSON' | 'VIRTUAL' | 'HYBRID';
 export type KickoffStatus = 'DRAFT' | 'COMPLETED';
 export type MilestoneStatus =
-  | 'PENDING'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'DELAYED';
+  'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'DELAYED';
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
 export type RiskStatus = 'OPEN' | 'MITIGATED' | 'CLOSED';
 /** Computed from the linked Kanban card's list at read time. */
 export type ActionItemStatus =
-  | 'TODO'
-  | 'IN_PROGRESS'
-  | 'DONE'
-  | 'ARCHIVED'
-  | 'UNLINKED';
+  'TODO' | 'IN_PROGRESS' | 'DONE' | 'ARCHIVED' | 'UNLINKED';
 
 export interface KickoffAttendee {
   id: string;
@@ -105,6 +98,27 @@ export interface ProjectKickoff {
   deliveryItems?: KickoffDeliveryItem[];
 }
 
+export type ProjectStageState =
+  'COMPLETE' | 'IN_PROGRESS' | 'ATTENTION' | 'UPCOMING';
+
+export interface ProjectProgress {
+  kickoffId: string;
+  projectName: string;
+  orderId: string;
+  orderNumber: string;
+  health: 'ON_TRACK' | 'AT_RISK' | 'BLOCKED';
+  healthReason: string;
+  currentStage: string;
+  updatedAt: string;
+  stages: Array<{
+    key: string;
+    label: string;
+    state: ProjectStageState;
+    detail: string;
+    href: string;
+  }>;
+}
+
 /** An order a PM may start a kickoff for (executed sheet, no kickoff yet). */
 export interface EligibleOrder {
   id: string;
@@ -127,6 +141,11 @@ export interface KickoffConfirmationSheet {
 // ── Kickoff ──────────────────────────────────────────────────────────
 export function listKickoffs() {
   return apiFetch<ProjectKickoff[]>('/project-kickoffs');
+}
+
+/** Live Order-to-Dispatch progress for projects visible to the current user. */
+export function listProjectProgress() {
+  return apiFetch<ProjectProgress[]>('/project-kickoffs/progress');
 }
 
 /**

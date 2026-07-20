@@ -32,6 +32,15 @@ export class VerticalsController {
     return this.verticalsService.findMine(user.verticalId);
   }
 
+  @Get('options')
+  @ApiOperation({
+    summary:
+      'Active verticals for a picker (any authenticated user) — e.g. tagging a Kanban card',
+  })
+  findOptions() {
+    return this.verticalsService.findActiveOptions();
+  }
+
   @Get()
   @ApiOperation({
     summary: 'List all verticals (Admin/SuperAdmin or HR-vertical staff)',

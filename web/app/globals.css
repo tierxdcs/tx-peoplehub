@@ -120,6 +120,9 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+
+  /* Editorial serif "voice" (dashboard quote). `font-voice` utility. */
+  --font-voice: var(--font-voice), Georgia, 'Times New Roman', serif;
 }
 
 @layer base {

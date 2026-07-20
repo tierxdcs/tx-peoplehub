@@ -40,6 +40,21 @@ export class VerticalsService {
   }
 
   /**
+   * Lightweight picker list: ACTIVE verticals only, readable by ANY
+   * authenticated user. Unlike the full findAll() (Admin/HR-gated), this exposes
+   * just enough to populate a chooser — e.g. tagging a Kanban card with the
+   * department its work belongs to. No sensitive data; the set is small and
+   * effectively public reference data.
+   */
+  async findActiveOptions(): Promise<VerticalEntity[]> {
+    const verticals = await this.prisma.vertical.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+    });
+    return verticals.map((v) => new VerticalEntity(v));
+  }
+
+  /**
    * The full vertical list is readable by Admin/SuperAdmin and by HR-vertical
    * staff — HR onboarding lets HR create employees into ANY vertical, so the
    * onboarding/roster screens genuinely need every vertical (a plain

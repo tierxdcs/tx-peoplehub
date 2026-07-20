@@ -219,8 +219,32 @@ export function BoardView({
         [listId]: [...(prev[listId] ?? []), created],
       }));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to add card.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to add card.',
+      );
     }
+  }
+
+  function appendPositionForList(listId: string): number {
+    const positions = (cardsByList[listId] ?? [])
+      .filter((card) => card.id !== openCard?.id)
+      .map((card) => card.position)
+      .sort((a, b) => a - b);
+    return positionForIndex(positions, positions.length);
+  }
+
+  function reconcileModalMove(moved: KanbanCard) {
+    setCardsByList((prev) => {
+      const next: CardsByList = {};
+      for (const [listId, cards] of Object.entries(prev)) {
+        next[listId] = cards.filter((card) => card.id !== moved.id);
+      }
+      next[moved.listId] = [...(next[moved.listId] ?? []), moved].sort(
+        (a, b) => a.position - b.position,
+      );
+      return next;
+    });
+    setOpenCard(moved);
   }
 
   // ── drag and drop ────────────────────────────────────────────────────
@@ -240,9 +264,7 @@ export function BoardView({
     // The over target is either a card (→ its list) or a list droppable.
     const overData = over.data.current;
     const toList =
-      overData?.type === 'list'
-        ? String(over.id)
-        : listOf(String(over.id));
+      overData?.type === 'list' ? String(over.id) : listOf(String(over.id));
     if (!fromList || !toList || fromList === toList) return;
 
     setCardsByList((prev) => {
@@ -272,7 +294,9 @@ export function BoardView({
       if (oldIdx === -1 || newIdx === -1) return;
       const reordered = arrayMove(lists, oldIdx, newIdx);
       setLists(reordered);
-      const others = reordered.filter((l) => l.id !== active.id).map((l) => l.position);
+      const others = reordered
+        .filter((l) => l.id !== active.id)
+        .map((l) => l.position);
       const position = positionForIndex(others, newIdx);
       try {
         const updated = await reorderList(String(active.id), position);
@@ -282,7 +306,9 @@ export function BoardView({
             .sort((a, b) => a.position - b.position),
         );
       } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'Failed to reorder list.');
+        toast.error(
+          err instanceof ApiError ? err.message : 'Failed to reorder list.',
+        );
         void loadShell();
       }
       return;
@@ -306,7 +332,9 @@ export function BoardView({
         }
       }
       const index = cards.findIndex((c) => c.id === cardId);
-      const others = cards.filter((c) => c.id !== cardId).map((c) => c.position);
+      const others = cards
+        .filter((c) => c.id !== cardId)
+        .map((c) => c.position);
       const position = positionForIndex(others, index);
       try {
         const updated = await moveCard(cardId, toList, position);
@@ -319,7 +347,9 @@ export function BoardView({
           return next;
         });
       } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'Failed to move card.');
+        toast.error(
+          err instanceof ApiError ? err.message : 'Failed to move card.',
+        );
         void loadCards(lists, filter);
       }
     }
@@ -382,7 +412,11 @@ export function BoardView({
           </button>
           {canManage && (
             <>
-              <Button variant="outline" size="sm" onClick={() => setManageOpen(true)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setManageOpen(true)}
+              >
                 <Settings className="h-4 w-4" /> Manage
               </Button>
               <Button size="sm" onClick={() => setAddingList(true)}>
@@ -462,7 +496,9 @@ export function BoardView({
             </SortableContext>
           </div>
           <DragOverlay>
-            {activeCard ? <CardTile card={activeCard} onOpen={() => {}} /> : null}
+            {activeCard ? (
+              <CardTile card={activeCard} onOpen={() => {}} />
+            ) : null}
           </DragOverlay>
         </DndContext>
       )}
@@ -474,6 +510,9 @@ export function BoardView({
           members={members}
           sprints={sprints}
           boardLabels={labels}
+          lists={lists}
+          appendPositionForList={appendPositionForList}
+          onCardMoved={(moved) => reconcileModalMove(moved)}
           canManage={canManage}
           onClose={() => {
             setOpenCard(null);
@@ -490,10 +529,20 @@ export function BoardView({
           members={members}
           labels={labels}
           sprints={sprints}
+          lists={lists}
           onClose={() => setManageOpen(false)}
           onMembersChanged={(next) => setMembers(next)}
           onLabelsChanged={(next) => setLabels(next)}
           onSprintsChanged={(next) => setSprints(next)}
+          onListsChanged={(next) => {
+            const ordered = [...next].sort((a, b) => a.position - b.position);
+            setLists(ordered);
+            setCardsByList((previous) =>
+              Object.fromEntries(
+                ordered.map((list) => [list.id, previous[list.id] ?? []]),
+              ),
+            );
+          }}
         />
       )}
 
@@ -501,14 +550,17 @@ export function BoardView({
         <CreateListDialog
           boardId={boardId}
           nextPosition={
-            lists.length
-              ? lists[lists.length - 1].position + 1024
-              : 1024
+            lists.length ? lists[lists.length - 1].position + 1024 : 1024
           }
           onClose={() => setAddingList(false)}
           onCreated={(list) => {
             setLists((prev) =>
-              [...prev, list].sort((a, b) => a.position - b.position),
+              [
+                ...prev.map((item) =>
+                  list.isDoneList ? { ...item, isDoneList: false } : item,
+                ),
+                list,
+              ].sort((a, b) => a.position - b.position),
             );
             setCardsByList((prev) => ({ ...prev, [list.id]: [] }));
             setAddingList(false);

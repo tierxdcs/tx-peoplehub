@@ -6,14 +6,17 @@ import {
   addMember,
   createLabel,
   createSprint,
+  deleteList,
   deleteLabel,
   removeMember,
   updateLabel,
+  updateList,
   LABEL_COLORS,
   SPRINT_DURATION_LABEL,
   type KanbanBoard,
   type KanbanBoardMember,
   type KanbanLabel,
+  type KanbanList,
   type KanbanSprint,
   type SprintDuration,
 } from '../../../lib/kanban';
@@ -43,23 +46,29 @@ export function ManageBoardDialog({
   members,
   labels,
   sprints,
+  lists,
   onClose,
   onMembersChanged,
   onLabelsChanged,
   onSprintsChanged,
+  onListsChanged,
 }: {
   board: KanbanBoard;
   members: KanbanBoardMember[];
   labels: KanbanLabel[];
   sprints: KanbanSprint[];
+  lists: KanbanList[];
   onClose: () => void;
   onMembersChanged: (next: KanbanBoardMember[]) => void;
   onLabelsChanged: (next: KanbanLabel[]) => void;
   onSprintsChanged: (next: KanbanSprint[]) => void;
+  onListsChanged: (next: KanbanList[]) => void;
 }) {
   const toast = useToast();
   const confirm = useConfirm();
-  const [tab, setTab] = useState<'members' | 'labels' | 'sprints'>('members');
+  const [tab, setTab] = useState<'lists' | 'members' | 'labels' | 'sprints'>(
+    'lists',
+  );
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -69,7 +78,7 @@ export function ManageBoardDialog({
         </DialogHeader>
 
         <div className="flex gap-1 rounded-md bg-muted p-1">
-          {(['members', 'labels', 'sprints'] as const).map((t) => (
+          {(['lists', 'members', 'labels', 'sprints'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -91,6 +100,14 @@ export function ManageBoardDialog({
             board={board}
             members={members}
             onMembersChanged={onMembersChanged}
+            toast={toast}
+            confirm={confirm}
+          />
+        )}
+        {tab === 'lists' && (
+          <ListsPanel
+            lists={lists}
+            onListsChanged={onListsChanged}
             toast={toast}
             confirm={confirm}
           />
@@ -120,6 +137,120 @@ export function ManageBoardDialog({
 type ToastApi = ReturnType<typeof useToast>;
 type ConfirmApi = ReturnType<typeof useConfirm>;
 
+function ListsPanel({
+  lists,
+  onListsChanged,
+  toast,
+  confirm,
+}: {
+  lists: KanbanList[];
+  onListsChanged: (next: KanbanList[]) => void;
+  toast: ToastApi;
+  confirm: ConfirmApi;
+}) {
+  async function designate(list: KanbanList) {
+    if (list.isDoneList) return;
+    try {
+      const updated = await updateList(list.id, { isDoneList: true });
+      onListsChanged(
+        lists.map((item) =>
+          item.id === updated.id ? updated : { ...item, isDoneList: false },
+        ),
+      );
+      toast.success(`“${updated.name}” now counts as done.`);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to update done list.',
+      );
+    }
+  }
+
+  async function rename(list: KanbanList) {
+    const name = window.prompt('List name', list.name)?.trim();
+    if (!name || name === list.name) return;
+    try {
+      const updated = await updateList(list.id, { name });
+      onListsChanged(
+        lists.map((item) => (item.id === updated.id ? updated : item)),
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to rename list.',
+      );
+    }
+  }
+
+  async function remove(list: KanbanList) {
+    if (
+      !(await confirm({
+        title: 'Delete list?',
+        description: list.isDoneList
+          ? 'Designate another list as done before deleting this one.'
+          : `“${list.name}” can only be deleted when it has no active cards.`,
+        confirmLabel: 'Delete',
+        destructive: true,
+      }))
+    )
+      return;
+    try {
+      await deleteList(list.id);
+      onListsChanged(lists.filter((item) => item.id !== list.id));
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to delete list.',
+      );
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        Exactly one list counts as done. Dashboard completion and overdue
+        metrics use this designation.
+      </p>
+      <ul className="space-y-2">
+        {lists.map((list) => (
+          <li
+            key={list.id}
+            className="flex items-center gap-2 rounded-md border p-2"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{list.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {list.cardCount} active card(s)
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant={list.isDoneList ? 'default' : 'outline'}
+              disabled={list.isDoneList}
+              onClick={() => void designate(list)}
+            >
+              {list.isDoneList ? 'Counts as done' : 'Set as done'}
+            </Button>
+            <button
+              type="button"
+              aria-label="Rename list"
+              onClick={() => void rename(list)}
+              className="rounded p-1 text-muted-foreground hover:bg-accent"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Delete list"
+              onClick={() => void remove(list)}
+              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function MembersPanel({
   board,
   members,
@@ -143,7 +274,9 @@ function MembersPanel({
       onMembersChanged([...members, added]);
       toast.success('Member added.');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to add member.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to add member.',
+      );
     } finally {
       setBusy(false);
     }
@@ -163,7 +296,9 @@ function MembersPanel({
       await removeMember(board.id, m.employeeId);
       onMembersChanged(members.filter((x) => x.employeeId !== m.employeeId));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to remove member.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to remove member.',
+      );
     }
   }
 
@@ -251,7 +386,9 @@ function LabelsPanel({
       }
       resetForm();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to save label.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to save label.',
+      );
     } finally {
       setBusy(false);
     }
@@ -272,7 +409,9 @@ function LabelsPanel({
       onLabelsChanged(labels.filter((x) => x.id !== l.id));
       if (editingId === l.id) resetForm();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to delete label.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to delete label.',
+      );
     }
   }
 
@@ -408,7 +547,9 @@ function SprintsPanel({
       setStartDate('');
       setDuration('TWO_WEEKS');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to create sprint.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to create sprint.',
+      );
     } finally {
       setBusy(false);
     }
@@ -447,7 +588,11 @@ function SprintsPanel({
             </Select>
           </label>
         </div>
-        <Button size="sm" onClick={submit} disabled={busy || !name.trim() || !startDate}>
+        <Button
+          size="sm"
+          onClick={submit}
+          disabled={busy || !name.trim() || !startDate}
+        >
           {busy ? 'Creating…' : 'Add sprint'}
         </Button>
       </div>

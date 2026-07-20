@@ -90,7 +90,7 @@ export function activeModule(
 
 /**
  * Always-shared groups, available to every authenticated user regardless of
- * module: personal self-service, plus manager-team tools for managers (a
+ * module: optional payslips, plus manager-team tools for managers (a
  * Sales OR HR manager both manage their team's leave/attendance). Gated by
  * role only, never by module.
  */
@@ -98,16 +98,19 @@ export function sharedNav(access: Access): NavGroup[] {
   const { isManager } = flags(access.user);
   const groups: NavGroup[] = [];
 
-  // My Team, My Leave, and My Attendance now live as tabs INSIDE the profile
-  // page, so the nav collapses to a single "My Profile" entry (shown to
-  // everyone — it's the home for those personal self-service tabs, gated
-  // inside the page itself). Payslips stays a separate link. The standalone
-  // /team, /leave, /attendance routes still resolve directly (bookmarks, deep
-  // links), they're just no longer surfaced in the sidebar.
-  const me: NavItem[] = [{ label: 'My Profile', href: '/profile' }];
+  // Personal dashboard — the post-login landing for every role; always the
+  // first entry back to "home" regardless of module.
+  groups.push({
+    heading: 'Home',
+    items: [{ label: 'Dashboard', href: '/dashboard' }],
+  });
+
+  // Profile is available from the account dropdown, so it is not duplicated
+  // in the sidebar. Payslips remains here when payroll self-service is enabled.
+  const me: NavItem[] = [];
   if (access.payslipsEnabled)
     me.push({ label: 'My Payslips', href: '/payslips' });
-  groups.push({ heading: 'Me', items: me });
+  if (me.length) groups.push({ heading: 'Me', items: me });
 
   if (isManager) {
     groups.push({
@@ -424,18 +427,11 @@ export function moduleHome(
 }
 
 /**
- * Where a user lands after login. Module-aware: a Sales-only rep goes straight
- * into Sales rather than a shared page. Admin/SuperAdmin keep their HR-admin
- * home; HR-vertical staff and module-less users get their role-based shared
- * home (unchanged from the original roleHome behavior).
+ * Where a user lands after login. The personal dashboard is now the single
+ * post-login landing page for EVERY role — it degrades gracefully for a
+ * brand-new employee with no tasks/projects and gives everyone a consistent
+ * home. Module-specific homes remain reachable from the sidebar.
  */
-export function landingRoute(access: Access): string {
-  const { isAdmin, isManager } = flags(access.user);
-  const modules = availableModules(access);
-
-  if (isAdmin) return '/admin/employees';
-  if (modules.length === 1 && modules[0] === 'sales') {
-    return moduleHome('sales', access) ?? '/sales/leads';
-  }
-  return isManager ? '/team' : '/profile';
+export function landingRoute(_access: Access): string {
+  return '/dashboard';
 }

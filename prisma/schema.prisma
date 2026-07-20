@@ -284,6 +284,7 @@ model Vertical {
   isActive     Boolean       @default(true)
   employees    Employee[]
   vaultFolders VaultFolder[]
+  kanbanCards  KanbanCard[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -2190,6 +2191,20 @@ model KanbanList {
   @@map("kanban_lists")
 }
 
+/// Persistent audit of the one-time done-list backfill. Kept so administrators
+/// can review and correct heuristic selections instead of relying on SQL logs.
+model KanbanDoneListBackfillReport {
+  id               String   @id @default(uuid())
+  boardId          String   @unique
+  boardName        String
+  selectedListId   String
+  selectedListName String
+  selectionReason  String
+  createdAt        DateTime @default(now())
+
+  @@map("kanban_done_list_backfill_report")
+}
+
 /// A time-boxed sprint on a board. Status (UPCOMING/ACTIVE/COMPLETED) is
 /// COMPUTED from dates at read time, never stored. endDate is computed once at
 /// creation (startDate + durationWeeks*7d) and stored. SM / SUPER_ADMIN only.
@@ -2221,6 +2236,12 @@ model KanbanCard {
   description       String?              @db.Text
   assigneeId        String?
   assignee          Employee?            @relation("KanbanCardAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  /// Which vertical/department this card's work belongs to. Server-managed and
+  /// synchronized from the assignee's vertical; clients cannot edit it. Powers per-vertical
+  /// completion on a project board (e.g. "Production 2/7 done") for order
+  /// progress tracking (see ORDER_TRACKING.md).
+  verticalId        String?
+  vertical          Vertical?            @relation(fields: [verticalId], references: [id], onDelete: SetNull)
   startDate         DateTime?
   dueDate           DateTime?
   priority          LeadPriority         @default(MEDIUM)
@@ -2244,6 +2265,7 @@ model KanbanCard {
   @@index([listId, position])
   @@index([sprintId])
   @@index([assigneeId])
+  @@index([verticalId])
   @@map("kanban_cards")
 }
 

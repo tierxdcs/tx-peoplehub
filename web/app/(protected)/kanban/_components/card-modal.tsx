@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Tag, Trash2 } from 'lucide-react';
+import { CheckCircle2, Tag, Trash2 } from 'lucide-react';
 import {
   addComment,
   archiveCard,
@@ -10,6 +10,7 @@ import {
   detachLabel,
   getCard,
   getFeed,
+  moveCard,
   setCardSprint,
   updateCard,
   type KanbanBoard,
@@ -17,6 +18,7 @@ import {
   type KanbanCard,
   type KanbanFeedItem,
   type KanbanLabel,
+  type KanbanList,
   type KanbanSprint,
 } from '../../../lib/kanban';
 import type { LeadPriority } from '../../../lib/types';
@@ -65,6 +67,9 @@ export function CardModal({
   members,
   sprints,
   boardLabels,
+  lists,
+  appendPositionForList,
+  onCardMoved,
   canManage,
   onClose,
   onChanged,
@@ -74,6 +79,9 @@ export function CardModal({
   members: KanbanBoardMember[];
   sprints: KanbanSprint[];
   boardLabels: KanbanLabel[];
+  lists: KanbanList[];
+  appendPositionForList: (listId: string) => number;
+  onCardMoved: (card: KanbanCard, previousListId: string) => void;
   canManage: boolean;
   onClose: () => void;
   onChanged: () => void;
@@ -93,6 +101,7 @@ export function CardModal({
   const [comment, setComment] = useState('');
   const [posting, setPosting] = useState(false);
   const [labelMenuOpen, setLabelMenuOpen] = useState(false);
+  const [moving, setMoving] = useState(false);
   const labelMenuRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -119,7 +128,10 @@ export function CardModal({
   useEffect(() => {
     if (!labelMenuOpen) return;
     function onDown(e: MouseEvent) {
-      if (labelMenuRef.current && !labelMenuRef.current.contains(e.target as Node)) {
+      if (
+        labelMenuRef.current &&
+        !labelMenuRef.current.contains(e.target as Node)
+      ) {
         setLabelMenuOpen(false);
       }
     }
@@ -127,10 +139,12 @@ export function CardModal({
     return () => document.removeEventListener('mousedown', onDown);
   }, [labelMenuOpen]);
 
-  const canDelete =
-    !!card && (canManage || card.createdById === user?.sub);
+  const canDelete = !!card && (canManage || card.createdById === user?.sub);
 
-  async function patch(input: Parameters<typeof updateCard>[1], successMsg?: string) {
+  async function patch(
+    input: Parameters<typeof updateCard>[1],
+    successMsg?: string,
+  ) {
     if (!card) return;
     try {
       const updated = await updateCard(card.id, input);
@@ -162,7 +176,9 @@ export function CardModal({
       setCard(updated);
       onChanged();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update labels.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to update labels.',
+      );
     }
   }
 
@@ -174,7 +190,41 @@ export function CardModal({
       onChanged();
       void refreshFeed();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to set sprint.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to set sprint.',
+      );
+    }
+  }
+
+  async function onMoveToList(listId: string) {
+    if (!card || listId === card.listId || moving) return;
+    const previous = card;
+    const optimistic = {
+      ...card,
+      listId,
+      position: appendPositionForList(listId),
+    };
+    setCard(optimistic);
+    onCardMoved(optimistic, previous.listId);
+    setMoving(true);
+    try {
+      const updated = await moveCard(card.id, listId, optimistic.position);
+      setCard(updated);
+      onCardMoved(updated, previous.listId);
+      window.sessionStorage.setItem('kanban-dashboard-dirty', '1');
+      window.dispatchEvent(
+        new CustomEvent('kanban:card-moved', { detail: updated }),
+      );
+      toast.success('Card moved.');
+      void refreshFeed();
+    } catch (err) {
+      setCard(previous);
+      onCardMoved(previous, listId);
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to move card.',
+      );
+    } finally {
+      setMoving(false);
     }
   }
 
@@ -207,7 +257,9 @@ export function CardModal({
       await deleteComment(cardId, commentId);
       await refreshFeed();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to delete comment.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to delete comment.',
+      );
     }
   }
 
@@ -228,12 +280,14 @@ export function CardModal({
       onChanged();
       onClose();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to delete card.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to delete card.',
+      );
     }
   }
 
   const sprintName = card?.sprintId
-    ? sprints.find((s) => s.id === card.sprintId)?.name ?? '—'
+    ? (sprints.find((s) => s.id === card.sprintId)?.name ?? '—')
     : 'No sprint';
 
   return (
@@ -313,8 +367,14 @@ export function CardModal({
                                   className="h-3 w-6 rounded"
                                   style={{ backgroundColor: l.color }}
                                 />
-                                <span className="flex-1 truncate">{l.name}</span>
-                                {on && <span className="text-xs text-primary">✓</span>}
+                                <span className="flex-1 truncate">
+                                  {l.name}
+                                </span>
+                                {on && (
+                                  <span className="text-xs text-primary">
+                                    ✓
+                                  </span>
+                                )}
                               </button>
                             );
                           })
@@ -355,14 +415,21 @@ export function CardModal({
                     />
                   </div>
                   <div className="mt-2 flex justify-end">
-                    <Button size="sm" onClick={postComment} disabled={posting || !comment.trim()}>
+                    <Button
+                      size="sm"
+                      onClick={postComment}
+                      disabled={posting || !comment.trim()}
+                    >
                       {posting ? 'Posting…' : 'Comment'}
                     </Button>
                   </div>
 
                   <ul className="mt-3 space-y-3">
                     {feed.map((item) => (
-                      <li key={`${item.kind}-${item.id}`} className="flex gap-2">
+                      <li
+                        key={`${item.kind}-${item.id}`}
+                        className="flex gap-2"
+                      >
                         <Avatar
                           name={item.actorName ?? '?'}
                           className="h-6 w-6 shrink-0 text-[10px]"
@@ -373,7 +440,9 @@ export function CardModal({
                               {item.actorName ?? 'Someone'}
                             </span>{' '}
                             {item.text}
-                            <span className="ml-1">· {relative(item.createdAt)}</span>
+                            <span className="ml-1">
+                              · {relative(item.createdAt)}
+                            </span>
                           </p>
                         ) : (
                           <div className="min-w-0 flex-1 rounded-md bg-muted px-3 py-2">
@@ -411,6 +480,37 @@ export function CardModal({
 
               {/* Sidebar: metadata */}
               <div className="space-y-3">
+                <SideField label="List">
+                  <Select
+                    value={card.listId}
+                    onChange={(e) => void onMoveToList(e.target.value)}
+                    disabled={moving}
+                    className="h-8"
+                  >
+                    {lists.map((list) => (
+                      <option key={list.id} value={list.id}>
+                        {list.name}
+                      </option>
+                    ))}
+                  </Select>
+                </SideField>
+
+                {lists.find((list) => list.isDoneList)?.id !== card.listId &&
+                  lists.some((list) => list.isDoneList) && (
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      disabled={moving}
+                      onClick={() => {
+                        const done = lists.find((list) => list.isDoneList);
+                        if (done) void onMoveToList(done.id);
+                      }}
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      {moving ? 'Moving…' : 'Mark complete'}
+                    </Button>
+                  )}
+
                 <SideField label="Assignee">
                   <Select
                     value={card.assigneeId ?? ''}
@@ -426,6 +526,15 @@ export function CardModal({
                       </option>
                     ))}
                   </Select>
+                </SideField>
+
+                <SideField label="Vertical">
+                  <div className="flex h-8 items-center rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground">
+                    {card.verticalName ?? 'Not assigned'}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Set automatically from the assignee.
+                  </p>
                 </SideField>
 
                 <SideField label="Priority">
@@ -460,7 +569,10 @@ export function CardModal({
                     onChange={(e) =>
                       void patch({ dueDate: e.target.value || null })
                     }
-                    className={cn('h-8', card.isOverdue && 'border-destructive')}
+                    className={cn(
+                      'h-8',
+                      card.isOverdue && 'border-destructive',
+                    )}
                   />
                   {card.isOverdue && (
                     <Badge variant="destructive" className="mt-1">

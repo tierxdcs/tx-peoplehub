@@ -4,6 +4,7 @@ import {
   Caveat,
   Pacifico,
   Great_Vibes,
+  Fraunces,
 } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from './lib/auth-context';
@@ -38,11 +39,20 @@ const greatVibes = Great_Vibes({
   display: 'swap',
 });
 
+// The editorial "voice" serif — used sparingly (the dashboard motivational
+// quote). Exposed as --font-voice; referenced via the `font-voice` utility.
+const voiceSerif = Fraunces({
+  subsets: ['latin'],
+  variable: '--font-voice',
+  display: 'swap',
+});
+
 const signatureFontVars = [
   dancingScript.variable,
   caveat.variable,
   pacifico.variable,
   greatVibes.variable,
+  voiceSerif.variable,
 ].join(' ');
 
 export const metadata: Metadata = {

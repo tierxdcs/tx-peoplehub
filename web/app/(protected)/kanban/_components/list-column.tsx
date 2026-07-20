@@ -47,7 +47,11 @@ export function ListColumn({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: list.id, data: { type: 'list' }, disabled: !canManage || dndDisabled });
+  } = useSortable({
+    id: list.id,
+    data: { type: 'list' },
+    disabled: !canManage || dndDisabled,
+  });
 
   // Cards drop into this list's droppable area (id === list id).
   const { setNodeRef: setDropRef } = useDroppable({
@@ -95,7 +99,9 @@ export function ListColumn({
         )}
         <span className="truncate text-sm font-semibold">{list.name}</span>
         {list.isDoneList && (
-          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" aria-label="Done list" />
+          <Badge variant="success" className="gap-1 px-1.5 py-0 text-[10px]">
+            <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> Done
+          </Badge>
         )}
         <Badge variant="muted" className="ml-auto">
           {cards.length}
@@ -114,7 +120,9 @@ export function ListColumn({
             <CardTile
               key={card.id}
               card={card}
-              sprintName={card.sprintId ? sprintNames[card.sprintId] : undefined}
+              sprintName={
+                card.sprintId ? sprintNames[card.sprintId] : undefined
+              }
               onOpen={onOpenCard}
             />
           ))}
@@ -146,7 +154,11 @@ export function ListColumn({
               }}
             />
             <div className="flex gap-2">
-              <Button size="sm" onClick={submit} disabled={saving || !title.trim()}>
+              <Button
+                size="sm"
+                onClick={submit}
+                disabled={saving || !title.trim()}
+              >
                 {saving ? 'Adding…' : 'Add card'}
               </Button>
               <Button

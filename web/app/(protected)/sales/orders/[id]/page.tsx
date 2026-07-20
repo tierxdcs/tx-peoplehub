@@ -20,6 +20,8 @@ import { Button } from '../../../../components/ui/button';
 import { Select } from '../../../../components/ui/select';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
+import { ProcessFlow } from '../../../../components/ui/process-flow';
+import { orderFlow } from '../../../../lib/record-flows';
 import {
   Table,
   TableBody,
@@ -156,6 +158,13 @@ export default function OrderDetailPage() {
         </h1>
         <StatusBadge value={order.status} />
       </div>
+
+      {/* Live flow indicator — stage derived from the order's status. */}
+      <ProcessFlow
+        title="Order progress"
+        className="mb-4"
+        {...orderFlow(order.status)}
+      />
 
       {/* Metadata card: Total (prominent) + Linked bid (link) */}
       <Card className="mb-4">

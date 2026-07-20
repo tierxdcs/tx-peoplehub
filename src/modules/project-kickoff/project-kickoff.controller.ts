@@ -47,8 +47,14 @@ export class ProjectKickoffController {
 
   // ── Kickoff ────────────────────────────────────────────────────────
   @Post()
-  @ApiOperation({ summary: 'Create a kickoff (Project Manager / SUPER_ADMIN; Order must be executed)' })
-  create(@Body() dto: CreateKickoffDto, @CurrentUser() user: AuthenticatedUser) {
+  @ApiOperation({
+    summary:
+      'Create a kickoff (Project Manager / SUPER_ADMIN; Order must be executed)',
+  })
+  create(
+    @Body() dto: CreateKickoffDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.create(dto, user);
   }
 
@@ -66,6 +72,15 @@ export class ProjectKickoffController {
   })
   eligibleOrders(@CurrentUser() user: AuthenticatedUser) {
     return this.service.eligibleOrders(user);
+  }
+
+  @Get('progress')
+  @ApiOperation({
+    summary:
+      'Live Order-to-Dispatch progress for kickoffs the caller participates in',
+  })
+  progress(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.progressForUser(user);
   }
 
   @Get(':id')
@@ -153,7 +168,9 @@ export class ProjectKickoffController {
 
   // ── Action items ───────────────────────────────────────────────────
   @Post(':id/action-items')
-  @ApiOperation({ summary: 'Add an action item (auto-creates a Kanban card for the owner)' })
+  @ApiOperation({
+    summary: 'Add an action item (auto-creates a Kanban card for the owner)',
+  })
   addActionItem(
     @Param('id') id: string,
     @Body() dto: CreateActionItemDto,
@@ -163,7 +180,9 @@ export class ProjectKickoffController {
   }
 
   @Patch(':id/action-items/:actionItemId')
-  @ApiOperation({ summary: 'Edit an action item (syncs the linked card title/due date)' })
+  @ApiOperation({
+    summary: 'Edit an action item (syncs the linked card title/due date)',
+  })
   updateActionItem(
     @Param('id') id: string,
     @Param('actionItemId') actionItemId: string,

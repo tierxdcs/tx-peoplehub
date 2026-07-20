@@ -27,6 +27,8 @@ import {
 import { Button } from '../../../../components/ui/button';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
+import { ProcessFlow } from '../../../../components/ui/process-flow';
+import { poFlow } from '../../../../lib/record-flows';
 import {
   Table,
   TableBody,
@@ -184,6 +186,9 @@ export default function PurchaseOrderDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Live flow indicator — stage derived from the PO's status. */}
+      <ProcessFlow title="PO progress" className="mb-6" {...poFlow(po.status)} />
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <Info label="Order Date" value={dateOnlyStr(po.orderDate)} />

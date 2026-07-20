@@ -14,10 +14,7 @@ import type { LeadPriority } from './types';
 // ── Entity types ─────────────────────────────────────────────────────
 
 export type SprintDuration =
-  | 'ONE_WEEK'
-  | 'TWO_WEEKS'
-  | 'THREE_WEEKS'
-  | 'FOUR_WEEKS';
+  'ONE_WEEK' | 'TWO_WEEKS' | 'THREE_WEEKS' | 'FOUR_WEEKS';
 
 export type SprintStatus = 'UPCOMING' | 'ACTIVE' | 'COMPLETED';
 
@@ -82,6 +79,9 @@ export interface KanbanCard {
   description: string | null;
   assigneeId: string | null;
   assigneeName: string | null;
+  verticalId: string | null;
+  verticalName: string | null;
+  verticalCode: string | null;
   startDate: string | null;
   dueDate: string | null;
   priority: LeadPriority;
@@ -183,6 +183,10 @@ export function updateList(
   });
 }
 
+export function deleteList(listId: string) {
+  return apiFetch<void>(`/kanban/lists/${listId}`, { method: 'DELETE' });
+}
+
 export function reorderList(listId: string, position: number) {
   return apiFetch<KanbanList>(`/kanban/lists/${listId}/reorder`, {
     method: 'PATCH',
@@ -267,6 +271,21 @@ export function updateCard(cardId: string, input: UpdateCardInput) {
     method: 'PATCH',
     body: JSON.stringify(input),
   });
+}
+
+/** Per-vertical completion for a board (cards done/total by vertical tag). */
+export interface BoardVerticalProgress {
+  verticalId: string | null;
+  verticalName: string | null;
+  verticalCode: string | null;
+  total: number;
+  done: number;
+}
+
+export function boardVerticalProgress(boardId: string) {
+  return apiFetch<BoardVerticalProgress[]>(
+    `/kanban/boards/${boardId}/vertical-progress`,
+  );
 }
 
 export function moveCard(cardId: string, listId: string, position: number) {
@@ -359,13 +378,11 @@ export const POSITION_STEP = 1024;
  * neighbours → their midpoint; at the head → half the first; at the tail →
  * last + STEP; empty → STEP.
  */
-export function positionForIndex(
-  positions: number[],
-  index: number,
-): number {
+export function positionForIndex(positions: number[], index: number): number {
   if (positions.length === 0) return POSITION_STEP;
   if (index <= 0) return positions[0] / 2;
-  if (index >= positions.length) return positions[positions.length - 1] + POSITION_STEP;
+  if (index >= positions.length)
+    return positions[positions.length - 1] + POSITION_STEP;
   return (positions[index - 1] + positions[index]) / 2;
 }
 

@@ -87,6 +87,11 @@ export class KanbanCardEntity {
   @ApiProperty({ nullable: true }) description!: string | null;
   @ApiProperty({ nullable: true }) assigneeId!: string | null;
   @ApiProperty({ nullable: true }) assigneeName!: string | null;
+  @ApiProperty({ nullable: true, description: "Vertical this card's work belongs to" })
+  verticalId!: string | null;
+  @ApiProperty({ nullable: true }) verticalName!: string | null;
+  @ApiProperty({ nullable: true, description: 'Vertical code, e.g. PRODUCTION' })
+  verticalCode!: string | null;
   @ApiProperty({ nullable: true }) startDate!: string | null;
   @ApiProperty({ nullable: true }) dueDate!: string | null;
   @ApiProperty({ enum: LeadPriority }) priority!: LeadPriority;
@@ -104,6 +109,27 @@ export class KanbanCardEntity {
   @ApiProperty() updatedAt!: string;
 
   constructor(partial: Partial<KanbanCardEntity>) {
+    Object.assign(this, partial);
+  }
+}
+
+/**
+ * Per-vertical completion for a board: for each vertical that has cards, how
+ * many are done (sitting in an isDoneList list) vs total ACTIVE. Powers the
+ * cross-department progress readout on a project board (e.g. "Production 2/7").
+ * Cards with no vertical tag are grouped under a null verticalId row.
+ */
+export class BoardVerticalProgressEntity {
+  @ApiProperty({ nullable: true, description: 'null = untagged cards' })
+  verticalId!: string | null;
+  @ApiProperty({ nullable: true }) verticalName!: string | null;
+  @ApiProperty({ nullable: true }) verticalCode!: string | null;
+  @ApiProperty({ description: 'ACTIVE cards tagged with this vertical' })
+  total!: number;
+  @ApiProperty({ description: 'Of those, cards in a done-type list' })
+  done!: number;
+
+  constructor(partial: Partial<BoardVerticalProgressEntity>) {
     Object.assign(this, partial);
   }
 }
@@ -157,6 +183,27 @@ export class KanbanFeedItemEntity {
   @ApiProperty() createdAt!: string;
 
   constructor(partial: Partial<KanbanFeedItemEntity>) {
+    Object.assign(this, partial);
+  }
+}
+
+/**
+ * A card assigned to the current user, flattened for the personal dashboard —
+ * carries board context + the done/overdue flags the dashboard needs without
+ * the full card payload. `isDone` = the card sits in an isDoneList list.
+ */
+export class MyCardEntity {
+  @ApiProperty() id!: string;
+  @ApiProperty() title!: string;
+  @ApiProperty() boardId!: string;
+  @ApiProperty({ nullable: true }) boardName!: string | null;
+  @ApiProperty({ nullable: true }) dueDate!: string | null;
+  @ApiProperty({ description: 'Card sits in a done-type list' })
+  isDone!: boolean;
+  @ApiProperty({ description: 'dueDate past AND not in a done list' })
+  isOverdue!: boolean;
+
+  constructor(partial: Partial<MyCardEntity>) {
     Object.assign(this, partial);
   }
 }

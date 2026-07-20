@@ -33,6 +33,8 @@ import { Select } from '../../../../components/ui/select';
 import { Field } from '../../../../components/ui/field';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
+import { ProcessFlow } from '../../../../components/ui/process-flow';
+import { rfqFlow } from '../../../../lib/record-flows';
 import {
   Table,
   TableBody,
@@ -313,6 +315,9 @@ export default function RfqDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Live flow indicator — stage derived from the RFQ's status. */}
+      <ProcessFlow title="RFQ progress" className="mb-6" {...rfqFlow(rfq.status)} />
 
       {rfq.description && (
         <Card className="mb-6">

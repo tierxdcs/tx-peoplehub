@@ -8,6 +8,7 @@ import { KanbanCardsService } from './kanban-cards.service';
 import { KanbanActivityService } from './kanban-activity.service';
 import { KanbanFeedService } from './kanban-feed.service';
 import { KanbanLabelsService } from './kanban-labels.service';
+import { KanbanBoardProvisioningService } from './kanban-board-provisioning.service';
 
 /**
  * Kanban boards (Phase 1): boards, members, lists, sprints. Access is by
@@ -26,6 +27,7 @@ import { KanbanLabelsService } from './kanban-labels.service';
     KanbanActivityService,
     KanbanFeedService,
     KanbanLabelsService,
+    KanbanBoardProvisioningService,
   ],
   // KanbanBoardsService is exported for privileged internal provisioning by the
   // Project Kickoff module (auto-created project board + action-item cards).

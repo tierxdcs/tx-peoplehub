@@ -20,6 +20,8 @@ import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
+import { ProcessFlow } from '../../../../components/ui/process-flow';
+import { bidFlow } from '../../../../lib/record-flows';
 import {
   Table,
   TableBody,
@@ -293,6 +295,13 @@ export default function BidDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Live flow indicator — current stage derived from the bid's status. */}
+      <ProcessFlow
+        title="Bid progress"
+        className="mb-4"
+        {...bidFlow(bid.status)}
+      />
 
       {/* Metadata card: Valid until / Tender reference, two-column with icons */}
       <Card className="mb-4">

@@ -17,7 +17,11 @@ import {
   SetCardSprintDto,
   UpdateCardDto,
 } from './dto/kanban.dto';
-import { KanbanCardEntity } from './entities/kanban.entity';
+import {
+  BoardVerticalProgressEntity,
+  KanbanCardEntity,
+  MyCardEntity,
+} from './entities/kanban.entity';
 
 /**
  * Smallest gap between two adjacent fractional positions before we bother
@@ -34,6 +38,7 @@ const POSITION_STEP = 1024;
  */
 const CARD_INCLUDE = {
   assignee: { select: { firstName: true, lastName: true } },
+  vertical: { select: { name: true, code: true } },
   list: { select: { boardId: true, isDoneList: true } },
   labels: { include: { label: true } },
 } as const;
@@ -121,6 +126,89 @@ export class KanbanCardsService {
     return cards.map((c) => this.toEntity(c));
   }
 
+  /**
+   * Per-vertical completion for a board (any board member). Groups the board's
+   * ACTIVE cards by their vertical tag and, within each, counts how many sit in
+   * a done-type list. Untagged cards fall under a `verticalId: null` row. This
+   * is the real-state signal behind cross-department progress on a project board
+   * (e.g. "Production 2/7 done") — see ORDER_TRACKING.md.
+   */
+  async boardVerticalProgress(
+    boardId: string,
+    user: AuthenticatedUser,
+  ): Promise<BoardVerticalProgressEntity[]> {
+    await this.access.assertCanViewBoard(user, boardId);
+    const cards = await this.prisma.kanbanCard.findMany({
+      where: { status: KanbanCardStatus.ACTIVE, list: { boardId } },
+      select: {
+        verticalId: true,
+        vertical: { select: { name: true, code: true } },
+        list: { select: { isDoneList: true } },
+      },
+    });
+
+    // Group by verticalId (null bucket keyed by the empty string internally).
+    const buckets = new Map<string, BoardVerticalProgressEntity>();
+    for (const c of cards) {
+      const key = c.verticalId ?? '';
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = new BoardVerticalProgressEntity({
+          verticalId: c.verticalId,
+          verticalName: c.vertical?.name ?? null,
+          verticalCode: c.vertical?.code ?? null,
+          total: 0,
+          done: 0,
+        });
+        buckets.set(key, bucket);
+      }
+      bucket.total += 1;
+      if (c.list.isDoneList) bucket.done += 1;
+    }
+
+    // Tagged verticals first (alpha by code), untagged bucket last.
+    return [...buckets.values()].sort((a, b) => {
+      if (a.verticalId === null) return 1;
+      if (b.verticalId === null) return -1;
+      return (a.verticalCode ?? '').localeCompare(b.verticalCode ?? '');
+    });
+  }
+
+  /**
+   * Every ACTIVE card assigned to the current user, across ALL boards — the
+   * personal-dashboard feed. No board-id needed: an assignee is always a board
+   * member (enforced on assign), so filtering by assigneeId is sufficient and
+   * self-scoping. Returns a flattened shape carrying board context + done /
+   * overdue flags so the dashboard can compute all four stat cards client-side.
+   */
+  async myCards(user: AuthenticatedUser): Promise<MyCardEntity[]> {
+    const cards = await this.prisma.kanbanCard.findMany({
+      where: { status: KanbanCardStatus.ACTIVE, assigneeId: user.id },
+      include: {
+        list: {
+          select: {
+            isDoneList: true,
+            board: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: [{ dueDate: 'asc' }],
+    });
+    const now = Date.now();
+    return cards.map((c) => {
+      const isDone = c.list.isDoneList;
+      return new MyCardEntity({
+        id: c.id,
+        title: c.title,
+        boardId: c.list.board.id,
+        boardName: c.list.board.name,
+        dueDate: c.dueDate ? c.dueDate.toISOString() : null,
+        isDone,
+        isOverdue: !!c.dueDate && c.dueDate.getTime() < now && !isDone,
+      });
+    });
+  }
+
   /** Create a card in a list — any board member. sprintId is NOT settable. */
   async create(
     listId: string,
@@ -140,6 +228,10 @@ export class KanbanCardsService {
     });
     const position = (last?.position ?? 0) + POSITION_STEP;
 
+    // Vertical is server-owned and always follows the assignee. Clients cannot
+    // supply or edit it independently.
+    const verticalId = await this.resolveAssigneeVertical(dto.assigneeId);
+
     const card = await this.prisma.kanbanCard.create({
       data: {
         listId,
@@ -149,6 +241,7 @@ export class KanbanCardsService {
         startDate: dto.startDate ? new Date(dto.startDate) : null,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
         assigneeId: dto.assigneeId ?? null,
+        verticalId,
         position,
         createdById: user.id,
       },
@@ -170,7 +263,10 @@ export class KanbanCardsService {
     const card = await this.getCardOrThrow(id);
     await this.access.assertCanViewBoard(user, card.list.boardId);
     if (dto.assigneeId) {
-      await this.access.assertAssigneeIsMember(dto.assigneeId, card.list.boardId);
+      await this.access.assertAssigneeIsMember(
+        dto.assigneeId,
+        card.list.boardId,
+      );
     }
 
     const data: Prisma.KanbanCardUpdateInput = {};
@@ -189,14 +285,18 @@ export class KanbanCardsService {
       const next = dto.startDate ? new Date(dto.startDate) : null;
       if (!sameDate(next, card.startDate)) {
         data.startDate = next;
-        descriptions.push(this.activity.dateChanged('start', dto.startDate ?? null));
+        descriptions.push(
+          this.activity.dateChanged('start', dto.startDate ?? null),
+        );
       }
     }
     if (dto.dueDate !== undefined) {
       const next = dto.dueDate ? new Date(dto.dueDate) : null;
       if (!sameDate(next, card.dueDate)) {
         data.dueDate = next;
-        descriptions.push(this.activity.dateChanged('due', dto.dueDate ?? null));
+        descriptions.push(
+          this.activity.dateChanged('due', dto.dueDate ?? null),
+        );
       }
     }
 
@@ -223,11 +323,22 @@ export class KanbanCardsService {
         descriptions.push(this.activity.assigneeChanged(name));
       }
     }
+
+    // Keep the denormalized reporting field synchronized with the assignee.
+    // Unassigning, or assigning someone without a vertical, clears it.
+    if (assigneeChanged) {
+      const verticalId = await this.resolveAssigneeVertical(newlyAssignedId);
+      data.vertical = verticalId
+        ? { connect: { id: verticalId } }
+        : { disconnect: true };
+    }
     // "Meaningful" non-assignment changes (priority/dates) that should notify
     // the current assignee. title/description are excluded per the spec.
     const meaningfulChange =
       (dto.priority !== undefined && dto.priority !== card.priority) ||
-      descriptions.some((d) => d.startsWith('set the ') || d.startsWith('cleared the '));
+      descriptions.some(
+        (d) => d.startsWith('set the ') || d.startsWith('cleared the '),
+      );
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.kanbanCard.update({
@@ -435,6 +546,22 @@ export class KanbanCardsService {
 
   // ── internals ──────────────────────────────────────────────────────
 
+  /**
+   * The vertical of a given assignee (or null when there's no assignee, the
+   * employee is missing, or they have no vertical). Used to auto-fill a card's
+   * vertical tag. This is the only supported source for a card's vertical.
+   */
+  private async resolveAssigneeVertical(
+    assigneeId: string | null | undefined,
+  ): Promise<string | null> {
+    if (!assigneeId) return null;
+    const emp = await this.prisma.employee.findUnique({
+      where: { id: assigneeId },
+      select: { verticalId: true },
+    });
+    return emp?.verticalId ?? null;
+  }
+
   /** Re-space a list's ACTIVE cards to integer steps (rare precision reset). */
   private async respaceList(listId: string, excludeId: string): Promise<void> {
     const cards = await this.prisma.kanbanCard.findMany({
@@ -483,6 +610,7 @@ export class KanbanCardsService {
   private toEntity(
     card: KanbanCard & {
       assignee?: { firstName: string; lastName: string } | null;
+      vertical?: { name: string; code: string } | null;
       list?: { boardId?: string; isDoneList: boolean } | null;
       labels?: {
         label: { id: string; boardId: string; name: string; color: string };
@@ -504,6 +632,9 @@ export class KanbanCardsService {
       assigneeName: card.assignee
         ? `${card.assignee.firstName} ${card.assignee.lastName}`
         : null,
+      verticalId: card.verticalId,
+      verticalName: card.vertical?.name ?? null,
+      verticalCode: card.vertical?.code ?? null,
       startDate: card.startDate ? card.startDate.toISOString() : null,
       dueDate: card.dueDate ? card.dueDate.toISOString() : null,
       priority: card.priority,

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -11,6 +12,7 @@ import {
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { KanbanAccessService } from './kanban-access.service';
+import { KanbanBoardProvisioningService } from './kanban-board-provisioning.service';
 import { CreateBoardDto, AddBoardMemberDto } from './dto/kanban.dto';
 import {
   KanbanBoardEntity,
@@ -22,6 +24,7 @@ export class KanbanBoardsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: KanbanAccessService,
+    private readonly provisioning: KanbanBoardProvisioningService,
   ) {}
 
   /**
@@ -44,6 +47,7 @@ export class KanbanBoardsService {
           addedById: user.id,
         },
       });
+      await this.provisioning.createDefaultLists(tx, created.id, user.id);
       return created;
     });
     return this.toBoardEntity({ ...board, _count: { members: 1 } });
@@ -54,7 +58,7 @@ export class KanbanBoardsService {
    * deliberately bypassing the Scrum-Master access gates. Used by the Project
    * Kickoff module to stand up a project board as a side effect of kickoff
    * creation (§5): a board named after the project, the three default lists
-   * (To Do / In Progress / Done, the last a done-list), and initial members
+   * (To Do / In progress / Completed, the last a done-list), and initial members
    * (creator + internal attendees). All in one transaction. Returns the ids the
    * caller needs to wire up (board + the To Do list for action-item cards).
    *
@@ -81,35 +85,12 @@ export class KanbanBoardsService {
           addedById: input.createdById,
         })),
       });
-      // Default lists, fractional positions on the POSITION_STEP=1024 scheme.
-      const todo = await tx.kanbanList.create({
-        data: {
-          boardId: board.id,
-          name: 'To Do',
-          position: 1024,
-          isDoneList: false,
-          createdById: input.createdById,
-        },
-      });
-      await tx.kanbanList.create({
-        data: {
-          boardId: board.id,
-          name: 'In Progress',
-          position: 2048,
-          isDoneList: false,
-          createdById: input.createdById,
-        },
-      });
-      await tx.kanbanList.create({
-        data: {
-          boardId: board.id,
-          name: 'Done',
-          position: 3072,
-          isDoneList: true,
-          createdById: input.createdById,
-        },
-      });
-      return { boardId: board.id, todoListId: todo.id };
+      const { todoListId } = await this.provisioning.createDefaultLists(
+        tx,
+        board.id,
+        input.createdById,
+      );
+      return { boardId: board.id, todoListId };
     });
   }
 
@@ -123,6 +104,16 @@ export class KanbanBoardsService {
       where: { boardId_employeeId: { boardId, employeeId } },
       create: { boardId, employeeId, addedById: employeeId },
       update: {},
+    });
+  }
+
+  async doneListBackfillReport(user: AuthenticatedUser) {
+    if (!this.access.isSuperAdmin(user))
+      throw new ForbiddenException(
+        'Only SUPER_ADMIN may view the done-list backfill report',
+      );
+    return this.prisma.kanbanDoneListBackfillReport.findMany({
+      orderBy: { boardName: 'asc' },
     });
   }
 
@@ -146,11 +137,19 @@ export class KanbanBoardsService {
       select: { position: true },
     });
     const position = (last?.position ?? 0) + 1024;
+    // Auto-tag the card with the assignee's vertical so per-vertical completion
+    // works on project boards (this is the kickoff action-item path — exactly
+    // where cross-department progress tracking matters). Editable later.
+    const owner = await this.prisma.employee.findUnique({
+      where: { id: input.assigneeId },
+      select: { verticalId: true },
+    });
     const card = await this.prisma.kanbanCard.create({
       data: {
         listId: input.listId,
         title: input.title,
         assigneeId: input.assigneeId,
+        verticalId: owner?.verticalId ?? null,
         dueDate: input.dueDate,
         position,
         createdById: input.createdById,
@@ -205,7 +204,9 @@ export class KanbanBoardsService {
     await this.access.assertCanViewBoard(user, boardId);
     const members = await this.prisma.kanbanBoardMember.findMany({
       where: { boardId },
-      include: { employee: { select: { firstName: true, lastName: true, email: true } } },
+      include: {
+        employee: { select: { firstName: true, lastName: true, email: true } },
+      },
       orderBy: { addedAt: 'asc' },
     });
     return members.map((m) => this.toMemberEntity(m));
@@ -223,7 +224,9 @@ export class KanbanBoardsService {
       select: { id: true, status: true },
     });
     if (!employee) {
-      throw new BadRequestException('employeeId does not reference an employee');
+      throw new BadRequestException(
+        'employeeId does not reference an employee',
+      );
     }
     if (employee.status !== EmployeeStatus.ACTIVE) {
       throw new BadRequestException('Cannot add an inactive employee');
@@ -236,7 +239,9 @@ export class KanbanBoardsService {
     }
     const member = await this.prisma.kanbanBoardMember.create({
       data: { boardId, employeeId: dto.employeeId, addedById: user.id },
-      include: { employee: { select: { firstName: true, lastName: true, email: true } } },
+      include: {
+        employee: { select: { firstName: true, lastName: true, email: true } },
+      },
     });
     return this.toMemberEntity(member);
   }
@@ -257,7 +262,9 @@ export class KanbanBoardsService {
       where: { boardId_employeeId: { boardId, employeeId } },
     });
     if (!member) {
-      throw new NotFoundException('That employee is not a member of this board');
+      throw new NotFoundException(
+        'That employee is not a member of this board',
+      );
     }
     await this.prisma.kanbanBoardMember.delete({ where: { id: member.id } });
   }
