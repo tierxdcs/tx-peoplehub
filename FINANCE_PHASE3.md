@@ -17,7 +17,7 @@ Phase 3 adds the vendor-liability and outbound-payment side of WorkCore — Phaz
 - Vendor-wise AP outstanding/overdue summary.
 - Released PO commitment report showing ordered, QC-accepted, billed, unreceived and unbilled values.
 - Combined Payment Calendar for AR due dates, AP due dates and proposed/approved vendor payments.
-- Automatic posted journals for approved AP invoices and executed payments.
+- Automatic posted journals for approved AP invoices and executed payments..
 
 ## Key controls
 
