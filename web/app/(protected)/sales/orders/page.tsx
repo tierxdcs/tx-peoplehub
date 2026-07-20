@@ -1,11 +1,25 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { apiFetch } from '../../../lib/api';
+import { useRouter } from 'next/navigation';
 import { Order, OrderStatus, PaginatedResult } from '../../../lib/types';
-import { badgeStyle, formatINR, orderStatusColor, prettyEnum } from '../../../lib/sales';
+import { apiFetch } from '../../../lib/api';
+import { formatINR, prettyEnum } from '../../../lib/sales';
+import { PageContainer } from '../../../components/ui/page-container';
+import { PageHeader } from '../../../components/ui/page-header';
+import { Card, CardContent } from '../../../components/ui/card';
+import { StatusBadge } from '../../../components/ui/status-badge';
 import { Button } from '../../../components/ui/button';
+import { Select } from '../../../components/ui/select';
+import { Skeleton } from '../../../components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../components/ui/table';
 
 const STATUSES: OrderStatus[] = [
   'CONFIRMED',
@@ -15,25 +29,49 @@ const STATUSES: OrderStatus[] = [
   'DELIVERED',
   'CANCELLED',
 ];
+const PAGE_SIZE = 20;
+
+function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <Card className="min-w-[160px] flex-1">
+      <CardContent className="p-4">
+        <div className="text-sm font-medium text-muted-foreground">{label}</div>
+        <div className="mt-1 text-2xl font-semibold">{value}</div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function OrdersPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [summaryRows, setSummaryRows] = useState<Order[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const limit = 20;
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch<PaginatedResult<Order>>(
-        `/orders?page=${page}&limit=${limit}`,
+      const result = await apiFetch<PaginatedResult<Order>>(
+        `/orders?page=${page}&limit=${PAGE_SIZE}`,
       );
-      setOrders(res.items);
-      setTotal(res.total);
+      setOrders(result.items);
+      setTotal(result.total);
+
+      // KPI cards represent the complete normal-sized register and therefore
+      // remain stable as the user pages through orders.
+      if (page === 1 && result.total <= result.items.length) {
+        setSummaryRows(result.items);
+      } else {
+        const summary = await apiFetch<PaginatedResult<Order>>(
+          '/orders?page=1&limit=100',
+        );
+        setSummaryRows(summary.items);
+      }
     } catch {
       setError('Failed to load orders');
     } finally {
@@ -42,97 +80,174 @@ export default function OrdersPage() {
   }, [page]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const filtered = useMemo(
-    () => orders.filter((o) => !statusFilter || o.status === statusFilter),
+    () =>
+      orders.filter((order) => !statusFilter || order.status === statusFilter),
     [orders, statusFilter],
   );
 
-  return (
-    <div>
-      <h1>Orders</h1>
+  const summary = useMemo(() => {
+    const active = summaryRows.filter((order) => order.status !== 'CANCELLED');
+    return {
+      confirmed: active.filter((order) => order.status === 'CONFIRMED').length,
+      inProduction: active.filter((order) => order.status === 'IN_PRODUCTION')
+        .length,
+      readyOrShipping: active.filter(
+        (order) =>
+          order.status === 'READY_TO_SHIP' || order.status === 'SHIPPED',
+      ).length,
+      bookedValue: active.reduce(
+        (sum, order) => sum + Number(order.totalAmount),
+        0,
+      ),
+    };
+  }, [summaryRows]);
 
-      <div style={{ marginBottom: 16 }}>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ padding: 6 }}
-        >
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {prettyEnum(s)}
-            </option>
-          ))}
-        </select>
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Orders"
+        description="Sales order register — follow confirmed work through production, shipment and delivery."
+      />
+
+      <div className="mb-6 flex flex-wrap gap-3">
+        <StatCard label="Confirmed" value={summary.confirmed} />
+        <StatCard label="In Production" value={summary.inProduction} />
+        <StatCard label="Ready / Shipping" value={summary.readyOrShipping} />
+        <StatCard label="Booked Value" value={formatINR(summary.bookedValue)} />
       </div>
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
-      {loading ? (
-        <p>Loading…</p>
-      ) : (
-        <>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
-                <th>Order #</th>
-                <th>Status</th>
-                <th>Total</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((o) => (
-                <tr key={o.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td>
-                    <Link href={`/sales/orders/${o.id}`}>{o.orderNumber}</Link>
-                  </td>
-                  <td>
-                    <span style={badgeStyle(orderStatusColor(o.status))}>
-                      {prettyEnum(o.status)}
-                    </span>
-                  </td>
-                  <td>{formatINR(o.totalAmount)}</td>
-                  <td>
-                    <Link href={`/sales/orders/${o.id}`}>View</Link>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={4} style={{ padding: 12, color: '#666' }}>
-                    No orders.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
-          <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Prev
-            </Button>
-            <span>
-              Page {page} of {Math.max(1, Math.ceil(total / limit))}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page * limit >= total}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
+      <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
+        <h2 className="text-lg font-semibold">Order Register</h2>
+        <div className="w-full sm:w-48">
+          <label
+            htmlFor="order-status-filter"
+            className="mb-1 block text-xs font-medium text-muted-foreground"
+          >
+            Status
+          </label>
+          <Select
+            id="order-status-filter"
+            value={statusFilter}
+            onChange={(event) => {
+              setStatusFilter(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">All statuses</option>
+            {STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {prettyEnum(status)}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Order #</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Fulfilment</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                Array.from({ length: 5 }).map((_, row) => (
+                  <TableRow key={row}>
+                    {Array.from({ length: 6 }).map((__, column) => (
+                      <TableCell key={column}>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={6}
+                    className="py-8 text-center text-muted-foreground"
+                  >
+                    {statusFilter
+                      ? `No ${prettyEnum(statusFilter).toLowerCase()} orders on this page.`
+                      : 'No orders yet.'}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filtered.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell className="font-medium">
+                      <button
+                        type="button"
+                        className="hover:text-primary hover:underline"
+                        onClick={() => router.push(`/sales/orders/${order.id}`)}
+                      >
+                        {order.orderNumber}
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge value={order.status} />
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        value={order.fulfilmentStatus ?? 'NOT_DISPATCHED'}
+                      />
+                    </TableCell>
+                    <TableCell>{formatINR(order.totalAmount)}</TableCell>
+                    <TableCell>
+                      {new Date(order.createdAt).toLocaleDateString('en-IN')}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push(`/sales/orders/${order.id}`)}
+                      >
+                        View Order
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <div className="mt-4 flex items-center gap-2 text-sm">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page <= 1 || loading}
+          onClick={() => setPage((current) => current - 1)}
+        >
+          Prev
+        </Button>
+        <span className="text-muted-foreground">
+          Page {page} of {pageCount}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page >= pageCount || loading}
+          onClick={() => setPage((current) => current + 1)}
+        >
+          Next
+        </Button>
+      </div>
+    </PageContainer>
   );
 }
