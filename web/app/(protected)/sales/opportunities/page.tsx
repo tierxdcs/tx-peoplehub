@@ -236,10 +236,11 @@ export default function OpportunitiesPage() {
               ) : (
                 filtered.map((opportunity) => (
                   <TableRow key={opportunity.id}>
-                    <TableCell className="max-w-sm font-medium">
+                    <TableCell className="font-medium">
                       <button
                         type="button"
-                        className="truncate text-left hover:text-primary hover:underline"
+                        title={opportunity.name}
+                        className="block max-w-[20rem] truncate text-left hover:text-primary hover:underline"
                         onClick={() =>
                           router.push(`/sales/opportunities/${opportunity.id}`)
                         }

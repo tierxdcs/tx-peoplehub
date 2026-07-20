@@ -321,8 +321,13 @@ export default function LeadsPage() {
                           </div>
                         </TableCell>
                         {/* Requirement + its business-unit chip stacked. */}
-                        <TableCell className="max-w-xs">
-                          <div className="truncate">{lead.requirement}</div>
+                        <TableCell>
+                          <div
+                            className="max-w-[18rem] truncate"
+                            title={lead.requirement}
+                          >
+                            {lead.requirement}
+                          </div>
                           <div className="mt-1">
                             <BusinessUnitLabel
                               name={lead.businessUnitName}
