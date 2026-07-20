@@ -24,8 +24,16 @@ import { cn } from '../../lib/utils';
 import { TeamSection } from '../_sections/team-section';
 import { LeaveSection } from '../_sections/leave-section';
 import { AttendanceSection } from '../_sections/attendance-section';
+import { TeamLeaveApprovalsSection } from '../_sections/team-leave-approvals-section';
+import { TeamAttendanceSection } from '../_sections/team-attendance-section';
 
-type ProfileTab = 'profile' | 'team' | 'leave' | 'attendance';
+type ProfileTab =
+  | 'profile'
+  | 'team'
+  | 'team-approvals'
+  | 'team-attendance'
+  | 'leave'
+  | 'attendance';
 
 /** Small uppercase label above a value in the details grid. */
 function DetailLabel({ children }: { children: React.ReactNode }) {
@@ -49,11 +57,14 @@ export default function ProfilePage() {
   const [savingSig, setSavingSig] = useState(false);
   const [tab, setTab] = useState<ProfileTab>('profile');
 
-  // "My Team" is manager/admin-only, matching the previous nav gating.
+  // Team self-service (roster + leave approvals) is manager/admin-only; the
+  // team-attendance grid is MANAGER-only (its backend endpoint is), matching
+  // the previous nav + page gating.
   const showTeam =
     user?.role === 'MANAGER' ||
     user?.role === 'ADMIN' ||
     user?.role === 'SUPER_ADMIN';
+  const showTeamAttendance = user?.role === 'MANAGER';
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -119,7 +130,15 @@ export default function ProfilePage() {
 
   const tabs: { key: ProfileTab; label: string }[] = [
     { key: 'profile', label: 'Profile' },
-    ...(showTeam ? [{ key: 'team' as const, label: 'My Team' }] : []),
+    ...(showTeam
+      ? [
+          { key: 'team' as const, label: 'My Team' },
+          { key: 'team-approvals' as const, label: 'Leave Approvals' },
+        ]
+      : []),
+    ...(showTeamAttendance
+      ? [{ key: 'team-attendance' as const, label: 'Team Attendance' }]
+      : []),
     { key: 'leave', label: 'My Leave' },
     { key: 'attendance', label: 'My Attendance' },
   ];
@@ -148,6 +167,8 @@ export default function ProfilePage() {
       </div>
 
       {tab === 'team' && <TeamSection embedded />}
+      {tab === 'team-approvals' && <TeamLeaveApprovalsSection embedded />}
+      {tab === 'team-attendance' && <TeamAttendanceSection embedded />}
       {tab === 'leave' && <LeaveSection embedded />}
       {tab === 'attendance' && <AttendanceSection embedded />}
 

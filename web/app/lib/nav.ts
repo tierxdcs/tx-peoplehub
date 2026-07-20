@@ -95,7 +95,6 @@ export function activeModule(
  * role only, never by module.
  */
 export function sharedNav(access: Access): NavGroup[] {
-  const { isManager } = flags(access.user);
   const groups: NavGroup[] = [];
 
   // Personal dashboard — the post-login landing for every role; always the
@@ -112,15 +111,11 @@ export function sharedNav(access: Access): NavGroup[] {
     me.push({ label: 'My Payslips', href: '/payslips' });
   if (me.length) groups.push({ heading: 'Me', items: me });
 
-  if (isManager) {
-    groups.push({
-      heading: 'My Team',
-      items: [
-        { label: 'Leave Approvals', href: '/team/leave-approvals' },
-        { label: 'Team Attendance', href: '/team/attendance' },
-      ],
-    });
-  }
+  // "My Team" (roster, leave approvals, team attendance) is no longer a sidebar
+  // group — those manager tools now live as tabs under My Profile (reached from
+  // the account dropdown), alongside My Team / My Leave / My Attendance. The
+  // standalone /team/* routes still exist and work; they're just not surfaced
+  // in the sidebar.
 
   // Vault (document management) is cross-cutting — every authenticated employee
   // sees it regardless of role or vertical. Content within is access-scoped by
