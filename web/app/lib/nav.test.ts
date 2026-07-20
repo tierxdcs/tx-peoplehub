@@ -49,10 +49,14 @@ function labels(a: Access, module: ReturnType<typeof activeModule>): string[] {
 
 describe('availableModules', () => {
   it('gives a Sales-vertical employee only the sales module', () => {
-    expect(availableModules(access('EMPLOYEE', { isSalesStaff: true }))).toEqual(['sales']);
+    expect(
+      availableModules(access('EMPLOYEE', { isSalesStaff: true })),
+    ).toEqual(['sales']);
   });
   it('gives an HR-vertical employee only the hr module', () => {
-    expect(availableModules(access('EMPLOYEE', { isHrStaff: true }))).toEqual(['hr']);
+    expect(availableModules(access('EMPLOYEE', { isHrStaff: true }))).toEqual([
+      'hr',
+    ]);
   });
   it('gives SUPER_ADMIN both modules', () => {
     expect(availableModules(access('SUPER_ADMIN'))).toEqual(['hr', 'sales']);
@@ -85,6 +89,22 @@ describe('activeModule', () => {
 });
 
 describe('sidebarNav — the reported bug', () => {
+  it('always puts Home / Dashboard at the top of the sidebar', () => {
+    for (const a of [
+      access('EMPLOYEE', { isSalesStaff: true }),
+      access('EMPLOYEE', { isHrStaff: true }),
+      access('SUPER_ADMIN'),
+      access('EMPLOYEE'),
+    ]) {
+      const module = activeModule('/dashboard', availableModules(a));
+      const groups = sidebarNav(a, module);
+      expect(groups[0]).toEqual({
+        heading: 'Home',
+        items: [{ label: 'Dashboard', href: '/dashboard' }],
+      });
+    }
+  });
+
   it('a Sales MANAGER sees the Sales pipeline nav (was missing) plus shared items', () => {
     const a = access('MANAGER', { isSalesStaff: true });
     const mods = availableModules(a);
@@ -195,14 +215,20 @@ describe('sidebarNav — the reported bug', () => {
 
   it('Store staff see the Logistics group (Dispatch Register / OTD)', () => {
     const a = access('EMPLOYEE', { isStoreStaff: true });
-    const shown = labels(a, activeModule('/logistics/dispatch', availableModules(a)));
+    const shown = labels(
+      a,
+      activeModule('/logistics/dispatch', availableModules(a)),
+    );
     expect(shown).toContain('Dispatch Register');
     expect(shown).toContain('OTD Analytics');
   });
 
   it('SCM staff also see the Logistics group', () => {
     const a = access('EMPLOYEE', { isScmStaff: true });
-    const shown = labels(a, activeModule('/logistics/dispatch', availableModules(a)));
+    const shown = labels(
+      a,
+      activeModule('/logistics/dispatch', availableModules(a)),
+    );
     expect(shown).toContain('Dispatch Register');
     expect(shown).toContain('OTD Analytics');
   });
@@ -231,7 +257,12 @@ describe('sidebarNav — the reported bug', () => {
   // Personal profile and self-service tabs are reached from the account
   // dropdown/profile page and are not duplicated in the sidebar.
   it('does not duplicate profile or its tabs in the sidebar', () => {
-    for (const role of ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE'] as const) {
+    for (const role of [
+      'SUPER_ADMIN',
+      'ADMIN',
+      'MANAGER',
+      'EMPLOYEE',
+    ] as const) {
       const a = access(role);
       const shown = labels(a, activeModule('/profile', availableModules(a)));
       expect(shown).not.toContain('My Profile');
@@ -244,16 +275,17 @@ describe('sidebarNav — the reported bug', () => {
   it('a module-less EMPLOYEE (Production) sees only shared items', () => {
     const a = access('EMPLOYEE');
     const shown = labels(a, activeModule('/leave', availableModules(a)));
-    expect(shown).toEqual(
-      expect.arrayContaining(['Documents', 'Boards']),
-    );
+    expect(shown).toEqual(expect.arrayContaining(['Documents', 'Boards']));
     expect(shown).not.toContain('Leads');
     expect(shown).not.toContain('Roster');
   });
 
   it('Finance shows the trimmed spine and hides the leaf-module items', () => {
     const a = access('EMPLOYEE', { isFinanceUser: true });
-    const shown = labels(a, activeModule('/finance/ar/invoices', availableModules(a)));
+    const shown = labels(
+      a,
+      activeModule('/finance/ar/invoices', availableModules(a)),
+    );
     // Spine (GL core + AR + AP + compliance) is visible.
     expect(shown).toContain('Sales Invoices');
     expect(shown).toContain('Vendor Invoices');
@@ -273,18 +305,29 @@ describe('sidebarNav — the reported bug', () => {
 describe('landingRoute', () => {
   // The personal dashboard is now the single post-login landing for every role.
   it('sends every role to the personal dashboard', () => {
-    expect(landingRoute(access('MANAGER', { isSalesStaff: true }))).toBe('/dashboard');
-    expect(landingRoute(access('EMPLOYEE', { isSalesStaff: true }))).toBe('/dashboard');
+    expect(landingRoute(access('MANAGER', { isSalesStaff: true }))).toBe(
+      '/dashboard',
+    );
+    expect(landingRoute(access('EMPLOYEE', { isSalesStaff: true }))).toBe(
+      '/dashboard',
+    );
     expect(landingRoute(access('ADMIN'))).toBe('/dashboard');
     expect(landingRoute(access('SUPER_ADMIN'))).toBe('/dashboard');
-    expect(landingRoute(access('MANAGER', { isHrStaff: true }))).toBe('/dashboard');
+    expect(landingRoute(access('MANAGER', { isHrStaff: true }))).toBe(
+      '/dashboard',
+    );
     expect(landingRoute(access('EMPLOYEE'))).toBe('/dashboard');
   });
 });
 
 describe('sharedNav — dashboard', () => {
   it('every role gets the Dashboard nav item', () => {
-    for (const role of ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE'] as const) {
+    for (const role of [
+      'SUPER_ADMIN',
+      'ADMIN',
+      'MANAGER',
+      'EMPLOYEE',
+    ] as const) {
       const a = access(role);
       const shown = labels(a, activeModule('/dashboard', availableModules(a)));
       expect(shown).toContain('Dashboard');

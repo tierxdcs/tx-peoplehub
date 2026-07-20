@@ -207,7 +207,11 @@ export function sharedNav(access: Access): NavGroup[] {
   // (Production) staff AND SCM staff (procurement/logistics overlap), plus
   // SUPER_ADMIN. Dispatch is gated to Production-vertical and final-QC clearance
   // to isQcInspector by the backend; read is company-wide there.
-  if (access.isStoreStaff || access.isScmStaff || flags(access.user).isSuperAdmin) {
+  if (
+    access.isStoreStaff ||
+    access.isScmStaff ||
+    flags(access.user).isSuperAdmin
+  ) {
     groups.push({
       heading: 'Logistics',
       items: [
@@ -262,36 +266,42 @@ export function sharedNav(access: Access): NavGroup[] {
   }
 
   if (access.isQualityUser || access.isQmsHead) {
-    groups.push({ heading: 'Quality Management', items: [
-      { label: 'QMS Dashboard', href: '/qms' },
-      { label: 'Inspections', href: '/qms/inspections' },
-      { label: 'Quality Plans', href: '/qms/plans' },
-      { label: 'Question Templates', href: '/qms/templates' },
-      { label: 'NCR Register', href: '/qms/ncrs' },
-      { label: 'CAPA Tracker', href: '/qms/capas' },
-      { label: 'Audit Programmes', href: '/qms/audit-programs' },
-      { label: 'Audits', href: '/qms/audits' },
-      { label: 'Quality Reports', href: '/qms/reports' },
-      { label: 'Calibration', href: '/qms/calibration' },
-      { label: 'Customer Complaints', href: '/qms/complaints' },
-      { label: 'Supplier Quality', href: '/qms/supplier-quality' },
-      { label: 'Quality Analytics', href: '/qms/analytics' },
-    ] });
+    groups.push({
+      heading: 'Quality Management',
+      items: [
+        { label: 'QMS Dashboard', href: '/qms' },
+        { label: 'Inspections', href: '/qms/inspections' },
+        { label: 'Quality Plans', href: '/qms/plans' },
+        { label: 'Question Templates', href: '/qms/templates' },
+        { label: 'NCR Register', href: '/qms/ncrs' },
+        { label: 'CAPA Tracker', href: '/qms/capas' },
+        { label: 'Audit Programmes', href: '/qms/audit-programs' },
+        { label: 'Audits', href: '/qms/audits' },
+        { label: 'Quality Reports', href: '/qms/reports' },
+        { label: 'Calibration', href: '/qms/calibration' },
+        { label: 'Customer Complaints', href: '/qms/complaints' },
+        { label: 'Supplier Quality', href: '/qms/supplier-quality' },
+        { label: 'Quality Analytics', href: '/qms/analytics' },
+      ],
+    });
   }
 
   if (access.isDesignUser || access.isDesignHead) {
-    groups.push({ heading: 'Design Engineering', items: [
-      { label: 'Design Dashboard', href: '/design' },
-      { label: 'Design Requests', href: '/design/requests' },
-      { label: 'Design Projects', href: '/design/projects' },
-      { label: 'Design Controls', href: '/design/controls' },
-      { label: 'Document Register', href: '/design/documents' },
-      { label: 'Engineering Changes', href: '/design/changes' },
-      { label: 'Design Reviews', href: '/design/reviews' },
-      { label: 'Project Templates', href: '/design/templates' },
-      { label: 'Document Transmittals', href: '/design/transmittals' },
-      { label: 'Change Reports', href: '/design/change-reports' },
-    ] });
+    groups.push({
+      heading: 'Design Engineering',
+      items: [
+        { label: 'Design Dashboard', href: '/design' },
+        { label: 'Design Requests', href: '/design/requests' },
+        { label: 'Design Projects', href: '/design/projects' },
+        { label: 'Design Controls', href: '/design/controls' },
+        { label: 'Document Register', href: '/design/documents' },
+        { label: 'Engineering Changes', href: '/design/changes' },
+        { label: 'Design Reviews', href: '/design/reviews' },
+        { label: 'Project Templates', href: '/design/templates' },
+        { label: 'Document Transmittals', href: '/design/transmittals' },
+        { label: 'Change Reports', href: '/design/change-reports' },
+      ],
+    });
   }
 
   return groups;
@@ -401,16 +411,21 @@ function moduleNav(module: ModuleKey, access: Access): NavGroup[] {
 }
 
 /**
- * The full sidebar: the active operational module's groups (if the user has
- * one) followed by the always-shared groups. A zero-module user gets only the
- * shared groups.
+ * The full sidebar: Home is always first, followed by the active operational
+ * module and then the remaining shared groups. A zero-module user gets only
+ * the shared groups, still beginning with Home.
  */
 export function sidebarNav(
   access: Access,
   module: ModuleKey | undefined,
 ): NavGroup[] {
   const moduleGroups = module ? moduleNav(module, access) : [];
-  return [...moduleGroups, ...sharedNav(access)];
+  const sharedGroups = sharedNav(access);
+  const home = sharedGroups.filter((group) => group.heading === 'Home');
+  const remainingShared = sharedGroups.filter(
+    (group) => group.heading !== 'Home',
+  );
+  return [...home, ...moduleGroups, ...remainingShared];
 }
 
 /** First reachable route for a module — used for post-login landing + toggle. */
