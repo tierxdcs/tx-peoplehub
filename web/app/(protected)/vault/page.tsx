@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Folder, FolderLock, Users, Building2 } from 'lucide-react';
+import { Folder, FolderLock, Users, Building2, Pencil } from 'lucide-react';
 import { apiFetch } from '../../lib/api';
 import type { VaultFolder } from '../../lib/types';
 import { useAuth } from '../../lib/auth-context';
@@ -14,6 +14,7 @@ import { Button } from '../../components/ui/button';
 import { Skeleton } from '../../components/ui/skeleton';
 import { EmptyState } from '../../components/ui/empty-state';
 import { NewFolderDialog } from './_components/new-folder-dialog';
+import { RenameFolderDialog } from './_components/rename-folder-dialog';
 import { folderScopeLabel, folderScopeVariant } from './_lib/vault-format';
 
 export default function VaultLandingPage() {
@@ -23,6 +24,7 @@ export default function VaultLandingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<VaultFolder | null>(null);
 
   const canCreateFolder =
     user?.role === 'MANAGER' ||
@@ -94,28 +96,48 @@ export default function VaultLandingPage() {
           {folders.map((folder) => {
             const Icon = iconFor(folder);
             return (
-              <button
+              <Card
                 key={folder.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => router.push(`/vault/folders/${folder.id}`)}
-                className="text-left"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    router.push(`/vault/folders/${folder.id}`);
+                  }
+                }}
+                className="group cursor-pointer transition-colors hover:border-primary/50 hover:bg-accent/40"
               >
-                <Card className="transition-colors hover:border-primary/50 hover:bg-accent/40">
-                  <CardContent className="flex items-center gap-3 p-4">
-                    <Icon className="size-8 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{folder.name}</p>
-                      <div className="mt-1 flex items-center gap-2">
-                        <Badge variant={folderScopeVariant(folder)}>
-                          {folderScopeLabel(folder)}
-                        </Badge>
-                        {folder.versioningEnabled && (
-                          <Badge variant="muted">Versioned</Badge>
-                        )}
-                      </div>
+                <CardContent className="flex items-center gap-3 p-4">
+                  <Icon className="size-8 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{folder.name}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Badge variant={folderScopeVariant(folder)}>
+                        {folderScopeLabel(folder)}
+                      </Badge>
+                      {folder.versioningEnabled && (
+                        <Badge variant="muted">Versioned</Badge>
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
-              </button>
+                  </div>
+                  {folder.access.canWrite && (
+                    <button
+                      type="button"
+                      aria-label={`Rename ${folder.name}`}
+                      title="Rename"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRenameTarget(folder);
+                      }}
+                      className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                    >
+                      <Pencil className="size-4" />
+                    </button>
+                  )}
+                </CardContent>
+              </Card>
             );
           })}
         </div>
@@ -128,6 +150,17 @@ export default function VaultLandingPage() {
           onCreated={(folder) => {
             setShowNew(false);
             router.push(`/vault/folders/${folder.id}`);
+          }}
+        />
+      )}
+
+      {renameTarget && (
+        <RenameFolderDialog
+          folder={renameTarget}
+          onClose={() => setRenameTarget(null)}
+          onRenamed={() => {
+            setRenameTarget(null);
+            void load();
           }}
         />
       )}

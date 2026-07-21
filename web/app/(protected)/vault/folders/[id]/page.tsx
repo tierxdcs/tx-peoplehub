@@ -13,6 +13,7 @@ import {
   FolderLock,
   History,
   Link2,
+  Pencil,
   Share2,
   Trash2,
   Upload,
@@ -43,6 +44,7 @@ import {
 import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
 import { NewFolderDialog } from '../../_components/new-folder-dialog';
+import { RenameFolderDialog } from '../../_components/rename-folder-dialog';
 import { InternalShareDialog } from '../../_components/internal-share-dialog';
 import { ExternalShareDialog } from '../../_components/external-share-dialog';
 import { PreviewModal } from '../../_components/preview-modal';
@@ -57,6 +59,7 @@ import {
 
 type Dialog =
   | { kind: 'newSubfolder' }
+  | { kind: 'rename' }
   | { kind: 'upload' }
   | { kind: 'shareFolder' }
   | { kind: 'linkFolder' }
@@ -223,6 +226,11 @@ export default function FolderDetailPage() {
         }
         action={
           <div className="flex flex-wrap items-center gap-2">
+            {access.canWrite && (
+              <Button variant="outline" onClick={() => setDialog({ kind: 'rename' })}>
+                <Pencil /> Rename
+              </Button>
+            )}
             {access.canWrite && (
               <Button variant="outline" onClick={() => setDialog({ kind: 'shareFolder' })}>
                 <Share2 /> Share
@@ -404,6 +412,16 @@ export default function FolderDetailPage() {
           onCreated={(created) => {
             setDialog(null);
             router.push(`/vault/folders/${created.id}`);
+          }}
+        />
+      )}
+      {dialog?.kind === 'rename' && (
+        <RenameFolderDialog
+          folder={folder}
+          onClose={() => setDialog(null)}
+          onRenamed={() => {
+            setDialog(null);
+            void load();
           }}
         />
       )}

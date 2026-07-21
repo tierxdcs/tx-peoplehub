@@ -15,13 +15,16 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { HrManagerOrAdminGuard } from '../../common/guards/hr-manager-or-admin.guard';
 import { CreatePayrollRunDto } from './dto/create-payroll-run.dto';
 import { PayrollRunsService } from './payroll-runs.service';
 
+// ADMIN/SUPER_ADMIN or an HR-vertical MANAGER (see salary-structures for the
+// two-guard rationale).
 @ApiTags('payroll-runs')
 @ApiBearerAuth()
-@UseGuards(RolesGuard)
-@Roles(Role.ADMIN, Role.SUPER_ADMIN)
+@UseGuards(RolesGuard, HrManagerOrAdminGuard)
+@Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
 @Controller('payroll-runs')
 export class PayrollRunsController {
   constructor(private readonly payrollRunsService: PayrollRunsService) {}

@@ -325,6 +325,59 @@ export function deleteComment(cardId: string, commentId: string) {
   });
 }
 
+// ── Attachments ──────────────────────────────────────────────────────
+
+export interface KanbanAttachment {
+  id: string;
+  cardId: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedById: string;
+  uploadedByName: string | null;
+  createdAt: string;
+}
+
+interface AttachmentUploadTicket {
+  attachmentId: string;
+  uploadUrl: string;
+  expiresInSeconds: number;
+}
+
+export function listAttachments(cardId: string) {
+  return apiFetch<KanbanAttachment[]>(`/kanban/cards/${cardId}/attachments`);
+}
+
+export function createAttachmentUploadUrl(
+  cardId: string,
+  input: { filename: string; contentType: string; sizeBytes: number },
+) {
+  return apiFetch<AttachmentUploadTicket>(
+    `/kanban/cards/${cardId}/attachments/upload-url`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+}
+
+export function confirmAttachment(cardId: string, attachmentId: string) {
+  return apiFetch<KanbanAttachment>(
+    `/kanban/cards/${cardId}/attachments/${attachmentId}/confirm`,
+    { method: 'POST', body: JSON.stringify({}) },
+  );
+}
+
+export function attachmentDownloadUrl(cardId: string, attachmentId: string) {
+  return apiFetch<{ url: string; expiresInSeconds: number }>(
+    `/kanban/cards/${cardId}/attachments/${attachmentId}/download-url`,
+  );
+}
+
+export function deleteAttachment(cardId: string, attachmentId: string) {
+  return apiFetch<void>(
+    `/kanban/cards/${cardId}/attachments/${attachmentId}`,
+    { method: 'DELETE' },
+  );
+}
+
 // ── Labels ───────────────────────────────────────────────────────────
 
 export function listLabels(boardId: string) {

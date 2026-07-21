@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -243,3 +244,22 @@ export class SetCardSprintDto {
   @IsUUID()
   sprintId?: string | null;
 }
+
+export class CreateAttachmentUploadUrlDto {
+  @ApiProperty({ description: 'Original file name' })
+  @IsString()
+  @MinLength(1)
+  filename!: string;
+
+  @ApiProperty({ description: 'MIME type of the file' })
+  @IsString()
+  @MinLength(1)
+  contentType!: string;
+
+  @ApiProperty({ description: 'File size in bytes' })
+  @IsNumber()
+  @Min(1)
+  sizeBytes!: number;
+}
+
+export class ConfirmAttachmentDto {}

@@ -21,6 +21,7 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { HrManagerOrAdminGuard } from '../../common/guards/hr-manager-or-admin.guard';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { EmployeesService } from '../employees/employees.service';
 import { CorrectAttendanceDto } from './dto/correct-attendance.dto';
@@ -80,8 +81,13 @@ export class AttendanceController {
     return this.attendanceService.getForEmployees(teamIds, fromDate, toDate);
   }
 
+  // The two correction endpoints are for the admin "Attendance Corrections"
+  // screen: ADMIN/SUPER_ADMIN or an HR-vertical MANAGER. The method-level
+  // HrManagerOrAdminGuard re-narrows the broadened @Roles (MANAGER) to HR only,
+  // without affecting the self check-in/out routes on this controller.
   @Get(':employeeId/:date')
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+  @UseGuards(HrManagerOrAdminGuard)
   @ApiOperation({
     summary:
       'Look up one employee’s attendance record for one date (null if none yet) — for the correction screen to pre-fill against',
@@ -91,7 +97,8 @@ export class AttendanceController {
   }
 
   @Patch(':employeeId/:date')
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+  @UseGuards(HrManagerOrAdminGuard)
   @ApiOperation({
     summary:
       'Manually create/correct an attendance record for any employee on any date',

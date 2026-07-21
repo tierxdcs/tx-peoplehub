@@ -18,6 +18,7 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { HrManagerOrAdminGuard } from '../../common/guards/hr-manager-or-admin.guard';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -110,8 +111,13 @@ export class EmployeesController {
     return this.employeesService.create(dto);
   }
 
+  // Employee list is needed by the HR admin screens (attendance corrections,
+  // salary structures), so HR-vertical MANAGERS get read access here too — the
+  // method-level guard re-narrows the broadened @Roles to HR. Mutation
+  // endpoints (create/update/deactivate) remain ADMIN/SUPER_ADMIN only.
   @Get()
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+  @UseGuards(HrManagerOrAdminGuard)
   @ApiOperation({ summary: 'List employees (paginated)' })
   findAll(@Query() query: PaginationQueryDto) {
     return this.employeesService.findAll(query);

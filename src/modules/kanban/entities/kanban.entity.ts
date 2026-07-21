@@ -187,6 +187,34 @@ export class KanbanFeedItemEntity {
   }
 }
 
+/** A file attached to a card (ACTIVE only when surfaced). */
+export class KanbanAttachmentEntity {
+  @ApiProperty() id!: string;
+  @ApiProperty() cardId!: string;
+  @ApiProperty() filename!: string;
+  @ApiProperty() contentType!: string;
+  @ApiProperty({ description: 'Size in bytes' }) sizeBytes!: number;
+  @ApiProperty() uploadedById!: string;
+  @ApiProperty({ nullable: true }) uploadedByName!: string | null;
+  @ApiProperty() createdAt!: string;
+
+  constructor(partial: Partial<KanbanAttachmentEntity>) {
+    Object.assign(this, partial);
+  }
+}
+
+/** Returned by create-upload-url: the presigned PUT + the new attachment id. */
+export class KanbanAttachmentUploadTicketEntity {
+  @ApiProperty() attachmentId!: string;
+  @ApiProperty({ description: 'Presigned PUT URL the browser uploads to' })
+  uploadUrl!: string;
+  @ApiProperty() expiresInSeconds!: number;
+
+  constructor(partial: Partial<KanbanAttachmentUploadTicketEntity>) {
+    Object.assign(this, partial);
+  }
+}
+
 /**
  * A card assigned to the current user, flattened for the personal dashboard —
  * carries board context + the done/overdue flags the dashboard needs without

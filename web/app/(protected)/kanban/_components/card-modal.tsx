@@ -39,6 +39,7 @@ import { Button } from '../../../components/ui/button';
 import { Avatar } from '../../../components/ui/avatar';
 import { Badge } from '../../../components/ui/badge';
 import { Spinner } from '../../../components/ui/spinner';
+import { CardAttachments } from './card-attachments';
 import { cn } from '../../../lib/utils';
 
 function toDateInput(iso: string | null): string {
@@ -400,6 +401,13 @@ export function CardModal({
                     rows={4}
                   />
                 </div>
+
+                {/* Attachments */}
+                <CardAttachments
+                  cardId={cardId}
+                  canManage={canManage}
+                  currentUserId={user?.sub}
+                />
 
                 {/* Feed */}
                 <div>

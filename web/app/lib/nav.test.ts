@@ -133,6 +133,28 @@ describe('sidebarNav — the reported bug', () => {
     expect(shown).not.toContain('Leads');
   });
 
+  it('an HR MANAGER sees Leave & Attendance + Payroll (HR-lead functions)', () => {
+    const a = access('MANAGER', { isHrStaff: true });
+    const shown = labels(a, activeModule('/hr/roster', availableModules(a)));
+    expect(shown).toContain('Roster'); // People
+    expect(shown).toContain('All Pending Approvals'); // Leave & Attendance
+    expect(shown).toContain('Attendance Corrections');
+    expect(shown).toContain('Salary Structures'); // Payroll
+    expect(shown).toContain('Payroll Runs');
+    expect(shown).toContain('Statutory Config');
+    // Not an admin — must NOT get the Administration group.
+    expect(shown).not.toContain('Employees');
+    expect(shown).not.toContain('Verticals');
+  });
+
+  it('an HR EMPLOYEE does NOT get Payroll or Leave & Attendance (HR Managers only)', () => {
+    const a = access('EMPLOYEE', { isHrStaff: true });
+    const shown = labels(a, activeModule('/hr/roster', availableModules(a)));
+    expect(shown).not.toContain('Salary Structures');
+    expect(shown).not.toContain('Payroll Runs');
+    expect(shown).not.toContain('All Pending Approvals');
+  });
+
   it('R&D staff see the Engineering group (Products + Bills of Materials)', () => {
     const a = access('EMPLOYEE', { isRndStaff: true });
     const shown = labels(a, activeModule('/scm/bom', availableModules(a)));

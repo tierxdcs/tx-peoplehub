@@ -7,6 +7,7 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { HrManagerOrAdminGuard } from '../../common/guards/hr-manager-or-admin.guard';
 import { CreateSalaryStructureDto } from './dto/create-salary-structure.dto';
 import { SalaryStructuresService } from './salary-structures.service';
 
@@ -15,10 +16,13 @@ import { SalaryStructuresService } from './salary-structures.service';
  * declared, but there's no bare :employeeId route to collide with — both
  * are always suffixed, same convention as payroll-runs.controller.ts.
  */
+// ADMIN/SUPER_ADMIN or an HR-vertical MANAGER (payroll = salary/PII, so it's
+// HR Managers, not all HR staff). RolesGuard admits MANAGER via @Roles; the
+// HrManagerOrAdminGuard then rejects any MANAGER who isn't HR-vertical.
 @ApiTags('salary-structures')
 @ApiBearerAuth()
-@UseGuards(RolesGuard)
-@Roles(Role.ADMIN, Role.SUPER_ADMIN)
+@UseGuards(RolesGuard, HrManagerOrAdminGuard)
+@Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
 @Controller('salary-structures')
 export class SalaryStructuresController {
   constructor(

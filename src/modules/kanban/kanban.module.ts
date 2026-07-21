@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { VaultModule } from '../vault/vault.module';
 import { KanbanController } from './kanban.controller';
 import { KanbanAccessService } from './kanban-access.service';
 import { KanbanBoardsService } from './kanban-boards.service';
@@ -8,6 +9,7 @@ import { KanbanCardsService } from './kanban-cards.service';
 import { KanbanActivityService } from './kanban-activity.service';
 import { KanbanFeedService } from './kanban-feed.service';
 import { KanbanLabelsService } from './kanban-labels.service';
+import { KanbanAttachmentsService } from './kanban-attachments.service';
 import { KanbanBoardProvisioningService } from './kanban-board-provisioning.service';
 
 /**
@@ -17,7 +19,7 @@ import { KanbanBoardProvisioningService } from './kanban-board-provisioning.serv
  * notifications land in later phases.
  */
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, VaultModule],
   controllers: [KanbanController],
   providers: [
     KanbanAccessService,
@@ -27,6 +29,7 @@ import { KanbanBoardProvisioningService } from './kanban-board-provisioning.serv
     KanbanActivityService,
     KanbanFeedService,
     KanbanLabelsService,
+    KanbanAttachmentsService,
     KanbanBoardProvisioningService,
   ],
   // KanbanBoardsService is exported for privileged internal provisioning by the

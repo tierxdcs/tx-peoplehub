@@ -23,9 +23,12 @@ import { KanbanListsService } from './kanban-lists.service';
 import { KanbanCardsService } from './kanban-cards.service';
 import { KanbanFeedService } from './kanban-feed.service';
 import { KanbanLabelsService } from './kanban-labels.service';
+import { KanbanAttachmentsService } from './kanban-attachments.service';
 import {
   AddBoardMemberDto,
   CardFilterQueryDto,
+  ConfirmAttachmentDto,
+  CreateAttachmentUploadUrlDto,
   CreateBoardDto,
   CreateCardDto,
   CreateCommentDto,
@@ -62,6 +65,7 @@ export class KanbanController {
     private readonly cards: KanbanCardsService,
     private readonly feed: KanbanFeedService,
     private readonly labels: KanbanLabelsService,
+    private readonly attachments: KanbanAttachmentsService,
   ) {}
 
   // ── Boards ─────────────────────────────────────────────────────────
@@ -358,6 +362,62 @@ export class KanbanController {
   })
   getFeed(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.feed.getFeed(id, user);
+  }
+
+  // ── Attachments ────────────────────────────────────────────────────
+  @Get('cards/:id/attachments')
+  @ApiOperation({ summary: 'List a card’s file attachments (any board member)' })
+  listAttachments(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.attachments.list(id, user);
+  }
+
+  @Post('cards/:id/attachments/upload-url')
+  @ApiOperation({
+    summary: 'Presigned URL to upload a card attachment (any board member)',
+  })
+  createAttachmentUploadUrl(
+    @Param('id') id: string,
+    @Body() dto: CreateAttachmentUploadUrlDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.attachments.createUploadUrl(id, dto, user);
+  }
+
+  @Post('cards/:id/attachments/:attachmentId/confirm')
+  @ApiOperation({ summary: 'Confirm an uploaded attachment landed in storage' })
+  confirmAttachment(
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @Body() dto: ConfirmAttachmentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.attachments.confirm(id, attachmentId, dto, user);
+  }
+
+  @Get('cards/:id/attachments/:attachmentId/download-url')
+  @ApiOperation({ summary: 'Presigned download URL for an attachment' })
+  attachmentDownloadUrl(
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.attachments.downloadUrl(id, attachmentId, user);
+  }
+
+  @Delete('cards/:id/attachments/:attachmentId')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Delete an attachment (uploader or managing Scrum Master / SUPER_ADMIN)',
+  })
+  async deleteAttachment(
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.attachments.remove(id, attachmentId, user);
   }
 
   // ── Labels ─────────────────────────────────────────────────────────

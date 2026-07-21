@@ -309,7 +309,11 @@ export function sharedNav(access: Access): NavGroup[] {
 
 /** Operational HR module groups (employee administration / HR-vertical tools). */
 export function hrNav(access: Access): NavGroup[] {
-  const { isAdmin } = flags(access.user);
+  const { isAdmin, isManager } = flags(access.user);
+  // HR-vertical Managers run the People / Leave & Attendance / Payroll HR
+  // functions alongside Admins (backend enforces the same via
+  // HrManagerOrAdminGuard). Payroll is HR MANAGERS, not all HR staff.
+  const isHrManager = access.isHrStaff && isManager;
   const groups: NavGroup[] = [];
 
   if (isAdmin) {
@@ -344,7 +348,7 @@ export function hrNav(access: Access): NavGroup[] {
     });
   }
 
-  if (isAdmin) {
+  if (isAdmin || isHrManager) {
     groups.push({
       heading: 'Leave & Attendance',
       items: [
