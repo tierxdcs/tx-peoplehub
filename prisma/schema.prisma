@@ -473,6 +473,7 @@ model Employee {
   kanbanCommentsAuthored KanbanCardComment[]  @relation("KanbanCommentAuthor")
   kanbanActivityActed    KanbanCardActivity[] @relation("KanbanActivityActor")
   kanbanAttachmentsUploaded KanbanCardAttachment[] @relation("KanbanAttachmentUploader")
+  leadAttachmentsUploaded LeadAttachment[]      @relation("LeadAttachmentUploader")
   notifications          Notification[]       @relation("NotificationRecipient")
 
   // Project Kickoff back-relations.
@@ -954,6 +955,7 @@ model Lead {
   disqualifiedReason       String?
   convertedToOpportunityId String?      @unique
   convertedToOpportunity   Opportunity? @relation("LeadConversion", fields: [convertedToOpportunityId], references: [id], onDelete: SetNull)
+  attachments              LeadAttachment[]
   createdAt                DateTime     @default(now())
   updatedAt                DateTime     @updatedAt
 
@@ -962,6 +964,26 @@ model Lead {
   @@index([businessUnitId])
   @@index([status])
   @@map("leads")
+}
+
+/// A file attached to a Lead. The bytes + preview live as a real VaultFile
+/// (so the in-app Vault previewer works unchanged); this row just links that
+/// file to the lead and records who attached it. Mirrors DesignDocument's
+/// vaultFileId pattern. onDelete Restrict on the VaultFile so an attached file
+/// can't be silently deleted out from under a lead.
+model LeadAttachment {
+  id           String    @id @default(uuid())
+  leadId       String
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  vaultFileId  String
+  vaultFile    VaultFile @relation("LeadAttachmentFile", fields: [vaultFileId], references: [id], onDelete: Restrict)
+  uploadedById String
+  uploadedBy   Employee  @relation("LeadAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  createdAt    DateTime  @default(now())
+
+  @@index([leadId, createdAt])
+  @@index([vaultFileId])
+  @@map("lead_attachments")
 }
 
 model Opportunity {
@@ -1434,6 +1456,7 @@ model VaultFile {
   status           VaultFileStatus    @default(PENDING)
   versions         VaultFileVersion[] @relation("VaultFileVersions")
   designDocuments  DesignDocument[]
+  leadAttachments  LeadAttachment[]   @relation("LeadAttachmentFile")
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 

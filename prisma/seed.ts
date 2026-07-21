@@ -380,6 +380,15 @@ const DEFAULT_FOLDERS: Array<{
     maxVersionsRetained: 5,
   },
   {
+    // Home for files attached to sales leads (see LeadAttachment). VERTICAL
+    // scope → any Sales-vertical user can preview them, matching the
+    // "any sales staff can view any lead" read rule.
+    name: 'Lead Attachments',
+    verticalCode: 'SALES',
+    versioningEnabled: false,
+    maxVersionsRetained: 5,
+  },
+  {
     name: 'Design',
     verticalCode: 'DESIGN',
     versioningEnabled: true,

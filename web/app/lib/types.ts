@@ -475,6 +475,20 @@ export interface Lead {
   updatedAt: string;
 }
 
+/** A file attached to a lead (backed by a VaultFile — see LeadAttachment). */
+export interface LeadAttachment {
+  id: string;
+  leadId: string;
+  vaultFileId: string;
+  fileName: string;
+  mimeType: string | null;
+  sizeBytes: string | null;
+  previewStatus: VaultPreviewStatus | null;
+  uploadedById: string;
+  uploadedByName: string | null;
+  createdAt: string;
+}
+
 export interface Opportunity {
   id: string;
   leadId: string | null;

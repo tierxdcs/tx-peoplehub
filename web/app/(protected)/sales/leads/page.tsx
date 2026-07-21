@@ -313,9 +313,16 @@ export default function LeadsPage() {
                     const display = leadDisplayStatus(lead, opp);
                     return (
                       <TableRow key={lead.id}>
-                        {/* Lead identity: company primary, id + contact beneath. */}
+                        {/* Lead identity: company (links to the lead detail /
+                            attachments page), id + contact beneath. */}
                         <TableCell>
-                          <div className="font-medium">{lead.companyName}</div>
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/sales/leads/${lead.id}`)}
+                            className="text-left font-medium hover:text-primary hover:underline"
+                          >
+                            {lead.companyName}
+                          </button>
                           <div className="text-xs text-muted-foreground">
                             {lead.leadNumber} · {lead.contactName}
                           </div>

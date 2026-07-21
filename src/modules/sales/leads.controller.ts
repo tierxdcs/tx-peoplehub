@@ -17,9 +17,11 @@ import {
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { Delete, HttpCode } from '@nestjs/common';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
 import { ConvertLeadDto } from './dto/convert-lead.dto';
+import { AttachLeadFileDto } from './dto/attach-lead-file.dto';
 import { LeadsService } from './leads.service';
 
 @ApiTags('leads')
@@ -43,6 +45,15 @@ export class LeadsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.leadsService.findAll(query, user);
+  }
+
+  // Static route BEFORE @Get(':id') so 'attachments-folder' isn't read as an id.
+  @Get('attachments-folder')
+  @ApiOperation({
+    summary: 'The Vault folder id lead files are uploaded into (for the upload flow)',
+  })
+  attachmentsFolder(@CurrentUser() user: AuthenticatedUser) {
+    return this.leadsService.attachmentsFolderId(user);
   }
 
   @Get(':id')
@@ -72,5 +83,37 @@ export class LeadsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.leadsService.convert(id, dto, user);
+  }
+
+  @Get(':id/attachments')
+  @ApiOperation({ summary: 'Files attached to a lead' })
+  listAttachments(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.leadsService.listAttachments(id, user);
+  }
+
+  @Post(':id/attachments')
+  @ApiOperation({
+    summary: 'Link an uploaded Vault file to a lead (owner-scoped)',
+  })
+  attachFile(
+    @Param('id') id: string,
+    @Body() dto: AttachLeadFileDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.leadsService.attachFile(id, dto, user);
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Unlink a file from a lead (owner-scoped)' })
+  async removeAttachment(
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.leadsService.removeAttachment(id, attachmentId, user);
   }
 }
