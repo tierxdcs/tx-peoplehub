@@ -89,9 +89,15 @@ export default function RosterPage() {
   const verticalName = (id: string | null) =>
     verticals.find((v) => v.id === id)?.name ?? '—';
 
+  // The status shown (and filtered on): an offboarded employee (status
+  // INACTIVE) reads INACTIVE regardless of accessStatus, since login requires
+  // BOTH to be ACTIVE. Keeps the badge and the filter in lockstep.
+  const effectiveStatus = (e: EmployeeRoster | EmployeeRosterAdmin): AccessStatus =>
+    e.status === 'INACTIVE' ? 'INACTIVE' : e.accessStatus;
+
   const filtered = items.filter((e) => {
     if (verticalFilter && e.verticalId !== verticalFilter) return false;
-    if (accessStatusFilter && e.accessStatus !== accessStatusFilter)
+    if (accessStatusFilter && effectiveStatus(e) !== accessStatusFilter)
       return false;
     if (search) {
       const haystack = `${e.firstName} ${e.lastName}`.toLowerCase();
@@ -202,15 +208,10 @@ export default function RosterPage() {
                       <TableCell>{e.employmentType ?? '—'}</TableCell>
                       <TableCell>{e.workLocation ?? '—'}</TableCell>
                       <TableCell>
-                        {/* An offboarded (status INACTIVE) employee can't log in
-                            regardless of accessStatus — login requires BOTH to
-                            be ACTIVE — so surface INACTIVE here rather than a
-                            stale "Active" access badge. */}
-                        <StatusBadge
-                          value={
-                            e.status === 'INACTIVE' ? 'INACTIVE' : e.accessStatus
-                          }
-                        />
+                        {/* Effective status — see effectiveStatus(): offboarded
+                            employees read INACTIVE regardless of accessStatus.
+                            Shared with the status filter so they stay aligned. */}
+                        <StatusBadge value={effectiveStatus(e)} />
                       </TableCell>
                       {isAdmin && (
                         <TableCell>
