@@ -24,6 +24,8 @@ import {
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { OnboardEmployeeDto } from './dto/onboard-employee.dto';
+import { UpdateBankDetailsDto } from './dto/update-bank-details.dto';
+import { UpdateStatutoryDto } from './dto/update-statutory.dto';
 import { GrantAccessDto } from './dto/grant-access.dto';
 import { UpdateSignatureDto } from './dto/update-signature.dto';
 import { RosterQueryDto } from './dto/roster-query.dto';
@@ -1007,6 +1009,81 @@ export class EmployeesService {
       employeeId: record.employeeId,
       bankAccountNumber: this.encryption.decrypt(record.bankAccountNumber),
       ifscCode: record.ifscCode,
+    });
+  }
+
+  /**
+   * Add or replace an employee's bank details post-onboarding. Encrypts the
+   * account number at rest, same as onboarding. Upsert on the unique employeeId
+   * so it works whether or not a record already exists. Reads are audit-logged
+   * by the interceptor; this write is a management action on the employee.
+   */
+  async upsertBankDetails(
+    id: string,
+    dto: UpdateBankDetailsDto,
+  ): Promise<EmployeeBankDetailsEntity> {
+    await this.findRawOrThrow(id);
+    const encryptedAccountNumber = this.encryption.encrypt(
+      dto.bankAccountNumber,
+    );
+    const record = await this.prisma.employeeBankDetails.upsert({
+      where: { employeeId: id },
+      create: {
+        employeeId: id,
+        bankAccountNumber: encryptedAccountNumber,
+        ifscCode: dto.ifscCode,
+      },
+      update: {
+        bankAccountNumber: encryptedAccountNumber,
+        ifscCode: dto.ifscCode,
+      },
+    });
+    return new EmployeeBankDetailsEntity({
+      employeeId: record.employeeId,
+      bankAccountNumber: this.encryption.decrypt(record.bankAccountNumber),
+      ifscCode: record.ifscCode,
+    });
+  }
+
+  /**
+   * Add or replace an employee's statutory info post-onboarding. Encrypts
+   * PAN/PF/ESIC; only the last 4 digits of Aadhaar are stored. Upsert on the
+   * unique employeeId.
+   */
+  async upsertStatutory(
+    id: string,
+    dto: UpdateStatutoryDto,
+  ): Promise<EmployeeStatutoryEntity> {
+    await this.findRawOrThrow(id);
+    const encryptedPan = this.encryption.encrypt(dto.panNumber);
+    const encryptedPf = this.encryption.encrypt(dto.pfAccountNumber);
+    const encryptedEsic = dto.esicNumber
+      ? this.encryption.encrypt(dto.esicNumber)
+      : null;
+    const record = await this.prisma.employeeStatutoryInfo.upsert({
+      where: { employeeId: id },
+      create: {
+        employeeId: id,
+        panNumber: encryptedPan,
+        aadhaarLast4: dto.aadhaarLast4,
+        pfAccountNumber: encryptedPf,
+        esicNumber: encryptedEsic,
+      },
+      update: {
+        panNumber: encryptedPan,
+        aadhaarLast4: dto.aadhaarLast4,
+        pfAccountNumber: encryptedPf,
+        esicNumber: encryptedEsic,
+      },
+    });
+    return new EmployeeStatutoryEntity({
+      employeeId: record.employeeId,
+      panNumber: this.encryption.decrypt(record.panNumber),
+      aadhaarLast4: record.aadhaarLast4,
+      pfAccountNumber: this.encryption.decrypt(record.pfAccountNumber),
+      esicNumber: record.esicNumber
+        ? this.encryption.decrypt(record.esicNumber)
+        : null,
     });
   }
 

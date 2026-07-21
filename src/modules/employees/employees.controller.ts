@@ -23,6 +23,8 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { OnboardEmployeeDto } from './dto/onboard-employee.dto';
+import { UpdateBankDetailsDto } from './dto/update-bank-details.dto';
+import { UpdateStatutoryDto } from './dto/update-statutory.dto';
 import { GrantAccessDto } from './dto/grant-access.dto';
 import { UpdateSignatureDto } from './dto/update-signature.dto';
 import { RosterQueryDto } from './dto/roster-query.dto';
@@ -359,5 +361,28 @@ export class EmployeesController {
   @ApiOperation({ summary: 'View bank details (Admin or HR Manager, decrypted)' })
   getBankDetails(@Param('id') id: string) {
     return this.employeesService.getBankDetails(id);
+  }
+
+  @Patch(':id/statutory')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+  @UseGuards(HrManagerOrAdminGuard)
+  @ApiOperation({
+    summary: 'Add or update statutory info (Admin or HR Manager, encrypted)',
+  })
+  upsertStatutory(@Param('id') id: string, @Body() dto: UpdateStatutoryDto) {
+    return this.employeesService.upsertStatutory(id, dto);
+  }
+
+  @Patch(':id/bank-details')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+  @UseGuards(HrManagerOrAdminGuard)
+  @ApiOperation({
+    summary: 'Add or update bank details (Admin or HR Manager, encrypted)',
+  })
+  upsertBankDetails(
+    @Param('id') id: string,
+    @Body() dto: UpdateBankDetailsDto,
+  ) {
+    return this.employeesService.upsertBankDetails(id, dto);
   }
 }
