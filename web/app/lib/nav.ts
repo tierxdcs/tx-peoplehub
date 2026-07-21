@@ -1,4 +1,5 @@
 import type { DecodedAccessToken } from './jwt';
+import { FINANCE_LABELS } from './finance-labels';
 
 /**
  * Pure nav model. Encodes the same role/vertical gating the original flat nav
@@ -225,42 +226,54 @@ export function sharedNav(access: Access): NavGroup[] {
   }
 
   if (access.isFinanceUser || access.isAccountsHead) {
-    // Trimmed to the core procure-to-pay / order-to-cash / GST spine: GL core,
-    // AR, AP, and compliance. The four "leaf" finance modules — Treasury &
-    // Credit, Schedules & Analytics + Budgets + Fixed Assets (management),
-    // Bank Reconciliation + Exports + Production Readiness (operations), and
-    // Executive Reporting (reporting) — are INTENTIONALLY HIDDEN from nav.
-    // Their backend code, routes, models, and page files remain intact and
-    // reachable by direct URL; they're built but not currently in use. Do NOT
-    // re-add them to nav without a reason — hiding is a deliberate, reversible
-    // trim (see the Finance discovery report). To restore one, just re-add its
-    // NavItem line here.
-    const financeItems: NavItem[] = [
-      { label: 'Sales Invoices', href: '/finance/ar/invoices' },
-      { label: 'Customer Receipts', href: '/finance/ar/receipts' },
-      { label: 'AR Summary', href: '/finance/ar/summary' },
-      { label: 'Vendor Invoices', href: '/finance/ap/invoices' },
-      { label: 'Vendor Payments', href: '/finance/ap/payments' },
-      { label: 'AP Summary', href: '/finance/ap/summary' },
-      { label: 'Payment Calendar', href: '/finance/payment-calendar' },
-      { label: 'Credit & Debit Notes', href: '/finance/adjustments' },
-      { label: 'GST, TDS & Forecast', href: '/finance/compliance' },
-      { label: 'Statutory Filings', href: '/finance/filings' },
-      { label: 'Period Close', href: '/finance/period-close' },
-      { label: 'Chart of Accounts', href: '/finance/accounts' },
-      { label: 'Journal Entries', href: '/finance/journals' },
-      { label: 'Financial Reports', href: '/finance/reports' },
-      // Hidden leaf-module items (kept here, commented, for easy restore):
-      // { label: 'Bank Reconciliation', href: '/finance/bank-reconciliation' }, // finance-operations
-      // { label: 'Exports & Audit Pack', href: '/finance/exports' },            // finance-operations
-      // { label: 'Production Readiness', href: '/finance/production-readiness' },// finance-operations
-      // { label: 'Budgets', href: '/finance/budgets' },                         // finance-management
-      // { label: 'Fixed Assets', href: '/finance/fixed-assets' },               // finance-management
-      // { label: 'Schedules & Analytics', href: '/finance/management' },         // finance-management
-      // { label: 'Treasury & Credit', href: '/finance/treasury' },              // finance-treasury
-      // { label: 'Executive Reporting', href: '/finance/executive' },           // finance-reporting
-    ];
-    groups.push({ heading: 'Finance & Accounts', items: financeItems });
+    // Tally-style presentation grouping: Vouchers / Masters / Reports. This is
+    // a visual reorg over the EXISTING routes + a central label map
+    // (finance-labels.ts) — no route or entity was renamed, and the same
+    // role gating as the old flat group is preserved. The four "leaf" finance
+    // modules — Treasury & Credit, Schedules & Analytics + Budgets + Fixed
+    // Assets (management), Bank Reconciliation + Exports + Production Readiness
+    // (operations), and Executive Reporting (reporting) — remain INTENTIONALLY
+    // HIDDEN from nav. Their backend code, routes, models, and page files stay
+    // intact and reachable by direct URL; they're built but not in use. Do NOT
+    // re-add them without a reason — hiding is a deliberate, reversible trim.
+    // To restore one, re-add its NavItem line to the relevant group below.
+    groups.push({
+      heading: 'Vouchers',
+      items: [
+        { label: FINANCE_LABELS.dayBook, href: '/finance/daybook' },
+        { label: FINANCE_LABELS.salesVoucher, href: '/finance/ar/invoices' },
+        { label: FINANCE_LABELS.purchaseVoucher, href: '/finance/ap/invoices' },
+        { label: FINANCE_LABELS.receiptVoucher, href: '/finance/ar/receipts' },
+        { label: FINANCE_LABELS.paymentVoucher, href: '/finance/ap/payments' },
+        { label: 'Credit & Debit Notes', href: '/finance/adjustments' },
+        { label: FINANCE_LABELS.journalVoucher, href: '/finance/journals' },
+      ],
+    });
+    groups.push({
+      heading: 'Masters',
+      items: [{ label: FINANCE_LABELS.ledgers, href: '/finance/accounts' }],
+    });
+    groups.push({
+      heading: 'Reports',
+      items: [
+        { label: 'Financial Reports', href: '/finance/reports' },
+        { label: FINANCE_LABELS.outstandingReceivable, href: '/finance/ar/summary' },
+        { label: FINANCE_LABELS.outstandingPayable, href: '/finance/ap/summary' },
+        { label: FINANCE_LABELS.paymentCalendar, href: '/finance/payment-calendar' },
+        { label: FINANCE_LABELS.gstReports, href: '/finance/compliance' },
+        { label: FINANCE_LABELS.statutoryFilings, href: '/finance/filings' },
+        { label: FINANCE_LABELS.periodClose, href: '/finance/period-close' },
+      ],
+    });
+    // Hidden leaf-module items (kept here, commented, for easy restore):
+    // { label: 'Bank Reconciliation', href: '/finance/bank-reconciliation' }, // finance-operations
+    // { label: 'Exports & Audit Pack', href: '/finance/exports' },            // finance-operations
+    // { label: 'Production Readiness', href: '/finance/production-readiness' },// finance-operations
+    // { label: 'Budgets', href: '/finance/budgets' },                         // finance-management
+    // { label: 'Fixed Assets', href: '/finance/fixed-assets' },               // finance-management
+    // { label: 'Schedules & Analytics', href: '/finance/management' },         // finance-management
+    // { label: 'Treasury & Credit', href: '/finance/treasury' },              // finance-treasury
+    // { label: 'Executive Reporting', href: '/finance/executive' },           // finance-reporting
   } else if (access.isFinanceAuditor) {
     groups.push({
       heading: 'Finance Audit',

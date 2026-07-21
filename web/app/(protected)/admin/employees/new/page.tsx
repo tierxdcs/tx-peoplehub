@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '../../../../lib/api';
+import { useAuth } from '../../../../lib/auth-context';
 import { Employee, PaginatedResult, Vertical } from '../../../../lib/types';
 import {
   EmployeeForm,
@@ -11,6 +12,7 @@ import {
 
 export default function NewEmployeePage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [verticals, setVerticals] = useState<Vertical[]>([]);
   const [candidateManagers, setCandidateManagers] = useState<Employee[]>([]);
   const [created, setCreated] = useState<Employee | null>(null);
@@ -68,6 +70,7 @@ export default function NewEmployeePage() {
         candidateManagers={candidateManagers}
         onSubmit={handleSubmit}
         submitLabel="Create"
+        callerIsSuperAdmin={user?.role === 'SUPER_ADMIN'}
       />
     </div>
   );

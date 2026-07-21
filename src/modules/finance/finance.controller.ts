@@ -16,6 +16,7 @@ import {
   CreateExchangeRateDto,
   CreateFiscalYearDto,
   CreateJournalDto,
+  DaybookQueryDto,
   RejectFinanceDto,
   ReportQueryDto,
   UpdateAccountDto,
@@ -56,6 +57,9 @@ export class FinanceController {
   @Post('journals/:id/approve') approve(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) { return this.finance.approveJournal(id, user); }
   @Post('journals/:id/reject') reject(@Param('id') id: string, @Body() dto: RejectFinanceDto, @CurrentUser() user: AuthenticatedUser) { return this.finance.rejectJournal(id, dto.comment, user); }
   @Post('journals/:id/reverse') reverse(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) { return this.finance.reverseJournal(id, user); }
+
+  @Get('daybook') @ApiOperation({ summary: 'Chronological Day Book across all voucher types (read-only)' })
+  daybook(@Query() query: DaybookQueryDto, @CurrentUser() user: AuthenticatedUser) { return this.finance.daybook(query, user); }
 
   @Get('reports/trial-balance') trialBalance(@Query() query: ReportQueryDto, @CurrentUser() user: AuthenticatedUser) { return this.finance.trialBalance(query, user); }
   @Get('reports/general-ledger') generalLedger(@Query() query: ReportQueryDto, @CurrentUser() user: AuthenticatedUser) { return this.finance.generalLedger(query, user); }

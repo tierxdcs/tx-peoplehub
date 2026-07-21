@@ -56,7 +56,11 @@ export class EmployeesService {
     private readonly encryption: EncryptionService,
   ) {}
 
-  async create(dto: CreateEmployeeDto): Promise<EmployeeEntity> {
+  async create(
+    dto: CreateEmployeeDto,
+    currentUser: AuthenticatedUser,
+  ): Promise<EmployeeEntity> {
+    this.assertMayAssignRole(currentUser, dto.role);
     await this.validateVerticalAndManager(
       dto.role,
       dto.verticalId,
@@ -144,8 +148,16 @@ export class EmployeesService {
     return this.toEntity(employee);
   }
 
-  async update(id: string, dto: UpdateEmployeeDto): Promise<EmployeeEntity> {
+  async update(
+    id: string,
+    dto: UpdateEmployeeDto,
+    currentUser: AuthenticatedUser,
+  ): Promise<EmployeeEntity> {
     const current = await this.findRawOrThrow(id);
+
+    // Guard role changes before anything else: only a Super Admin may assign a
+    // privileged role or alter an already-privileged account's role.
+    this.assertMayAssignRole(currentUser, dto.role, current.role);
 
     const nextRole = dto.role ?? current.role;
     const nextVerticalId =
@@ -623,8 +635,13 @@ export class EmployeesService {
    * email. Re-runs the standard role/manager validation since this is the
    * point the employee re-enters normal RBAC.
    */
-  async grantAccess(id: string, dto: GrantAccessDto): Promise<EmployeeEntity> {
+  async grantAccess(
+    id: string,
+    dto: GrantAccessDto,
+    currentUser: AuthenticatedUser,
+  ): Promise<EmployeeEntity> {
     const current = await this.findRawOrThrow(id);
+    this.assertMayAssignRole(currentUser, dto.role, current.role);
     if (current.accessStatus !== AccessStatus.PENDING_ACCESS) {
       throw new BadRequestException('Employee access has already been granted');
     }
@@ -1172,6 +1189,45 @@ export class EmployeesService {
       throw new NotFoundException('Employee not found');
     }
     return employee;
+  }
+
+  /**
+   * Privilege-escalation guard for role assignment. Only a SUPER_ADMIN may
+   * grant the privileged roles (ADMIN / SUPER_ADMIN) or alter the role of an
+   * account that already holds one. Every other caller (plain ADMIN, HR-vertical
+   * MANAGER) is limited to the non-privileged roles (MANAGER / EMPLOYEE) on
+   * non-privileged targets — they may still edit a privileged user's other
+   * fields, just not touch their role. Enforced server-side because the UI
+   * hiding the option is not a security boundary.
+   *
+   * @param nextRole  the role the request wants to set (undefined = unchanged)
+   * @param currentRole  the target's existing role (undefined for create)
+   */
+  private assertMayAssignRole(
+    caller: AuthenticatedUser,
+    nextRole: Role | null | undefined,
+    currentRole?: Role | null,
+  ): void {
+    if (caller.role === Role.SUPER_ADMIN) return;
+
+    const privileged = (r: Role | null | undefined): boolean =>
+      r === Role.ADMIN || r === Role.SUPER_ADMIN;
+
+    // Cannot promote anyone INTO a privileged role.
+    if (privileged(nextRole)) {
+      throw new ForbiddenException(
+        'Only a Super Admin can assign the Admin or Super Admin role',
+      );
+    }
+    // Cannot change the role of someone who is ALREADY privileged (no demoting
+    // or otherwise tampering with an existing Admin/Super Admin account). A
+    // no-op (nextRole equals the current privileged role) is also refused so a
+    // non-super-admin can't round-trip through this path.
+    if (privileged(currentRole) && nextRole !== undefined) {
+      throw new ForbiddenException(
+        'Only a Super Admin can change the role of an Admin or Super Admin',
+      );
+    }
   }
 
   /** reportingManagerId/verticalId are required for every role except SUPER_ADMIN. */

@@ -19,6 +19,8 @@ import {
   CreateExchangeRateDto,
   CreateFiscalYearDto,
   CreateJournalDto,
+  DaybookQueryDto,
+  DaybookVoucherType,
   ReportQueryDto,
   UpdateAccountDto,
 } from './dto/finance.dto';
@@ -365,6 +367,93 @@ export class FinanceService {
   async generalLedger(query: ReportQueryDto, user: AuthenticatedUser) {
     await this.access.assertCanUseFinance(user);
     return this.reportLines(query);
+  }
+
+  /**
+   * Tally-style Day Book: a chronological register spanning EVERY voucher type
+   * (sales, purchase, receipt, payment, journal), newest first. Read-only —
+   * a union projection over the existing subledger + journal tables, no new
+   * storage. Each row carries a `detailHref` so the UI can drill into the
+   * voucher's own detail page. Defaults to today when from/to are omitted.
+   */
+  async daybook(query: DaybookQueryDto, user: AuthenticatedUser) {
+    await this.access.assertCanUseFinance(user);
+    const today = new Date().toISOString().slice(0, 10);
+    const gte = this.utcDay(query.from ?? today);
+    const lte = new Date(`${(query.to ?? today).slice(0, 10)}T23:59:59.999Z`);
+    const within = { gte, lte };
+    const type = query.voucherType;
+    // Status filter is applied per source (each has its own status enum);
+    // an unmatched status simply yields no rows for that source.
+    const statusEq = query.status ? { equals: query.status as never } : undefined;
+
+    type Row = {
+      id: string;
+      date: Date;
+      voucherType: DaybookVoucherType;
+      voucherNumber: string;
+      party: string | null;
+      amount: string;
+      status: string;
+      detailHref: string;
+    };
+    const rows: Row[] = [];
+
+    if (!type || type === 'SALES') {
+      const invoices = await this.prisma.salesInvoice.findMany({
+        where: { invoiceDate: within, ...(statusEq ? { status: statusEq } : {}) },
+        select: { id: true, invoiceNumber: true, invoiceDate: true, totalAmount: true, status: true, customer: { select: { name: true } } },
+      });
+      for (const inv of invoices)
+        rows.push({ id: inv.id, date: inv.invoiceDate, voucherType: 'SALES', voucherNumber: inv.invoiceNumber, party: inv.customer?.name ?? null, amount: inv.totalAmount.toString(), status: inv.status, detailHref: '/finance/ar/invoices' });
+    }
+
+    if (!type || type === 'PURCHASE') {
+      const bills = await this.prisma.accountsPayableInvoice.findMany({
+        where: { invoiceDate: within, ...(statusEq ? { status: statusEq } : {}) },
+        select: { id: true, internalBillNumber: true, invoiceDate: true, totalAmount: true, status: true, vendor: { select: { companyName: true } }, supplier: { select: { companyName: true } } },
+      });
+      for (const bill of bills)
+        rows.push({ id: bill.id, date: bill.invoiceDate, voucherType: 'PURCHASE', voucherNumber: bill.internalBillNumber, party: bill.vendor?.companyName ?? bill.supplier?.companyName ?? null, amount: bill.totalAmount.toString(), status: bill.status, detailHref: '/finance/ap/invoices' });
+    }
+
+    if (!type || type === 'RECEIPT') {
+      const receipts = await this.prisma.customerReceipt.findMany({
+        where: { receiptDate: within, ...(statusEq ? { status: statusEq } : {}) },
+        select: { id: true, receiptNumber: true, receiptDate: true, amount: true, status: true, customer: { select: { name: true } } },
+      });
+      for (const rct of receipts)
+        rows.push({ id: rct.id, date: rct.receiptDate, voucherType: 'RECEIPT', voucherNumber: rct.receiptNumber, party: rct.customer?.name ?? null, amount: rct.amount.toString(), status: rct.status, detailHref: '/finance/ar/receipts' });
+    }
+
+    if (!type || type === 'PAYMENT') {
+      // AP payments have no single voucherDate — use executedDate when the
+      // payment has gone out, otherwise the plannedDate it's scheduled for.
+      const payments = await this.prisma.accountsPayablePayment.findMany({
+        where: { OR: [{ executedDate: within }, { executedDate: null, plannedDate: within }], ...(statusEq ? { status: statusEq } : {}) },
+        select: { id: true, paymentNumber: true, plannedDate: true, executedDate: true, amount: true, status: true, vendor: { select: { companyName: true } }, supplier: { select: { companyName: true } } },
+      });
+      for (const pay of payments)
+        rows.push({ id: pay.id, date: pay.executedDate ?? pay.plannedDate, voucherType: 'PAYMENT', voucherNumber: pay.paymentNumber, party: pay.vendor?.companyName ?? pay.supplier?.companyName ?? null, amount: pay.amount.toString(), status: pay.status, detailHref: '/finance/ap/payments' });
+    }
+
+    if (!type || type === 'JOURNAL') {
+      // Only manual/standalone journals belong in the Day Book as JOURNAL
+      // vouchers; subledger-posted journals already surface via their own
+      // voucher rows above (they carry a back-relation to the source document).
+      const journals = await this.prisma.journalEntry.findMany({
+        where: { entryDate: within, ...(statusEq ? { status: statusEq } : {}), salesInvoice: null, apInvoice: null, customerReceipt: null, apPayment: null },
+        select: { id: true, journalNumber: true, entryDate: true, description: true, status: true, lines: { select: { debit: true } } },
+      });
+      for (const jnl of journals) {
+        const total = jnl.lines.reduce((sum, line) => sum.plus(line.debit), new Prisma.Decimal(0));
+        rows.push({ id: jnl.id, date: jnl.entryDate, voucherType: 'JOURNAL', voucherNumber: jnl.journalNumber, party: jnl.description, amount: total.toString(), status: jnl.status, detailHref: '/finance/journals' });
+      }
+    }
+
+    // Newest first; tiebreak by voucher number so same-day rows are stable.
+    rows.sort((a, b) => b.date.getTime() - a.date.getTime() || b.voucherNumber.localeCompare(a.voucherNumber));
+    return { from: gte.toISOString().slice(0, 10), to: lte.toISOString().slice(0, 10), rows };
   }
 
   private async reportLines(query: ReportQueryDto) {

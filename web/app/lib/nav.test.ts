@@ -310,18 +310,19 @@ describe('sidebarNav — the reported bug', () => {
     expect(shown).not.toContain('Roster');
   });
 
-  it('Finance shows the trimmed spine and hides the leaf-module items', () => {
+  it('Finance shows the Tally-style voucher/report labels and hides the leaf-module items', () => {
     const a = access('EMPLOYEE', { isFinanceUser: true });
     const shown = labels(
       a,
       activeModule('/finance/ar/invoices', availableModules(a)),
     );
-    // Spine (GL core + AR + AP + compliance) is visible.
-    expect(shown).toContain('Sales Invoices');
-    expect(shown).toContain('Vendor Invoices');
-    expect(shown).toContain('Chart of Accounts');
-    expect(shown).toContain('Journal Entries');
-    expect(shown).toContain('GST, TDS & Forecast');
+    // Tally-aligned labels over the existing routes (Vouchers/Masters/Reports).
+    expect(shown).toContain('Day Book');
+    expect(shown).toContain('Sales Vouchers');
+    expect(shown).toContain('Purchase Vouchers');
+    expect(shown).toContain('Ledgers');
+    expect(shown).toContain('Journal Vouchers');
+    expect(shown).toContain('GST Reports');
     // Leaf modules are hidden from nav (code remains, just not surfaced).
     expect(shown).not.toContain('Treasury & Credit');
     expect(shown).not.toContain('Budgets');

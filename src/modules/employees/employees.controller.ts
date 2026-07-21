@@ -109,8 +109,11 @@ export class EmployeesController {
   @Post()
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Create an employee' })
-  create(@Body() dto: CreateEmployeeDto) {
-    return this.employeesService.create(dto);
+  create(
+    @Body() dto: CreateEmployeeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.employeesService.create(dto, user);
   }
 
   // Employee list is needed by the HR admin screens (attendance corrections,
@@ -137,8 +140,12 @@ export class EmployeesController {
   @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
   @UseGuards(HrManagerOrAdminGuard)
   @ApiOperation({ summary: 'Update an employee' })
-  update(@Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
-    return this.employeesService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateEmployeeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.employeesService.update(id, dto, user);
   }
 
   @Patch(':id/deactivate')
@@ -180,8 +187,12 @@ export class EmployeesController {
     summary:
       'Admin grant-access (step 2 of 2): assign role/vertical, set password, activate login',
   })
-  grantAccess(@Param('id') id: string, @Body() dto: GrantAccessDto) {
-    return this.employeesService.grantAccess(id, dto);
+  grantAccess(
+    @Param('id') id: string,
+    @Body() dto: GrantAccessDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.employeesService.grantAccess(id, dto, user);
   }
 
   @Patch(':id/designate-sales-head')

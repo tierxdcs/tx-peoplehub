@@ -92,3 +92,28 @@ export class ReportQueryDto {
   @ApiProperty() @IsDateString() to!: string;
   @ApiPropertyOptional() @IsOptional() @IsString() accountId?: string;
 }
+
+/** The Tally-style voucher categories the Day Book can be filtered to. */
+export const DAYBOOK_VOUCHER_TYPES = [
+  'SALES',
+  'PURCHASE',
+  'RECEIPT',
+  'PAYMENT',
+  'JOURNAL',
+] as const;
+export type DaybookVoucherType = (typeof DAYBOOK_VOUCHER_TYPES)[number];
+
+/**
+ * Day Book query — a chronological, read-only register spanning every voucher
+ * type. Defaults are applied in the service (today's date) when from/to are
+ * omitted, so an unparameterised call still returns a useful "today" view.
+ */
+export class DaybookQueryDto {
+  @ApiPropertyOptional() @IsOptional() @IsDateString() from?: string;
+  @ApiPropertyOptional() @IsOptional() @IsDateString() to?: string;
+  @ApiPropertyOptional({ enum: DAYBOOK_VOUCHER_TYPES })
+  @IsOptional()
+  @IsEnum(DAYBOOK_VOUCHER_TYPES as unknown as string[])
+  voucherType?: DaybookVoucherType;
+  @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
+}

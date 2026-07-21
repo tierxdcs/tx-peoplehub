@@ -41,7 +41,7 @@ export default function FinanceAccountsPage() {
   }
 
   return <PageContainer>
-    <PageHeader title="Finance setup" description="India April–March fiscal periods and Chart of Accounts" />
+    <PageHeader title="Ledgers" description="India April–March fiscal periods and ledger accounts (chart of accounts)" />
     <Card className="mb-6"><CardContent className="p-5">
       <h2 className="mb-3 font-semibold">Fiscal years</h2>
       <div className="flex flex-wrap items-end gap-3">

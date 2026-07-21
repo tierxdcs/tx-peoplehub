@@ -39,10 +39,16 @@ interface EmployeeFormProps {
   candidateManagers: Employee[];
   onSubmit: (values: EmployeeFormValues) => Promise<void>;
   submitLabel: string;
+  /**
+   * Whether the CURRENT signed-in user is a SUPER_ADMIN. Only a super admin may
+   * grant the ADMIN role, so the option is shown to them alone. This mirrors —
+   * but does not replace — the server-side rule (assertMayAssignRole); the
+   * backend rejects an ADMIN grant from anyone else regardless of the UI.
+   */
+  callerIsSuperAdmin: boolean;
 }
 
-const ASSIGNABLE_ROLES: Array<'ADMIN' | 'MANAGER' | 'EMPLOYEE'> = [
-  'ADMIN',
+const NON_PRIVILEGED_ROLES: Array<'MANAGER' | 'EMPLOYEE'> = [
   'MANAGER',
   'EMPLOYEE',
 ];
@@ -54,6 +60,7 @@ export function EmployeeForm({
   candidateManagers,
   onSubmit,
   submitLabel,
+  callerIsSuperAdmin,
 }: EmployeeFormProps) {
   const [firstName, setFirstName] = useState(initial?.firstName ?? '');
   const [lastName, setLastName] = useState(initial?.lastName ?? '');
@@ -66,6 +73,17 @@ export function EmployeeForm({
   // here — we can't create SUPER_ADMINs via this form, only edit an existing
   // one without silently downgrading them.
   const isSuperAdmin = role === 'SUPER_ADMIN';
+  // Assignable role options: MANAGER / EMPLOYEE for everyone; ADMIN only when
+  // the SIGNED-IN user is a super admin (mirrors the backend grant rule).
+  const assignableRoles: Array<'ADMIN' | 'MANAGER' | 'EMPLOYEE'> =
+    callerIsSuperAdmin ? ['ADMIN', ...NON_PRIVILEGED_ROLES] : [...NON_PRIVILEGED_ROLES];
+  // "Protect admins": a non-super-admin editing an already-privileged account
+  // (ADMIN/SUPER_ADMIN) cannot change its role at all — lock the field so it
+  // can't be demoted or tampered with. The backend enforces this too.
+  const targetInitiallyPrivileged =
+    initial?.role === 'ADMIN' || initial?.role === 'SUPER_ADMIN';
+  const roleLocked =
+    isSuperAdmin || (!callerIsSuperAdmin && targetInitiallyPrivileged);
   const [verticalId, setVerticalId] = useState(initial?.verticalId ?? '');
   const [managerId, setManagerId] = useState(initial?.reportingManagerId ?? '');
   const [designation, setDesignation] = useState(initial?.designation ?? '');
@@ -159,18 +177,20 @@ export function EmployeeForm({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Role">
-              {isSuperAdmin ? (
-                // The CEO/SUPER_ADMIN role can't be reassigned here — locked to
-                // prevent a silent downgrade to ADMIN.
-                <Select value="SUPER_ADMIN" disabled>
-                  <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+              {roleLocked ? (
+                // Locked: either the target is a SUPER_ADMIN (never downgraded
+                // here) or a non-super-admin is editing an existing privileged
+                // account (Admin/Super Admin), whose role only a super admin
+                // may change. Shown read-only so its current role is visible.
+                <Select value={role} disabled>
+                  <option value={role}>{role}</option>
                 </Select>
               ) : (
                 <Select
                   value={role}
                   onChange={(e) => setRole(e.target.value as Role & typeof role)}
                 >
-                  {ASSIGNABLE_ROLES.map((r) => (
+                  {assignableRoles.map((r) => (
                     <option key={r} value={r}>{r}</option>
                   ))}
                 </Select>

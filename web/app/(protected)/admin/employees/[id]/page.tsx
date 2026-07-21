@@ -489,6 +489,7 @@ export default function EditEmployeePage() {
         candidateManagers={candidateManagers}
         onSubmit={handleSubmit}
         submitLabel="Save changes"
+        callerIsSuperAdmin={isSuperAdmin}
       />
 
       {/* Designations & roles — capability grants, secondary to the details. */}

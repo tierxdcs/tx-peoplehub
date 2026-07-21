@@ -55,6 +55,13 @@ describe('EmployeesService', () => {
     verticalId: null,
   };
 
+  const superAdminUser: AuthenticatedUser = {
+    id: 'sa-1',
+    email: 'ceo@peoplehub.local',
+    role: Role.SUPER_ADMIN,
+    verticalId: null,
+  };
+
   beforeEach(async () => {
     prisma = {
       employee: {
@@ -121,7 +128,7 @@ describe('EmployeesService', () => {
         }),
       );
 
-      const result = await service.create(dto);
+      const result = await service.create(dto, adminUser);
 
       expect(result.id).toBe(employee.id);
       expect(result.employeeId).toBe(employee.employeeId);
@@ -130,14 +137,26 @@ describe('EmployeesService', () => {
 
     it('throws BadRequestException when verticalId is missing for a non-SUPER_ADMIN role', async () => {
       await expect(
-        service.create({ ...dto, verticalId: undefined }),
+        service.create({ ...dto, verticalId: undefined }, adminUser),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('throws BadRequestException when reportingManagerId is missing for a non-SUPER_ADMIN role', async () => {
       await expect(
-        service.create({ ...dto, reportingManagerId: undefined }),
+        service.create({ ...dto, reportingManagerId: undefined }, adminUser),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('forbids a non-super-admin from creating an ADMIN', async () => {
+      await expect(
+        service.create({ ...dto, role: Role.ADMIN }, adminUser),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('forbids a non-super-admin from creating a SUPER_ADMIN', async () => {
+      await expect(
+        service.create({ ...dto, role: Role.SUPER_ADMIN }, adminUser),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('allows SUPER_ADMIN with no vertical or manager', async () => {
@@ -153,12 +172,15 @@ describe('EmployeesService', () => {
         }),
       );
 
-      const result = await service.create({
-        ...dto,
-        role: Role.SUPER_ADMIN,
-        verticalId: undefined,
-        reportingManagerId: undefined,
-      });
+      const result = await service.create(
+        {
+          ...dto,
+          role: Role.SUPER_ADMIN,
+          verticalId: undefined,
+          reportingManagerId: undefined,
+        },
+        superAdminUser,
+      );
 
       expect(result.role).toBe(Role.SUPER_ADMIN);
     });
@@ -169,7 +191,7 @@ describe('EmployeesService', () => {
         .mockResolvedValueOnce(employee);
       prisma.vertical.findUnique.mockResolvedValue(vertical);
 
-      await expect(service.create(dto)).rejects.toBeInstanceOf(
+      await expect(service.create(dto, adminUser)).rejects.toBeInstanceOf(
         ConflictException,
       );
     });
@@ -215,7 +237,11 @@ describe('EmployeesService', () => {
       prisma.employee.findUnique.mockResolvedValueOnce(employee); // manager active-check
 
       await expect(
-        service.update(employee.id, { reportingManagerId: employee.id }),
+        service.update(
+          employee.id,
+          { reportingManagerId: employee.id },
+          adminUser,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -229,8 +255,42 @@ describe('EmployeesService', () => {
       prisma.vertical.findUnique.mockResolvedValue(vertical);
 
       await expect(
-        service.update(manager.id, { reportingManagerId: employee.id }),
+        service.update(
+          manager.id,
+          { reportingManagerId: employee.id },
+          adminUser,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('forbids a non-super-admin from promoting an employee to ADMIN', async () => {
+      prisma.employee.findUnique.mockResolvedValueOnce(employee); // findRawOrThrow
+      await expect(
+        service.update(employee.id, { role: Role.ADMIN }, adminUser),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('forbids a non-super-admin from changing an existing ADMIN’s role', async () => {
+      const existingAdmin = { ...employee, role: Role.ADMIN };
+      prisma.employee.findUnique.mockResolvedValueOnce(existingAdmin); // findRawOrThrow
+      await expect(
+        service.update(existingAdmin.id, { role: Role.EMPLOYEE }, adminUser),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('lets a SUPER_ADMIN promote an employee to ADMIN', async () => {
+      prisma.employee.findUnique
+        .mockResolvedValueOnce(employee) // findRawOrThrow
+        .mockResolvedValueOnce(manager); // manager active-check
+      prisma.vertical.findUnique.mockResolvedValue(vertical);
+      prisma.employee.update.mockResolvedValue({ ...employee, role: Role.ADMIN });
+
+      const result = await service.update(
+        employee.id,
+        { role: Role.ADMIN },
+        superAdminUser,
+      );
+      expect(result.role).toBe(Role.ADMIN);
     });
   });
 
@@ -498,12 +558,16 @@ describe('EmployeesService', () => {
         email: pendingEmployee.officialEmail,
       });
 
-      const result = await service.grantAccess(pendingEmployee.id, {
-        role: Role.EMPLOYEE,
-        verticalId: vertical.id,
-        reportingManagerId: manager.id,
-        password: 'S3curePass!',
-      });
+      const result = await service.grantAccess(
+        pendingEmployee.id,
+        {
+          role: Role.EMPLOYEE,
+          verticalId: vertical.id,
+          reportingManagerId: manager.id,
+          password: 'S3curePass!',
+        },
+        adminUser,
+      );
 
       expect(result.role).toBe(Role.EMPLOYEE);
       expect(result.accessStatus).toBe(AccessStatus.ACTIVE);
@@ -517,13 +581,33 @@ describe('EmployeesService', () => {
       });
 
       await expect(
-        service.grantAccess(pendingEmployee.id, {
-          role: Role.EMPLOYEE,
-          verticalId: vertical.id,
-          reportingManagerId: manager.id,
-          password: 'S3curePass!',
-        }),
+        service.grantAccess(
+          pendingEmployee.id,
+          {
+            role: Role.EMPLOYEE,
+            verticalId: vertical.id,
+            reportingManagerId: manager.id,
+            password: 'S3curePass!',
+          },
+          adminUser,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('forbids a non-super-admin from granting access as an ADMIN', async () => {
+      prisma.employee.findUnique.mockResolvedValueOnce(pendingEmployee); // findRawOrThrow
+      await expect(
+        service.grantAccess(
+          pendingEmployee.id,
+          {
+            role: Role.ADMIN,
+            verticalId: vertical.id,
+            reportingManagerId: manager.id,
+            password: 'S3curePass!',
+          },
+          adminUser,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 

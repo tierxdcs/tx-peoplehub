@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
+import { useAuth } from '../../../lib/auth-context';
 import { Employee, PaginatedResult, Vertical } from '../../../lib/types';
 
-const ASSIGNABLE_ROLES: Array<'ADMIN' | 'MANAGER' | 'EMPLOYEE'> = [
-  'ADMIN',
+// MANAGER / EMPLOYEE are grantable by any admin; ADMIN is added only for a
+// SUPER_ADMIN caller (mirrors the backend assertMayAssignRole rule — the API
+// rejects an ADMIN grant from anyone else regardless of the UI).
+const NON_PRIVILEGED_ROLES: Array<'MANAGER' | 'EMPLOYEE'> = [
   'MANAGER',
   'EMPLOYEE',
 ];
@@ -157,6 +160,12 @@ function GrantAccessForm({
   onClose: () => void;
   onGranted: (employee: Employee) => void;
 }) {
+  const { user } = useAuth();
+  const callerIsSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const assignableRoles: Array<'ADMIN' | 'MANAGER' | 'EMPLOYEE'> =
+    callerIsSuperAdmin
+      ? ['ADMIN', ...NON_PRIVILEGED_ROLES]
+      : [...NON_PRIVILEGED_ROLES];
   const [role, setRole] = useState<'ADMIN' | 'MANAGER' | 'EMPLOYEE'>(
     'EMPLOYEE',
   );
@@ -246,7 +255,7 @@ function GrantAccessForm({
             }
             style={fieldStyle}
           >
-            {ASSIGNABLE_ROLES.map((r) => (
+            {assignableRoles.map((r) => (
               <option key={r} value={r}>
                 {r}
               </option>
