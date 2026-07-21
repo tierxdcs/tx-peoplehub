@@ -126,9 +126,10 @@ export class EmployeesService {
     id: string,
     currentUser: AuthenticatedUser,
   ): Promise<EmployeeEntity> {
-    const isAdmin =
-      currentUser.role === Role.ADMIN || currentUser.role === Role.SUPER_ADMIN;
-    if (!isAdmin && currentUser.id !== id) {
+    // Admins and HR Managers may view any employee (they run the roster / edit /
+    // payroll functions). Everyone else may view only themselves or their own
+    // manager (for the "who's my manager" lookup).
+    if (!(await this.isAdminOrHrManager(currentUser)) && currentUser.id !== id) {
       const caller = await this.prisma.employee.findUnique({
         where: { id: currentUser.id },
         select: { reportingManagerId: true },
