@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth-context';
 import { apiFetch } from '../../../lib/api';
 import {
@@ -30,6 +31,7 @@ import { Skeleton } from '../../../components/ui/skeleton';
 import { SensitiveDetailPanel } from './_components/sensitive-detail-panel';
 
 export default function RosterPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
@@ -203,18 +205,32 @@ export default function RosterPage() {
                       )}
                       {isAdmin && (
                         <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              setDetailTarget({
-                                id: e.id,
-                                name: `${e.firstName} ${e.lastName}`,
-                              })
-                            }
-                          >
-                            View sensitive details
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setDetailTarget({
+                                  id: e.id,
+                                  name: `${e.firstName} ${e.lastName}`,
+                                })
+                              }
+                            >
+                              View sensitive details
+                            </Button>
+                            {/* Edit / offboard / delete all live on the employee
+                                detail page (Edit + Deactivate + Delete), gated
+                                to Admin/SUPER_ADMIN by the backend. */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                router.push(`/admin/employees/${e.id}`)
+                              }
+                            >
+                              Edit
+                            </Button>
+                          </div>
                         </TableCell>
                       )}
                     </TableRow>

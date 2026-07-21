@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Employee, Vertical } from '../../../../lib/types';
+import { Employee, EmploymentType, Vertical } from '../../../../lib/types';
 import { Role } from '../../../../lib/jwt';
 
 export interface EmployeeFormValues {
@@ -14,7 +14,18 @@ export interface EmployeeFormValues {
   // no one. Omitted from the payload when empty so the API leaves them unset.
   verticalId?: string;
   reportingManagerId?: string;
+  // Optional HR/profile attributes (shown as roster columns).
+  designation?: string;
+  employmentType?: EmploymentType;
+  workLocation?: string;
 }
+
+const EMPLOYMENT_TYPES: { value: EmploymentType; label: string }[] = [
+  { value: 'FULL_TIME_PERMANENT', label: 'Full-time (Permanent)' },
+  { value: 'CONTRACT', label: 'Contract' },
+  { value: 'INTERN', label: 'Intern' },
+  { value: 'PART_TIME', label: 'Part-time' },
+];
 
 interface EmployeeFormProps {
   mode: 'create' | 'edit';
@@ -54,6 +65,11 @@ export function EmployeeForm({
   const [managerId, setManagerId] = useState(
     initial?.reportingManagerId ?? '',
   );
+  const [designation, setDesignation] = useState(initial?.designation ?? '');
+  const [employmentType, setEmploymentType] = useState<EmploymentType | ''>(
+    initial?.employmentType ?? '',
+  );
+  const [workLocation, setWorkLocation] = useState(initial?.workLocation ?? '');
   const [managerSearch, setManagerSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -102,6 +118,9 @@ export function EmployeeForm({
         // string where it expects a UUID or nothing.
         ...(verticalId ? { verticalId } : {}),
         ...(managerId ? { reportingManagerId: managerId } : {}),
+        ...(designation.trim() ? { designation: designation.trim() } : {}),
+        ...(employmentType ? { employmentType } : {}),
+        ...(workLocation.trim() ? { workLocation: workLocation.trim() } : {}),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
@@ -210,6 +229,39 @@ export function EmployeeForm({
           </Field>
         </>
       )}
+
+      <Field label="Designation">
+        <input
+          value={designation}
+          onChange={(e) => setDesignation(e.target.value)}
+          placeholder="e.g. Senior Design Engineer"
+          style={inputStyle}
+        />
+      </Field>
+      <Field label="Employment type">
+        <select
+          value={employmentType}
+          onChange={(e) =>
+            setEmploymentType(e.target.value as EmploymentType | '')
+          }
+          style={inputStyle}
+        >
+          <option value="">Not set</option>
+          {EMPLOYMENT_TYPES.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Work location">
+        <input
+          value={workLocation}
+          onChange={(e) => setWorkLocation(e.target.value)}
+          placeholder="e.g. Bengaluru"
+          style={inputStyle}
+        />
+      </Field>
 
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 

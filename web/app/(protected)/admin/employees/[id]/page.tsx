@@ -306,6 +306,48 @@ export default function EditEmployeePage() {
     }
   }
 
+  /**
+   * Offboard = soft-delete (deactivate). Reversible, and unlike hard-delete it
+   * works even when the employee owns reports/records — the right default for
+   * someone leaving. Reactivate restores their login with the same
+   * role/vertical/manager.
+   */
+  async function handleToggleActive() {
+    if (!employee) return;
+    const deactivating = employee.status === 'ACTIVE';
+    const ok = await confirm(
+      deactivating
+        ? {
+            title: `Offboard ${employee.firstName} ${employee.lastName}?`,
+            description:
+              'Deactivates their account and revokes login immediately. Their records are preserved and this can be reversed by reactivating. Use this when someone leaves the company.',
+            confirmLabel: 'Offboard',
+            destructive: true,
+          }
+        : {
+            title: `Reactivate ${employee.firstName} ${employee.lastName}?`,
+            description:
+              'Restores their login with the existing role, vertical and manager. This is not a re-hire.',
+            confirmLabel: 'Reactivate',
+          },
+    );
+    if (!ok) return;
+    try {
+      await apiFetch(
+        `/employees/${employee.id}/${deactivating ? 'deactivate' : 'reactivate'}`,
+        { method: 'PATCH' },
+      );
+      toast.success(deactivating ? 'Employee offboarded.' : 'Employee reactivated.');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : `Failed to ${deactivating ? 'offboard' : 'reactivate'} employee`,
+      );
+    }
+  }
+
   async function handleResetPassword() {
     if (!employee) return;
     const ok = await confirm({
@@ -618,12 +660,41 @@ export default function EditEmployeePage() {
           role: employee.role ?? 'EMPLOYEE',
           verticalId: employee.verticalId ?? '',
           reportingManagerId: employee.reportingManagerId ?? '',
+          designation: employee.designation ?? '',
+          employmentType: employee.employmentType ?? undefined,
+          workLocation: employee.workLocation ?? '',
         }}
         verticals={verticals}
         candidateManagers={candidateManagers}
         onSubmit={handleSubmit}
         submitLabel="Save changes"
       />
+
+      {/* Offboarding — soft deactivate/reactivate (Admin/SUPER_ADMIN). The
+          safe, reversible way to remove someone who is leaving; preserves their
+          records (unlike permanent delete below). */}
+      <Card className="my-4 max-w-xl">
+        <CardContent className="flex items-center justify-between gap-4 p-4">
+          <div className="text-sm">
+            <div className="font-medium">
+              {employee.status === 'ACTIVE'
+                ? 'Offboard employee'
+                : 'Reactivate employee'}
+            </div>
+            <div className="text-muted-foreground">
+              {employee.status === 'ACTIVE'
+                ? 'Deactivates the account and revokes login. Reversible; records are kept.'
+                : 'This employee is currently offboarded (login revoked). Restore their access.'}
+            </div>
+          </div>
+          <Button
+            variant={employee.status === 'ACTIVE' ? 'destructive' : 'default'}
+            onClick={handleToggleActive}
+          >
+            {employee.status === 'ACTIVE' ? 'Offboard' : 'Reactivate'}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Permanent delete — SUPER_ADMIN only. The backend refuses if the
           employee still owns reports or business records. */}

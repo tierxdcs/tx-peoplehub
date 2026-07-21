@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   AccessStatus,
   EmployeeStatus,
+  EmploymentType,
   Role,
   SignatureFont,
 } from '@prisma/client';
@@ -34,6 +35,15 @@ export class EmployeeEntity {
 
   @ApiProperty({ nullable: true })
   reportingManagerId!: string | null;
+
+  @ApiProperty({ nullable: true, description: 'Job title' })
+  designation!: string | null;
+
+  @ApiProperty({ enum: EmploymentType, nullable: true })
+  employmentType!: EmploymentType | null;
+
+  @ApiProperty({ nullable: true, description: 'Work location / office' })
+  workLocation!: string | null;
 
   @ApiProperty({ enum: EmployeeStatus })
   status!: EmployeeStatus;

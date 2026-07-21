@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
+import { EmploymentType, Role } from '@prisma/client';
 import {
   IsEmail,
   IsEnum,
@@ -44,4 +44,19 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsUUID()
   reportingManagerId?: string;
+
+  @ApiPropertyOptional({ description: 'Job title, e.g. "Senior Design Engineer"' })
+  @IsOptional()
+  @IsString()
+  designation?: string;
+
+  @ApiPropertyOptional({ enum: EmploymentType })
+  @IsOptional()
+  @IsEnum(EmploymentType)
+  employmentType?: EmploymentType;
+
+  @ApiPropertyOptional({ description: 'Work location / office, e.g. "Bengaluru"' })
+  @IsOptional()
+  @IsString()
+  workLocation?: string;
 }

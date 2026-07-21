@@ -86,6 +86,9 @@ export class EmployeesService {
           role: dto.role,
           verticalId: dto.verticalId ?? null,
           reportingManagerId: dto.reportingManagerId ?? null,
+          designation: dto.designation ?? null,
+          employmentType: dto.employmentType ?? null,
+          workLocation: dto.workLocation ?? null,
           accessStatus: AccessStatus.ACTIVE,
         },
       });
@@ -171,6 +174,9 @@ export class EmployeesService {
         role: dto.role,
         verticalId: dto.verticalId,
         reportingManagerId: dto.reportingManagerId,
+        designation: dto.designation,
+        employmentType: dto.employmentType,
+        workLocation: dto.workLocation,
       },
     });
 
@@ -1151,6 +1157,9 @@ export class EmployeesService {
       role: employee.role,
       verticalId: employee.verticalId,
       reportingManagerId: employee.reportingManagerId,
+      designation: employee.designation,
+      employmentType: employee.employmentType,
+      workLocation: employee.workLocation,
       status: employee.status,
       deactivatedAt: employee.deactivatedAt,
       accessStatus: employee.accessStatus,
