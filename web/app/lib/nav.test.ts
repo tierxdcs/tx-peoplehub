@@ -131,6 +131,14 @@ describe('sidebarNav — the reported bug', () => {
     expect(shown).toContain('Roster');
     expect(shown).not.toContain('My Profile');
     expect(shown).not.toContain('Leads');
+    // HR staff don't do project kickoffs — the Projects group is hidden.
+    expect(shown).not.toContain('Project Kickoff');
+  });
+
+  it('a non-HR employee still sees Project Kickoff (cross-cutting)', () => {
+    const a = access('EMPLOYEE', { isSalesStaff: true });
+    const shown = labels(a, activeModule('/sales/leads', availableModules(a)));
+    expect(shown).toContain('Project Kickoff');
   });
 
   it('an HR MANAGER sees Leave & Attendance + Payroll (HR-lead functions)', () => {

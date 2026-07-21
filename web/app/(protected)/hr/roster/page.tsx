@@ -242,7 +242,9 @@ export default function RosterPage() {
                               variant="outline"
                               size="sm"
                               onClick={() =>
-                                router.push(`/admin/employees/${e.id}`)
+                                router.push(
+                                  `/admin/employees/${e.id}?from=/hr/roster`,
+                                )
                               }
                             >
                               Edit

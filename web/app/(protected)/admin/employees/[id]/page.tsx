@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { Employee, PaginatedResult, Vertical } from '../../../../lib/types';
 import {
@@ -30,6 +30,13 @@ import { useAuth } from '../../../../lib/auth-context';
 export default function EditEmployeePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Where to return after save/delete/back — the page that linked here (e.g.
+  // the HR roster) via ?from=, defaulting to the admin employees list. Only
+  // internal absolute paths are honoured, so ?from can't redirect off-site.
+  const fromParam = searchParams.get('from');
+  const returnTo =
+    fromParam && fromParam.startsWith('/') ? fromParam : '/admin/employees';
   const toast = useToast();
   const confirm = useConfirm();
   const { user } = useAuth();
@@ -79,7 +86,7 @@ export default function EditEmployeePage() {
       method: 'PATCH',
       body: JSON.stringify(values),
     });
-    router.push('/admin/employees');
+    router.push(returnTo);
   }
 
   async function designateSalesHead() {
@@ -302,7 +309,7 @@ export default function EditEmployeePage() {
     try {
       await apiFetch(`/employees/${employee.id}`, { method: 'DELETE' });
       toast.success('Employee deleted.');
-      router.push('/admin/employees');
+      router.push(returnTo);
     } catch (err) {
       toast.error(
         err instanceof ApiError ? err.message : 'Failed to delete employee',
@@ -391,7 +398,7 @@ export default function EditEmployeePage() {
     return (
       <PageContainer className="max-w-2xl">
         <button
-          onClick={() => router.push('/admin/employees')}
+          onClick={() => router.push(returnTo)}
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" /> Employees
@@ -430,7 +437,7 @@ export default function EditEmployeePage() {
   return (
     <PageContainer className="max-w-2xl">
       <button
-        onClick={() => router.push('/admin/employees')}
+        onClick={() => router.push(returnTo)}
         className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4" /> Employees

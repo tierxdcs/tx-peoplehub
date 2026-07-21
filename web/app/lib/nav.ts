@@ -136,12 +136,15 @@ export function sharedNav(access: Access): NavGroup[] {
     ],
   });
 
-  // Project Kickoff — cross-cutting and membership-scoped like Kanban; everyone
-  // sees the nav item, access to individual kickoffs is decided server-side.
-  groups.push({
-    heading: 'Projects',
-    items: [{ label: 'Project Kickoff', href: '/project-kickoff' }],
-  });
+  // Project Kickoff — cross-cutting and membership-scoped like Kanban; access
+  // to individual kickoffs is decided server-side. Hidden from HR-vertical staff
+  // (project kickoffs aren't part of the HR function).
+  if (!access.isHrStaff) {
+    groups.push({
+      heading: 'Projects',
+      items: [{ label: 'Project Kickoff', href: '/project-kickoff' }],
+    });
+  }
 
   // SCM — vendor + supplier qualification plus Purchase Orders. Restricted to
   // SCM-vertical staff and SUPER_ADMIN (procurement is their function). Backend
