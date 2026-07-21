@@ -8,9 +8,13 @@ import {
   EmployeeForm,
   EmployeeFormValues,
 } from '../_components/employee-form';
+import { ArrowLeft } from 'lucide-react';
 import { Badge } from '../../../../components/ui/badge';
 import { Button } from '../../../../components/ui/button';
 import { Card, CardContent } from '../../../../components/ui/card';
+import { PageContainer } from '../../../../components/ui/page-container';
+import { PageHeader } from '../../../../components/ui/page-header';
+import { Skeleton } from '../../../../components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -374,8 +378,28 @@ export default function EditEmployeePage() {
     }
   }
 
-  if (loading) return <p>Loading…</p>;
-  if (!employee) return <p>Employee not found.</p>;
+  if (loading) {
+    return (
+      <PageContainer className="max-w-2xl">
+        <Skeleton className="mb-4 h-6 w-24" />
+        <Skeleton className="mb-6 h-9 w-64" />
+        <Skeleton className="h-64 w-full" />
+      </PageContainer>
+    );
+  }
+  if (!employee) {
+    return (
+      <PageContainer className="max-w-2xl">
+        <button
+          onClick={() => router.push('/admin/employees')}
+          className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" /> Employees
+        </button>
+        <p className="text-destructive">Employee not found.</p>
+      </PageContainer>
+    );
+  }
 
   const salesVerticalId = verticals.find((v) => v.code === 'SALES')?.id;
   const isSalesVertical =
@@ -393,29 +417,81 @@ export default function EditEmployeePage() {
     employee.role === 'ADMIN' ||
     employee.role === 'SUPER_ADMIN';
 
+  const hasAnyDesignationCard =
+    isSalesVertical ||
+    managerOrAbove ||
+    canDesignate ||
+    employee.isRdHead ||
+    isSuperAdmin ||
+    employee.isAccountsHead ||
+    employee.isQmsHead ||
+    employee.isDesignHead;
+
   return (
-    <div>
-      <h1 className="flex items-center gap-2">
-        Edit {employee.firstName} {employee.lastName}
-        {employee.isSalesHead && <Badge variant="info">Sales Head</Badge>}
-        {employee.isProjectManager && (
-          <Badge variant="info">Project Manager</Badge>
-        )}
-        {employee.isInternalAuditor && (
-          <Badge variant="info">Internal Auditor</Badge>
-        )}
-        {employee.isQcInspector && (
-          <Badge variant="info">QC Inspector</Badge>
-        )}
-        {employee.isRdHead && <Badge variant="info">R&D Head</Badge>}
-        {employee.isAccountsHead && <Badge variant="info">Finance/Accounts Head</Badge>}
-        {employee.isQmsHead && <Badge variant="info">QMS Head</Badge>}
-        {employee.isDesignHead && <Badge variant="info">Design Head</Badge>}
-      </h1>
+    <PageContainer className="max-w-2xl">
+      <button
+        onClick={() => router.push('/admin/employees')}
+        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" /> Employees
+      </button>
+
+      <PageHeader
+        title={`${employee.firstName} ${employee.lastName}`}
+        description={
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span>{employee.employeeId}</span>
+            {employee.isSalesHead && <Badge variant="info">Sales Head</Badge>}
+            {employee.isProjectManager && (
+              <Badge variant="info">Project Manager</Badge>
+            )}
+            {employee.isInternalAuditor && (
+              <Badge variant="info">Internal Auditor</Badge>
+            )}
+            {employee.isQcInspector && (
+              <Badge variant="info">QC Inspector</Badge>
+            )}
+            {employee.isRdHead && <Badge variant="info">R&D Head</Badge>}
+            {employee.isAccountsHead && (
+              <Badge variant="info">Finance/Accounts Head</Badge>
+            )}
+            {employee.isQmsHead && <Badge variant="info">QMS Head</Badge>}
+            {employee.isDesignHead && <Badge variant="info">Design Head</Badge>}
+          </span>
+        }
+      />
+
+      {/* Core details first — the primary reason to open this page. */}
+      <h2 className="mb-3 text-lg font-semibold">Details</h2>
+      <EmployeeForm
+        mode="edit"
+        initial={{
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+          email: employee.email,
+          // Pass the true role (including SUPER_ADMIN) so the form can lock it
+          // rather than silently downgrading the CEO to ADMIN on save.
+          role: employee.role ?? 'EMPLOYEE',
+          verticalId: employee.verticalId ?? '',
+          reportingManagerId: employee.reportingManagerId ?? '',
+          designation: employee.designation ?? '',
+          employmentType: employee.employmentType ?? undefined,
+          workLocation: employee.workLocation ?? '',
+        }}
+        verticals={verticals}
+        candidateManagers={candidateManagers}
+        onSubmit={handleSubmit}
+        submitLabel="Save changes"
+      />
+
+      {/* Designations & roles — capability grants, secondary to the details. */}
+      {hasAnyDesignationCard && (
+        <h2 className="mb-3 mt-8 text-lg font-semibold">Designations &amp; roles</h2>
+      )}
 
       {/* Sales Head designation — only meaningful for Sales-vertical staff. */}
       {isSalesVertical && (
-        <Card className="my-4 max-w-xl">
+        <Card className="mb-4">
           <CardContent className="flex items-center justify-between gap-4 p-4">
             <div className="text-sm">
               <div className="font-medium">Sales Head designation</div>
@@ -443,7 +519,7 @@ export default function EditEmployeePage() {
       {/* Project Manager designation — role MANAGER or above, any vertical.
           Multi-holder: designate/revoke is a plain flag flip (no swap). */}
       {managerOrAbove && (
-        <Card className="my-4 max-w-xl">
+        <Card className="mb-4">
           <CardContent className="flex items-center justify-between gap-4 p-4">
             <div className="text-sm">
               <div className="font-medium">Project Manager designation</div>
@@ -471,7 +547,7 @@ export default function EditEmployeePage() {
       {/* Internal Auditor designation — role MANAGER or above, any vertical.
           Multi-holder flag flip; conducts/finalizes vendor audits. */}
       {managerOrAbove && (
-        <Card className="my-4 max-w-xl">
+        <Card className="mb-4">
           <CardContent className="flex items-center justify-between gap-4 p-4">
             <div className="text-sm">
               <div className="font-medium">Internal Auditor designation</div>
@@ -501,7 +577,7 @@ export default function EditEmployeePage() {
           Distinct from Internal Auditor (supplier auditing vs. incoming-goods
           inspection). */}
       {managerOrAbove && (
-        <Card className="my-4 max-w-xl">
+        <Card className="mb-4">
           <CardContent className="flex items-center justify-between gap-4 p-4">
             <div className="text-sm">
               <div className="font-medium">QC Inspector designation</div>
@@ -533,7 +609,7 @@ export default function EditEmployeePage() {
           the requirement spelled out when it isn't met. Also shown for an
           existing holder so it can always be revoked. */}
       {(canDesignate || employee.isRdHead) && (
-        <Card className="my-4 max-w-xl">
+        <Card className="mb-4">
           <CardContent className="flex items-center justify-between gap-4 p-4">
             <div className="text-sm">
               <div className="font-medium">R&D Head designation</div>
@@ -559,7 +635,7 @@ export default function EditEmployeePage() {
       )}
 
       {(isSuperAdmin || employee.isAccountsHead) && (
-        <Card className="my-4 max-w-xl">
+        <Card className="mb-4">
           <CardContent className="flex items-center justify-between gap-4 p-4">
             <div className="text-sm">
               <div className="font-medium">Finance/Accounts Head designation</div>
@@ -583,18 +659,18 @@ export default function EditEmployeePage() {
       )}
 
       {(isSuperAdmin || employee.isQmsHead) && (
-        <Card className="my-4 max-w-xl"><CardContent className="flex items-center justify-between gap-4 p-4"><div className="text-sm"><div className="font-medium">QMS Head designation</div><div className="text-muted-foreground">{employee.isQmsHead ? 'This employee is the sole approver for QMS templates, plans and inspection reviews.' : 'Designate as the sole QMS approval authority.'}</div></div>{isSuperAdmin && <Button variant={employee.isQmsHead ? 'destructive' : 'outline'} disabled={designating} onClick={()=>setQmsHead(!employee.isQmsHead)}>{employee.isQmsHead ? 'Revoke QMS Head' : 'Designate as QMS Head'}</Button>}</CardContent></Card>
+        <Card className="mb-4"><CardContent className="flex items-center justify-between gap-4 p-4"><div className="text-sm"><div className="font-medium">QMS Head designation</div><div className="text-muted-foreground">{employee.isQmsHead ? 'This employee is the sole approver for QMS templates, plans and inspection reviews.' : 'Designate as the sole QMS approval authority.'}</div></div>{isSuperAdmin && <Button variant={employee.isQmsHead ? 'destructive' : 'outline'} disabled={designating} onClick={()=>setQmsHead(!employee.isQmsHead)}>{employee.isQmsHead ? 'Revoke QMS Head' : 'Designate as QMS Head'}</Button>}</CardContent></Card>
       )}
 
       {(isSuperAdmin || employee.isDesignHead) && (
-        <Card className="my-4 max-w-xl"><CardContent className="flex items-center justify-between gap-4 p-4"><div className="text-sm"><div className="font-medium">Design Head designation</div><div className="text-muted-foreground">{employee.isDesignHead ? 'This employee is the sole approver and production-release authority for design documents.' : 'Designate as the sole Design Engineering release authority.'}</div></div>{isSuperAdmin && <Button variant={employee.isDesignHead ? 'destructive' : 'outline'} disabled={designating} onClick={()=>setDesignHead(!employee.isDesignHead)}>{employee.isDesignHead ? 'Revoke Design Head' : 'Designate as Design Head'}</Button>}</CardContent></Card>
+        <Card className="mb-4"><CardContent className="flex items-center justify-between gap-4 p-4"><div className="text-sm"><div className="font-medium">Design Head designation</div><div className="text-muted-foreground">{employee.isDesignHead ? 'This employee is the sole approver and production-release authority for design documents.' : 'Designate as the sole Design Engineering release authority.'}</div></div>{isSuperAdmin && <Button variant={employee.isDesignHead ? 'destructive' : 'outline'} disabled={designating} onClick={()=>setDesignHead(!employee.isDesignHead)}>{employee.isDesignHead ? 'Revoke Design Head' : 'Designate as Design Head'}</Button>}</CardContent></Card>
       )}
 
       {/* Force password reset — Admin/SuperAdmin, for another employee who has
           login access. Generates a one-time password + forces change + kills
           their sessions. */}
       {canDesignate && employee.id !== user?.sub && (
-        <Card className="my-4 max-w-xl">
+        <Card className="mb-4">
           <CardContent className="flex items-center justify-between gap-4 p-4">
             <div className="text-sm">
               <div className="font-medium">Reset password</div>
@@ -649,31 +725,13 @@ export default function EditEmployeePage() {
         </DialogContent>
       </Dialog>
 
-      <EmployeeForm
-        mode="edit"
-        initial={{
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          email: employee.email,
-          // Pass the true role (including SUPER_ADMIN) so the form can lock it
-          // rather than silently downgrading the CEO to ADMIN on save.
-          role: employee.role ?? 'EMPLOYEE',
-          verticalId: employee.verticalId ?? '',
-          reportingManagerId: employee.reportingManagerId ?? '',
-          designation: employee.designation ?? '',
-          employmentType: employee.employmentType ?? undefined,
-          workLocation: employee.workLocation ?? '',
-        }}
-        verticals={verticals}
-        candidateManagers={candidateManagers}
-        onSubmit={handleSubmit}
-        submitLabel="Save changes"
-      />
+      {/* Lifecycle — offboard/reactivate + permanent delete. */}
+      <h2 className="mb-3 mt-8 text-lg font-semibold">Lifecycle</h2>
 
       {/* Offboarding — soft deactivate/reactivate (Admin/SUPER_ADMIN). The
           safe, reversible way to remove someone who is leaving; preserves their
           records (unlike permanent delete below). */}
-      <Card className="my-4 max-w-xl">
+      <Card className="mb-4">
         <CardContent className="flex items-center justify-between gap-4 p-4">
           <div className="text-sm">
             <div className="font-medium">
@@ -699,7 +757,7 @@ export default function EditEmployeePage() {
       {/* Permanent delete — SUPER_ADMIN only. The backend refuses if the
           employee still owns reports or business records. */}
       {isSuperAdmin && (
-        <Card className="my-4 max-w-xl border-destructive/40">
+        <Card className="mb-4 border-destructive/40">
           <CardContent className="flex items-center justify-between gap-4 p-4">
             <div className="text-sm">
               <div className="font-medium">Delete permanently</div>
@@ -714,6 +772,6 @@ export default function EditEmployeePage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageContainer>
   );
 }

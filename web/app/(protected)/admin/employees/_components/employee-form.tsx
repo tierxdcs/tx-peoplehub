@@ -3,6 +3,11 @@
 import { useMemo, useState } from 'react';
 import { Employee, EmploymentType, Vertical } from '../../../../lib/types';
 import { Role } from '../../../../lib/jwt';
+import { Card, CardContent } from '../../../../components/ui/card';
+import { Input } from '../../../../components/ui/input';
+import { Select } from '../../../../components/ui/select';
+import { Field } from '../../../../components/ui/field';
+import { Button } from '../../../../components/ui/button';
 
 export interface EmployeeFormValues {
   firstName: string;
@@ -62,9 +67,7 @@ export function EmployeeForm({
   // one without silently downgrading them.
   const isSuperAdmin = role === 'SUPER_ADMIN';
   const [verticalId, setVerticalId] = useState(initial?.verticalId ?? '');
-  const [managerId, setManagerId] = useState(
-    initial?.reportingManagerId ?? '',
-  );
+  const [managerId, setManagerId] = useState(initial?.reportingManagerId ?? '');
   const [designation, setDesignation] = useState(initial?.designation ?? '');
   const [employmentType, setEmploymentType] = useState<EmploymentType | ''>(
     initial?.employmentType ?? '',
@@ -75,8 +78,7 @@ export function EmployeeForm({
   const [submitting, setSubmitting] = useState(false);
 
   // Client-side convenience only: same-vertical managers surface first, but
-  // this is not a backend-enforced constraint (an admin could still call the
-  // API directly with a cross-vertical manager).
+  // this is not a backend-enforced constraint.
   const managerOptions = useMemo(() => {
     const bySearch = candidateManagers.filter((m) => {
       const haystack = `${m.firstName} ${m.lastName} ${m.email}`.toLowerCase();
@@ -93,8 +95,7 @@ export function EmployeeForm({
     e.preventDefault();
     setError(null);
 
-    // SUPER_ADMIN is exempt from vertical/manager (matches the backend rule);
-    // every other role must have both.
+    // SUPER_ADMIN is exempt from vertical/manager (matches the backend rule).
     if (!isSuperAdmin) {
       if (!verticalId) {
         setError('Vertical is required');
@@ -114,8 +115,6 @@ export function EmployeeForm({
         email,
         ...(mode === 'create' ? { password } : {}),
         role,
-        // Omit entirely for a SUPER_ADMIN so the API doesn't get an empty
-        // string where it expects a UUID or nothing.
         ...(verticalId ? { verticalId } : {}),
         ...(managerId ? { reportingManagerId: managerId } : {}),
         ...(designation.trim() ? { designation: designation.trim() } : {}),
@@ -130,165 +129,130 @@ export function EmployeeForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ maxWidth: 480 }}>
-      <Field label="First name">
-        <input
-          value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
-          required
-          style={inputStyle}
-        />
-      </Field>
-      <Field label="Last name">
-        <input
-          value={lastName}
-          onChange={(e) => setLastName(e.target.value)}
-          required
-          style={inputStyle}
-        />
-      </Field>
-      <Field label="Email">
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          style={inputStyle}
-        />
-      </Field>
-      {mode === 'create' && (
-        <Field label="Initial password">
-          <input
-            type="text"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-            style={inputStyle}
-          />
-        </Field>
-      )}
-      <Field label="Role">
-        {isSuperAdmin ? (
-          // The CEO/SUPER_ADMIN role can't be reassigned from this form —
-          // showing it disabled prevents a silent downgrade to ADMIN.
-          <select value="SUPER_ADMIN" disabled style={inputStyle}>
-            <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-          </select>
-        ) : (
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as Role & typeof role)}
-            style={inputStyle}
-          >
-            {ASSIGNABLE_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        )}
-      </Field>
-      {!isSuperAdmin && (
-        <>
-          <Field label="Vertical">
-            <select
-              value={verticalId}
-              onChange={(e) => setVerticalId(e.target.value)}
-              required
-              style={inputStyle}
-            >
-              <option value="">Select a vertical…</option>
-              {verticals.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            </select>
+    <form onSubmit={handleSubmit}>
+      <Card>
+        <CardContent className="space-y-4 p-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="First name" required>
+              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+            </Field>
+            <Field label="Last name" required>
+              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+            </Field>
+          </div>
+
+          <Field label="Email" required>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </Field>
-          <Field label="Reporting manager">
-            <input
-              placeholder="Filter by name or email"
-              value={managerSearch}
-              onChange={(e) => setManagerSearch(e.target.value)}
-              style={{ ...inputStyle, marginBottom: 6 }}
+
+          {mode === 'create' && (
+            <Field label="Initial password" hint="Minimum 8 characters">
+              <Input
+                type="text"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+              />
+            </Field>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Role">
+              {isSuperAdmin ? (
+                // The CEO/SUPER_ADMIN role can't be reassigned here — locked to
+                // prevent a silent downgrade to ADMIN.
+                <Select value="SUPER_ADMIN" disabled>
+                  <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                </Select>
+              ) : (
+                <Select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as Role & typeof role)}
+                >
+                  {ASSIGNABLE_ROLES.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            {!isSuperAdmin && (
+              <Field label="Vertical" required>
+                <Select
+                  value={verticalId}
+                  onChange={(e) => setVerticalId(e.target.value)}
+                  required
+                >
+                  <option value="">Select a vertical…</option>
+                  {verticals.map((v) => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </Select>
+              </Field>
+            )}
+          </div>
+
+          {!isSuperAdmin && (
+            <Field label="Reporting manager" required>
+              <Input
+                placeholder="Filter by name or email"
+                value={managerSearch}
+                onChange={(e) => setManagerSearch(e.target.value)}
+                className="mb-2"
+              />
+              <Select
+                value={managerId}
+                onChange={(e) => setManagerId(e.target.value)}
+                required
+              >
+                <option value="">Select a manager…</option>
+                {managerOptions.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.firstName} {m.lastName} ({m.employeeId}, {m.role})
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Designation">
+              <Input
+                value={designation}
+                onChange={(e) => setDesignation(e.target.value)}
+                placeholder="e.g. Senior Design Engineer"
+              />
+            </Field>
+            <Field label="Employment type">
+              <Select
+                value={employmentType}
+                onChange={(e) => setEmploymentType(e.target.value as EmploymentType | '')}
+              >
+                <option value="">Not set</option>
+                {EMPLOYMENT_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+
+          <Field label="Work location">
+            <Input
+              value={workLocation}
+              onChange={(e) => setWorkLocation(e.target.value)}
+              placeholder="e.g. Bengaluru"
             />
-            <select
-              value={managerId}
-              onChange={(e) => setManagerId(e.target.value)}
-              required
-              style={inputStyle}
-            >
-              <option value="">Select a manager…</option>
-              {managerOptions.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.firstName} {m.lastName} ({m.employeeId}, {m.role})
-                </option>
-              ))}
-            </select>
           </Field>
-        </>
-      )}
 
-      <Field label="Designation">
-        <input
-          value={designation}
-          onChange={(e) => setDesignation(e.target.value)}
-          placeholder="e.g. Senior Design Engineer"
-          style={inputStyle}
-        />
-      </Field>
-      <Field label="Employment type">
-        <select
-          value={employmentType}
-          onChange={(e) =>
-            setEmploymentType(e.target.value as EmploymentType | '')
-          }
-          style={inputStyle}
-        >
-          <option value="">Not set</option>
-          {EMPLOYMENT_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Work location">
-        <input
-          value={workLocation}
-          onChange={(e) => setWorkLocation(e.target.value)}
-          placeholder="e.g. Bengaluru"
-          style={inputStyle}
-        />
-      </Field>
+          {error && <p className="text-sm font-medium text-destructive">{error}</p>}
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
-
-      <button type="submit" disabled={submitting} style={{ padding: 8 }}>
-        {submitting ? 'Saving…' : submitLabel}
-      </button>
+          <div className="flex justify-end border-t pt-4">
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Saving…' : submitLabel}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </form>
   );
 }
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <label style={{ display: 'block', marginBottom: 4 }}>{label}</label>
-      {children}
-    </div>
-  );
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: 8,
-  boxSizing: 'border-box',
-};

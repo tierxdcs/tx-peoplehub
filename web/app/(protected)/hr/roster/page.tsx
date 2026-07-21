@@ -202,7 +202,15 @@ export default function RosterPage() {
                       <TableCell>{e.employmentType ?? '—'}</TableCell>
                       <TableCell>{e.workLocation ?? '—'}</TableCell>
                       <TableCell>
-                        <StatusBadge value={e.accessStatus} />
+                        {/* An offboarded (status INACTIVE) employee can't log in
+                            regardless of accessStatus — login requires BOTH to
+                            be ACTIVE — so surface INACTIVE here rather than a
+                            stale "Active" access badge. */}
+                        <StatusBadge
+                          value={
+                            e.status === 'INACTIVE' ? 'INACTIVE' : e.accessStatus
+                          }
+                        />
                       </TableCell>
                       {isAdmin && (
                         <TableCell>
