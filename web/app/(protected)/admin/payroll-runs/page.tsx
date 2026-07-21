@@ -1,31 +1,40 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { CalendarRange } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { PayrollRun } from '../../../lib/types';
+import { PageContainer } from '../../../components/ui/page-container';
+import { PageHeader } from '../../../components/ui/page-header';
+import { Card, CardContent } from '../../../components/ui/card';
+import { Button } from '../../../components/ui/button';
+import { Select } from '../../../components/ui/select';
+import { Field } from '../../../components/ui/field';
+import { Input } from '../../../components/ui/input';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { StatusBadge } from '../../../components/ui/status-badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../components/ui/table';
 
 const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
 ];
-
-const fieldStyle: React.CSSProperties = {
-  width: '100%',
-  padding: 8,
-  boxSizing: 'border-box',
-};
 
 export default function PayrollRunsPage() {
   const [runs, setRuns] = useState<PayrollRun[]>([]);
@@ -38,8 +47,7 @@ export default function PayrollRunsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch<PayrollRun[]>('/payroll-runs');
-      setRuns(res);
+      setRuns(await apiFetch<PayrollRun[]>('/payroll-runs'));
     } catch {
       setError('Failed to load payroll runs');
     } finally {
@@ -52,55 +60,69 @@ export default function PayrollRunsPage() {
   }, [load]);
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <h1>Payroll Runs</h1>
-        <button style={{ padding: '8px 16px' }} onClick={() => setShowForm(true)}>
-          New Payroll Run
-        </button>
-      </div>
+    <PageContainer className="max-w-3xl">
+      <PageHeader
+        title="Payroll Runs"
+        description="Monthly payroll cycles. Process to generate payslips, then lock to finalize."
+        action={<Button onClick={() => setShowForm(true)}>New Payroll Run</Button>}
+      />
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
-      {loading ? (
-        <p>Loading…</p>
-      ) : runs.length === 0 ? (
-        <p>No payroll runs yet.</p>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
-              <th>Period</th>
-              <th>Status</th>
-              <th>Processed</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((r) => (
-              <tr key={r.id} style={{ borderBottom: '1px solid #eee' }}>
-                <td>
-                  {MONTH_NAMES[r.month - 1]} {r.year}
-                </td>
-                <td>{r.status}</td>
-                <td>
-                  {r.processedAt
-                    ? new Date(r.processedAt).toLocaleString()
-                    : '—'}
-                </td>
-                <td>
-                  <Link href={`/admin/payroll-runs/${r.id}`}>View</Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="space-y-2 p-6">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : runs.length === 0 ? (
+            <EmptyState
+              icon={CalendarRange}
+              title="No payroll runs yet"
+              description="Create a run for a month to begin generating payslips."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Period</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Processed</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {runs.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-medium">
+                      {MONTH_NAMES[r.month - 1]} {r.year}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge value={r.status} />
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.processedAt
+                        ? new Date(r.processedAt).toLocaleString()
+                        : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push(`/admin/payroll-runs/${r.id}`)}
+                      >
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {showForm && (
         <NewRunForm
@@ -111,7 +133,7 @@ export default function PayrollRunsPage() {
           }}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }
 
@@ -139,7 +161,6 @@ function NewRunForm({
       });
       onCreated(run);
     } catch (err) {
-      // Surface the backend's specific duplicate-month/year message verbatim.
       setError(err instanceof ApiError ? err.message : 'Failed to create run');
     } finally {
       setSubmitting(false);
@@ -147,60 +168,33 @@ function NewRunForm({
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-      onClick={onClose}
-    >
-      <form
-        onSubmit={handleSubmit}
-        style={{ background: '#fff', padding: 24, borderRadius: 6, width: 320 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2>New Payroll Run</h2>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Month</label>
-          <select
-            value={month}
-            onChange={(e) => setMonth(Number(e.target.value))}
-            style={fieldStyle}
-          >
-            {MONTH_NAMES.map((name, i) => (
-              <option key={name} value={i + 1}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Year</label>
-          <input
-            type="number"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            style={fieldStyle}
-          />
-        </div>
-
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="submit" disabled={submitting} style={{ padding: 8 }}>
-            {submitting ? 'Creating…' : 'Create'}
-          </button>
-          <button type="button" onClick={onClose} style={{ padding: 8 }}>
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>New Payroll Run</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Field label="Month">
+            <Select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+              {MONTH_NAMES.map((name, i) => (
+                <option key={name} value={i + 1}>{name}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Year">
+            <Input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} />
+          </Field>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Creating…' : 'Create'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

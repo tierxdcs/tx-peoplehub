@@ -1,87 +1,65 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 import { apiFetch } from '../../../../../../lib/api';
 import { Employee, Payslip } from '../../../../../../lib/types';
+import { formatINR } from '../../../../../../lib/sales';
+import { PageContainer } from '../../../../../../components/ui/page-container';
+import { Card, CardContent, CardHeader, CardTitle } from '../../../../../../components/ui/card';
+import { Skeleton } from '../../../../../../components/ui/skeleton';
 
+/** One label/value line in an earnings/deductions list. */
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <tr style={{ borderBottom: '1px solid #eee' }}>
-      <td style={{ padding: '6px 12px 6px 0', color: '#666' }}>{label}</td>
-      <td style={{ padding: '6px 0', fontWeight: 'bold' }}>{value}</td>
-    </tr>
+    <div className="flex items-center justify-between border-b py-2 text-sm last:border-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium">{value}</span>
+    </div>
   );
 }
 
 /**
  * The statutoryConfigSnapshot shape is whatever
- * PayrollComputationService.buildSnapshot() wrote at generation time — see
- * that method for the exact keys (pf/esi/tdsSlab/standardDeduction/
- * professionalTax), each holding a full StatutoryConfig row (or null).
- * Rendered generically here rather than destructured field-by-field so it
- * stays correct if the snapshot's shape evolves.
+ * PayrollComputationService.buildSnapshot() wrote at generation time. Rendered
+ * generically so it stays correct if the snapshot's shape evolves.
  */
-function ConfigSnapshotCard({
-  label,
-  config,
-}: {
-  label: string;
-  config: unknown;
-}) {
+function ConfigSnapshotCard({ label, config }: { label: string; config: unknown }) {
   if (!config || typeof config !== 'object') {
     return (
-      <div
-        style={{
-          border: '1px solid #ccc',
-          borderRadius: 6,
-          padding: 12,
-          minWidth: 220,
-        }}
-      >
-        <div style={{ fontWeight: 'bold' }}>{label}</div>
-        <div style={{ color: '#666', marginTop: 8 }}>Not applicable</div>
-      </div>
+      <Card>
+        <CardContent className="p-4">
+          <div className="font-medium">{label}</div>
+          <div className="mt-2 text-sm text-muted-foreground">Not applicable</div>
+        </CardContent>
+      </Card>
     );
   }
   const c = config as Record<string, unknown>;
   return (
-    <div
-      style={{
-        border: '1px solid #ccc',
-        borderRadius: 6,
-        padding: 12,
-        minWidth: 260,
-      }}
-    >
-      <div style={{ fontWeight: 'bold' }}>{label}</div>
-      <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-        Effective {String(c.effectiveFrom ?? '').slice(0, 10)}
-        {c.effectiveTo ? ` → ${String(c.effectiveTo).slice(0, 10)}` : ' (open-ended)'}
-        {c.state ? ` — ${c.state}` : ''}
-      </div>
-      <pre
-        style={{
-          background: '#f7f7f7',
-          padding: 8,
-          borderRadius: 4,
-          fontSize: 12,
-          marginTop: 8,
-          overflowX: 'auto',
-        }}
-      >
-        {JSON.stringify(c.configData ?? {}, null, 2)}
-      </pre>
-      <div style={{ fontSize: 12, color: '#666' }}>
-        Source: {String(c.sourceNote ?? '—')}
-      </div>
-    </div>
+    <Card>
+      <CardContent className="p-4">
+        <div className="font-medium">{label}</div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          Effective {String(c.effectiveFrom ?? '').slice(0, 10)}
+          {c.effectiveTo ? ` → ${String(c.effectiveTo).slice(0, 10)}` : ' (open-ended)'}
+          {c.state ? ` — ${c.state}` : ''}
+        </div>
+        <pre className="mt-2 overflow-x-auto rounded-md bg-muted p-2 text-xs">
+          {JSON.stringify(c.configData ?? {}, null, 2)}
+        </pre>
+        <div className="mt-2 text-xs text-muted-foreground">
+          Source: {String(c.sourceNote ?? '—')}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
 export default function PayslipDetailPage() {
   const { id, payslipId } = useParams<{ id: string; payslipId: string }>();
+  const router = useRouter();
   const [payslip, setPayslip] = useState<Payslip | null>(null);
   const [employeeName, setEmployeeName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,87 +80,93 @@ export default function PayslipDetailPage() {
       .finally(() => setLoading(false));
   }, [payslipId]);
 
-  if (loading) return <p>Loading…</p>;
-  if (error || !payslip) return <p style={{ color: 'crimson' }}>{error}</p>;
+  if (loading) {
+    return (
+      <PageContainer className="max-w-4xl">
+        <Skeleton className="mb-4 h-6 w-24" />
+        <Skeleton className="mb-6 h-9 w-64" />
+        <Skeleton className="h-64 w-full" />
+      </PageContainer>
+    );
+  }
+  if (error || !payslip) {
+    return (
+      <PageContainer className="max-w-4xl">
+        <p className="text-destructive">{error ?? 'Payslip not found.'}</p>
+      </PageContainer>
+    );
+  }
 
   const snapshot = payslip.statutoryConfigSnapshot as Record<string, unknown>;
 
   return (
-    <div>
-      <p>
-        <Link href={`/admin/payroll-runs/${id}`}>← Back to run</Link>
-      </p>
-      <h1>Payslip — {employeeName ?? payslip.employeeId}</h1>
-
-      <h2>Earnings</h2>
-      <table style={{ marginBottom: 24 }}>
-        <tbody>
-          <Row label="Basic" value={payslip.basicPaid} />
-          <Row label="HRA" value={payslip.hraPaid} />
-          <Row label="Special allowance" value={payslip.specialAllowancePaid} />
-          <Row label="Other allowances" value={payslip.otherAllowancesPaid} />
-          <Row label="Gross earnings" value={payslip.grossEarnings} />
-        </tbody>
-      </table>
-
-      <h2>Deductions</h2>
-      <table style={{ marginBottom: 24 }}>
-        <tbody>
-          <Row label="PF (employee)" value={payslip.pfEmployee} />
-          <Row label="PF (employer)" value={payslip.pfEmployer} />
-          <Row
-            label="ESI (employee)"
-            value={payslip.esiEmployee ?? 'N/A'}
-          />
-          <Row
-            label="ESI (employer)"
-            value={payslip.esiEmployer ?? 'N/A'}
-          />
-          <Row
-            label="Professional Tax"
-            value={payslip.professionalTax ?? 'N/A'}
-          />
-          <Row label="TDS" value={payslip.tdsDeducted} />
-          <Row
-            label="Unpaid leave deduction"
-            value={payslip.unpaidLeaveDeduction}
-          />
-        </tbody>
-      </table>
-
-      <h2>Net Pay</h2>
-      <p style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 24 }}>
-        {payslip.netPay}
-      </p>
-
-      <h2>Statutory Config Snapshot</h2>
-      <p style={{ color: '#666', maxWidth: 700 }}>
-        The exact StatutoryConfig rows applied when this payslip was
-        generated — frozen at generation time, so a later config change can
-        never retroactively alter what this payslip&rsquo;s numbers mean.
-        This is the view a CA/compliance reviewer needs to verify the
-        computation.
-      </p>
-      <div
-        style={{
-          display: 'flex',
-          gap: 12,
-          flexWrap: 'wrap',
-          marginTop: 12,
-        }}
+    <PageContainer className="max-w-4xl">
+      <button
+        onClick={() => router.push(`/admin/payroll-runs/${id}`)}
+        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ConfigSnapshotCard label="PF" config={snapshot.pf} />
-        <ConfigSnapshotCard label="ESI" config={snapshot.esi} />
-        <ConfigSnapshotCard
-          label="Professional Tax"
-          config={snapshot.professionalTax}
-        />
-        <ConfigSnapshotCard label="TDS Slabs" config={snapshot.tdsSlab} />
-        <ConfigSnapshotCard
-          label="Standard Deduction"
-          config={snapshot.standardDeduction}
-        />
+        <ArrowLeft className="size-4" /> Back to run
+      </button>
+
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight">
+        Payslip — {employeeName ?? payslip.employeeId}
+      </h1>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Earnings</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <Row label="Basic" value={formatINR(payslip.basicPaid)} />
+            <Row label="HRA" value={formatINR(payslip.hraPaid)} />
+            <Row label="Special allowance" value={formatINR(payslip.specialAllowancePaid)} />
+            <Row label="Other allowances" value={formatINR(payslip.otherAllowancesPaid)} />
+            <Row label="Gross earnings" value={formatINR(payslip.grossEarnings)} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Deductions</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <Row label="PF (employee)" value={formatINR(payslip.pfEmployee)} />
+            <Row label="PF (employer)" value={formatINR(payslip.pfEmployer)} />
+            <Row label="ESI (employee)" value={payslip.esiEmployee ? formatINR(payslip.esiEmployee) : 'N/A'} />
+            <Row label="ESI (employer)" value={payslip.esiEmployer ? formatINR(payslip.esiEmployer) : 'N/A'} />
+            <Row label="Professional Tax" value={payslip.professionalTax ? formatINR(payslip.professionalTax) : 'N/A'} />
+            <Row label="TDS" value={formatINR(payslip.tdsDeducted)} />
+            <Row label="Unpaid leave deduction" value={formatINR(payslip.unpaidLeaveDeduction)} />
+          </CardContent>
+        </Card>
       </div>
-    </div>
+
+      <Card className="mt-6">
+        <CardContent className="flex items-center justify-between p-6">
+          <span className="text-sm uppercase tracking-wide text-muted-foreground">
+            Net Pay
+          </span>
+          <span className="text-3xl font-semibold">{formatINR(payslip.netPay)}</span>
+        </CardContent>
+      </Card>
+
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold">Statutory Config Snapshot</h2>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+          The exact StatutoryConfig rows applied when this payslip was generated
+          — frozen at generation time, so a later config change can never
+          retroactively alter what these numbers mean. This is the view a
+          CA/compliance reviewer needs to verify the computation.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ConfigSnapshotCard label="PF" config={snapshot.pf} />
+          <ConfigSnapshotCard label="ESI" config={snapshot.esi} />
+          <ConfigSnapshotCard label="Professional Tax" config={snapshot.professionalTax} />
+          <ConfigSnapshotCard label="TDS Slabs" config={snapshot.tdsSlab} />
+          <ConfigSnapshotCard label="Standard Deduction" config={snapshot.standardDeduction} />
+        </div>
+      </div>
+    </PageContainer>
   );
 }

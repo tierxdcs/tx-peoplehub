@@ -482,13 +482,19 @@ export class EmployeesService {
     query: RosterQueryDto,
     currentUser: AuthenticatedUser,
   ): Promise<PaginatedResult<EmployeeRosterEntity>> {
-    const isAdmin =
-      currentUser.role === Role.ADMIN || currentUser.role === Role.SUPER_ADMIN;
-    if (!isAdmin && !(await this.isHrStaff(currentUser))) {
-      throw new ForbiddenException(
-        'Only HR-vertical staff or Admins may view the roster',
-      );
+    if (!(await this.isHrStaff(currentUser))) {
+      const isAdminRole =
+        currentUser.role === Role.ADMIN ||
+        currentUser.role === Role.SUPER_ADMIN;
+      if (!isAdminRole) {
+        throw new ForbiddenException(
+          'Only HR-vertical staff or Admins may view the roster',
+        );
+      }
     }
+    // Admins AND HR Managers get the richer shape (sensitive-info completeness
+    // flags + row actions). Plain HR employees get the lean roster.
+    const isAdmin = await this.isAdminOrHrManager(currentUser);
 
     const where = {
       ...(query.verticalId ? { verticalId: query.verticalId } : {}),
@@ -1015,6 +1021,17 @@ export class EmployeesService {
       where: { id: user.verticalId },
     });
     return vertical?.code === 'HR';
+  }
+
+  /** HR Manager = an HR-vertical staff member with the MANAGER role. */
+  private async isHrManager(user: AuthenticatedUser): Promise<boolean> {
+    return user.role === Role.MANAGER && (await this.isHrStaff(user));
+  }
+
+  /** Admin/SuperAdmin OR an HR Manager — the audience for HR admin functions. */
+  private async isAdminOrHrManager(user: AuthenticatedUser): Promise<boolean> {
+    if (user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN) return true;
+    return this.isHrManager(user);
   }
 
   /**

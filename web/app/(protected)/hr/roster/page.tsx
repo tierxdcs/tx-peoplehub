@@ -29,11 +29,19 @@ import {
 } from '../../../components/ui/table';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { SensitiveDetailPanel } from './_components/sensitive-detail-panel';
+import { useIsHrStaff } from '../../../lib/use-is-hr-staff';
 
 export default function RosterPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const { isHrStaff } = useIsHrStaff();
+  // HR Managers get the same roster capabilities as Admins here: the Sensitive
+  // Info column, "View sensitive details", and Edit. The backend enforces the
+  // identical "Admin or HR Manager" rule on every endpoint these use.
+  const isAdmin =
+    user?.role === 'ADMIN' ||
+    user?.role === 'SUPER_ADMIN' ||
+    (isHrStaff && user?.role === 'MANAGER');
 
   const [items, setItems] = useState<(EmployeeRoster | EmployeeRosterAdmin)[]>(
     [],

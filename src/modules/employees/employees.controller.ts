@@ -129,22 +129,27 @@ export class EmployeesController {
     return this.employeesService.findOne(id, user);
   }
 
+  // Edit + offboard: ADMIN/SUPER_ADMIN or an HR-vertical MANAGER (the
+  // method-level guard re-narrows the broadened @Roles to HR managers).
   @Patch(':id')
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+  @UseGuards(HrManagerOrAdminGuard)
   @ApiOperation({ summary: 'Update an employee' })
   update(@Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
     return this.employeesService.update(id, dto);
   }
 
   @Patch(':id/deactivate')
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+  @UseGuards(HrManagerOrAdminGuard)
   @ApiOperation({ summary: 'Deactivate an employee (soft delete)' })
   deactivate(@Param('id') id: string) {
     return this.employeesService.deactivate(id);
   }
 
   @Patch(':id/reactivate')
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+  @UseGuards(HrManagerOrAdminGuard)
   @ApiOperation({
     summary:
       'Reactivate a deactivated employee — restores login with existing role/vertical/manager (not a re-hire)',
@@ -330,23 +335,28 @@ export class EmployeesController {
     return this.employeesService.getTeam(id, user);
   }
 
+  // Sensitive PII: ADMIN/SUPER_ADMIN or an HR-vertical MANAGER. Every read is
+  // audit-logged. The method-level guard re-narrows the broadened @Roles.
   @Get(':id/compensation')
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
-  @ApiOperation({ summary: 'View salary/HRA (Admin only)' })
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+  @UseGuards(HrManagerOrAdminGuard)
+  @ApiOperation({ summary: 'View salary/HRA (Admin or HR Manager)' })
   getCompensation(@Param('id') id: string) {
     return this.employeesService.getCompensation(id);
   }
 
   @Get(':id/statutory')
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
-  @ApiOperation({ summary: 'View PAN/PF/ESIC (Admin only, decrypted)' })
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+  @UseGuards(HrManagerOrAdminGuard)
+  @ApiOperation({ summary: 'View PAN/PF/ESIC (Admin or HR Manager, decrypted)' })
   getStatutory(@Param('id') id: string) {
     return this.employeesService.getStatutory(id);
   }
 
   @Get(':id/bank-details')
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
-  @ApiOperation({ summary: 'View bank details (Admin only, decrypted)' })
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+  @UseGuards(HrManagerOrAdminGuard)
+  @ApiOperation({ summary: 'View bank details (Admin or HR Manager, decrypted)' })
   getBankDetails(@Param('id') id: string) {
     return this.employeesService.getBankDetails(id);
   }

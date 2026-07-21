@@ -1,35 +1,39 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import { ArrowLeft, Lock } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { Employee, PayrollRun, Payslip } from '../../../../lib/types';
+import { formatINR } from '../../../../lib/sales';
+import { PageContainer } from '../../../../components/ui/page-container';
+import { Card, CardContent } from '../../../../components/ui/card';
+import { Button } from '../../../../components/ui/button';
+import { Skeleton } from '../../../../components/ui/skeleton';
+import { EmptyState } from '../../../../components/ui/empty-state';
+import { StatusBadge } from '../../../../components/ui/status-badge';
 import { useConfirm } from '../../../../components/ui/confirm';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../../components/ui/table';
 
 const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
 export default function PayrollRunDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const confirm = useConfirm();
   const [run, setRun] = useState<PayrollRun | null>(null);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
-  const [employeeNames, setEmployeeNames] = useState<Record<string, string>>(
-    {},
-  );
+  const [employeeNames, setEmployeeNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -89,9 +93,6 @@ export default function PayrollRunDetailPage() {
       await load();
     } catch (err) {
       if (err instanceof ApiError && /StatutoryConfig/i.test(err.message)) {
-        // This is a deliberate safety check, not a bug — surface the
-        // backend's exact missing-config list rather than a generic
-        // failure, per the spec's explicit requirement.
         setProcessError(
           `Statutory configuration incomplete — cannot process payroll. ${err.message}`,
         );
@@ -127,93 +128,157 @@ export default function PayrollRunDetailPage() {
     }
   }
 
-  if (loading) return <p>Loading…</p>;
-  if (error || !run) return <p style={{ color: 'crimson' }}>{error}</p>;
+  if (loading) {
+    return (
+      <PageContainer className="max-w-4xl">
+        <Skeleton className="mb-4 h-6 w-24" />
+        <Skeleton className="mb-6 h-9 w-64" />
+        <Skeleton className="h-40 w-full" />
+      </PageContainer>
+    );
+  }
+  if (error || !run) {
+    return (
+      <PageContainer className="max-w-4xl">
+        <p className="text-destructive">{error ?? 'Payroll run not found.'}</p>
+      </PageContainer>
+    );
+  }
 
   return (
-    <div>
-      <h1>
-        Payroll Run — {MONTH_NAMES[run.month - 1]} {run.year}
-      </h1>
+    <PageContainer className="max-w-4xl">
+      <button
+        onClick={() => router.push('/admin/payroll-runs')}
+        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" /> Payroll Runs
+      </button>
 
-      <dl>
-        <dt>Status</dt>
-        <dd>{run.status}</dd>
-        <dt>Processed at</dt>
-        <dd>{run.processedAt ? new Date(run.processedAt).toLocaleString() : '—'}</dd>
-        <dt>Locked at</dt>
-        <dd>{run.lockedAt ? new Date(run.lockedAt).toLocaleString() : '—'}</dd>
-      </dl>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {MONTH_NAMES[run.month - 1]} {run.year}
+        </h1>
+        <StatusBadge value={run.status} />
+      </div>
+
+      <Card className="mb-6">
+        <CardContent className="grid gap-6 p-6 sm:grid-cols-3">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              Status
+            </div>
+            <div className="mt-1"><StatusBadge value={run.status} /></div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              Processed at
+            </div>
+            <div className="mt-1 text-sm font-medium">
+              {run.processedAt ? new Date(run.processedAt).toLocaleString() : '—'}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              Locked at
+            </div>
+            <div className="mt-1 text-sm font-medium">
+              {run.lockedAt ? new Date(run.lockedAt).toLocaleString() : '—'}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {run.status === 'DRAFT' && (
-        <div style={{ marginBottom: 24 }}>
-          <button
-            onClick={handleProcess}
-            disabled={processing}
-            style={{ padding: '10px 20px' }}
-          >
-            {processing ? 'Processing… (scanning all active employees)' : 'Process'}
-          </button>
-          {processError && (
-            <p style={{ color: 'crimson', maxWidth: 600 }}>{processError}</p>
-          )}
-        </div>
+        <Card className="mb-6">
+          <CardContent className="flex flex-col gap-3 p-6">
+            <p className="text-sm text-muted-foreground">
+              Generate payslips for all active employees using the current
+              statutory config.
+            </p>
+            <div>
+              <Button onClick={handleProcess} disabled={processing}>
+                {processing ? 'Processing…' : 'Process Payroll'}
+              </Button>
+            </div>
+            {processError && (
+              <p className="max-w-xl text-sm text-destructive">{processError}</p>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {run.status === 'PROCESSING' && (
-        <p style={{ color: '#666' }}>Processing is in progress…</p>
+        <Card className="mb-6">
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            Processing is in progress…
+          </CardContent>
+        </Card>
       )}
 
       {(run.status === 'COMPLETED' || run.status === 'LOCKED') && (
         <>
-          {run.status === 'COMPLETED' && (
-            <div style={{ marginBottom: 16 }}>
-              <button onClick={handleLock} disabled={locking}>
-                {locking ? 'Locking…' : 'Lock Run'}
-              </button>
-            </div>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Payslips</h2>
+            {run.status === 'COMPLETED' && (
+              <Button variant="outline" size="sm" onClick={handleLock} disabled={locking}>
+                <Lock className="size-4" /> {locking ? 'Locking…' : 'Lock Run'}
+              </Button>
+            )}
+            {run.status === 'LOCKED' && (
+              <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Lock className="size-4" /> Locked — cannot be edited
+              </span>
+            )}
+          </div>
+          {processError && (
+            <p className="mb-3 text-sm text-destructive">{processError}</p>
           )}
-          {run.status === 'LOCKED' && (
-            <p style={{ color: '#a00' }}>
-              This run is locked and cannot be edited.
-            </p>
-          )}
-
-          <h2>Payslips</h2>
-          {payslips.length === 0 ? (
-            <p>No payslips.</p>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
-                  <th>Employee</th>
-                  <th>Gross</th>
-                  <th>Net Pay</th>
-                  <th>Status</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {payslips.map((p) => (
-                  <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
-                    <td>{employeeNames[p.employeeId] ?? '…'}</td>
-                    <td>{p.grossEarnings}</td>
-                    <td>{p.netPay}</td>
-                    <td>{p.status}</td>
-                    <td>
-                      <Link
-                        href={`/admin/payroll-runs/${run.id}/payslips/${p.id}`}
-                      >
-                        View detail
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          <Card>
+            <CardContent className="p-0">
+              {payslips.length === 0 ? (
+                <EmptyState title="No payslips" />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee</TableHead>
+                      <TableHead className="text-right">Gross</TableHead>
+                      <TableHead className="text-right">Net Pay</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {payslips.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="font-medium">
+                          {employeeNames[p.employeeId] ?? '…'}
+                        </TableCell>
+                        <TableCell className="text-right">{formatINR(p.grossEarnings)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatINR(p.netPay)}</TableCell>
+                        <TableCell><StatusBadge value={p.status} /></TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              router.push(
+                                `/admin/payroll-runs/${run.id}/payslips/${p.id}`,
+                              )
+                            }
+                          >
+                            View detail
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }
