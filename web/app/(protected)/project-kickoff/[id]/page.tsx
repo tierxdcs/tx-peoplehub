@@ -273,7 +273,7 @@ export default function KickoffDetailPage() {
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
             <div className="flex-1">
               <p className="font-medium">
-                This kickoff's meeting date has passed — mark it as completed?
+                This kickoff&apos;s meeting date has passed — mark it as completed?
               </p>
             </div>
             {canManageStatus && (
