@@ -7,7 +7,6 @@ import {
 import {
   BomEventType,
   BomStatus,
-  ItemType,
   NotificationType,
   Prisma,
   SupplierStatus,
@@ -284,10 +283,10 @@ export class BomService {
       );
     }
 
-    // Release gates (both throw with a clear message rather than releasing):
-    //  1. Supplier hard-gate — every RAW_MATERIAL line needs a qualified supplier.
-    //  2. Cycle safety — the released tree must explode without a cycle.
-    await this.assertRawMaterialsQualified(id);
+    // Release gate: the released tree must explode without a cycle. (The
+    // qualified-supplier hard-gate was removed — linking a supplier to a raw
+    // material remains possible via Item Suppliers, just never required to
+    // release a BOM.)
     await this.assertNoReleaseCycle(bom.itemId, id);
 
     const signer = await this.prisma.employee.findUnique({
@@ -496,46 +495,6 @@ export class BomService {
   }
 
   // ── Release gates ────────────────────────────────────────────────────
-  /**
-   * Supplier hard-gate: every RAW_MATERIAL line on this BOM revision must
-   * reference an Item that has at least one qualified (APPROVED /
-   * APPROVED_PREFERRED) supplier link. Throws naming the offending item(s).
-   * Only the BOM's OWN direct RAW_MATERIAL lines are checked here — child BOMs
-   * were themselves gated when they were released.
-   */
-  private async assertRawMaterialsQualified(bomId: string): Promise<void> {
-    const lines = await this.prisma.bomLine.findMany({
-      where: { bomId },
-      select: {
-        item: {
-          select: {
-            id: true,
-            itemCode: true,
-            name: true,
-            itemType: true,
-            supplierLinks: { include: { supplier: { select: { status: true } } } },
-          },
-        },
-      },
-    });
-    const unqualified: string[] = [];
-    for (const line of lines) {
-      if (line.item.itemType !== ItemType.RAW_MATERIAL) continue;
-      const hasQualified = line.item.supplierLinks.some((sl) =>
-        QUALIFIED_SUPPLIER_STATUSES.includes(sl.supplier.status),
-      );
-      if (!hasQualified) {
-        unqualified.push(`${line.item.itemCode} (${line.item.name})`);
-      }
-    }
-    if (unqualified.length > 0) {
-      throw new BadRequestException(
-        `Cannot release: the following raw material(s) have no qualified (Approved) supplier: ${unqualified.join(
-          ', ',
-        )}. Link each to an Approved supplier before releasing.`,
-      );
-    }
-  }
 
   /**
    * Cycle safety: verify the tree rooted at `topItemId` — treating THIS bom as

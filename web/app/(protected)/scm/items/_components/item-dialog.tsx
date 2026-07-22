@@ -207,9 +207,10 @@ export function ItemDialog({
 }
 
 /**
- * Manage the qualified suppliers linked to an item. Linking powers the BOM
- * release hard-gate (a raw material must have a qualified supplier). Visible to
- * everyone here; the backend enforces R&D-Head-only for link/unlink.
+ * Manage the qualified suppliers linked to an item. Purely informational —
+ * releasing a BOM does not require a raw material to have a qualified
+ * supplier. Visible to everyone here; the backend enforces R&D-Head-only for
+ * link/unlink.
  */
 function ItemSuppliers({ itemId }: { itemId: string }) {
   const toast = useToast();
@@ -285,8 +286,8 @@ function ItemSuppliers({ itemId }: { itemId: string }) {
     <div className="mt-6 border-t pt-4">
       <h3 className="mb-1 text-sm font-semibold">Suppliers</h3>
       <p className="mb-3 text-xs text-muted-foreground">
-        Link qualified suppliers. A raw material must have a qualified supplier
-        before its BOM can be released.
+        Link qualified suppliers for reference. Optional — not required to
+        release a BOM.
       </p>
 
       {loading ? (

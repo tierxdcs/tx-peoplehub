@@ -646,7 +646,7 @@ describe('BOM + Inventory (e2e)', () => {
   });
 
   // ── Supplier hard-gate on release ────────────────────────────────────
-  it('blocks releasing a BOM whose RAW_MATERIAL has no qualified supplier, then allows it once linked', async () => {
+  it('releases a BOM whose RAW_MATERIAL has no supplier link at all — supplier qualification is optional, not a release gate', async () => {
     const { itemId: fgItemId } = await createProduct();
     const raw = await createItem(rndHeadToken, {
       itemType: 'RAW_MATERIAL',
@@ -662,41 +662,7 @@ describe('BOM + Inventory (e2e)', () => {
     ).body.data;
     await http().post(`/boms/${bom.id}/submit`).set('Authorization', `Bearer ${rndAuthorToken}`).expect(201);
 
-    // Approve is BLOCKED — the raw material has no qualified supplier. The error
-    // names the offending item.
-    const blocked = await http()
-      .post(`/boms/${bom.id}/approve`)
-      .set('Authorization', `Bearer ${rndHeadToken}`)
-      .expect(400);
-    expect(blocked.body.message).toContain(raw.itemCode);
-    // Still not released.
-    expect((await prisma.bom.findUniqueOrThrow({ where: { id: bom.id } })).status).toBe(
-      'PENDING_APPROVAL',
-    );
-
-    // A link to a NON-qualified supplier (PENDING) does not satisfy the gate.
-    const pendingSupplier = await prisma.supplier.create({
-      data: {
-        companyName: `Pending ${Date.now()}`,
-        registeredAddress: 'x', factoryAddress: 'x', yearEstablished: '2000',
-        numberOfEmployees: '1', annualTurnover: '1', contactPersonName: 'x',
-        contactPersonDesignation: 'x', contactEmail: 'p@q.com',
-        contactPhone: '+910000000000', status: 'PENDING_QUESTIONNAIRE',
-        createdById: superAdminId,
-      },
-    });
-    await http()
-      .post(`/items/${raw.id}/suppliers`)
-      .set('Authorization', `Bearer ${rndHeadToken}`)
-      .send({ supplierId: pendingSupplier.id })
-      .expect(201);
-    await http()
-      .post(`/boms/${bom.id}/approve`)
-      .set('Authorization', `Bearer ${rndHeadToken}`)
-      .expect(400); // pending supplier still doesn't qualify
-
-    // Link an APPROVED supplier → release now succeeds.
-    await qualifyRawMaterial(raw.id);
+    // No supplier link exists for `raw` at all — approval still succeeds.
     const released = (
       await http()
         .post(`/boms/${bom.id}/approve`)
