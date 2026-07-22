@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
+import { ItemType, Role } from '@prisma/client';
 import {
   AuthenticatedUser,
   CurrentUser,
@@ -48,9 +48,21 @@ export class ItemController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create an item (R&D Head/SA)' })
+  @ApiOperation({ summary: 'Create an item (R&D Head/SA) — itemCode is server-generated from itemType' })
   create(@Body() dto: CreateItemDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.create(dto, user);
+  }
+
+  // Static route BEFORE @Get(':id') so 'next-code' isn't read as an id.
+  @Get('next-code')
+  @ApiOperation({
+    summary: 'Preview the itemCode a create would currently receive for this type (does not consume a sequence value)',
+  })
+  previewNextCode(
+    @Query('itemType') itemType: ItemType,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.previewNextItemCode(itemType, user);
   }
 
   @Get(':id')

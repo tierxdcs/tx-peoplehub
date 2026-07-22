@@ -34,36 +34,56 @@ interface DaybookResponse {
   from: string;
   to: string;
   rows: DaybookRow[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
+const PAGE_SIZE = 50;
 
 export default function DayBookPage() {
   const toast = useToast();
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
   const [voucherType, setVoucherType] = useState('');
+  const [page, setPage] = useState(1);
   const [rows, setRows] = useState<DaybookRow[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // Any filter change should snap back to page 1 — a stale page number past
+  // the end of a newly-filtered result set would render an empty table.
+  useEffect(() => {
+    setPage(1);
+  }, [from, to, voucherType]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ from, to });
+      const params = new URLSearchParams({
+        from,
+        to,
+        page: String(page),
+        limit: String(PAGE_SIZE),
+      });
       if (voucherType) params.set('voucherType', voucherType);
       const res = await apiFetch<DaybookResponse>(`/finance/daybook?${params}`);
       setRows(res.rows);
+      setTotal(res.total);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : 'Failed to load Day Book');
     } finally {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to, voucherType]);
+  }, [from, to, voucherType, page]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <PageContainer>
@@ -151,6 +171,35 @@ export default function DayBookPage() {
           )}
         </CardContent>
       </Card>
+
+      {total > 0 && (
+        <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+          <span>
+            Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <span className="px-2 py-1">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
     </PageContainer>
   );
 }

@@ -247,6 +247,7 @@ export function sharedNav(access: Access): NavGroup[] {
         { label: FINANCE_LABELS.paymentVoucher, href: '/finance/ap/payments' },
         { label: 'Credit & Debit Notes', href: '/finance/adjustments' },
         { label: FINANCE_LABELS.journalVoucher, href: '/finance/journals' },
+        { label: FINANCE_LABELS.contraVoucher, href: '/finance/contra' },
       ],
     });
     groups.push({

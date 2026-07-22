@@ -34,8 +34,8 @@ export interface Item {
   updatedAt: string;
 }
 
+/** itemCode is server-generated from itemType — never sent by the client. */
 export interface CreateItemInput {
-  itemCode: string;
   name: string;
   description?: string;
   itemType: ItemType;
@@ -46,7 +46,13 @@ export interface CreateItemInput {
   standardLeadTimeDays?: number;
 }
 
-export type UpdateItemInput = Partial<Omit<CreateItemInput, 'itemCode'>>;
+export type UpdateItemInput = Partial<CreateItemInput>;
+
+/** Preview the itemCode a create would currently receive for this type — does
+ * not consume a sequence value. Shown read-only on the New Item form. */
+export function previewNextItemCode(itemType: ItemType) {
+  return apiFetch<string>(`/items/next-code?itemType=${itemType}`);
+}
 
 export function listItems(opts: { search?: string; activeOnly?: boolean } = {}) {
   const qs = new URLSearchParams();

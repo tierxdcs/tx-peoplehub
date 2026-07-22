@@ -1,17 +1,43 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { ItemType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { SalesNumberingService } from '../sales/common/sales-numbering.service';
 import { BomAccessService } from './bom-access.service';
 import { CreateItemDto, UpdateItemDto } from './dto/bom.dto';
 import { ItemEntity } from './entities/bom.entity';
 
 type ItemRow = Prisma.ItemGetPayload<Record<string, never>>;
+
+/**
+ * itemCode prefix per ItemType — the code is always `{PREFIX}-{5-digit seq}`
+ * (e.g. `CM-00456`), generated server-side, never caller-supplied. Each
+ * prefix is its own independent, continuous (non-fiscal-year) sequence via
+ * SalesNumberingService.nextContinuousNumber — items don't have the
+ * per-fiscal-year framing sales documents do, so the count never resets.
+ */
+export const ITEM_CODE_PREFIX: Record<ItemType, string> = {
+  RAW_MATERIAL: 'RM',
+  COMPONENT: 'CM',
+  SUBASSEMBLY: 'SA',
+  FINISHED_GOOD: 'FG',
+  CONSUMABLE: 'CN',
+};
+
+/** The numbering-sequence entity key per ItemType, distinct from the prefix
+ * for the same reason SalesNumberingService keeps prefix/entity separate:
+ * a future prefix rename must never silently reset a live counter. */
+const ITEM_CODE_SEQUENCE_ENTITY: Record<ItemType, string> = {
+  RAW_MATERIAL: 'item_raw_material',
+  COMPONENT: 'item_component',
+  SUBASSEMBLY: 'item_subassembly',
+  FINISHED_GOOD: 'item_finished_good',
+  CONSUMABLE: 'item_consumable',
+};
 
 /**
  * Item Master. BOM lines and stock records reference items here rather than
@@ -23,6 +49,7 @@ export class ItemService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: BomAccessService,
+    private readonly numbering: SalesNumberingService,
   ) {}
 
   async list(
@@ -52,28 +79,48 @@ export class ItemService {
     return this.toEntity(row);
   }
 
+  /**
+   * Read-only preview of the itemCode a create would currently receive for
+   * the given type — shown on the New Item form before submit. Does not
+   * consume a sequence value (see peekNextContinuousNumber); the real code
+   * is allocated atomically inside create()'s transaction regardless of what
+   * was previewed.
+   */
+  async previewNextItemCode(itemType: ItemType, user: AuthenticatedUser): Promise<string> {
+    await this.access.assertCanManageItems(user);
+    if (!ITEM_CODE_PREFIX[itemType]) {
+      throw new BadRequestException('itemType must be a valid ItemType');
+    }
+    return this.numbering.peekNextContinuousNumber(
+      ITEM_CODE_PREFIX[itemType],
+      ITEM_CODE_SEQUENCE_ENTITY[itemType],
+    );
+  }
+
   async create(dto: CreateItemDto, user: AuthenticatedUser): Promise<ItemEntity> {
     await this.access.assertCanManageItems(user);
-    const existing = await this.prisma.item.findUnique({
-      where: { itemCode: dto.itemCode },
-      select: { id: true },
-    });
-    if (existing) throw new ConflictException('An item with this code already exists');
-    const row = await this.prisma.item.create({
-      data: {
-        itemCode: dto.itemCode,
-        name: dto.name,
-        description: dto.description ?? null,
-        itemType: dto.itemType,
-        baseUnitOfMeasure: dto.baseUnitOfMeasure,
-        isActive: dto.isActive ?? true,
-        defaultWastagePercent:
-          dto.defaultWastagePercent != null
-            ? new Prisma.Decimal(dto.defaultWastagePercent)
-            : null,
-        drawingSpecReference: dto.drawingSpecReference ?? null,
-        standardLeadTimeDays: dto.standardLeadTimeDays ?? null,
-      },
+    const row = await this.prisma.$transaction(async (tx) => {
+      const itemCode = await this.numbering.nextContinuousNumber(
+        ITEM_CODE_PREFIX[dto.itemType],
+        ITEM_CODE_SEQUENCE_ENTITY[dto.itemType],
+        tx,
+      );
+      return tx.item.create({
+        data: {
+          itemCode,
+          name: dto.name,
+          description: dto.description ?? null,
+          itemType: dto.itemType,
+          baseUnitOfMeasure: dto.baseUnitOfMeasure,
+          isActive: dto.isActive ?? true,
+          defaultWastagePercent:
+            dto.defaultWastagePercent != null
+              ? new Prisma.Decimal(dto.defaultWastagePercent)
+              : null,
+          drawingSpecReference: dto.drawingSpecReference ?? null,
+          standardLeadTimeDays: dto.standardLeadTimeDays ?? null,
+        },
+      });
     });
     return this.toEntity(row);
   }

@@ -463,18 +463,18 @@ model Employee {
   vaultExternalLinks      VaultExternalShareLink[] @relation("VaultExternalShareCreator")
 
   // Kanban back-relations.
-  kanbanBoardsCreated    KanbanBoard[]        @relation("KanbanBoardCreator")
-  kanbanMemberships      KanbanBoardMember[]  @relation("KanbanBoardMember")
-  kanbanMembersAdded     KanbanBoardMember[]  @relation("KanbanBoardMemberAddedBy")
-  kanbanListsCreated     KanbanList[]         @relation("KanbanListCreator")
-  kanbanSprintsCreated   KanbanSprint[]       @relation("KanbanSprintCreator")
-  kanbanCardsCreated     KanbanCard[]         @relation("KanbanCardCreator")
-  kanbanCardsAssigned    KanbanCard[]         @relation("KanbanCardAssignee")
-  kanbanCommentsAuthored KanbanCardComment[]  @relation("KanbanCommentAuthor")
-  kanbanActivityActed    KanbanCardActivity[] @relation("KanbanActivityActor")
+  kanbanBoardsCreated       KanbanBoard[]          @relation("KanbanBoardCreator")
+  kanbanMemberships         KanbanBoardMember[]    @relation("KanbanBoardMember")
+  kanbanMembersAdded        KanbanBoardMember[]    @relation("KanbanBoardMemberAddedBy")
+  kanbanListsCreated        KanbanList[]           @relation("KanbanListCreator")
+  kanbanSprintsCreated      KanbanSprint[]         @relation("KanbanSprintCreator")
+  kanbanCardsCreated        KanbanCard[]           @relation("KanbanCardCreator")
+  kanbanCardsAssigned       KanbanCard[]           @relation("KanbanCardAssignee")
+  kanbanCommentsAuthored    KanbanCardComment[]    @relation("KanbanCommentAuthor")
+  kanbanActivityActed       KanbanCardActivity[]   @relation("KanbanActivityActor")
   kanbanAttachmentsUploaded KanbanCardAttachment[] @relation("KanbanAttachmentUploader")
-  leadAttachmentsUploaded LeadAttachment[]      @relation("LeadAttachmentUploader")
-  notifications          Notification[]       @relation("NotificationRecipient")
+  leadAttachmentsUploaded   LeadAttachment[]       @relation("LeadAttachmentUploader")
+  notifications             Notification[]         @relation("NotificationRecipient")
 
   // Project Kickoff back-relations.
   projectKickoffsCreated  ProjectKickoff[]    @relation("KickoffCreator")
@@ -520,6 +520,9 @@ model Employee {
   receiptsCreated          CustomerReceipt[]        @relation("CustomerReceiptCreator")
   receiptsSubmitted        CustomerReceipt[]        @relation("CustomerReceiptSubmitter")
   receiptsApproved         CustomerReceipt[]        @relation("CustomerReceiptApprover")
+  contraVouchersCreated    ContraVoucher[]          @relation("ContraVoucherCreator")
+  contraVouchersSubmitted  ContraVoucher[]          @relation("ContraVoucherSubmitter")
+  contraVouchersApproved   ContraVoucher[]          @relation("ContraVoucherApprover")
   apInvoicesCreated        AccountsPayableInvoice[] @relation("ApInvoiceCreator")
   apInvoicesSubmitted      AccountsPayableInvoice[] @relation("ApInvoiceSubmitter")
   apInvoicesApproved       AccountsPayableInvoice[] @relation("ApInvoiceApprover")
@@ -935,29 +938,29 @@ model Product {
 }
 
 model Lead {
-  id                       String       @id @default(uuid())
-  leadNumber               String       @unique
+  id                       String           @id @default(uuid())
+  leadNumber               String           @unique
   companyName              String
   contactName              String
   email                    String?
   phone                    String?
   requirement              String
-  priority                 LeadPriority @default(MEDIUM)
-  source                   LeadSource   @default(OTHER)
-  status                   LeadStatus   @default(NEW)
+  priority                 LeadPriority     @default(MEDIUM)
+  source                   LeadSource       @default(OTHER)
+  status                   LeadStatus       @default(NEW)
   ownerId                  String
-  owner                    Employee     @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  owner                    Employee         @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   /// Immutable incentive attribution: the user who originally entered the enquiry.
   enquiryCreatorId         String
-  enquiryCreator           Employee     @relation("LeadEnquiryCreator", fields: [enquiryCreatorId], references: [id], onDelete: Restrict)
+  enquiryCreator           Employee         @relation("LeadEnquiryCreator", fields: [enquiryCreatorId], references: [id], onDelete: Restrict)
   businessUnitId           String
-  businessUnit             BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  businessUnit             BusinessUnit     @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
   disqualifiedReason       String?
-  convertedToOpportunityId String?      @unique
-  convertedToOpportunity   Opportunity? @relation("LeadConversion", fields: [convertedToOpportunityId], references: [id], onDelete: SetNull)
+  convertedToOpportunityId String?          @unique
+  convertedToOpportunity   Opportunity?     @relation("LeadConversion", fields: [convertedToOpportunityId], references: [id], onDelete: SetNull)
   attachments              LeadAttachment[]
-  createdAt                DateTime     @default(now())
-  updatedAt                DateTime     @updatedAt
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
 
   @@index([ownerId])
   @@index([enquiryCreatorId])
@@ -2320,39 +2323,39 @@ model KanbanSprint {
 /// A card in a list. Members create/edit/move/comment; only SM/SUPER_ADMIN may
 /// set sprintId. assigneeId must be a member of the card's board.
 model KanbanCard {
-  id                String               @id @default(uuid())
+  id                String                 @id @default(uuid())
   listId            String
-  list              KanbanList           @relation(fields: [listId], references: [id], onDelete: Cascade)
+  list              KanbanList             @relation(fields: [listId], references: [id], onDelete: Cascade)
   title             String
-  description       String?              @db.Text
+  description       String?                @db.Text
   assigneeId        String?
-  assignee          Employee?            @relation("KanbanCardAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assignee          Employee?              @relation("KanbanCardAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   /// Which vertical/department this card's work belongs to. Server-managed and
   /// synchronized from the assignee's vertical; clients cannot edit it. Powers per-vertical
   /// completion on a project board (e.g. "Production 2/7 done") for order
   /// progress tracking (see ORDER_TRACKING.md).
   verticalId        String?
-  vertical          Vertical?            @relation(fields: [verticalId], references: [id], onDelete: SetNull)
+  vertical          Vertical?              @relation(fields: [verticalId], references: [id], onDelete: SetNull)
   startDate         DateTime?
   dueDate           DateTime?
-  priority          LeadPriority         @default(MEDIUM)
+  priority          LeadPriority           @default(MEDIUM)
   sprintId          String?
-  sprint            KanbanSprint?        @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  sprint            KanbanSprint?          @relation(fields: [sprintId], references: [id], onDelete: SetNull)
   /// Fractional ordering within the list — inserting between two cards uses a
   /// value between their positions, so a move is a single-row update (no
   /// reindex). Re-spaced only when adjacent values get too close.
   position          Float
   createdById       String
-  createdBy         Employee             @relation("KanbanCardCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  status            KanbanCardStatus     @default(ACTIVE)
+  createdBy         Employee               @relation("KanbanCardCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  status            KanbanCardStatus       @default(ACTIVE)
   comments          KanbanCardComment[]
   activity          KanbanCardActivity[]
   attachments       KanbanCardAttachment[]
   notifications     Notification[]
   labels            KanbanCardLabel[]
   kickoffActionItem KickoffActionItem?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
 
   @@index([listId, position])
   @@index([sprintId])
@@ -2426,18 +2429,18 @@ model KanbanCardActivity {
 /// card, not a vault folder). PENDING until the upload is confirmed (headObject
 /// verifies it landed), then ACTIVE; only ACTIVE rows are surfaced.
 model KanbanCardAttachment {
-  id          String                     @id @default(uuid())
-  cardId      String
-  card        KanbanCard                 @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  filename    String
-  contentType String
-  sizeBytes   BigInt
+  id           String                     @id @default(uuid())
+  cardId       String
+  card         KanbanCard                 @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  filename     String
+  contentType  String
+  sizeBytes    BigInt
   /// R2 object key: kanban/cards/{cardId}/attachments/{id}
-  storageKey  String
-  status      KanbanCardAttachmentStatus @default(PENDING)
+  storageKey   String
+  status       KanbanCardAttachmentStatus @default(PENDING)
   uploadedById String
-  uploadedBy  Employee                   @relation("KanbanAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
-  createdAt   DateTime                   @default(now())
+  uploadedBy   Employee                   @relation("KanbanAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  createdAt    DateTime                   @default(now())
 
   @@index([cardId, createdAt])
   @@map("kanban_card_attachments")
@@ -3408,6 +3411,8 @@ model LedgerAccount {
   fixedAssetAcquisitionCredits      FixedAsset[]         @relation("FixedAssetAcquisitionCreditAccount")
   scheduleDebits                    FinanceSchedule[]    @relation("FinanceScheduleDebitAccount")
   scheduleCredits                   FinanceSchedule[]    @relation("FinanceScheduleCreditAccount")
+  contraFromVouchers                ContraVoucher[]      @relation("ContraFromAccount")
+  contraToVouchers                  ContraVoucher[]      @relation("ContraToAccount")
   createdAt                         DateTime             @default(now())
   updatedAt                         DateTime             @updatedAt
 
@@ -3593,6 +3598,7 @@ model JournalEntry {
   apInvoice         AccountsPayableInvoice?   @relation("ApInvoiceJournal")
   apPayment         AccountsPayablePayment?   @relation("ApPaymentJournal")
   financeNote       FinanceAdjustmentNote?    @relation("FinanceNoteJournal")
+  contraVoucher     ContraVoucher?            @relation("ContraVoucherJournal")
   bankMatches       BankTransactionMatch[]
   depreciationEntry AssetDepreciationEntry?
   scheduleExecution FinanceScheduleExecution?
@@ -3733,6 +3739,17 @@ enum SalesInvoiceStatus {
 }
 
 enum ReceiptStatus {
+  DRAFT
+  PENDING_APPROVAL
+  REJECTED
+  POSTED
+  REVERSED
+}
+
+/**
+ * Mirrors ReceiptStatus — a Contra voucher follows the same maker-checker shape.
+ */
+enum ContraVoucherStatus {
   DRAFT
   PENDING_APPROVAL
   REJECTED
@@ -4672,6 +4689,45 @@ model CustomerReceipt {
 
   @@index([customerId, receiptDate])
   @@map("customer_receipts")
+}
+
+/**
+ * Contra voucher — a bank/cash transfer that involves neither a customer nor
+ * a vendor (bank-to-cash, cash-to-bank, inter-bank). The one genuinely new
+ * entity in the Tally-style presentation layer; everything else re-presents
+ * existing entities. Posts through the shared `postJournalTx` helper like
+ * every other subledger document — no parallel posting path. Both ledgers are
+ * restricted (at the service layer, using the account-group taxonomy seeded
+ * in prisma/seed.ts) to bank/cash-eligible accounts; a transfer between two
+ * non-bank/cash ledgers belongs in a Journal Voucher instead.
+ */
+model ContraVoucher {
+  id                  String              @id @default(uuid())
+  voucherNumber       String              @unique
+  voucherDate         DateTime
+  fromLedgerAccountId String
+  fromLedgerAccount   LedgerAccount       @relation("ContraFromAccount", fields: [fromLedgerAccountId], references: [id], onDelete: Restrict)
+  toLedgerAccountId   String
+  toLedgerAccount     LedgerAccount       @relation("ContraToAccount", fields: [toLedgerAccountId], references: [id], onDelete: Restrict)
+  amount              Decimal             @db.Decimal(18, 2)
+  narration           String?             @db.Text
+  status              ContraVoucherStatus @default(DRAFT)
+  createdById         String
+  createdBy           Employee            @relation("ContraVoucherCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedById       String?
+  submittedBy         Employee?           @relation("ContraVoucherSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt         DateTime?
+  approvedById        String?
+  approvedBy          Employee?           @relation("ContraVoucherApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt          DateTime?
+  rejectionComment    String?             @db.Text
+  journalEntryId      String?             @unique
+  journalEntry        JournalEntry?       @relation("ContraVoucherJournal", fields: [journalEntryId], references: [id], onDelete: Restrict)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([voucherDate])
+  @@map("contra_vouchers")
 }
 
 model ReceiptAllocation {

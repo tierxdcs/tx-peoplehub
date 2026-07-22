@@ -18,6 +18,7 @@ import {
   IsString,
   Length,
   Matches,
+  Max,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -100,6 +101,7 @@ export const DAYBOOK_VOUCHER_TYPES = [
   'RECEIPT',
   'PAYMENT',
   'JOURNAL',
+  'CONTRA',
 ] as const;
 export type DaybookVoucherType = (typeof DAYBOOK_VOUCHER_TYPES)[number];
 
@@ -116,4 +118,17 @@ export class DaybookQueryDto {
   @IsEnum(DAYBOOK_VOUCHER_TYPES as unknown as string[])
   voucherType?: DaybookVoucherType;
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
+  @ApiPropertyOptional({ minimum: 1, default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+  @ApiPropertyOptional({ minimum: 1, maximum: 200, default: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limit = 50;
 }

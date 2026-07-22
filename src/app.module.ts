@@ -44,6 +44,7 @@ import { RfqModule } from './modules/rfq/rfq.module';
 import { HealthModule } from './modules/health/health.module';
 import { FinanceTreasuryModule } from './modules/finance-treasury/finance-treasury.module';
 import { FinanceReportingModule } from './modules/finance-reporting/finance-reporting.module';
+import { FinanceContraModule } from './modules/finance-contra/finance-contra.module';
 import { QmsModule } from './modules/qms/qms.module';
 import { DesignModule } from './modules/design/design.module';
 
@@ -80,6 +81,7 @@ import { DesignModule } from './modules/design/design.module';
     FinanceManagementModule,
     FinanceTreasuryModule,
     FinanceReportingModule,
+    FinanceContraModule,
     QmsModule,
     DesignModule,
     ScmPurchasingModule,

@@ -1,5 +1,6 @@
 'use client';
 import { FormEvent, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { useFinanceAccess } from '../../../../lib/use-finance-access';
 import { Button } from '../../../../components/ui/button';
@@ -102,10 +103,15 @@ export default function VendorPaymentsPage() {
   }
   return (
     <PageContainer>
-      <PageHeader
-        title="Vendor Payments"
-        description="Plan, approve and record vendor payments; unallocated amounts remain supplier advances"
-      />
+      <div className="mb-1 flex items-center justify-between">
+        <PageHeader
+          title="Vendor Payments"
+          description="Plan, approve and record vendor payments; unallocated amounts remain supplier advances"
+        />
+        <Link href="/finance/vouchers/payment/new">
+          <Button variant="outline">New Payment Voucher</Button>
+        </Link>
+      </div>
       <Card className="mb-6">
         <CardContent className="p-5">
           <form onSubmit={create} className="grid gap-3 md:grid-cols-6">

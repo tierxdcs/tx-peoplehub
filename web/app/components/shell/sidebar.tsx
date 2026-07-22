@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  ArrowLeftRight,
   BadgeCheck,
   Banknote,
   BarChart3,
@@ -95,6 +96,7 @@ function iconForHref(href: string): LucideIcon {
   if (href.includes('/otd')) return Gauge;
 
   if (href.includes('/daybook')) return ScrollText;
+  if (href.includes('/contra')) return ArrowLeftRight;
   if (href.includes('/invoices') || href.includes('/adjustments'))
     return ReceiptText;
   if (href.includes('/payments') || href.includes('/receipts')) return Banknote;

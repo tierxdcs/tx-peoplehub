@@ -5,6 +5,7 @@ import { ApiError } from '../../../../lib/api';
 import {
   createItem,
   ITEM_TYPE_LABEL,
+  previewNextItemCode,
   updateItem,
   type CreateItemInput,
   type Item,
@@ -54,7 +55,6 @@ export function ItemDialog({
   const toast = useToast();
   const isEdit = !!item;
   const [form, setForm] = useState({
-    itemCode: item?.itemCode ?? '',
     name: item?.name ?? '',
     description: item?.description ?? '',
     itemType: item?.itemType ?? ('RAW_MATERIAL' as ItemType),
@@ -66,6 +66,26 @@ export function ItemDialog({
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Read-only preview of the itemCode the create will receive, re-fetched
+  // whenever the selected type changes. Not shown in edit mode — itemCode is
+  // immutable once created and the real item.itemCode is displayed instead.
+  const [nextCode, setNextCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isEdit) return;
+    let cancelled = false;
+    setNextCode(null);
+    previewNextItemCode(form.itemType)
+      .then((code) => {
+        if (!cancelled) setNextCode(code);
+      })
+      .catch(() => {
+        if (!cancelled) setNextCode(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, form.itemType]);
 
   function set(key: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -74,10 +94,6 @@ export function ItemDialog({
   async function submit() {
     if (!form.name.trim() || !form.baseUnitOfMeasure.trim()) {
       setError('Name and base unit of measure are required.');
-      return;
-    }
-    if (!isEdit && !form.itemCode.trim()) {
-      setError('Item code is required.');
       return;
     }
     setSubmitting(true);
@@ -104,7 +120,6 @@ export function ItemDialog({
         toast.success('Item updated.');
       } else {
         const payload: CreateItemInput = {
-          itemCode: form.itemCode.trim(),
           name: form.name,
           description: form.description || undefined,
           itemType: form.itemType,
@@ -136,11 +151,6 @@ export function ItemDialog({
         </DialogHeader>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          {!isEdit && (
-            <Field label="Item code" required htmlFor="i-code">
-              <Input id="i-code" value={form.itemCode} onChange={(e) => set('itemCode', e.target.value)} />
-            </Field>
-          )}
           <Field label="Name" required htmlFor="i-name">
             <Input id="i-name" value={form.name} onChange={(e) => set('name', e.target.value)} />
           </Field>
@@ -157,6 +167,11 @@ export function ItemDialog({
               ))}
             </Select>
           </Field>
+          {!isEdit && (
+            <Field label="Item code" htmlFor="i-code" hint="Generated automatically from the selected type">
+              <Input id="i-code" value={nextCode ?? 'Generating…'} disabled />
+            </Field>
+          )}
           <Field label="Base unit of measure" required htmlFor="i-uom">
             <Input id="i-uom" value={form.baseUnitOfMeasure} onChange={(e) => set('baseUnitOfMeasure', e.target.value)} placeholder="e.g. kg, pcs, m" />
           </Field>

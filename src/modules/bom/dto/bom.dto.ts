@@ -22,8 +22,10 @@ import {
 } from '@prisma/client';
 
 // ── Item Master ──────────────────────────────────────────────────────
+// itemCode is server-generated from itemType (RM-/CM-/SA-/FG-/CN- + 5-digit
+// sequence, via SalesNumberingService.nextContinuousNumber) — never
+// caller-supplied. See ItemService.create() and ITEM_CODE_PREFIX.
 export class CreateItemDto {
-  @ApiProperty() @IsString() @MinLength(1) itemCode!: string;
   @ApiProperty() @IsString() @MinLength(1) name!: string;
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
   @ApiProperty({ enum: ItemType }) @IsEnum(ItemType) itemType!: ItemType;

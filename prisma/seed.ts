@@ -222,6 +222,73 @@ const BASE_ACCOUNTS: Array<{
   },
 ];
 
+/**
+ * Tally-standard account GROUPS, layered onto the existing `parentId`
+ * hierarchy on `LedgerAccount` (see Increment 1 discovery: there was no named
+ * grouping concept, only accountType + parentId). Each group is itself a
+ * `LedgerAccount` row (a non-posting "header" ledger) so it reuses the
+ * existing hierarchy rather than adding a parallel model. `GRP-` prefix keeps
+ * them visually distinct from real posting accounts in code/list views.
+ *
+ * `parentGroupCode` nests sub-groups the way Tally does (e.g. Duties & Taxes
+ * has no parent here — Tally nests it under Current Liabilities, but the
+ * existing 25 accounts don't need that extra layer to be useful, so we keep a
+ * flat one-level-deep taxonomy; add nesting later if a real need appears).
+ */
+const ACCOUNT_GROUPS: Array<{
+  code: string;
+  name: string;
+  accountType: AccountType;
+  normalBalance: NormalBalance;
+  /** Signals a bank/cash-eligible group for Contra voucher ledger restriction. */
+  isBankOrCash?: boolean;
+}> = [
+  { code: 'GRP-BANK', name: 'Bank Accounts', accountType: AccountType.ASSET, normalBalance: NormalBalance.DEBIT, isBankOrCash: true },
+  { code: 'GRP-CASH', name: 'Cash-in-Hand', accountType: AccountType.ASSET, normalBalance: NormalBalance.DEBIT, isBankOrCash: true },
+  { code: 'GRP-DEBTORS', name: 'Sundry Debtors', accountType: AccountType.ASSET, normalBalance: NormalBalance.DEBIT },
+  { code: 'GRP-STOCK', name: 'Stock-in-Hand', accountType: AccountType.ASSET, normalBalance: NormalBalance.DEBIT },
+  { code: 'GRP-LOANS-ADVANCES', name: 'Loans and Advances (Asset)', accountType: AccountType.ASSET, normalBalance: NormalBalance.DEBIT },
+  { code: 'GRP-FIXED-ASSETS', name: 'Fixed Assets', accountType: AccountType.ASSET, normalBalance: NormalBalance.DEBIT },
+  { code: 'GRP-CREDITORS', name: 'Sundry Creditors', accountType: AccountType.LIABILITY, normalBalance: NormalBalance.CREDIT },
+  { code: 'GRP-DUTIES-TAXES', name: 'Duties and Taxes', accountType: AccountType.LIABILITY, normalBalance: NormalBalance.CREDIT },
+  { code: 'GRP-CURRENT-LIAB', name: 'Current Liabilities', accountType: AccountType.LIABILITY, normalBalance: NormalBalance.CREDIT },
+  { code: 'GRP-CAPITAL', name: 'Capital Account', accountType: AccountType.EQUITY, normalBalance: NormalBalance.CREDIT },
+  { code: 'GRP-SALES', name: 'Sales Accounts', accountType: AccountType.REVENUE, normalBalance: NormalBalance.CREDIT },
+  { code: 'GRP-PURCHASE', name: 'Purchase Accounts', accountType: AccountType.COST_OF_GOODS_SOLD, normalBalance: NormalBalance.DEBIT },
+  { code: 'GRP-INDIRECT-EXP', name: 'Indirect Expenses', accountType: AccountType.EXPENSE, normalBalance: NormalBalance.DEBIT },
+  { code: 'GRP-INDIRECT-INC', name: 'Indirect Income', accountType: AccountType.OTHER_INCOME, normalBalance: NormalBalance.CREDIT },
+  { code: 'GRP-OTHER-EXP', name: 'Other Expenses (Non-operating)', accountType: AccountType.OTHER_EXPENSE, normalBalance: NormalBalance.DEBIT },
+];
+
+/** Which group each of the 25 base accounts reparents under. */
+const ACCOUNT_GROUP_MEMBERSHIP: Record<string, string> = {
+  '1000': 'GRP-BANK', // Cash and Bank — treated as the Bank group; see GRP-CASH note below
+  '1100': 'GRP-DEBTORS',
+  '1200': 'GRP-STOCK',
+  '1300': 'GRP-DUTIES-TAXES',
+  '1400': 'GRP-LOANS-ADVANCES',
+  '1500': 'GRP-LOANS-ADVANCES',
+  '1600': 'GRP-FIXED-ASSETS',
+  '1650': 'GRP-FIXED-ASSETS',
+  '1700': 'GRP-LOANS-ADVANCES',
+  '2000': 'GRP-CREDITORS',
+  '2100': 'GRP-DUTIES-TAXES',
+  '2200': 'GRP-DUTIES-TAXES',
+  '2300': 'GRP-CURRENT-LIAB',
+  '2400': 'GRP-CURRENT-LIAB',
+  '3000': 'GRP-CAPITAL',
+  '4000': 'GRP-SALES',
+  '5000': 'GRP-PURCHASE',
+  '6000': 'GRP-INDIRECT-EXP',
+  '6100': 'GRP-INDIRECT-EXP',
+  '6200': 'GRP-INDIRECT-EXP',
+  '6300': 'GRP-INDIRECT-EXP',
+  '6400': 'GRP-INDIRECT-EXP',
+  '6500': 'GRP-INDIRECT-EXP',
+  '7000': 'GRP-INDIRECT-INC',
+  '8000': 'GRP-OTHER-EXP',
+};
+
 const LEAVE_TYPES: Array<{
   code: string;
   name: string;
@@ -524,6 +591,37 @@ export async function seed(prisma: PrismaClient): Promise<void> {
       update: {},
       create: { ...account, createdById: superAdmin.id },
     });
+  }
+
+  // Tally-style account groups: create each GRP-* header ledger (idempotent —
+  // `update: {}` leaves an existing row untouched), then reparent every base
+  // account under its group via parentId. Re-running is a no-op once applied:
+  // the reparent update only fires when parentId is actually different.
+  // `GRP-CASH` has no member yet — code '1000' ("Cash and Bank") is a single
+  // combined account today; a future dedicated cash ledger would join
+  // GRP-CASH instead. Both groups are flagged bank/cash-eligible for Contra.
+  const groupIdByCode = new Map<string, string>();
+  for (const group of ACCOUNT_GROUPS) {
+    const row = await prisma.ledgerAccount.upsert({
+      where: { code: group.code },
+      update: {},
+      create: {
+        code: group.code,
+        name: group.name,
+        accountType: group.accountType,
+        normalBalance: group.normalBalance,
+        createdById: superAdmin.id,
+      },
+    });
+    groupIdByCode.set(group.code, row.id);
+  }
+  for (const [accountCode, groupCode] of Object.entries(ACCOUNT_GROUP_MEMBERSHIP)) {
+    const groupId = groupIdByCode.get(groupCode);
+    if (!groupId) continue;
+    const account = await prisma.ledgerAccount.findUnique({ where: { code: accountCode } });
+    if (account && account.parentId !== groupId) {
+      await prisma.ledgerAccount.update({ where: { code: accountCode }, data: { parentId: groupId } });
+    }
   }
 
   // Default Vault folders — owned by the SUPER_ADMIN, seeded idempotently

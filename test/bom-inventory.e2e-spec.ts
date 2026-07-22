@@ -133,6 +133,8 @@ describe('BOM + Inventory (e2e)', () => {
   });
 
   // ── helpers ────────────────────────────────────────────────────────
+  // itemCode is server-generated from itemType (RM-/CM-/SA-/.../-00001) —
+  // never sent by the caller. See ItemService.create().
   let itemSeq = 0;
   async function createItem(token: string, over: Record<string, unknown> = {}) {
     itemSeq += 1;
@@ -141,7 +143,6 @@ describe('BOM + Inventory (e2e)', () => {
         .post('/items')
         .set('Authorization', `Bearer ${token}`)
         .send({
-          itemCode: `IT-${Date.now()}-${itemSeq}`,
           name: `Item ${itemSeq}`,
           itemType: 'RAW_MATERIAL',
           baseUnitOfMeasure: 'kg',
@@ -234,7 +235,7 @@ describe('BOM + Inventory (e2e)', () => {
     await http()
       .post('/items')
       .set('Authorization', `Bearer ${rndAuthorToken}`)
-      .send({ itemCode: 'NO', name: 'x', itemType: 'RAW_MATERIAL', baseUnitOfMeasure: 'kg' })
+      .send({ name: 'x', itemType: 'RAW_MATERIAL', baseUnitOfMeasure: 'kg' })
       .expect(403);
     // Sales outsider cannot even read.
     await http().get('/items').set('Authorization', `Bearer ${salesToken}`).expect(403);

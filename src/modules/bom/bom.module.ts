@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { SalesModule } from '../sales/sales.module';
 import { BomAccessService } from './bom-access.service';
 import { ItemService } from './item.service';
 import { BomService } from './bom.service';
@@ -15,10 +16,11 @@ import { KickoffStockController } from './kickoff-stock.controller';
  * Bill of Materials + Item Master + Inventory + kickoff stock-availability.
  * R&D authors/heads own BOM + item technical data; Store (Production vertical)
  * owns inventory + reservations. Imports NotificationsModule for BOM-workflow
- * notifications.
+ * notifications, and SalesModule for the shared SalesNumberingService (item
+ * codes reuse the same sales_sequences-backed mechanism as Bids/Orders/POs).
  */
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, SalesModule],
   controllers: [
     ItemController,
     BomController,

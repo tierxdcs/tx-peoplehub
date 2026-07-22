@@ -442,7 +442,7 @@ export class FinanceService {
       // vouchers; subledger-posted journals already surface via their own
       // voucher rows above (they carry a back-relation to the source document).
       const journals = await this.prisma.journalEntry.findMany({
-        where: { entryDate: within, ...(statusEq ? { status: statusEq } : {}), salesInvoice: null, apInvoice: null, customerReceipt: null, apPayment: null },
+        where: { entryDate: within, ...(statusEq ? { status: statusEq } : {}), salesInvoice: null, apInvoice: null, customerReceipt: null, apPayment: null, contraVoucher: null },
         select: { id: true, journalNumber: true, entryDate: true, description: true, status: true, lines: { select: { debit: true } } },
       });
       for (const jnl of journals) {
@@ -451,9 +451,35 @@ export class FinanceService {
       }
     }
 
+    if (!type || type === 'CONTRA') {
+      const contras = await this.prisma.contraVoucher.findMany({
+        where: { voucherDate: within, ...(statusEq ? { status: statusEq } : {}) },
+        select: { id: true, voucherNumber: true, voucherDate: true, amount: true, status: true, fromLedgerAccount: { select: { name: true } }, toLedgerAccount: { select: { name: true } } },
+      });
+      for (const c of contras)
+        rows.push({ id: c.id, date: c.voucherDate, voucherType: 'CONTRA', voucherNumber: c.voucherNumber, party: `${c.fromLedgerAccount.name} → ${c.toLedgerAccount.name}`, amount: c.amount.toString(), status: c.status, detailHref: '/finance/contra' });
+    }
+
     // Newest first; tiebreak by voucher number so same-day rows are stable.
     rows.sort((a, b) => b.date.getTime() - a.date.getTime() || b.voucherNumber.localeCompare(a.voucherNumber));
-    return { from: gte.toISOString().slice(0, 10), to: lte.toISOString().slice(0, 10), rows };
+    // Server-side pagination: each source query is already scoped to the
+    // date range (bounded, never unbounded), but a wide range across a full
+    // fiscal year could still union many rows — slice the merged, sorted
+    // result before returning so the response payload stays capped
+    // regardless of how much volume the date range covers. Filters (date
+    // range, voucherType, status) are applied above, before paging, so page
+    // 2 of a filtered view is still correct.
+    const total = rows.length;
+    const start = (query.page - 1) * query.limit;
+    const paged = rows.slice(start, start + query.limit);
+    return {
+      from: gte.toISOString().slice(0, 10),
+      to: lte.toISOString().slice(0, 10),
+      rows: paged,
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
   }
 
   private async reportLines(query: ReportQueryDto) {

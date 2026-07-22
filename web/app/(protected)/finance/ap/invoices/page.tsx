@@ -1,5 +1,6 @@
 'use client';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { ApiError, apiFetch } from '../../../../lib/api';
 import { useFinanceAccess } from '../../../../lib/use-finance-access';
 import { Button } from '../../../../components/ui/button';
@@ -168,10 +169,15 @@ export default function VendorInvoicesPage() {
   }
   return (
     <PageContainer>
-      <PageHeader
-        title="Vendor Invoice Register (AP)"
-        description="Capture supplier bills, compare PO–accepted GRN–invoice, and route exceptions to the Finance Head"
-      />
+      <div className="mb-1 flex items-center justify-between">
+        <PageHeader
+          title="Vendor Invoice Register (AP)"
+          description="Capture supplier bills, compare PO–accepted GRN–invoice, and route exceptions to the Finance Head"
+        />
+        <Link href="/finance/vouchers/purchase/new">
+          <Button variant="outline">New Purchase Voucher</Button>
+        </Link>
+      </div>
       <Card className="mb-6">
         <CardContent className="p-5">
           <form onSubmit={create} className="grid gap-3 md:grid-cols-4">
