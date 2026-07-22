@@ -86,10 +86,14 @@ export interface KanbanCard {
   dueDate: string | null;
   priority: LeadPriority;
   sprintId: string | null;
+  /** Denormalized so a card-only viewer (no sprint-list access) can still see it. */
+  sprintName: string | null;
   position: number;
   createdById: string;
   status: 'ACTIVE' | 'ARCHIVED';
   isOverdue: boolean;
+  /** False for a non-member viewing only via card assignment (card-only access). */
+  viewerHasBoardAccess: boolean;
   labels?: KanbanLabel[];
   createdAt: string;
   updatedAt: string;

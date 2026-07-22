@@ -118,11 +118,93 @@ describe('Kanban (e2e)', () => {
     await app.close();
   });
 
-  it('a non-Scrum-Master cannot create a board (403)', async () => {
-    await request(app.getHttpServer())
+  it('any employee (not just a Scrum Master) can create a board, with the three default lists provisioned', async () => {
+    const boardRes = await request(app.getHttpServer())
       .post('/kanban/boards')
       .set('Authorization', `Bearer ${memberToken}`)
-      .send({ name: 'Nope' })
+      .send({ name: 'Personal Board' })
+      .expect(201);
+    const boardId = boardRes.body.data.id;
+    createdBoardIds.push(boardId);
+    expect(boardRes.body.data.createdById).toBe(memberId);
+    expect(boardRes.body.data.memberCount).toBe(1);
+
+    const lists = await request(app.getHttpServer())
+      .get(`/kanban/boards/${boardId}/lists`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .expect(200);
+    const names = (lists.body.data as { name: string; isDoneList: boolean }[]).map(
+      (l) => l.name,
+    );
+    expect(names).toEqual(['To Do', 'In progress', 'Completed']);
+    expect(
+      (lists.body.data as { name: string; isDoneList: boolean }[]).find(
+        (l) => l.name === 'Completed',
+      )?.isDoneList,
+    ).toBe(true);
+  });
+
+  it('the board creator (not a Scrum Master) can manage lists on their own board, but not sprints', async () => {
+    const boardRes = await request(app.getHttpServer())
+      .post('/kanban/boards')
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ name: 'Creator-managed board' })
+      .expect(201);
+    const boardId = boardRes.body.data.id;
+    createdBoardIds.push(boardId);
+
+    // Creator can create/edit/reorder a list on their own board.
+    const list = await request(app.getHttpServer())
+      .post(`/kanban/boards/${boardId}/lists`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ name: 'Backlog', position: 4096 })
+      .expect(201);
+    await request(app.getHttpServer())
+      .patch(`/kanban/lists/${list.body.data.id}`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ name: 'Backlog Renamed' })
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch(`/kanban/lists/${list.body.data.id}/reorder`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ position: 5120 })
+      .expect(200);
+
+    // But the SAME creator cannot create a sprint on their own board — no
+    // creator exception for sprints (explicitly confirmed, spec §1).
+    await request(app.getHttpServer())
+      .post(`/kanban/boards/${boardId}/sprints`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ name: 'S1', durationWeeks: 'ONE_WEEK', startDate: '2026-01-01' })
+      .expect(403);
+    // Nor add a member, nor create a label — those stay Scrum-Master-only too.
+    await request(app.getHttpServer())
+      .post(`/kanban/boards/${boardId}/members`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ employeeId: outsiderId })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/kanban/boards/${boardId}/labels`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ name: 'x', color: '#000' })
+      .expect(403);
+
+    // A random outsider (not the creator) is still blocked from list management.
+    const otherBoard = await request(app.getHttpServer())
+      .post('/kanban/boards')
+      .set('Authorization', `Bearer ${scrumToken}`)
+      .send({ name: 'Not yours' })
+      .expect(201);
+    createdBoardIds.push(otherBoard.body.data.id);
+    await request(app.getHttpServer())
+      .post(`/kanban/boards/${otherBoard.body.data.id}/members`)
+      .set('Authorization', `Bearer ${scrumToken}`)
+      .send({ employeeId: memberId })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/kanban/boards/${otherBoard.body.data.id}/lists`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ name: 'Nope', position: 0 })
       .expect(403);
   });
 
@@ -175,7 +257,8 @@ describe('Kanban (e2e)', () => {
       .send({ employeeId: superAdminId })
       .expect(403);
 
-    // Now the member can view the board + its (empty) lists.
+    // Now the member can view the board + its auto-provisioned default lists
+    // (To Do / In progress / Completed — every new board gets these).
     await request(app.getHttpServer())
       .get(`/kanban/boards/${boardId}`)
       .set('Authorization', `Bearer ${memberToken}`)
@@ -184,7 +267,7 @@ describe('Kanban (e2e)', () => {
       .get(`/kanban/boards/${boardId}/lists`)
       .set('Authorization', `Bearer ${memberToken}`)
       .expect(200);
-    expect(memberLists.body.data).toHaveLength(0);
+    expect(memberLists.body.data).toHaveLength(3);
 
     // A member cannot create a list; the Scrum Master can.
     await request(app.getHttpServer())
@@ -345,7 +428,7 @@ describe('Kanban (e2e)', () => {
         .expect(403);
     });
 
-    it('assigning to a non-member is rejected; a member assignee works', async () => {
+    it('assigning to a non-member now SUCCEEDS (assignment is the sharing mechanism); an inactive/unknown employee is still rejected', async () => {
       const cardId = (
         await request(app.getHttpServer())
           .post(`/kanban/lists/${listA}/cards`)
@@ -354,19 +437,133 @@ describe('Kanban (e2e)', () => {
           .expect(201)
       ).body.data.id;
 
-      // scrumId + memberId are members; outsider is not.
+      // A real board member still works.
       await request(app.getHttpServer())
         .patch(`/kanban/cards/${cardId}`)
         .set('Authorization', `Bearer ${memberToken}`)
         .send({ assigneeId: memberId })
         .expect(200);
 
-      // The outsider isn't a board member → 400.
-      await request(app.getHttpServer())
+      // The outsider is NOT a board member — assignment now succeeds anyway.
+      const assigned = await request(app.getHttpServer())
         .patch(`/kanban/cards/${cardId}`)
         .set('Authorization', `Bearer ${memberToken}`)
         .send({ assigneeId: outsiderId })
+        .expect(200);
+      expect(assigned.body.data.assigneeId).toBe(outsiderId);
+
+      // An unknown employee id is still rejected (existence, not membership).
+      await request(app.getHttpServer())
+        .patch(`/kanban/cards/${cardId}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .send({ assigneeId: '00000000-0000-0000-0000-000000000000' })
         .expect(400);
+    });
+
+    describe('card-only access (non-member assignee)', () => {
+      let cardOnlyCardId: string;
+
+      beforeAll(async () => {
+        // outsiderToken/outsiderId is NOT a member of `boardId` (asserted below).
+        await request(app.getHttpServer())
+          .get(`/kanban/boards/${boardId}`)
+          .set('Authorization', `Bearer ${outsiderToken}`)
+          .expect(403);
+
+        cardOnlyCardId = (
+          await request(app.getHttpServer())
+            .post(`/kanban/lists/${listA}/cards`)
+            .set('Authorization', `Bearer ${memberToken}`)
+            .send({ title: 'card-only target', assigneeId: outsiderId })
+            .expect(201)
+        ).body.data.id;
+      });
+
+      it('the non-member assignee can view the card via GET /cards/:id, with viewerHasBoardAccess=false', async () => {
+        const res = await request(app.getHttpServer())
+          .get(`/kanban/cards/${cardOnlyCardId}`)
+          .set('Authorization', `Bearer ${outsiderToken}`)
+          .expect(200);
+        expect(res.body.data.id).toBe(cardOnlyCardId);
+        expect(res.body.data.assigneeId).toBe(outsiderId);
+        expect(res.body.data.viewerHasBoardAccess).toBe(false);
+
+        // A real board member fetching the same card sees viewerHasBoardAccess=true.
+        const asMember = await request(app.getHttpServer())
+          .get(`/kanban/cards/${cardOnlyCardId}`)
+          .set('Authorization', `Bearer ${memberToken}`)
+          .expect(200);
+        expect(asMember.body.data.viewerHasBoardAccess).toBe(true);
+      });
+
+      it('the non-member assignee can read the feed and add a comment', async () => {
+        await request(app.getHttpServer())
+          .get(`/kanban/cards/${cardOnlyCardId}/feed`)
+          .set('Authorization', `Bearer ${outsiderToken}`)
+          .expect(200);
+        await request(app.getHttpServer())
+          .post(`/kanban/cards/${cardOnlyCardId}/comments`)
+          .set('Authorization', `Bearer ${outsiderToken}`)
+          .send({ text: 'a card-only comment' })
+          .expect(201);
+      });
+
+      it('the non-member assignee CANNOT move the card, edit it, or see the rest of the board', async () => {
+        // Move (incl. the "Mark complete" path, which is just this endpoint)
+        // requires full board access.
+        await request(app.getHttpServer())
+          .patch(`/kanban/cards/${cardOnlyCardId}/move`)
+          .set('Authorization', `Bearer ${outsiderToken}`)
+          .send({ listId: listB, position: 1024 })
+          .expect(403);
+
+        // General edit is also board-access-gated.
+        await request(app.getHttpServer())
+          .patch(`/kanban/cards/${cardOnlyCardId}`)
+          .set('Authorization', `Bearer ${outsiderToken}`)
+          .send({ title: 'hijacked' })
+          .expect(403);
+
+        // No board-level visibility at all: board, lists, members, other cards.
+        await request(app.getHttpServer())
+          .get(`/kanban/boards/${boardId}`)
+          .set('Authorization', `Bearer ${outsiderToken}`)
+          .expect(403);
+        await request(app.getHttpServer())
+          .get(`/kanban/boards/${boardId}/lists`)
+          .set('Authorization', `Bearer ${outsiderToken}`)
+          .expect(403);
+        await request(app.getHttpServer())
+          .get(`/kanban/boards/${boardId}/members`)
+          .set('Authorization', `Bearer ${outsiderToken}`)
+          .expect(403);
+        await request(app.getHttpServer())
+          .get(`/kanban/lists/${listA}/cards`)
+          .set('Authorization', `Bearer ${outsiderToken}`)
+          .expect(403);
+
+        // A DIFFERENT card on the same board (not assigned to them) is 403 too.
+        const otherCardId = (
+          await request(app.getHttpServer())
+            .post(`/kanban/lists/${listA}/cards`)
+            .set('Authorization', `Bearer ${memberToken}`)
+            .send({ title: 'not yours' })
+            .expect(201)
+        ).body.data.id;
+        await request(app.getHttpServer())
+          .get(`/kanban/cards/${otherCardId}`)
+          .set('Authorization', `Bearer ${outsiderToken}`)
+          .expect(403);
+      });
+
+      it('GET /kanban/cards/mine includes a card assigned to a non-board-member', async () => {
+        const mine = await request(app.getHttpServer())
+          .get('/kanban/cards/mine')
+          .set('Authorization', `Bearer ${outsiderToken}`)
+          .expect(200);
+        const ids = (mine.body.data as { id: string }[]).map((c) => c.id);
+        expect(ids).toContain(cardOnlyCardId);
+      });
     });
 
     it('sprintId cannot be set via the general PATCH (400), only the dedicated endpoint', async () => {
@@ -841,14 +1038,17 @@ describe('Kanban (e2e)', () => {
         .send({ position: 3072 })
         .expect(403);
 
-      const moved = await request(app.getHttpServer())
+      // The board also carries its 3 auto-provisioned default lists, one of
+      // which (Completed) already sits at position 3072 — so this request
+      // may collide and trigger a respace; the exact resulting number isn't
+      // the point, only that `todo` ends up ordered after `done` (below).
+      await request(app.getHttpServer())
         .patch(`/kanban/lists/${todo}/reorder`)
         .set('Authorization', `Bearer ${scrumToken}`)
         .send({ position: 3072 })
         .expect(200);
-      expect(moved.body.data.position).toBe(3072);
 
-      // The board's lists are now ordered done(2048) then todo(3072).
+      // The board's lists are now ordered done(2048) then todo(moved after it).
       const lists = await request(app.getHttpServer())
         .get(`/kanban/boards/${boardId}/lists`)
         .set('Authorization', `Bearer ${scrumToken}`)

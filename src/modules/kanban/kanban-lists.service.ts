@@ -58,13 +58,13 @@ export class KanbanListsService {
     return lists.map((l) => this.toListEntity(l, l._count.cards));
   }
 
-  /** Create a list — Scrum Master / SUPER_ADMIN (and a member of the board). */
+  /** Create a list — Scrum Master / SUPER_ADMIN (member of the board), or the board's own creator. */
   async createList(
     boardId: string,
     dto: CreateListDto,
     user: AuthenticatedUser,
   ): Promise<KanbanListEntity> {
-    await this.access.assertCanManageBoard(user, boardId);
+    await this.access.assertCanManageLists(user, boardId);
     const list = await this.prisma.$transaction(async (tx) => {
       if (dto.isDoneList) {
         await tx.kanbanList.updateMany({
@@ -85,14 +85,14 @@ export class KanbanListsService {
     return this.toListEntity(list, 0);
   }
 
-  /** Edit a list's name / done-flag — Scrum Master / SUPER_ADMIN. */
+  /** Edit a list's name / done-flag — Scrum Master / SUPER_ADMIN, or the board's creator. */
   async updateList(
     id: string,
     dto: UpdateListDto,
     user: AuthenticatedUser,
   ): Promise<KanbanListEntity> {
     const list = await this.getListOrThrow(id);
-    await this.access.assertCanManageBoard(user, list.boardId);
+    await this.access.assertCanManageLists(user, list.boardId);
     if (list.isDoneList && dto.isDoneList === false)
       throw new BadRequestException(
         'A board must always have one done list. Designate another list as done first.',
@@ -125,7 +125,7 @@ export class KanbanListsService {
   /** Delete an empty, non-done list. The board's sole done list is protected. */
   async deleteList(id: string, user: AuthenticatedUser): Promise<void> {
     const list = await this.getListOrThrow(id);
-    await this.access.assertCanManageBoard(user, list.boardId);
+    await this.access.assertCanManageLists(user, list.boardId);
     if (list.isDoneList)
       throw new BadRequestException(
         'The board done list cannot be deleted. Designate another list as done first.',
@@ -141,9 +141,10 @@ export class KanbanListsService {
   }
 
   /**
-   * Reorder a list within its board — Scrum Master / SUPER_ADMIN. Same
-   * fractional scheme as card moves: the client passes the midpoint between
-   * neighbours; we re-space only when the requested slot collides too tightly.
+   * Reorder a list within its board — Scrum Master / SUPER_ADMIN, or the
+   * board's creator. Same fractional scheme as card moves: the client passes
+   * the midpoint between neighbours; we re-space only when the requested slot
+   * collides too tightly.
    */
   async reorderList(
     id: string,
@@ -151,7 +152,7 @@ export class KanbanListsService {
     user: AuthenticatedUser,
   ): Promise<KanbanListEntity> {
     const list = await this.getListOrThrow(id);
-    await this.access.assertCanManageBoard(user, list.boardId);
+    await this.access.assertCanManageLists(user, list.boardId);
 
     let position = dto.position;
     const tooTight = await this.prisma.kanbanList.findFirst({

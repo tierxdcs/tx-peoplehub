@@ -37,9 +37,12 @@ import { cn } from '../../../lib/utils';
 import { EmployeePicker } from '../../vault/_components/employee-picker';
 
 /**
- * Board management (spec §6): add/remove members (the creator can't be
- * removed), manage the label set (create/edit/delete), and create sprints.
- * Scrum Master/SuperAdmin only — the board view only mounts this for canManage.
+ * Board management (spec §6): manage lists, add/remove members (the creator
+ * can't be removed), manage the label set (create/edit/delete), and create
+ * sprints. The board view mounts this for canManageLists (Scrum Master/
+ * SuperAdmin/board creator) — but members/labels/sprints stay Scrum-Master/
+ * SuperAdmin territory with no creator exception, so `canManageBoard` hides
+ * those three tabs for a creator-only viewer rather than let them hit a 403.
  */
 export function ManageBoardDialog({
   board,
@@ -47,6 +50,7 @@ export function ManageBoardDialog({
   labels,
   sprints,
   lists,
+  canManageBoard,
   onClose,
   onMembersChanged,
   onLabelsChanged,
@@ -58,6 +62,7 @@ export function ManageBoardDialog({
   labels: KanbanLabel[];
   sprints: KanbanSprint[];
   lists: KanbanList[];
+  canManageBoard: boolean;
   onClose: () => void;
   onMembersChanged: (next: KanbanBoardMember[]) => void;
   onLabelsChanged: (next: KanbanLabel[]) => void;
@@ -66,9 +71,10 @@ export function ManageBoardDialog({
 }) {
   const toast = useToast();
   const confirm = useConfirm();
-  const [tab, setTab] = useState<'lists' | 'members' | 'labels' | 'sprints'>(
-    'lists',
+  const tabs = (['lists', 'members', 'labels', 'sprints'] as const).filter(
+    (t) => t === 'lists' || canManageBoard,
   );
+  const [tab, setTab] = useState<(typeof tabs)[number]>('lists');
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -78,7 +84,7 @@ export function ManageBoardDialog({
         </DialogHeader>
 
         <div className="flex gap-1 rounded-md bg-muted p-1">
-          {(['lists', 'members', 'labels', 'sprints'] as const).map((t) => (
+          {tabs.map((t) => (
             <button
               key={t}
               type="button"

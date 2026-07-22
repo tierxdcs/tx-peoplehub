@@ -2321,7 +2321,8 @@ model KanbanSprint {
 }
 
 /// A card in a list. Members create/edit/move/comment; only SM/SUPER_ADMIN may
-/// set sprintId. assigneeId must be a member of the card's board.
+/// set sprintId. assigneeId need NOT be a board member — assignment itself
+/// grants a non-member restricted "card-only" access to this one card.
 model KanbanCard {
   id                String                 @id @default(uuid())
   listId            String

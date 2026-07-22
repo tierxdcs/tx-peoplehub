@@ -96,6 +96,12 @@ export class KanbanCardEntity {
   @ApiProperty({ nullable: true }) dueDate!: string | null;
   @ApiProperty({ enum: LeadPriority }) priority!: LeadPriority;
   @ApiProperty({ nullable: true }) sprintId!: string | null;
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Sprint name, denormalized so a card-only viewer (no board/sprint-list access) can still see it',
+  })
+  sprintName!: string | null;
   @ApiProperty() position!: number;
   @ApiProperty() createdById!: string;
   @ApiProperty({ enum: KanbanCardStatus }) status!: KanbanCardStatus;
@@ -103,6 +109,11 @@ export class KanbanCardEntity {
     description: 'Computed: dueDate is past AND the list is not a done-list',
   })
   isOverdue!: boolean;
+  @ApiProperty({
+    description:
+      'True for a board member/SUPER_ADMIN; false for a non-member viewing only via card assignment (card-only access) — the frontend uses this to hide board-scoped actions like moving the card or Mark complete',
+  })
+  viewerHasBoardAccess!: boolean;
   @ApiProperty({ type: () => [KanbanLabelEntity], required: false })
   labels?: KanbanLabelEntity[];
   @ApiProperty() createdAt!: string;

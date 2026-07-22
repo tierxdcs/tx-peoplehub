@@ -169,7 +169,10 @@ export class CreateCardDto {
   @IsDateString()
   dueDate?: string;
 
-  @ApiPropertyOptional({ description: 'Must be a member of the board' })
+  @ApiPropertyOptional({
+    description:
+      'Any active employee — need not be a board member (grants card-only access)',
+  })
   @IsOptional()
   @IsUUID()
   assigneeId?: string;

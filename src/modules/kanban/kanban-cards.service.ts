@@ -41,6 +41,7 @@ const CARD_INCLUDE = {
   vertical: { select: { name: true, code: true } },
   list: { select: { boardId: true, isDoneList: true } },
   labels: { include: { label: true } },
+  sprint: { select: { name: true } },
 } as const;
 
 type CardWithList = KanbanCard & { list: { boardId: string } };
@@ -70,9 +71,13 @@ export class KanbanCardsService {
   }
 
   /**
-   * A single card by id (any board member). Carries boardId + listId so a
-   * deep-link (e.g. from a notification) can resolve the board and open the
-   * card in context. 404 for a missing/archived card, 403 for a non-member.
+   * A single card by id — a board member, OR (card-only access) the card's
+   * own assignee. Carries boardId + listId so a deep-link (e.g. from a
+   * notification) can resolve the board and open the card in context, and
+   * `viewerHasBoardAccess` so the frontend can tell a full board member from
+   * a card-only assignee (who gets a standalone view, no board chrome, and
+   * loses board-scoped actions like "Mark complete"). 404 for a missing/
+   * archived card, 403 for someone with neither board access nor assignment.
    */
   async findOne(
     id: string,
@@ -85,8 +90,12 @@ export class KanbanCardsService {
     if (!card || card.status === KanbanCardStatus.ARCHIVED) {
       throw new NotFoundException('Card not found');
     }
-    await this.access.assertCanViewBoard(user, card.list.boardId);
-    return this.toEntity(card);
+    const { hasBoardAccess } = await this.access.assertCanViewCard(
+      user,
+      card.list.boardId,
+      card.assigneeId,
+    );
+    return this.toEntity(card, hasBoardAccess);
   }
 
   /**
@@ -176,10 +185,12 @@ export class KanbanCardsService {
 
   /**
    * Every ACTIVE card assigned to the current user, across ALL boards — the
-   * personal-dashboard feed. No board-id needed: an assignee is always a board
-   * member (enforced on assign), so filtering by assigneeId is sufficient and
-   * self-scoping. Returns a flattened shape carrying board context + done /
-   * overdue flags so the dashboard can compute all four stat cards client-side.
+   * personal-dashboard feed. No board-id needed and no membership check:
+   * filtering by assigneeId alone is self-scoping — you're always allowed to
+   * see cards assigned to YOU, board member or not (card-only access covers
+   * the non-member case when they open one). Returns a flattened shape
+   * carrying board context + done/overdue flags so the dashboard can compute
+   * all four stat cards client-side.
    */
   async myCards(user: AuthenticatedUser): Promise<MyCardEntity[]> {
     const cards = await this.prisma.kanbanCard.findMany({
@@ -209,7 +220,11 @@ export class KanbanCardsService {
     });
   }
 
-  /** Create a card in a list — any board member. sprintId is NOT settable. */
+  /**
+   * Create a card in a list — any board member. sprintId is NOT settable.
+   * The assignee need not be a board member — assignment itself grants them
+   * restricted "card-only" access to this one card (see assertCanViewCard).
+   */
   async create(
     listId: string,
     dto: CreateCardDto,
@@ -218,7 +233,7 @@ export class KanbanCardsService {
     const list = await this.getListOrThrow(listId);
     await this.access.assertCanViewBoard(user, list.boardId);
     if (dto.assigneeId) {
-      await this.access.assertAssigneeIsMember(dto.assigneeId, list.boardId);
+      await this.access.assertAssigneeExists(dto.assigneeId);
     }
     // Append after the current max position (leaving fractional room after).
     const last = await this.prisma.kanbanCard.findFirst({
@@ -263,10 +278,7 @@ export class KanbanCardsService {
     const card = await this.getCardOrThrow(id);
     await this.access.assertCanViewBoard(user, card.list.boardId);
     if (dto.assigneeId) {
-      await this.access.assertAssigneeIsMember(
-        dto.assigneeId,
-        card.list.boardId,
-      );
+      await this.access.assertAssigneeExists(dto.assigneeId);
     }
 
     const data: Prisma.KanbanCardUpdateInput = {};
@@ -615,7 +627,9 @@ export class KanbanCardsService {
       labels?: {
         label: { id: string; boardId: string; name: string; color: string };
       }[];
+      sprint?: { name: string } | null;
     },
+    viewerHasBoardAccess = true,
   ): KanbanCardEntity {
     // Overdue: dueDate is past AND the card's list is not a done-list. When the
     // list flag isn't loaded (older callers), fall back to just the date test.
@@ -639,10 +653,12 @@ export class KanbanCardsService {
       dueDate: card.dueDate ? card.dueDate.toISOString() : null,
       priority: card.priority,
       sprintId: card.sprintId,
+      sprintName: card.sprint?.name ?? null,
       position: card.position,
       createdById: card.createdById,
       status: card.status,
       isOverdue,
+      viewerHasBoardAccess,
       labels: card.labels?.map((cl) => ({
         id: cl.label.id,
         boardId: cl.label.boardId,

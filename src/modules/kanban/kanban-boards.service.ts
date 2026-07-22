@@ -28,14 +28,14 @@ export class KanbanBoardsService {
   ) {}
 
   /**
-   * Create a board (Scrum Master / SUPER_ADMIN). The creator is auto-added as
-   * the first member so they can never be locked out of their own board.
+   * Create a board — any employee. The creator is auto-added as the first
+   * member so they can never be locked out of their own board, and gets
+   * list-management rights over it (see KanbanAccessService.assertCanManageLists).
    */
   async create(
     dto: CreateBoardDto,
     user: AuthenticatedUser,
   ): Promise<KanbanBoardEntity> {
-    await this.access.assertCanCreateBoard(user);
     const board = await this.prisma.$transaction(async (tx) => {
       const created = await tx.kanbanBoard.create({
         data: { name: dto.name, createdById: user.id },

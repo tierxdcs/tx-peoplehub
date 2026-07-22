@@ -112,9 +112,14 @@ export function BoardView({
   const [addingList, setAddingList] = useState(false);
   const [activeCard, setActiveCard] = useState<KanbanCard | null>(null);
 
-  // A managing user is SUPER_ADMIN, or a Scrum Master who is a member. The
-  // board fetch already proved membership (403 otherwise), so the flag is enough.
-  const canManage = Boolean(isSuperAdmin || isScrumMaster);
+  // Board-wide management (sprints/members/labels) is SUPER_ADMIN, or a Scrum
+  // Master who is a member — no creator exception. The board fetch already
+  // proved membership (403 otherwise), so the flag is enough.
+  const canManageBoard = Boolean(isSuperAdmin || isScrumMaster);
+  // List management additionally carves out the board's own creator, mirroring
+  // KanbanAccessService.assertCanManageLists.
+  const canManageLists =
+    canManageBoard || board?.createdById === user?.sub;
 
   // sprintId → name, for the sprint chip on each card face.
   const sprintNames = useMemo(
@@ -410,7 +415,7 @@ export function BoardView({
             <Users className="h-4 w-4" />
             {members.length}
           </button>
-          {canManage && (
+          {canManageLists && (
             <>
               <Button
                 variant="outline"
@@ -463,7 +468,7 @@ export function BoardView({
           icon={LayoutGrid}
           title="No lists yet"
           description={
-            canManage
+            canManageLists
               ? 'Add your first list (e.g. “To Do”) to start placing cards.'
               : 'This board has no lists yet.'
           }
@@ -486,7 +491,7 @@ export function BoardView({
                   key={l.id}
                   list={l}
                   cards={cardsByList[l.id] ?? []}
-                  canManage={canManage}
+                  canManage={canManageLists}
                   dndDisabled={filterActive}
                   sprintNames={sprintNames}
                   onOpenCard={setOpenCard}
@@ -507,13 +512,12 @@ export function BoardView({
         <CardModal
           cardId={openCard.id}
           board={board}
-          members={members}
           sprints={sprints}
           boardLabels={labels}
           lists={lists}
           appendPositionForList={appendPositionForList}
           onCardMoved={(moved) => reconcileModalMove(moved)}
-          canManage={canManage}
+          canManage={canManageBoard}
           onClose={() => {
             setOpenCard(null);
             // If we arrived via a deep-link URL, restore the plain board URL.
@@ -530,6 +534,7 @@ export function BoardView({
           labels={labels}
           sprints={sprints}
           lists={lists}
+          canManageBoard={canManageBoard}
           onClose={() => setManageOpen(false)}
           onMembersChanged={(next) => setMembers(next)}
           onLabelsChanged={(next) => setLabels(next)}

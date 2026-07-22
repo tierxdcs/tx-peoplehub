@@ -28,14 +28,17 @@ export class KanbanFeedService {
     private readonly notifications: KanbanNotificationsService,
   ) {}
 
-  /** Add a comment — any board member. Notifies the card's assignee. */
+  /**
+   * Add a comment — any board member, OR (card-only access) the card's own
+   * assignee. Notifies the card's assignee.
+   */
   async addComment(
     cardId: string,
     dto: CreateCommentDto,
     user: AuthenticatedUser,
   ): Promise<KanbanCommentEntity> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanViewBoard(user, card.boardId);
+    await this.access.assertCanViewCard(user, card.boardId, card.assigneeId);
     const comment = await this.prisma.kanbanCardComment.create({
       data: { cardId, authorId: user.id, text: dto.text },
       include: { author: { select: { firstName: true, lastName: true } } },
@@ -83,13 +86,14 @@ export class KanbanFeedService {
   /**
    * Combined feed: comments + activity merged chronologically (oldest→newest),
    * each tagged COMMENT or ACTIVITY so the UI can render them differently.
+   * Any board member, OR (card-only access) the card's own assignee.
    */
   async getFeed(
     cardId: string,
     user: AuthenticatedUser,
   ): Promise<KanbanFeedItemEntity[]> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanViewBoard(user, card.boardId);
+    await this.access.assertCanViewCard(user, card.boardId, card.assigneeId);
 
     const [comments, activity] = await Promise.all([
       this.prisma.kanbanCardComment.findMany({

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LayoutGrid, Users } from 'lucide-react';
 import { listBoards, type KanbanBoard } from '../../lib/kanban';
-import { useIsScrumMaster } from '../../lib/use-is-scrum-master';
 import { useAuth } from '../../lib/auth-context';
 import { PageContainer } from '../../components/ui/page-container';
 import { PageHeader } from '../../components/ui/page-header';
@@ -17,15 +16,12 @@ import { CreateBoardDialog } from './_components/create-board-dialog';
 
 /**
  * Kanban landing (spec §1): the boards the current employee is a member of,
- * as tiles. SUPER_ADMIN sees every board (server override). "New Board" is
- * shown only to Scrum Master / SUPER_ADMIN.
+ * as tiles. SUPER_ADMIN sees every board (server override). Any employee can
+ * create a board.
  */
 export default function KanbanBoardsPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { isScrumMaster } = useIsScrumMaster();
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-  const canCreate = isSuperAdmin || isScrumMaster;
 
   const [boards, setBoards] = useState<KanbanBoard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,11 +49,7 @@ export default function KanbanBoardsPage() {
       <PageHeader
         title="Boards"
         description="Kanban boards you’re a member of."
-        action={
-          canCreate ? (
-            <Button onClick={() => setCreating(true)}>+ New Board</Button>
-          ) : undefined
-        }
+        action={<Button onClick={() => setCreating(true)}>+ New Board</Button>}
       />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
@@ -74,11 +66,7 @@ export default function KanbanBoardsPage() {
             <EmptyState
               icon={LayoutGrid}
               title="No boards yet"
-              description={
-                canCreate
-                  ? 'Create your first board to start organising work.'
-                  : 'You’re not a member of any board yet. A Scrum Master can add you to one.'
-              }
+              description="Create your first board to start organising work."
             />
           </CardContent>
         </Card>

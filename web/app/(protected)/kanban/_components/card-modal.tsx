@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Tag, Trash2 } from 'lucide-react';
+import { CheckCircle2, Tag, Trash2, X } from 'lucide-react';
 import {
   addComment,
   archiveCard,
@@ -14,7 +14,6 @@ import {
   setCardSprint,
   updateCard,
   type KanbanBoard,
-  type KanbanBoardMember,
   type KanbanCard,
   type KanbanFeedItem,
   type KanbanLabel,
@@ -40,6 +39,7 @@ import { Avatar } from '../../../components/ui/avatar';
 import { Badge } from '../../../components/ui/badge';
 import { Spinner } from '../../../components/ui/spinner';
 import { CardAttachments } from './card-attachments';
+import { EmployeePicker } from '../../vault/_components/employee-picker';
 import { cn } from '../../../lib/utils';
 
 function toDateInput(iso: string | null): string {
@@ -57,15 +57,17 @@ function relative(iso: string): string {
 
 /**
  * Card detail modal (spec §4). Loads the full card + feed by id (so it works
- * both from a click and a deep-link). Any member edits title/description/
- * dates/priority/assignee/labels and comments; the sprint field is read-only
- * for members and an editable dropdown for canManage; delete is shown to the
- * creator or a managing user.
+ * both from a click and a deep-link). Only ever mounted from BoardView, which
+ * itself 403s non-members — so every viewer here already has full board
+ * access. (A non-member card-only assignee gets a separate, standalone card
+ * view instead — see kanban/cards/[id]/page.tsx.) Any member edits title/
+ * description/dates/priority/assignee/labels and comments; the sprint field
+ * is read-only for members and an editable dropdown for canManage; delete is
+ * shown to the creator or a managing user.
  */
 export function CardModal({
   cardId,
   board,
-  members,
   sprints,
   boardLabels,
   lists,
@@ -77,7 +79,6 @@ export function CardModal({
 }: {
   cardId: string;
   board: KanbanBoard;
-  members: KanbanBoardMember[];
   sprints: KanbanSprint[];
   boardLabels: KanbanLabel[];
   lists: KanbanList[];
@@ -520,20 +521,39 @@ export function CardModal({
                   )}
 
                 <SideField label="Assignee">
-                  <Select
-                    value={card.assigneeId ?? ''}
-                    onChange={(e) =>
-                      void patch({ assigneeId: e.target.value || null })
-                    }
-                    className="h-8"
-                  >
-                    <option value="">Unassigned</option>
-                    {members.map((m) => (
-                      <option key={m.employeeId} value={m.employeeId}>
-                        {m.employeeName ?? m.employeeEmail}
-                      </option>
-                    ))}
-                  </Select>
+                  {card.assigneeId && card.assigneeName ? (
+                    <div className="flex items-center gap-2 rounded-md border px-2 py-1 text-sm">
+                      <Avatar
+                        name={card.assigneeName}
+                        className="h-6 w-6 text-[10px]"
+                      />
+                      <span className="min-w-0 flex-1 truncate">
+                        {card.assigneeName}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Unassign"
+                        onClick={() => void patch({ assigneeId: null })}
+                        className="rounded-sm p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="mb-1.5 text-sm text-muted-foreground">
+                      Unassigned
+                    </p>
+                  )}
+                  <div className="mt-1.5">
+                    <EmployeePicker
+                      onSelect={(e) => void patch({ assigneeId: e.id })}
+                      excludeIds={card.assigneeId ? [card.assigneeId] : []}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Any employee — assigning someone who isn’t a board member
+                    gives them access to just this card.
+                  </p>
                 </SideField>
 
                 <SideField label="Vertical">

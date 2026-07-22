@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, LayoutGrid, Plus, Rocket, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, LayoutGrid, Plus, Rocket, Trash2, X } from 'lucide-react';
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import {
@@ -73,6 +73,7 @@ export default function KickoffDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
   const { user } = useAuth();
 
   const [kickoff, setKickoff] = useState<ProjectKickoff | null>(null);
@@ -80,6 +81,10 @@ export default function KickoffDetailPage() {
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Overdue-draft nudge: dismissible for this page visit only (no persistence
+  // precedent elsewhere in the app) — reappears on next visit/reload if the
+  // kickoff is still Draft, since the underlying condition hasn't changed.
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   /**
    * Fetch the kickoff (+ board members). `showSkeleton` controls whether the
@@ -175,7 +180,23 @@ export default function KickoffDetailPage() {
 
   async function toggleCompleted() {
     if (!kickoff) return;
-    const next = kickoff.status === 'COMPLETED' ? 'DRAFT' : 'COMPLETED';
+    const completing = kickoff.status !== 'COMPLETED';
+    const next = completing ? 'COMPLETED' : 'DRAFT';
+    const ok = await confirm(
+      completing
+        ? {
+            title: 'Mark this kickoff as completed?',
+            confirmLabel: 'Mark Completed',
+          }
+        : {
+            title: 'Revert to Draft?',
+            description:
+              'This kickoff is marked Completed. Revert it to Draft?',
+            confirmLabel: 'Revert to Draft',
+            destructive: true,
+          },
+    );
+    if (!ok) return;
     try {
       const updated = await updateKickoff(kickoff.id, { status: next });
       setKickoff((prev) => (prev ? { ...prev, status: updated.status } : prev));
@@ -183,6 +204,15 @@ export default function KickoffDetailPage() {
       toast.error(err instanceof ApiError ? err.message : 'Failed to update status.');
     }
   }
+
+  // Overdue-draft nudge condition — mirrors the "don't trust dates alone"
+  // principle used for project health: a past meetingDate is only meaningful
+  // combined with the record's own status (still DRAFT). This NEVER writes
+  // back to kickoff.status — it's a pure, ephemeral read-time signal, exactly
+  // like the overdue-milestone/action/risk flags in project-progress.ts.
+  const isOverdueDraft =
+    kickoff.status === 'DRAFT' &&
+    new Date(kickoff.meetingDate).getTime() < Date.now();
 
   return (
     <>
@@ -234,6 +264,33 @@ export default function KickoffDetailPage() {
             </Button>
           </div>
         </div>
+
+        {/* Overdue-draft nudge — a visible reminder, never an automatic status
+            change. Dismissible for this visit; reappears next time if still
+            unaddressed, since the condition itself hasn't changed. */}
+        {isOverdueDraft && !nudgeDismissed && (
+          <div className="mb-4 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+            <div className="flex-1">
+              <p className="font-medium">
+                This kickoff's meeting date has passed — mark it as completed?
+              </p>
+            </div>
+            {canManageStatus && (
+              <Button size="sm" variant="outline" onClick={toggleCompleted}>
+                Mark Completed
+              </Button>
+            )}
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={() => setNudgeDismissed(true)}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
 
         {/* Live flow indicator — stage derived from status + attendee/action counts. */}
         <ProcessFlow

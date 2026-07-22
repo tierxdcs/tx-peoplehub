@@ -31,7 +31,7 @@ describe('KanbanListsService done-list invariant', () => {
       $transaction: jest.fn(async (callback) => callback(tx)),
     };
     const access = {
-      assertCanManageBoard: jest.fn().mockResolvedValue(undefined),
+      assertCanManageLists: jest.fn().mockResolvedValue(undefined),
     };
     return {
       service: new KanbanListsService(prisma as never, access as never),

@@ -150,6 +150,7 @@ export class KanbanLabelsService {
         assignee: { select: { firstName: true, lastName: true } },
         list: { select: { isDoneList: true } },
         labels: { include: { label: true } },
+        sprint: { select: { name: true } },
       },
     });
     const isDoneList = card.list?.isDoneList ?? false;
@@ -168,10 +169,12 @@ export class KanbanLabelsService {
       dueDate: card.dueDate ? card.dueDate.toISOString() : null,
       priority: card.priority,
       sprintId: card.sprintId,
+      sprintName: card.sprint?.name ?? null,
       position: card.position,
       createdById: card.createdById,
       status: card.status,
       isOverdue,
+      viewerHasBoardAccess: true,
       labels: card.labels.map((cl) => ({
         id: cl.label.id,
         boardId: cl.label.boardId,
