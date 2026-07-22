@@ -37,15 +37,33 @@ import {
   CreateVendorDto,
   PublicCertConfirmDto,
   PublicCertUploadUrlDto,
+  PublicCompanyInfoDto,
   PublicQuestionnaireSaveDto,
 } from './dto/scm.dto';
 import {
   VendorAuditEntity,
   VendorCertificateFileEntity,
+  VendorCompanyInfoEntity,
   VendorEntity,
   VendorInviteEntity,
   VendorQuestionnaireEntity,
 } from './entities/scm.entity';
+
+/** The Vendor master fields the public form's Company Information section can write. */
+type VendorCompanyInfo = {
+  companyName: string;
+  contactEmail: string;
+  registeredAddress: string | null;
+  factoryAddress: string | null;
+  yearEstablished: string | null;
+  numberOfEmployees: string | null;
+  annualTurnover: string | null;
+  msmeUdyamCertificate: string | null;
+  contactPersonName: string | null;
+  contactPersonDesignation: string | null;
+  contactPhone: string | null;
+  website: string | null;
+};
 
 /** Default invite lifetime — 14 days, generous given the form's length (§5). */
 const DEFAULT_INVITE_EXPIRY_HOURS = 14 * 24;
@@ -99,16 +117,16 @@ export class ScmService {
       const created = await tx.vendor.create({
         data: {
           companyName: dto.companyName,
-          registeredAddress: dto.registeredAddress,
-          factoryAddress: dto.factoryAddress,
-          yearEstablished: dto.yearEstablished,
-          numberOfEmployees: dto.numberOfEmployees,
-          annualTurnover: dto.annualTurnover,
+          registeredAddress: dto.registeredAddress ?? null,
+          factoryAddress: dto.factoryAddress ?? null,
+          yearEstablished: dto.yearEstablished ?? null,
+          numberOfEmployees: dto.numberOfEmployees ?? null,
+          annualTurnover: dto.annualTurnover ?? null,
           msmeUdyamCertificate: dto.msmeUdyamCertificate ?? null,
-          contactPersonName: dto.contactPersonName,
-          contactPersonDesignation: dto.contactPersonDesignation,
+          contactPersonName: dto.contactPersonName ?? null,
+          contactPersonDesignation: dto.contactPersonDesignation ?? null,
           contactEmail: dto.contactEmail,
-          contactPhone: dto.contactPhone,
+          contactPhone: dto.contactPhone ?? null,
           website: dto.website ?? null,
           createdById: user.id,
         },
@@ -149,7 +167,7 @@ export class ScmService {
     if (!s) throw new NotFoundException('Vendor not found');
     return {
       ...this.toVendor(s),
-      questionnaires: s.questionnaires.map((q) => this.toQuestionnaire(q)),
+      questionnaires: s.questionnaires.map((q) => this.toQuestionnaire(q, s)),
       audits: s.audits.map((a) => this.toAudit(a)),
     };
   }
@@ -191,11 +209,11 @@ export class ScmService {
       data: copyForward,
     });
     // Back to pending-questionnaire state for the resubmission cycle.
-    await this.prisma.vendor.update({
+    const vendor = await this.prisma.vendor.update({
       where: { id: vendorId },
       data: { status: VendorStatus.PENDING_QUESTIONNAIRE },
     });
-    return this.toQuestionnaire(created);
+    return this.toQuestionnaire(created, vendor);
   }
 
   // ── Invites (token links) ────────────────────────────────────────────
@@ -258,11 +276,17 @@ export class ScmService {
     const invite = await this.getValidInvite(token, password, now);
     const q = await this.prisma.vendorQuestionnaire.findUniqueOrThrow({
       where: { id: invite.questionnaireId },
+      include: { vendor: true },
     });
-    return this.toQuestionnaire(q);
+    return this.toQuestionnaire(q, q.vendor);
   }
 
-  /** Partial save (resume) of section data — must be a non-submitted revision. */
+  /**
+   * Partial save (resume) of section data — must be a non-submitted revision.
+   * `companyInfo`, if present, writes back to the Vendor master record itself
+   * (not the questionnaire) — this is how a vendor completes/corrects the
+   * fields staff left blank at creation (see PublicCompanyInfoDto).
+   */
   async savePublic(
     token: string,
     dto: PublicQuestionnaireSaveDto,
@@ -278,17 +302,20 @@ export class ScmService {
         (data as Record<string, unknown>)[key] = val as Prisma.InputJsonValue;
       }
     }
-    const updated = await this.prisma.vendorQuestionnaire.update({
-      where: { id: q.id },
-      data,
-    });
-    return this.toQuestionnaire(updated);
+    const [updated, vendor] = await this.prisma.$transaction([
+      this.prisma.vendorQuestionnaire.update({ where: { id: q.id }, data }),
+      this.prisma.vendor.update({
+        where: { id: q.vendorId },
+        data: this.companyInfoUpdateData(dto.companyInfo),
+      }),
+    ]);
+    return this.toQuestionnaire(updated, vendor);
   }
 
   /**
    * Final submit — locks the questionnaire (→ SUBMITTED), sets Vendor →
    * QUESTIONNAIRE_SUBMITTED, and notifies the vendor's creator. Accepts the
-   * final section payload in the same shape as save.
+   * final section payload (+ optional companyInfo) in the same shape as save.
    */
   async submitPublic(
     token: string,
@@ -316,8 +343,10 @@ export class ScmService {
       });
       const vendor = await tx.vendor.update({
         where: { id: u.vendorId },
-        data: { status: VendorStatus.QUESTIONNAIRE_SUBMITTED },
-        select: { createdById: true, companyName: true },
+        data: {
+          status: VendorStatus.QUESTIONNAIRE_SUBMITTED,
+          ...this.companyInfoUpdateData(dto.companyInfo),
+        },
       });
       return { u, vendor };
     });
@@ -329,7 +358,7 @@ export class ScmService {
       vendorId: updated.u.vendorId,
       vendorName: updated.vendor.companyName,
     });
-    return this.toQuestionnaire(updated.u);
+    return this.toQuestionnaire(updated.u, updated.vendor);
   }
 
   // ── Public certificate upload (reuses Vault guardrails) ──────────────
@@ -483,16 +512,16 @@ export class ScmService {
   private toVendor(s: {
     id: string;
     companyName: string;
-    registeredAddress: string;
-    factoryAddress: string;
-    yearEstablished: string;
-    numberOfEmployees: string;
-    annualTurnover: string;
+    registeredAddress: string | null;
+    factoryAddress: string | null;
+    yearEstablished: string | null;
+    numberOfEmployees: string | null;
+    annualTurnover: string | null;
     msmeUdyamCertificate: string | null;
-    contactPersonName: string;
-    contactPersonDesignation: string;
+    contactPersonName: string | null;
+    contactPersonDesignation: string | null;
     contactEmail: string;
-    contactPhone: string;
+    contactPhone: string | null;
     website: string | null;
     status: VendorStatus;
     createdById: string;
@@ -506,17 +535,57 @@ export class ScmService {
     });
   }
 
-  private toQuestionnaire(q: {
-    [k: string]: unknown;
-    id: string;
-    vendorId: string;
-    revisionNumber: number;
-    status: VendorQuestionnaireStatus;
-    submittedAt: Date | null;
-    qualityCertificateFiles: unknown;
-    createdAt: Date;
-    updatedAt: Date;
-  }): VendorQuestionnaireEntity {
+  /** Prisma update data for the Company Information write-back — undefined fields are left untouched. */
+  private companyInfoUpdateData(
+    info: PublicCompanyInfoDto | undefined,
+  ): Prisma.VendorUpdateInput {
+    if (!info) return {};
+    const data: Prisma.VendorUpdateInput = {};
+    if (info.registeredAddress !== undefined) data.registeredAddress = info.registeredAddress;
+    if (info.factoryAddress !== undefined) data.factoryAddress = info.factoryAddress;
+    if (info.yearEstablished !== undefined) data.yearEstablished = info.yearEstablished;
+    if (info.numberOfEmployees !== undefined) data.numberOfEmployees = info.numberOfEmployees;
+    if (info.annualTurnover !== undefined) data.annualTurnover = info.annualTurnover;
+    if (info.msmeUdyamCertificate !== undefined) data.msmeUdyamCertificate = info.msmeUdyamCertificate;
+    if (info.contactPersonName !== undefined) data.contactPersonName = info.contactPersonName;
+    if (info.contactPersonDesignation !== undefined) data.contactPersonDesignation = info.contactPersonDesignation;
+    if (info.contactPhone !== undefined) data.contactPhone = info.contactPhone;
+    if (info.website !== undefined) data.website = info.website;
+    return data;
+  }
+
+  /** Narrows to exactly the fields the public form may see/edit — the callers pass full Prisma rows. */
+  private toCompanyInfo(v: VendorCompanyInfo): VendorCompanyInfoEntity {
+    return new VendorCompanyInfoEntity({
+      companyName: v.companyName,
+      contactEmail: v.contactEmail,
+      registeredAddress: v.registeredAddress,
+      factoryAddress: v.factoryAddress,
+      yearEstablished: v.yearEstablished,
+      numberOfEmployees: v.numberOfEmployees,
+      annualTurnover: v.annualTurnover,
+      msmeUdyamCertificate: v.msmeUdyamCertificate,
+      contactPersonName: v.contactPersonName,
+      contactPersonDesignation: v.contactPersonDesignation,
+      contactPhone: v.contactPhone,
+      website: v.website,
+    });
+  }
+
+  private toQuestionnaire(
+    q: {
+      [k: string]: unknown;
+      id: string;
+      vendorId: string;
+      revisionNumber: number;
+      status: VendorQuestionnaireStatus;
+      submittedAt: Date | null;
+      qualityCertificateFiles: unknown;
+      createdAt: Date;
+      updatedAt: Date;
+    },
+    vendor: VendorCompanyInfo,
+  ): VendorQuestionnaireEntity {
     const files = (q.qualityCertificateFiles as CertFile[] | null) ?? [];
     const sections: Record<string, unknown> = {};
     for (const key of SECTION_KEYS) sections[key] = q[key] ?? null;
@@ -526,6 +595,7 @@ export class ScmService {
       revisionNumber: q.revisionNumber,
       status: q.status,
       submittedAt: q.submittedAt ? q.submittedAt.toISOString() : null,
+      companyInfo: this.toCompanyInfo(vendor),
       ...sections,
       qualityCertificateFiles: files.map(
         (f) => new VendorCertificateFileEntity(f),

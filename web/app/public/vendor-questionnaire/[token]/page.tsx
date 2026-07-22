@@ -11,6 +11,7 @@ import {
   savePublicQuestionnaire,
   submitPublicQuestionnaire,
   type CertificateFile,
+  type PublicCompanyInfo,
   type SectionKey,
   type VendorQuestionnaire,
 } from '../../../lib/scm';
@@ -40,6 +41,7 @@ export default function PublicVsaqPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [questionnaire, setQuestionnaire] = useState<VendorQuestionnaire | null>(null);
   const [form, setForm] = useState<FormState>({});
+  const [companyInfo, setCompanyInfo] = useState<PublicCompanyInfo>({});
   const [certs, setCerts] = useState<CertificateFile[]>([]);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -52,6 +54,18 @@ export default function PublicVsaqPage() {
     setQuestionnaire(q);
     setSubmitted(q.status === 'SUBMITTED');
     setCerts(q.qualityCertificateFiles ?? []);
+    setCompanyInfo({
+      registeredAddress: q.companyInfo.registeredAddress ?? '',
+      factoryAddress: q.companyInfo.factoryAddress ?? '',
+      yearEstablished: q.companyInfo.yearEstablished ?? '',
+      numberOfEmployees: q.companyInfo.numberOfEmployees ?? '',
+      annualTurnover: q.companyInfo.annualTurnover ?? '',
+      msmeUdyamCertificate: q.companyInfo.msmeUdyamCertificate ?? '',
+      contactPersonName: q.companyInfo.contactPersonName ?? '',
+      contactPersonDesignation: q.companyInfo.contactPersonDesignation ?? '',
+      contactPhone: q.companyInfo.contactPhone ?? '',
+      website: q.companyInfo.website ?? '',
+    });
     // Seed the form from any previously-saved section data (resume).
     const seeded: FormState = {};
     (Object.keys(q) as (keyof VendorQuestionnaire)[]).forEach((k) => {
@@ -63,6 +77,10 @@ export default function PublicVsaqPage() {
     });
     setForm(seeded);
   }, []);
+
+  function setCompanyInfoField(key: keyof PublicCompanyInfo, value: string) {
+    setCompanyInfo((c) => ({ ...c, [key]: value }));
+  }
 
   const resolve = useCallback(
     async (pwd?: string) => {
@@ -92,7 +110,7 @@ export default function PublicVsaqPage() {
   async function save() {
     setSaving(true);
     setBanner(null);
-    const res = await savePublicQuestionnaire(token, form, pwRef.current);
+    const res = await savePublicQuestionnaire(token, form, pwRef.current, companyInfo);
     setSaving(false);
     if (res.ok) setBanner('Progress saved. You can close this and resume later via the same link.');
     else setBanner(res.message);
@@ -106,7 +124,7 @@ export default function PublicVsaqPage() {
     }
     setSaving(true);
     setBanner(null);
-    const res = await submitPublicQuestionnaire(token, form, pwRef.current);
+    const res = await submitPublicQuestionnaire(token, form, pwRef.current, companyInfo);
     setSaving(false);
     if (res.ok) {
       setSubmitted(true);
@@ -222,8 +240,65 @@ export default function PublicVsaqPage() {
         </p>
       )}
 
-      {/* 1. Business Profile */}
-      <Section n="1" title="Business Profile">
+      {/* 1. Company Information — writes back to the Vendor master record. */}
+      <Section n="1" title="Company Information">
+        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 10px' }}>
+          Please confirm or complete your company details below.
+        </p>
+        <FieldRow
+          label="Registered Address"
+          value={companyInfo.registeredAddress ?? ''}
+          onChange={(v) => setCompanyInfoField('registeredAddress', v)}
+        />
+        <FieldRow
+          label="Factory Address"
+          value={companyInfo.factoryAddress ?? ''}
+          onChange={(v) => setCompanyInfoField('factoryAddress', v)}
+        />
+        <FieldRow
+          label="Year Established"
+          value={companyInfo.yearEstablished ?? ''}
+          onChange={(v) => setCompanyInfoField('yearEstablished', v)}
+        />
+        <FieldRow
+          label="Number of Employees"
+          value={companyInfo.numberOfEmployees ?? ''}
+          onChange={(v) => setCompanyInfoField('numberOfEmployees', v)}
+        />
+        <FieldRow
+          label="Annual Turnover"
+          value={companyInfo.annualTurnover ?? ''}
+          onChange={(v) => setCompanyInfoField('annualTurnover', v)}
+        />
+        <FieldRow
+          label="MSME / UDYAM Certificate"
+          value={companyInfo.msmeUdyamCertificate ?? ''}
+          onChange={(v) => setCompanyInfoField('msmeUdyamCertificate', v)}
+        />
+        <FieldRow
+          label="Contact Person Name"
+          value={companyInfo.contactPersonName ?? ''}
+          onChange={(v) => setCompanyInfoField('contactPersonName', v)}
+        />
+        <FieldRow
+          label="Contact Person Designation"
+          value={companyInfo.contactPersonDesignation ?? ''}
+          onChange={(v) => setCompanyInfoField('contactPersonDesignation', v)}
+        />
+        <FieldRow
+          label="Contact Phone"
+          value={companyInfo.contactPhone ?? ''}
+          onChange={(v) => setCompanyInfoField('contactPhone', v)}
+        />
+        <FieldRow
+          label="Website"
+          value={companyInfo.website ?? ''}
+          onChange={(v) => setCompanyInfoField('website', v)}
+        />
+      </Section>
+
+      {/* 2. Business Profile */}
+      <Section n="2" title="Business Profile">
         <H3>Company Type</H3>
         <CheckGrid
           options={['Manufacturer', 'OEM', 'Contract Manufacturer', 'Distributor', 'Service Provider', 'System Integrator']}
@@ -255,8 +330,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 2. Manufacturing Capability — yes/no grid */}
-      <Section n="2" title="Manufacturing Capability">
+      {/* 3. Manufacturing Capability — yes/no grid */}
+      <Section n="3" title="Manufacturing Capability">
         <YesNoGrid
           rows={['Laser Cutting', 'CNC Punching', 'CNC Bending', 'Robotic Welding', 'TIG Welding', 'MIG Welding', 'Spot Welding', 'Powder Coating', 'Assembly Line', 'FAT Area']}
           value={(g('manufacturingCapability').capabilities as Record<string, string>) ?? {}}
@@ -264,8 +339,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 3. Equipment Details — table */}
-      <Section n="3" title="Equipment Details">
+      {/* 4. Equipment Details — table */}
+      <Section n="4" title="Equipment Details">
         <GridTable
           columns={['Machine Name', 'Manufacturer', 'Model', 'Capacity', 'Year Installed']}
           value={(g('equipmentDetails').machines as string[][]) ?? [['', '', '', '', '']]}
@@ -273,8 +348,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 4. Production Capacity */}
-      <Section n="4" title="Production Capacity">
+      {/* 5. Production Capacity */}
+      <Section n="5" title="Production Capacity">
         <FieldRows
           section="productionCapacity"
           state={g('productionCapacity')}
@@ -288,8 +363,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 5. Quality Management */}
-      <Section n="5" title="Quality Management">
+      {/* 6. Quality Management */}
+      <Section n="6" title="Quality Management">
         <H3>Certifications</H3>
         <CheckGrid
           options={['ISO 9001', 'ISO 14001', 'ISO 45001', 'ISO 27001', 'IATF 16949', 'VDA', 'CE', 'UL']}
@@ -325,8 +400,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 6. Engineering Capability */}
-      <Section n="6" title="Engineering Capability">
+      {/* 7. Engineering Capability */}
+      <Section n="7" title="Engineering Capability">
         <H3>Design Software Available</H3>
         <CheckGrid
           options={['AutoCAD', 'SolidWorks', 'Creo', 'CATIA', 'Inventor', 'NX']}
@@ -341,8 +416,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 7. Supply Chain */}
-      <Section n="7" title="Supply Chain">
+      {/* 8. Supply Chain */}
+      <Section n="8" title="Supply Chain">
         <FieldRows
           section="supplyChain"
           state={g('supplyChain')}
@@ -357,8 +432,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 8. Traceability */}
-      <Section n="8" title="Traceability">
+      {/* 9. Traceability */}
+      <Section n="9" title="Traceability">
         <CheckGrid
           options={['Raw Material', 'Batch Number', 'Heat Number', 'Operator', 'Inspection Records', 'Calibration Records']}
           selected={(g('traceability').traceable as string[]) ?? []}
@@ -366,8 +441,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 9. Logistics */}
-      <Section n="9" title="Logistics">
+      {/* 10. Logistics */}
+      <Section n="10" title="Logistics">
         <FieldRows
           section="logistics"
           state={g('logistics')}
@@ -382,8 +457,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 10. Sustainability */}
-      <Section n="10" title="Sustainability">
+      {/* 11. Sustainability */}
+      <Section n="11" title="Sustainability">
         <FieldRows
           section="sustainability"
           state={g('sustainability')}
@@ -399,8 +474,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 11. Information Security */}
-      <Section n="11" title="Information Security">
+      {/* 12. Information Security */}
+      <Section n="12" title="Information Security">
         <FieldRows
           section="informationSecurity"
           state={g('informationSecurity')}
@@ -415,8 +490,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 12. Business Continuity */}
-      <Section n="12" title="Business Continuity">
+      {/* 13. Business Continuity */}
+      <Section n="13" title="Business Continuity">
         <FieldRows
           section="businessContinuity"
           state={g('businessContinuity')}
@@ -431,8 +506,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 13. EHS */}
-      <Section n="13" title="EHS (Environment, Health & Safety)">
+      {/* 14. EHS */}
+      <Section n="14" title="EHS (Environment, Health & Safety)">
         <FieldRows
           section="ehs"
           state={g('ehs')}
@@ -447,8 +522,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 14. Financial Information */}
-      <Section n="14" title="Financial Information">
+      {/* 15. Financial Information */}
+      <Section n="15" title="Financial Information">
         <FieldRows
           section="financialInformation"
           state={g('financialInformation')}
@@ -463,8 +538,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 15. Customer Support */}
-      <Section n="15" title="Customer Support">
+      {/* 16. Customer Support */}
+      <Section n="16" title="Customer Support">
         <FieldRows
           section="customerSupport"
           state={g('customerSupport')}
@@ -479,8 +554,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 16. Compliance */}
-      <Section n="16" title="Compliance">
+      {/* 17. Compliance */}
+      <Section n="17" title="Compliance">
         <FieldRows
           section="compliance"
           state={g('compliance')}
@@ -496,8 +571,8 @@ export default function PublicVsaqPage() {
         />
       </Section>
 
-      {/* 17. References */}
-      <Section n="17" title="References">
+      {/* 18. References */}
+      <Section n="18" title="References">
         {[0, 1, 2].map((i) => (
           <div key={i} style={{ padding: '12px 14px', background: '#f8f8f9', borderRadius: 4, marginBottom: 12 }}>
             <H4>{`Reference ${i + 1}`}</H4>
@@ -517,8 +592,8 @@ export default function PublicVsaqPage() {
         ))}
       </Section>
 
-      {/* 18. Declaration */}
-      <Section n="18" title="Declaration">
+      {/* 19. Declaration */}
+      <Section n="19" title="Declaration">
         <p style={{ fontSize: 13.5, color: '#374151' }}>
           We certify that the information provided in this questionnaire is true
           and accurate to the best of our knowledge.

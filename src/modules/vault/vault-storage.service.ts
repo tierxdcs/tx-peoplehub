@@ -202,4 +202,15 @@ export class VaultStorageService {
       );
     }
   }
+
+  /**
+   * Delete an object and surface storage failures to the caller. Used when an
+   * API promises that a successful delete removed the underlying bytes (card
+   * attachments), rather than retention cleanup where best-effort is safer.
+   */
+  async deleteObjectStrict(storageKey: string): Promise<void> {
+    await this.getClient().send(
+      new DeleteObjectCommand({ Bucket: this.cfg.bucket, Key: storageKey }),
+    );
+  }
 }

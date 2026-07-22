@@ -37,16 +37,16 @@ export type SupplierClassification =
 export interface Supplier {
   id: string;
   companyName: string;
-  registeredAddress: string;
-  factoryAddress: string;
-  yearEstablished: string;
-  numberOfEmployees: string;
-  annualTurnover: string;
+  registeredAddress: string | null;
+  factoryAddress: string | null;
+  yearEstablished: string | null;
+  numberOfEmployees: string | null;
+  annualTurnover: string | null;
   msmeUdyamCertificate: string | null;
-  contactPersonName: string;
-  contactPersonDesignation: string;
+  contactPersonName: string | null;
+  contactPersonDesignation: string | null;
   contactEmail: string;
-  contactPhone: string;
+  contactPhone: string | null;
   website: string | null;
   status: SupplierStatus;
   createdById: string;
@@ -82,6 +82,31 @@ export type SectionKey = (typeof SECTION_KEYS)[number];
 /** Sections that are optional to submit (rendered as such on the form + view). */
 export const OPTIONAL_SECTION_KEYS: SectionKey[] = ['packagingAndDelivery'];
 
+/**
+ * The Supplier master fields surfaced on the public form's "Company
+ * Information" section. companyName/contactEmail are staff-set and shown
+ * read-only there; everything else is editable via PublicCompanyInfo.
+ */
+export interface SupplierCompanyInfo {
+  companyName: string;
+  contactEmail: string;
+  registeredAddress: string | null;
+  factoryAddress: string | null;
+  yearEstablished: string | null;
+  numberOfEmployees: string | null;
+  annualTurnover: string | null;
+  msmeUdyamCertificate: string | null;
+  contactPersonName: string | null;
+  contactPersonDesignation: string | null;
+  contactPhone: string | null;
+  website: string | null;
+}
+
+/** Editable subset of SupplierCompanyInfo — what the public/internal-fill form may write back. */
+export type PublicCompanyInfo = Partial<
+  Omit<SupplierCompanyInfo, 'companyName' | 'contactEmail'>
+>;
+
 export type SupplierQuestionnaire = {
   id: string;
   supplierId: string;
@@ -89,6 +114,7 @@ export type SupplierQuestionnaire = {
   status: QuestionnaireStatus;
   submittedAt: string | null;
   filledBy: FilledBy | null;
+  companyInfo: SupplierCompanyInfo;
   certificateFiles: CertificateFile[];
   createdAt: string;
   updatedAt: string;
@@ -139,18 +165,22 @@ export interface SupplierDetail extends Supplier {
 }
 
 // ── Authenticated (SCM staff) calls ──────────────────────────────────
+/**
+ * Only companyName + contactEmail are required at creation — everything else
+ * is optional and can arrive later via the supplier's own questionnaire.
+ */
 export interface CreateSupplierInput {
   companyName: string;
-  registeredAddress: string;
-  factoryAddress: string;
-  yearEstablished: string;
-  numberOfEmployees: string;
-  annualTurnover: string;
-  msmeUdyamCertificate?: string;
-  contactPersonName: string;
-  contactPersonDesignation: string;
   contactEmail: string;
-  contactPhone: string;
+  registeredAddress?: string;
+  factoryAddress?: string;
+  yearEstablished?: string;
+  numberOfEmployees?: string;
+  annualTurnover?: string;
+  msmeUdyamCertificate?: string;
+  contactPersonName?: string;
+  contactPersonDesignation?: string;
+  contactPhone?: string;
   website?: string;
 }
 
@@ -196,20 +226,22 @@ export function revokeInvite(inviteId: string) {
 export function saveInternal(
   questionnaireId: string,
   sections: Partial<Record<SectionKey, unknown>>,
+  companyInfo?: PublicCompanyInfo,
 ) {
   return apiFetch<SupplierQuestionnaire>(
     `/suppliers/questionnaires/${questionnaireId}/internal-fill/save`,
-    { method: 'POST', body: JSON.stringify(sections) },
+    { method: 'POST', body: JSON.stringify({ ...sections, companyInfo }) },
   );
 }
 
 export function submitInternal(
   questionnaireId: string,
   sections: Partial<Record<SectionKey, unknown>>,
+  companyInfo?: PublicCompanyInfo,
 ) {
   return apiFetch<SupplierQuestionnaire>(
     `/suppliers/questionnaires/${questionnaireId}/internal-fill/submit`,
-    { method: 'POST', body: JSON.stringify(sections) },
+    { method: 'POST', body: JSON.stringify({ ...sections, companyInfo }) },
   );
 }
 
@@ -346,10 +378,11 @@ export function savePublicQuestionnaire(
   token: string,
   sections: Partial<Record<SectionKey, unknown>>,
   password?: string,
+  companyInfo?: PublicCompanyInfo,
 ) {
   return publicPost<SupplierQuestionnaire>(
     `/public/supplier-questionnaire/${encodeURIComponent(token)}/save`,
-    { ...sections, password },
+    { ...sections, password, companyInfo },
   );
 }
 
@@ -357,10 +390,11 @@ export function submitPublicQuestionnaire(
   token: string,
   sections: Partial<Record<SectionKey, unknown>>,
   password?: string,
+  companyInfo?: PublicCompanyInfo,
 ) {
   return publicPost<SupplierQuestionnaire>(
     `/public/supplier-questionnaire/${encodeURIComponent(token)}/submit`,
-    { ...sections, password },
+    { ...sections, password, companyInfo },
   );
 }
 

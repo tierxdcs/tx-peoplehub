@@ -16,8 +16,6 @@ import { Button } from '../../../components/ui/button';
 import { useToast } from '../../../components/ui/toaster';
 import { useConfirm } from '../../../components/ui/confirm';
 
-const MAX_BYTES = 25 * 1024 * 1024;
-
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -27,17 +25,19 @@ function formatSize(bytes: number): string {
 /**
  * Card attachments: lists ACTIVE files, uploads new ones browser→R2 via a
  * presigned PUT (create-url → PUT → confirm), downloads via a presigned GET,
- * and deletes (uploader or board manager). Mirrors the Vault upload flow.
+ * and deletes using comment-level card access. Mirrors the Vault upload flow.
  */
 export function CardAttachments({
   cardId,
-  canManage,
+  canDeleteAny,
   currentUserId,
+  onChanged,
 }: {
   cardId: string;
-  /** Board manager (Scrum Master / SUPER_ADMIN) — may delete any attachment. */
-  canManage: boolean;
+  /** Board members may delete any attachment; card-only assignees only their own. */
+  canDeleteAny: boolean;
   currentUserId: string | undefined;
+  onChanged?: () => void | Promise<void>;
 }) {
   const toast = useToast();
   const confirm = useConfirm();
@@ -63,31 +63,40 @@ export function CardAttachments({
   }, [refresh]);
 
   async function onFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     // Allow re-picking the same file next time.
     e.target.value = '';
-    if (!file) return;
-
-    if (file.size > MAX_BYTES) {
-      toast.error('File is too large (max 25 MB).');
-      return;
-    }
+    if (files.length === 0) return;
     setUploading(true);
     setProgress(0);
+    let attached = 0;
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      try {
+        const ticket = await createAttachmentUploadUrl(cardId, {
+          filename: file.name,
+          contentType: file.type || 'application/octet-stream',
+          sizeBytes: file.size,
+        });
+        await uploadToPresignedUrl(ticket.uploadUrl, file, (fileProgress) =>
+          setProgress((index + fileProgress) / files.length),
+        );
+        await confirmAttachment(cardId, ticket.attachmentId);
+        attached += 1;
+      } catch (err) {
+        toast.error(
+          err instanceof ApiError ? err.message : 'Failed to attach file.',
+        );
+      }
+    }
     try {
-      const ticket = await createAttachmentUploadUrl(cardId, {
-        filename: file.name,
-        contentType: file.type || 'application/octet-stream',
-        sizeBytes: file.size,
-      });
-      await uploadToPresignedUrl(ticket.uploadUrl, file, setProgress);
-      await confirmAttachment(cardId, ticket.attachmentId);
-      toast.success('File attached.');
-      await refresh();
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : 'Failed to attach file.',
-      );
+      if (attached > 0) {
+        toast.success(
+          attached === 1 ? 'File attached.' : `${attached} files attached.`,
+        );
+        await refresh();
+        await onChanged?.();
+      }
     } finally {
       setUploading(false);
       setProgress(0);
@@ -116,6 +125,7 @@ export function CardAttachments({
     try {
       await deleteAttachment(cardId, att.id);
       await refresh();
+      await onChanged?.();
     } catch (err) {
       toast.error(
         err instanceof ApiError ? err.message : 'Failed to delete attachment.',
@@ -134,11 +144,14 @@ export function CardAttachments({
           onClick={() => fileRef.current?.click()}
         >
           <Upload className="size-3.5" />
-          {uploading ? `Uploading… ${Math.round(progress * 100)}%` : 'Attach file'}
+          {uploading
+            ? `Uploading… ${Math.round(progress * 100)}%`
+            : 'Attach file'}
         </Button>
         <input
           ref={fileRef}
           type="file"
+          multiple
           className="hidden"
           onChange={onFilePicked}
         />
@@ -149,7 +162,8 @@ export function CardAttachments({
       ) : (
         <ul className="space-y-1">
           {attachments.map((att) => {
-            const canRemove = canManage || att.uploadedById === currentUserId;
+            const canRemove =
+              canDeleteAny || att.uploadedById === currentUserId;
             return (
               <li
                 key={att.id}
@@ -163,6 +177,13 @@ export function CardAttachments({
                   <p className="text-xs text-muted-foreground">
                     {formatSize(att.sizeBytes)}
                     {att.uploadedByName ? ` · ${att.uploadedByName}` : ''}
+                    {` · ${new Date(att.createdAt).toLocaleString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}`}
                   </p>
                 </div>
                 <button

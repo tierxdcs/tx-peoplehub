@@ -366,7 +366,9 @@ export class KanbanController {
 
   // ── Attachments ────────────────────────────────────────────────────
   @Get('cards/:id/attachments')
-  @ApiOperation({ summary: 'List a card’s file attachments (any board member)' })
+  @ApiOperation({
+    summary: 'List a card’s file attachments (board member or card assignee)',
+  })
   listAttachments(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -376,7 +378,8 @@ export class KanbanController {
 
   @Post('cards/:id/attachments/upload-url')
   @ApiOperation({
-    summary: 'Presigned URL to upload a card attachment (any board member)',
+    summary:
+      'Presigned URL to upload a card attachment (board member or card assignee)',
   })
   createAttachmentUploadUrl(
     @Param('id') id: string,
@@ -410,7 +413,8 @@ export class KanbanController {
   @Delete('cards/:id/attachments/:attachmentId')
   @HttpCode(204)
   @ApiOperation({
-    summary: 'Delete an attachment (uploader or managing Scrum Master / SUPER_ADMIN)',
+    summary:
+      'Delete an attachment (board member, uploader, or managing Scrum Master / SUPER_ADMIN)',
   })
   async deleteAttachment(
     @Param('id') id: string,

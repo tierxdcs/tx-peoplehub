@@ -1,4 +1,80 @@
 'use client';
-import {useEffect,useState} from 'react';import Link from 'next/link';import {apiFetch} from '../../../lib/api';import {useQmsAccess} from '../../../lib/use-qms-access';import {Button} from '../../../components/ui/button';import {Card,CardContent} from '../../../components/ui/card';import {PageContainer} from '../../../components/ui/page-container';import {PageHeader} from '../../../components/ui/page-header';
-type Audit={id:string;auditNumber:string;title:string;auditType:string;status:string;scheduledFrom:string;department?:string;findings:{findingType:string}[]};
-export default function Audits(){const{isQmsHead}=useQmsAccess(),[rows,setRows]=useState<Audit[]>([]);const load=()=>apiFetch<Audit[]>('/qms/audits').then(setRows);useEffect(()=>{load()},[]);async function act(id:string,a:string){await apiFetch(`/qms/audits/${id}/${a}`,{method:'POST',body:'{}'});await load()}return <PageContainer><PageHeader title="Audit Register" description="Scheduled audits, checklist execution, findings and closure"/><Card><CardContent className="p-5">{rows.length===0&&<div className="text-sm text-muted-foreground">Approved programme items will appear here as scheduled audits.</div>}{rows.map(x=><div key={x.id} className="flex items-center justify-between border-b py-4"><div><Link className="font-medium text-primary" href={`/qms/audits/${x.id}`}>{x.auditNumber} · {x.title}</Link><div className="text-sm text-muted-foreground">{x.auditType} · {x.status} · {new Date(x.scheduledFrom).toLocaleString()} · {x.findings.length} finding(s)</div></div><div className="flex gap-2">{x.status==='SCHEDULED'&&<Button size="sm" onClick={()=>act(x.id,'start')}>Start</Button>}{isQmsHead&&x.status==='PENDING_REVIEW'&&<Button size="sm" onClick={()=>act(x.id,'review')}>Close audit</Button>}</div></div>)}</CardContent></Card></PageContainer>}
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { apiFetch } from '../../../lib/api';
+import { useQmsAccess } from '../../../lib/use-qms-access';
+import { Button } from '../../../components/ui/button';
+import { Card, CardContent } from '../../../components/ui/card';
+import { PageContainer } from '../../../components/ui/page-container';
+import { PageHeader } from '../../../components/ui/page-header';
+type Audit = {
+  id: string;
+  auditNumber: string;
+  title: string;
+  auditType: string;
+  status: string;
+  scheduledFrom: string;
+  department?: string;
+  findings: { findingType: string }[];
+};
+export default function Audits() {
+  const { isQmsHead } = useQmsAccess(),
+    [rows, setRows] = useState<Audit[]>([]);
+  const load = () => apiFetch<Audit[]>('/qms/audits').then(setRows);
+  useEffect(() => {
+    load();
+  }, []);
+  async function act(id: string, a: string) {
+    await apiFetch(`/qms/audits/${id}/${a}`, { method: 'POST', body: '{}' });
+    await load();
+  }
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Audit Register"
+        description="Scheduled audits, checklist execution, findings and closure"
+      />
+      <Card>
+        <CardContent className="p-5">
+          {rows.length === 0 && (
+            <div className="text-sm text-muted-foreground">
+              Approved programme items will appear here as scheduled audits.
+            </div>
+          )}
+          {rows.map((x) => (
+            <div
+              key={x.id}
+              className="flex flex-col items-stretch gap-3 border-b py-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <Link
+                  className="font-medium text-primary"
+                  href={`/qms/audits/${x.id}`}
+                >
+                  {x.auditNumber} · {x.title}
+                </Link>
+                <div className="text-sm text-muted-foreground">
+                  {x.auditType} · {x.status} ·{' '}
+                  {new Date(x.scheduledFrom).toLocaleString()} ·{' '}
+                  {x.findings.length} finding(s)
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {x.status === 'SCHEDULED' && (
+                  <Button size="sm" onClick={() => act(x.id, 'start')}>
+                    Start
+                  </Button>
+                )}
+                {isQmsHead && x.status === 'PENDING_REVIEW' && (
+                  <Button size="sm" onClick={() => act(x.id, 'review')}>
+                    Close audit
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </PageContainer>
+  );
+}

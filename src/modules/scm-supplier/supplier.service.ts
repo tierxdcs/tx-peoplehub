@@ -38,15 +38,33 @@ import {
   CreateSupplierDto,
   PublicCertConfirmDto,
   PublicCertUploadUrlDto,
+  PublicCompanyInfoDto,
   PublicQuestionnaireSaveDto,
 } from './dto/supplier.dto';
 import {
   SupplierAuditEntity,
   SupplierCertificateFileEntity,
+  SupplierCompanyInfoEntity,
   SupplierEntity,
   SupplierInviteEntity,
   SupplierQuestionnaireEntity,
 } from './entities/supplier.entity';
+
+/** The Supplier master fields the public form's Company Information section can write. */
+type SupplierCompanyInfo = {
+  companyName: string;
+  contactEmail: string;
+  registeredAddress: string | null;
+  factoryAddress: string | null;
+  yearEstablished: string | null;
+  numberOfEmployees: string | null;
+  annualTurnover: string | null;
+  msmeUdyamCertificate: string | null;
+  contactPersonName: string | null;
+  contactPersonDesignation: string | null;
+  contactPhone: string | null;
+  website: string | null;
+};
 
 const DEFAULT_INVITE_EXPIRY_HOURS = 14 * 24;
 
@@ -89,16 +107,16 @@ export class SupplierService {
       const created = await tx.supplier.create({
         data: {
           companyName: dto.companyName,
-          registeredAddress: dto.registeredAddress,
-          factoryAddress: dto.factoryAddress,
-          yearEstablished: dto.yearEstablished,
-          numberOfEmployees: dto.numberOfEmployees,
-          annualTurnover: dto.annualTurnover,
+          registeredAddress: dto.registeredAddress ?? null,
+          factoryAddress: dto.factoryAddress ?? null,
+          yearEstablished: dto.yearEstablished ?? null,
+          numberOfEmployees: dto.numberOfEmployees ?? null,
+          annualTurnover: dto.annualTurnover ?? null,
           msmeUdyamCertificate: dto.msmeUdyamCertificate ?? null,
-          contactPersonName: dto.contactPersonName,
-          contactPersonDesignation: dto.contactPersonDesignation,
+          contactPersonName: dto.contactPersonName ?? null,
+          contactPersonDesignation: dto.contactPersonDesignation ?? null,
           contactEmail: dto.contactEmail,
-          contactPhone: dto.contactPhone,
+          contactPhone: dto.contactPhone ?? null,
           website: dto.website ?? null,
           createdById: user.id,
         },
@@ -138,7 +156,7 @@ export class SupplierService {
     if (!s) throw new NotFoundException('Supplier not found');
     return {
       ...this.toSupplier(s),
-      questionnaires: s.questionnaires.map((q) => this.toQuestionnaire(q)),
+      questionnaires: s.questionnaires.map((q) => this.toQuestionnaire(q, s)),
       audits: s.audits.map((a) => this.toAudit(a)),
     };
   }
@@ -170,11 +188,11 @@ export class SupplierService {
       copyForward.certificateFiles = latest.certificateFiles as Prisma.InputJsonValue;
     }
     const created = await this.prisma.supplierQuestionnaire.create({ data: copyForward });
-    await this.prisma.supplier.update({
+    const supplier = await this.prisma.supplier.update({
       where: { id: supplierId },
       data: { status: SupplierStatus.PENDING_QUESTIONNAIRE },
     });
-    return this.toQuestionnaire(created);
+    return this.toQuestionnaire(created, supplier);
   }
 
   // ── Invites (shared token mechanism) ──────────────────────────────────
@@ -225,10 +243,17 @@ export class SupplierService {
     const invite = await this.getValidInvite(token, password, now);
     const q = await this.prisma.supplierQuestionnaire.findUniqueOrThrow({
       where: { id: invite.questionnaireId },
+      include: { supplier: true },
     });
-    return this.toQuestionnaire(q);
+    return this.toQuestionnaire(q, q.supplier);
   }
 
+  /**
+   * Partial save (resume) of section data — must be a non-submitted revision.
+   * `companyInfo`, if present, writes back to the Supplier master record
+   * itself (not the questionnaire) — this is how a supplier completes/
+   * corrects the fields staff left blank at creation (see PublicCompanyInfoDto).
+   */
   async savePublic(
     token: string,
     dto: PublicQuestionnaireSaveDto,
@@ -243,11 +268,14 @@ export class SupplierService {
         (data as Record<string, unknown>)[key] = val as Prisma.InputJsonValue;
       }
     }
-    const updated = await this.prisma.supplierQuestionnaire.update({
-      where: { id: q.id },
-      data,
-    });
-    return this.toQuestionnaire(updated);
+    const [updated, supplier] = await this.prisma.$transaction([
+      this.prisma.supplierQuestionnaire.update({ where: { id: q.id }, data }),
+      this.prisma.supplier.update({
+        where: { id: q.supplierId },
+        data: this.companyInfoUpdateData(dto.companyInfo),
+      }),
+    ]);
+    return this.toQuestionnaire(updated, supplier);
   }
 
   async submitPublic(
@@ -261,6 +289,7 @@ export class SupplierService {
     return this.finalizeSubmission(
       q.id,
       dto as Record<string, unknown>,
+      dto.companyInfo,
       SupplierFilledBy.EXTERNAL_SUPPLIER,
       null,
       now,
@@ -307,11 +336,14 @@ export class SupplierService {
         (data as Record<string, unknown>)[key] = val as Prisma.InputJsonValue;
       }
     }
-    const updated = await this.prisma.supplierQuestionnaire.update({
-      where: { id: q.id },
-      data,
-    });
-    return this.toQuestionnaire(updated);
+    const [updated, supplier] = await this.prisma.$transaction([
+      this.prisma.supplierQuestionnaire.update({ where: { id: q.id }, data }),
+      this.prisma.supplier.update({
+        where: { id: q.supplierId },
+        data: this.companyInfoUpdateData(dto.companyInfo),
+      }),
+    ]);
+    return this.toQuestionnaire(updated, supplier);
   }
 
   async submitInternal(
@@ -325,6 +357,7 @@ export class SupplierService {
     return this.finalizeSubmission(
       q.id,
       dto as Record<string, unknown>,
+      dto.companyInfo,
       SupplierFilledBy.INTERNAL_STAFF,
       user.id,
       now,
@@ -429,6 +462,7 @@ export class SupplierService {
   private async finalizeSubmission(
     questionnaireId: string,
     sections: Record<string, unknown>,
+    companyInfo: PublicCompanyInfoDto | undefined,
     filledBy: SupplierFilledBy,
     actorId: string | null,
     now: Date,
@@ -452,8 +486,10 @@ export class SupplierService {
       });
       const supplier = await tx.supplier.update({
         where: { id: u.supplierId },
-        data: { status: SupplierStatus.QUESTIONNAIRE_SUBMITTED },
-        select: { createdById: true, companyName: true },
+        data: {
+          status: SupplierStatus.QUESTIONNAIRE_SUBMITTED,
+          ...this.companyInfoUpdateData(companyInfo),
+        },
       });
       return { u, supplier };
     });
@@ -464,7 +500,7 @@ export class SupplierService {
       supplierId: updated.u.supplierId,
       supplierName: updated.supplier.companyName,
     });
-    return this.toQuestionnaire(updated.u);
+    return this.toQuestionnaire(updated.u, updated.supplier);
   }
 
   /** Presign a certificate upload for a questionnaire (Vault guardrails). */
@@ -522,16 +558,16 @@ export class SupplierService {
   private toSupplier(s: {
     id: string;
     companyName: string;
-    registeredAddress: string;
-    factoryAddress: string;
-    yearEstablished: string;
-    numberOfEmployees: string;
-    annualTurnover: string;
+    registeredAddress: string | null;
+    factoryAddress: string | null;
+    yearEstablished: string | null;
+    numberOfEmployees: string | null;
+    annualTurnover: string | null;
     msmeUdyamCertificate: string | null;
-    contactPersonName: string;
-    contactPersonDesignation: string;
+    contactPersonName: string | null;
+    contactPersonDesignation: string | null;
     contactEmail: string;
-    contactPhone: string;
+    contactPhone: string | null;
     website: string | null;
     status: SupplierStatus;
     createdById: string;
@@ -545,18 +581,58 @@ export class SupplierService {
     });
   }
 
-  private toQuestionnaire(q: {
-    [k: string]: unknown;
-    id: string;
-    supplierId: string;
-    revisionNumber: number;
-    status: SupplierQuestionnaireStatus;
-    submittedAt: Date | null;
-    filledBy: SupplierFilledBy | null;
-    certificateFiles: unknown;
-    createdAt: Date;
-    updatedAt: Date;
-  }): SupplierQuestionnaireEntity {
+  /** Prisma update data for the Company Information write-back — undefined fields are left untouched. */
+  private companyInfoUpdateData(
+    info: PublicCompanyInfoDto | undefined,
+  ): Prisma.SupplierUpdateInput {
+    if (!info) return {};
+    const data: Prisma.SupplierUpdateInput = {};
+    if (info.registeredAddress !== undefined) data.registeredAddress = info.registeredAddress;
+    if (info.factoryAddress !== undefined) data.factoryAddress = info.factoryAddress;
+    if (info.yearEstablished !== undefined) data.yearEstablished = info.yearEstablished;
+    if (info.numberOfEmployees !== undefined) data.numberOfEmployees = info.numberOfEmployees;
+    if (info.annualTurnover !== undefined) data.annualTurnover = info.annualTurnover;
+    if (info.msmeUdyamCertificate !== undefined) data.msmeUdyamCertificate = info.msmeUdyamCertificate;
+    if (info.contactPersonName !== undefined) data.contactPersonName = info.contactPersonName;
+    if (info.contactPersonDesignation !== undefined) data.contactPersonDesignation = info.contactPersonDesignation;
+    if (info.contactPhone !== undefined) data.contactPhone = info.contactPhone;
+    if (info.website !== undefined) data.website = info.website;
+    return data;
+  }
+
+  /** Narrows to exactly the fields the public form may see/edit — the callers pass full Prisma rows. */
+  private toCompanyInfo(s: SupplierCompanyInfo): SupplierCompanyInfoEntity {
+    return new SupplierCompanyInfoEntity({
+      companyName: s.companyName,
+      contactEmail: s.contactEmail,
+      registeredAddress: s.registeredAddress,
+      factoryAddress: s.factoryAddress,
+      yearEstablished: s.yearEstablished,
+      numberOfEmployees: s.numberOfEmployees,
+      annualTurnover: s.annualTurnover,
+      msmeUdyamCertificate: s.msmeUdyamCertificate,
+      contactPersonName: s.contactPersonName,
+      contactPersonDesignation: s.contactPersonDesignation,
+      contactPhone: s.contactPhone,
+      website: s.website,
+    });
+  }
+
+  private toQuestionnaire(
+    q: {
+      [k: string]: unknown;
+      id: string;
+      supplierId: string;
+      revisionNumber: number;
+      status: SupplierQuestionnaireStatus;
+      submittedAt: Date | null;
+      filledBy: SupplierFilledBy | null;
+      certificateFiles: unknown;
+      createdAt: Date;
+      updatedAt: Date;
+    },
+    supplier: SupplierCompanyInfo,
+  ): SupplierQuestionnaireEntity {
     const files = (q.certificateFiles as CertFile[] | null) ?? [];
     const sections: Record<string, unknown> = {};
     for (const key of SECTION_KEYS) sections[key] = q[key] ?? null;
@@ -566,6 +642,7 @@ export class SupplierService {
       revisionNumber: q.revisionNumber,
       status: q.status,
       submittedAt: q.submittedAt ? q.submittedAt.toISOString() : null,
+      companyInfo: this.toCompanyInfo(supplier),
       filledBy: q.filledBy,
       ...sections,
       certificateFiles: files.map((f) => new SupplierCertificateFileEntity(f)),

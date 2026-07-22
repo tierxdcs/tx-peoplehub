@@ -9,16 +9,16 @@ import type { VendorClassification } from '../vendor-scoring';
 export class VendorEntity {
   @ApiProperty() id!: string;
   @ApiProperty() companyName!: string;
-  @ApiProperty() registeredAddress!: string;
-  @ApiProperty() factoryAddress!: string;
-  @ApiProperty() yearEstablished!: string;
-  @ApiProperty() numberOfEmployees!: string;
-  @ApiProperty() annualTurnover!: string;
+  @ApiProperty({ nullable: true }) registeredAddress!: string | null;
+  @ApiProperty({ nullable: true }) factoryAddress!: string | null;
+  @ApiProperty({ nullable: true }) yearEstablished!: string | null;
+  @ApiProperty({ nullable: true }) numberOfEmployees!: string | null;
+  @ApiProperty({ nullable: true }) annualTurnover!: string | null;
   @ApiProperty({ nullable: true }) msmeUdyamCertificate!: string | null;
-  @ApiProperty() contactPersonName!: string;
-  @ApiProperty() contactPersonDesignation!: string;
+  @ApiProperty({ nullable: true }) contactPersonName!: string | null;
+  @ApiProperty({ nullable: true }) contactPersonDesignation!: string | null;
   @ApiProperty() contactEmail!: string;
-  @ApiProperty() contactPhone!: string;
+  @ApiProperty({ nullable: true }) contactPhone!: string | null;
   @ApiProperty({ nullable: true }) website!: string | null;
   @ApiProperty({ enum: VendorStatus }) status!: VendorStatus;
   @ApiProperty() createdById!: string;
@@ -41,6 +41,30 @@ export class VendorCertificateFileEntity {
   }
 }
 
+/**
+ * The Vendor master fields surfaced on the public form's "Company Information"
+ * section. companyName/contactEmail are read-only there (staff-set at
+ * creation); everything else is editable — see PublicCompanyInfoDto.
+ */
+export class VendorCompanyInfoEntity {
+  @ApiProperty() companyName!: string;
+  @ApiProperty() contactEmail!: string;
+  @ApiProperty({ nullable: true }) registeredAddress!: string | null;
+  @ApiProperty({ nullable: true }) factoryAddress!: string | null;
+  @ApiProperty({ nullable: true }) yearEstablished!: string | null;
+  @ApiProperty({ nullable: true }) numberOfEmployees!: string | null;
+  @ApiProperty({ nullable: true }) annualTurnover!: string | null;
+  @ApiProperty({ nullable: true }) msmeUdyamCertificate!: string | null;
+  @ApiProperty({ nullable: true }) contactPersonName!: string | null;
+  @ApiProperty({ nullable: true }) contactPersonDesignation!: string | null;
+  @ApiProperty({ nullable: true }) contactPhone!: string | null;
+  @ApiProperty({ nullable: true }) website!: string | null;
+
+  constructor(p: Partial<VendorCompanyInfoEntity>) {
+    Object.assign(this, p);
+  }
+}
+
 export class VendorQuestionnaireEntity {
   @ApiProperty() id!: string;
   @ApiProperty() vendorId!: string;
@@ -48,6 +72,13 @@ export class VendorQuestionnaireEntity {
   @ApiProperty({ enum: VendorQuestionnaireStatus })
   status!: VendorQuestionnaireStatus;
   @ApiProperty({ nullable: true }) submittedAt!: string | null;
+
+  @ApiProperty({
+    type: () => VendorCompanyInfoEntity,
+    description:
+      "The Vendor record's own fields, editable via this form's Company Information section",
+  })
+  companyInfo!: VendorCompanyInfoEntity;
 
   // The 18 VSAQ sections — opaque JSON blobs (null until filled).
   @ApiProperty({ nullable: true }) businessProfile!: unknown;

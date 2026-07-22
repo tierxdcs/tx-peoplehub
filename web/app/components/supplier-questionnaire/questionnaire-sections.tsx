@@ -1,12 +1,13 @@
 'use client';
 
-import type { CertificateFile, SectionKey } from '../../lib/scm-supplier';
+import type { CertificateFile, PublicCompanyInfo, SectionKey } from '../../lib/scm-supplier';
 
 /**
- * The 9 supplier-questionnaire sections + certificate upload, as a single
- * shared form body used by BOTH the external public page and the internal-fill
- * UI (spec: reuse the same section components, no second copy). Purely
- * controlled — the host owns form state, save/submit actions, and the banner.
+ * The Company Information section + the 9 supplier-questionnaire sections +
+ * certificate upload, as a single shared form body used by BOTH the external
+ * public page and the internal-fill UI (spec: reuse the same section
+ * components, no second copy). Purely controlled — the host owns form state,
+ * save/submit actions, and the banner.
  *
  * Inline-styled (not shadcn) so it renders identically inside the app shell and
  * on the standalone public document. Style constants are exported so hosts can
@@ -24,18 +25,79 @@ export function QuestionnaireSections({
   setField,
   certs,
   onUploadCert,
+  companyInfo,
+  onCompanyInfoChange,
 }: {
   form: FormState;
   setField: (section: SectionKey, key: string, value: unknown) => void;
   certs: CertificateFile[];
   onUploadCert: (file: File) => void;
+  companyInfo: PublicCompanyInfo;
+  onCompanyInfoChange: (key: keyof PublicCompanyInfo, value: string) => void;
 }) {
   const g = (s: SectionKey) => (form[s] ?? {}) as SectionState;
 
   return (
     <>
-      {/* 1. Material Range */}
-      <Section n="1" title="Material Range">
+      {/* 1. Company Information — writes back to the Supplier master record. */}
+      <Section n="1" title="Company Information">
+        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 10px' }}>
+          Please confirm or complete your company details below.
+        </p>
+        <FieldRow
+          label="Registered Address / Origin"
+          value={companyInfo.registeredAddress ?? ''}
+          onChange={(v) => onCompanyInfoChange('registeredAddress', v)}
+        />
+        <FieldRow
+          label="Factory Address"
+          value={companyInfo.factoryAddress ?? ''}
+          onChange={(v) => onCompanyInfoChange('factoryAddress', v)}
+        />
+        <FieldRow
+          label="Year Established"
+          value={companyInfo.yearEstablished ?? ''}
+          onChange={(v) => onCompanyInfoChange('yearEstablished', v)}
+        />
+        <FieldRow
+          label="Number of Employees"
+          value={companyInfo.numberOfEmployees ?? ''}
+          onChange={(v) => onCompanyInfoChange('numberOfEmployees', v)}
+        />
+        <FieldRow
+          label="Annual Turnover"
+          value={companyInfo.annualTurnover ?? ''}
+          onChange={(v) => onCompanyInfoChange('annualTurnover', v)}
+        />
+        <FieldRow
+          label="MSME / UDYAM Certificate"
+          value={companyInfo.msmeUdyamCertificate ?? ''}
+          onChange={(v) => onCompanyInfoChange('msmeUdyamCertificate', v)}
+        />
+        <FieldRow
+          label="Contact Person Name"
+          value={companyInfo.contactPersonName ?? ''}
+          onChange={(v) => onCompanyInfoChange('contactPersonName', v)}
+        />
+        <FieldRow
+          label="Contact Person Designation"
+          value={companyInfo.contactPersonDesignation ?? ''}
+          onChange={(v) => onCompanyInfoChange('contactPersonDesignation', v)}
+        />
+        <FieldRow
+          label="Contact Phone"
+          value={companyInfo.contactPhone ?? ''}
+          onChange={(v) => onCompanyInfoChange('contactPhone', v)}
+        />
+        <FieldRow
+          label="Website"
+          value={companyInfo.website ?? ''}
+          onChange={(v) => onCompanyInfoChange('website', v)}
+        />
+      </Section>
+
+      {/* 2. Material Range */}
+      <Section n="2" title="Material Range">
         <H3>Material Categories Supplied</H3>
         <CheckGrid
           options={['Ferrous Metals', 'Non-Ferrous Metals', 'Polymers / Plastics', 'Composites', 'Rubber / Elastomers', 'Chemicals', 'Adhesives / Sealants', 'Fasteners / Hardware']}
@@ -56,8 +118,8 @@ export function QuestionnaireSections({
         />
       </Section>
 
-      {/* 2. Material Certifications */}
-      <Section n="2" title="Material Certifications">
+      {/* 3. Material Certifications */}
+      <Section n="3" title="Material Certifications">
         <H3>Certifications Held</H3>
         <CheckGrid
           options={['Mill Test Certificate (MTC / EN 10204 3.1)', 'RoHS', 'REACH', 'Material Safety Data Sheet (MSDS)', 'Certificate of Analysis', 'Certificate of Conformance', 'DFARS / Melt Origin']}
@@ -96,8 +158,8 @@ export function QuestionnaireSections({
         />
       </Section>
 
-      {/* 3. Compliance */}
-      <Section n="3" title="Compliance (RoHS / REACH / Conflict Minerals)">
+      {/* 4. Compliance */}
+      <Section n="4" title="Compliance (RoHS / REACH / Conflict Minerals)">
         <FieldRows
           section="compliance"
           state={g('compliance')}
@@ -112,8 +174,8 @@ export function QuestionnaireSections({
         />
       </Section>
 
-      {/* 4. Quality Certifications */}
-      <Section n="4" title="Quality Certifications">
+      {/* 5. Quality Certifications */}
+      <Section n="5" title="Quality Certifications">
         <H3>Quality Systems</H3>
         <CheckGrid
           options={['ISO 9001', 'ISO 14001', 'ISO 45001', 'IATF 16949', 'AS9100', 'ISO 13485', 'NADCAP']}
@@ -132,8 +194,8 @@ export function QuestionnaireSections({
         />
       </Section>
 
-      {/* 5. Commercial Terms */}
-      <Section n="5" title="Commercial Terms">
+      {/* 6. Commercial Terms */}
+      <Section n="6" title="Commercial Terms">
         <FieldRows
           section="commercialTerms"
           state={g('commercialTerms')}
@@ -149,8 +211,8 @@ export function QuestionnaireSections({
         />
       </Section>
 
-      {/* 6. Packaging & Delivery — OPTIONAL */}
-      <Section n="6" title="Packaging & Delivery" optional>
+      {/* 7. Packaging & Delivery — OPTIONAL */}
+      <Section n="7" title="Packaging & Delivery" optional>
         <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 10px' }}>
           This section is optional — you may leave it blank if it does not apply.
         </p>
@@ -168,8 +230,8 @@ export function QuestionnaireSections({
         />
       </Section>
 
-      {/* 7. Logistics */}
-      <Section n="7" title="Logistics">
+      {/* 8. Logistics */}
+      <Section n="8" title="Logistics">
         <FieldRows
           section="logistics"
           state={g('logistics')}
@@ -185,8 +247,8 @@ export function QuestionnaireSections({
         />
       </Section>
 
-      {/* 8. References */}
-      <Section n="8" title="References">
+      {/* 9. References */}
+      <Section n="9" title="References">
         {[0, 1, 2].map((i) => (
           <div key={i} style={{ padding: '12px 14px', background: '#f8f8f9', borderRadius: 4, marginBottom: 12 }}>
             <H4>{`Reference ${i + 1}`}</H4>
@@ -206,8 +268,8 @@ export function QuestionnaireSections({
         ))}
       </Section>
 
-      {/* 9. Declaration */}
-      <Section n="9" title="Declaration">
+      {/* 10. Declaration */}
+      <Section n="10" title="Declaration">
         <p style={{ fontSize: 13.5, color: '#374151' }}>
           We certify that the information provided in this questionnaire is true
           and accurate to the best of our knowledge.

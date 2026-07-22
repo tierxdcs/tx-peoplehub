@@ -186,17 +186,17 @@ export default function VendorDetailPage() {
           <CardTitle>Company Information</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-x-8 gap-y-2 pt-0 text-sm sm:grid-cols-2">
-          <Info label="Registered address" value={vendor.registeredAddress} />
-          <Info label="Factory address" value={vendor.factoryAddress} />
-          <Info label="Year established" value={vendor.yearEstablished} />
-          <Info label="Employees" value={vendor.numberOfEmployees} />
-          <Info label="Annual turnover" value={vendor.annualTurnover} />
+          <Info label="Registered address" value={vendor.registeredAddress ?? '—'} />
+          <Info label="Factory address" value={vendor.factoryAddress ?? '—'} />
+          <Info label="Year established" value={vendor.yearEstablished ?? '—'} />
+          <Info label="Employees" value={vendor.numberOfEmployees ?? '—'} />
+          <Info label="Annual turnover" value={vendor.annualTurnover ?? '—'} />
           <Info label="MSME / UDYAM" value={vendor.msmeUdyamCertificate ?? '—'} />
           <Info
             label="Contact"
-            value={`${vendor.contactPersonName} · ${vendor.contactPersonDesignation}`}
+            value={joinParts([vendor.contactPersonName, vendor.contactPersonDesignation])}
           />
-          <Info label="Email / phone" value={`${vendor.contactEmail} · ${vendor.contactPhone}`} />
+          <Info label="Email / phone" value={joinParts([vendor.contactEmail, vendor.contactPhone])} />
           <Info label="Website" value={vendor.website ?? '—'} />
         </CardContent>
       </Card>
@@ -368,4 +368,10 @@ function Info({ label, value }: { label: string; value: string }) {
       <div>{value}</div>
     </div>
   );
+}
+
+/** Join non-empty parts with " · ", falling back to "—" when nothing is set. */
+function joinParts(parts: (string | null | undefined)[]): string {
+  const present = parts.filter((p): p is string => !!p?.trim());
+  return present.length > 0 ? present.join(' · ') : '—';
 }

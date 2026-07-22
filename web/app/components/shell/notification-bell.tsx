@@ -69,7 +69,10 @@ export function NotificationBell() {
     // does NOT piggyback on Vendor's handling.
     if (n.type === 'VENDOR_QUESTIONNAIRE_SUBMITTED' && n.relatedVendorId) {
       router.push(`/scm/vendors/${n.relatedVendorId}`);
-    } else if (n.type === 'SUPPLIER_QUESTIONNAIRE_SUBMITTED' && n.relatedSupplierId) {
+    } else if (
+      n.type === 'SUPPLIER_QUESTIONNAIRE_SUBMITTED' &&
+      n.relatedSupplierId
+    ) {
       router.push(`/scm/suppliers/${n.relatedSupplierId}`);
     } else if (n.relatedCardId) {
       // Deep-link to the card; the board UI resolves it (frontend board pass).
@@ -98,7 +101,7 @@ export function NotificationBell() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-1 w-80 overflow-hidden rounded-md border bg-popover shadow-md"
+          className="fixed inset-x-3 top-14 z-50 max-h-[calc(100dvh-4.5rem)] overflow-hidden rounded-lg border bg-popover shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-1 sm:w-80 sm:max-h-none sm:rounded-md sm:shadow-md"
         >
           <div className="flex items-center justify-between border-b px-3 py-2">
             <span className="text-sm font-semibold">Notifications</span>
@@ -106,7 +109,7 @@ export function NotificationBell() {
               <button
                 type="button"
                 onClick={() => void markAllRead()}
-                className="text-xs text-primary hover:underline"
+                className="min-h-11 px-2 text-xs text-primary hover:underline sm:min-h-0 sm:px-0"
               >
                 Mark all as read
               </button>
@@ -118,14 +121,14 @@ export function NotificationBell() {
               No notifications yet.
             </p>
           ) : (
-            <ul className="max-h-80 divide-y overflow-y-auto">
+            <ul className="max-h-[calc(100dvh-8rem)] divide-y overflow-y-auto sm:max-h-80">
               {items.map((n) => (
                 <li key={n.id}>
                   <button
                     type="button"
                     onClick={() => onClickItem(n)}
                     className={cn(
-                      'flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-accent',
+                      'flex min-h-14 w-full items-start gap-2 px-3 py-3 text-left hover:bg-accent sm:min-h-0 sm:py-2',
                       !n.isRead && 'bg-primary/5',
                     )}
                   >

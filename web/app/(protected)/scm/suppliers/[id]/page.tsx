@@ -190,17 +190,17 @@ export default function SupplierDetailPage() {
           <CardTitle>Company Information</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-x-8 gap-y-2 pt-0 text-sm sm:grid-cols-2">
-          <Info label="Registered address / origin" value={supplier.registeredAddress} />
-          <Info label="Factory address" value={supplier.factoryAddress} />
-          <Info label="Year established" value={supplier.yearEstablished} />
-          <Info label="Employees" value={supplier.numberOfEmployees} />
-          <Info label="Annual turnover" value={supplier.annualTurnover} />
+          <Info label="Registered address / origin" value={supplier.registeredAddress ?? '—'} />
+          <Info label="Factory address" value={supplier.factoryAddress ?? '—'} />
+          <Info label="Year established" value={supplier.yearEstablished ?? '—'} />
+          <Info label="Employees" value={supplier.numberOfEmployees ?? '—'} />
+          <Info label="Annual turnover" value={supplier.annualTurnover ?? '—'} />
           <Info label="MSME / UDYAM" value={supplier.msmeUdyamCertificate ?? '—'} />
           <Info
             label="Contact"
-            value={`${supplier.contactPersonName} · ${supplier.contactPersonDesignation}`}
+            value={joinParts([supplier.contactPersonName, supplier.contactPersonDesignation])}
           />
-          <Info label="Email / phone" value={`${supplier.contactEmail} · ${supplier.contactPhone}`} />
+          <Info label="Email / phone" value={joinParts([supplier.contactEmail, supplier.contactPhone])} />
           <Info label="Website" value={supplier.website ?? '—'} />
         </CardContent>
       </Card>
@@ -404,6 +404,12 @@ function Info({ label, value }: { label: string; value: string }) {
       <div>{value}</div>
     </div>
   );
+}
+
+/** Join non-empty parts with " · ", falling back to "—" when nothing is set. */
+function joinParts(parts: (string | null | undefined)[]): string {
+  const present = parts.filter((p): p is string => !!p?.trim());
+  return present.length > 0 ? present.join(' · ') : '—';
 }
 
 /** Small tag showing how a questionnaire was filled; dash when not yet submitted. */

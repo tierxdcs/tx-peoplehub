@@ -10,16 +10,16 @@ import type { SupplierClassification } from '../supplier-scoring';
 export class SupplierEntity {
   @ApiProperty() id!: string;
   @ApiProperty() companyName!: string;
-  @ApiProperty() registeredAddress!: string;
-  @ApiProperty() factoryAddress!: string;
-  @ApiProperty() yearEstablished!: string;
-  @ApiProperty() numberOfEmployees!: string;
-  @ApiProperty() annualTurnover!: string;
+  @ApiProperty({ nullable: true }) registeredAddress!: string | null;
+  @ApiProperty({ nullable: true }) factoryAddress!: string | null;
+  @ApiProperty({ nullable: true }) yearEstablished!: string | null;
+  @ApiProperty({ nullable: true }) numberOfEmployees!: string | null;
+  @ApiProperty({ nullable: true }) annualTurnover!: string | null;
   @ApiProperty({ nullable: true }) msmeUdyamCertificate!: string | null;
-  @ApiProperty() contactPersonName!: string;
-  @ApiProperty() contactPersonDesignation!: string;
+  @ApiProperty({ nullable: true }) contactPersonName!: string | null;
+  @ApiProperty({ nullable: true }) contactPersonDesignation!: string | null;
   @ApiProperty() contactEmail!: string;
-  @ApiProperty() contactPhone!: string;
+  @ApiProperty({ nullable: true }) contactPhone!: string | null;
   @ApiProperty({ nullable: true }) website!: string | null;
   @ApiProperty({ enum: SupplierStatus }) status!: SupplierStatus;
   @ApiProperty() createdById!: string;
@@ -42,6 +42,31 @@ export class SupplierCertificateFileEntity {
   }
 }
 
+/**
+ * The Supplier master fields surfaced on the public form's "Company
+ * Information" section. companyName/contactEmail are read-only there
+ * (staff-set at creation); everything else is editable — see
+ * PublicCompanyInfoDto.
+ */
+export class SupplierCompanyInfoEntity {
+  @ApiProperty() companyName!: string;
+  @ApiProperty() contactEmail!: string;
+  @ApiProperty({ nullable: true }) registeredAddress!: string | null;
+  @ApiProperty({ nullable: true }) factoryAddress!: string | null;
+  @ApiProperty({ nullable: true }) yearEstablished!: string | null;
+  @ApiProperty({ nullable: true }) numberOfEmployees!: string | null;
+  @ApiProperty({ nullable: true }) annualTurnover!: string | null;
+  @ApiProperty({ nullable: true }) msmeUdyamCertificate!: string | null;
+  @ApiProperty({ nullable: true }) contactPersonName!: string | null;
+  @ApiProperty({ nullable: true }) contactPersonDesignation!: string | null;
+  @ApiProperty({ nullable: true }) contactPhone!: string | null;
+  @ApiProperty({ nullable: true }) website!: string | null;
+
+  constructor(p: Partial<SupplierCompanyInfoEntity>) {
+    Object.assign(this, p);
+  }
+}
+
 export class SupplierQuestionnaireEntity {
   @ApiProperty() id!: string;
   @ApiProperty() supplierId!: string;
@@ -51,6 +76,13 @@ export class SupplierQuestionnaireEntity {
   @ApiProperty({ nullable: true }) submittedAt!: string | null;
   @ApiProperty({ enum: SupplierFilledBy, nullable: true })
   filledBy!: SupplierFilledBy | null;
+
+  @ApiProperty({
+    type: () => SupplierCompanyInfoEntity,
+    description:
+      "The Supplier record's own fields, editable via this form's Company Information section",
+  })
+  companyInfo!: SupplierCompanyInfoEntity;
 
   @ApiProperty({ nullable: true }) materialRange!: unknown;
   @ApiProperty({ nullable: true }) materialCertifications!: unknown;

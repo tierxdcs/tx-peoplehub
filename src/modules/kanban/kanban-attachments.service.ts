@@ -10,6 +10,11 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { KanbanAccessService } from './kanban-access.service';
 import { VaultStorageService } from '../vault/vault-storage.service';
 import {
+  assertExtensionAllowed,
+  assertSizeWithinCap,
+} from '../vault/vault-guardrails';
+import { KanbanActivityService } from './kanban-activity.service';
+import {
   CreateAttachmentUploadUrlDto,
   ConfirmAttachmentDto,
 } from './dto/kanban.dto';
@@ -17,9 +22,6 @@ import {
   KanbanAttachmentEntity,
   KanbanAttachmentUploadTicketEntity,
 } from './entities/kanban.entity';
-
-/** 25 MB — a sensible cap so card attachments don't become bulk file storage. */
-const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
 /**
  * Card file attachments. Bytes live in R2 (reusing VaultStorageService with a
@@ -35,6 +37,7 @@ export class KanbanAttachmentsService {
     private readonly prisma: PrismaService,
     private readonly access: KanbanAccessService,
     private readonly storage: VaultStorageService,
+    private readonly activity: KanbanActivityService,
   ) {}
 
   private storageKeyFor(cardId: string, attachmentId: string): string {
@@ -42,7 +45,7 @@ export class KanbanAttachmentsService {
   }
 
   /**
-   * Step 1 — any board member. Validates size, creates a PENDING attachment row
+   * Step 1 — anyone with comment-level card access. Validates size, creates a PENDING attachment row
    * so we own the id (and therefore the storage key), then presigns the PUT.
    */
   async createUploadUrl(
@@ -51,13 +54,9 @@ export class KanbanAttachmentsService {
     user: AuthenticatedUser,
   ): Promise<KanbanAttachmentUploadTicketEntity> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanViewBoard(user, card.boardId);
-
-    if (dto.sizeBytes > MAX_ATTACHMENT_BYTES) {
-      throw new BadRequestException(
-        `File is too large (max ${Math.floor(MAX_ATTACHMENT_BYTES / (1024 * 1024))} MB)`,
-      );
-    }
+    await this.access.assertCanViewCard(user, card.boardId, card.assigneeId);
+    assertExtensionAllowed(dto.filename);
+    assertSizeWithinCap(dto.sizeBytes);
 
     const attachment = await this.prisma.kanbanCardAttachment.create({
       data: {
@@ -99,7 +98,7 @@ export class KanbanAttachmentsService {
     user: AuthenticatedUser,
   ): Promise<KanbanAttachmentEntity> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanViewBoard(user, card.boardId);
+    await this.access.assertCanViewCard(user, card.boardId, card.assigneeId);
     const attachment = await this.prisma.kanbanCardAttachment.findUnique({
       where: { id: attachmentId },
       include: { uploadedBy: { select: { firstName: true, lastName: true } } },
@@ -107,27 +106,48 @@ export class KanbanAttachmentsService {
     if (!attachment || attachment.cardId !== cardId) {
       throw new NotFoundException('Attachment not found');
     }
+    // Confirm is idempotent. In particular, a client retry must not create a
+    // duplicate activity entry for the same attachment.
+    if (attachment.status === KanbanCardAttachmentStatus.ACTIVE) {
+      return this.toEntity(attachment);
+    }
     const head = await this.storage.headObject(attachment.storageKey);
     if (!head) {
       throw new BadRequestException(
-        'No uploaded object found — the upload may not have completed',
+        'No uploaded object found at the expected storage key — upload may not have completed',
       );
     }
-    const updated = await this.prisma.kanbanCardAttachment.update({
-      where: { id: attachmentId },
-      data: { status: KanbanCardAttachmentStatus.ACTIVE },
-      include: { uploadedBy: { select: { firstName: true, lastName: true } } },
+    if (head.sizeBytes !== Number(attachment.sizeBytes)) {
+      throw new BadRequestException(
+        `Uploaded size (${head.sizeBytes}) does not match the declared size (${attachment.sizeBytes})`,
+      );
+    }
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const active = await tx.kanbanCardAttachment.update({
+        where: { id: attachmentId },
+        data: { status: KanbanCardAttachmentStatus.ACTIVE },
+        include: {
+          uploadedBy: { select: { firstName: true, lastName: true } },
+        },
+      });
+      await this.activity.log(
+        tx,
+        cardId,
+        user.id,
+        this.activity.attachmentAdded(active.filename),
+      );
+      return active;
     });
     return this.toEntity(updated);
   }
 
-  /** ACTIVE attachments on a card — any board member. */
+  /** ACTIVE attachments on a card — anyone with comment-level card access. */
   async list(
     cardId: string,
     user: AuthenticatedUser,
   ): Promise<KanbanAttachmentEntity[]> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanViewBoard(user, card.boardId);
+    await this.access.assertCanViewCard(user, card.boardId, card.assigneeId);
     const rows = await this.prisma.kanbanCardAttachment.findMany({
       where: { cardId, status: KanbanCardAttachmentStatus.ACTIVE },
       include: { uploadedBy: { select: { firstName: true, lastName: true } } },
@@ -136,14 +156,14 @@ export class KanbanAttachmentsService {
     return rows.map((r) => this.toEntity(r));
   }
 
-  /** A short-lived presigned download URL — any board member. */
+  /** A short-lived presigned download URL — anyone with comment-level card access. */
   async downloadUrl(
     cardId: string,
     attachmentId: string,
     user: AuthenticatedUser,
   ): Promise<{ url: string; expiresInSeconds: number }> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanViewBoard(user, card.boardId);
+    await this.access.assertCanViewCard(user, card.boardId, card.assigneeId);
     const attachment = await this.prisma.kanbanCardAttachment.findUnique({
       where: { id: attachmentId },
     });
@@ -158,8 +178,8 @@ export class KanbanAttachmentsService {
   }
 
   /**
-   * Delete — the UPLOADER, or a Scrum Master/SUPER_ADMIN who manages the board
-   * (same override as comment deletion). Best-effort R2 object removal.
+   * Delete — any board member; for card-only assignees, their own uploads only.
+   * Managing Scrum Masters/SUPER_ADMIN retain the comment-deletion override.
    */
   async remove(
     cardId: string,
@@ -167,7 +187,11 @@ export class KanbanAttachmentsService {
     user: AuthenticatedUser,
   ): Promise<void> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanViewBoard(user, card.boardId);
+    const access = await this.access.assertCanViewCard(
+      user,
+      card.boardId,
+      card.assigneeId,
+    );
     const attachment = await this.prisma.kanbanCardAttachment.findUnique({
       where: { id: attachmentId },
     });
@@ -179,29 +203,41 @@ export class KanbanAttachmentsService {
       .assertCanManageBoard(user, card.boardId)
       .then(() => true)
       .catch(() => false);
-    if (!isUploader && !canManage) {
+    if (!access.hasBoardAccess && !isUploader && !canManage) {
       throw new ForbiddenException(
         'Only the uploader or a Scrum Master/SUPER_ADMIN may delete this attachment',
       );
     }
-    await this.prisma.kanbanCardAttachment.delete({ where: { id: attachmentId } });
-    // Best-effort: free the R2 object. Never throws (mirrors Vault delete).
-    await this.storage.deleteObject(attachment.storageKey);
+    // A successful API response guarantees the bytes are gone. Delete R2
+    // first and only then remove metadata; strict storage errors are surfaced.
+    await this.storage.deleteObjectStrict(attachment.storageKey);
+    await this.prisma.kanbanCardAttachment.delete({
+      where: { id: attachmentId },
+    });
   }
 
   // ── internals ──────────────────────────────────────────────────────
 
   private async getCardOrThrow(
     id: string,
-  ): Promise<{ id: string; boardId: string }> {
+  ): Promise<{ id: string; boardId: string; assigneeId: string | null }> {
     const card = await this.prisma.kanbanCard.findUnique({
       where: { id },
-      select: { id: true, status: true, list: { select: { boardId: true } } },
+      select: {
+        id: true,
+        status: true,
+        assigneeId: true,
+        list: { select: { boardId: true } },
+      },
     });
     if (!card || card.status === KanbanCardStatus.ARCHIVED) {
       throw new NotFoundException('Card not found');
     }
-    return { id: card.id, boardId: card.list.boardId };
+    return {
+      id: card.id,
+      boardId: card.list.boardId,
+      assigneeId: card.assigneeId,
+    };
   }
 
   private toEntity(a: {

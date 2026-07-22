@@ -11,6 +11,7 @@ import {
   savePublicQuestionnaire,
   submitPublicQuestionnaire,
   type CertificateFile,
+  type PublicCompanyInfo,
   type SectionKey,
   type SupplierQuestionnaire,
 } from '../../../lib/scm-supplier';
@@ -45,6 +46,7 @@ export default function PublicSupplierQuestionnairePage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [questionnaire, setQuestionnaire] = useState<SupplierQuestionnaire | null>(null);
   const [form, setForm] = useState<FormState>({});
+  const [companyInfo, setCompanyInfo] = useState<PublicCompanyInfo>({});
   const [certs, setCerts] = useState<CertificateFile[]>([]);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -57,6 +59,18 @@ export default function PublicSupplierQuestionnairePage() {
     setQuestionnaire(q);
     setSubmitted(q.status === 'SUBMITTED');
     setCerts(q.certificateFiles ?? []);
+    setCompanyInfo({
+      registeredAddress: q.companyInfo.registeredAddress ?? '',
+      factoryAddress: q.companyInfo.factoryAddress ?? '',
+      yearEstablished: q.companyInfo.yearEstablished ?? '',
+      numberOfEmployees: q.companyInfo.numberOfEmployees ?? '',
+      annualTurnover: q.companyInfo.annualTurnover ?? '',
+      msmeUdyamCertificate: q.companyInfo.msmeUdyamCertificate ?? '',
+      contactPersonName: q.companyInfo.contactPersonName ?? '',
+      contactPersonDesignation: q.companyInfo.contactPersonDesignation ?? '',
+      contactPhone: q.companyInfo.contactPhone ?? '',
+      website: q.companyInfo.website ?? '',
+    });
     // Seed the form from any previously-saved section data (resume).
     const seeded: FormState = {};
     (Object.keys(q) as (keyof SupplierQuestionnaire)[]).forEach((k) => {
@@ -68,6 +82,10 @@ export default function PublicSupplierQuestionnairePage() {
     });
     setForm(seeded);
   }, []);
+
+  function setCompanyInfoField(key: keyof PublicCompanyInfo, value: string) {
+    setCompanyInfo((c) => ({ ...c, [key]: value }));
+  }
 
   const resolve = useCallback(
     async (pwd?: string) => {
@@ -97,7 +115,7 @@ export default function PublicSupplierQuestionnairePage() {
   async function save() {
     setSaving(true);
     setBanner(null);
-    const res = await savePublicQuestionnaire(token, form, pwRef.current);
+    const res = await savePublicQuestionnaire(token, form, pwRef.current, companyInfo);
     setSaving(false);
     if (res.ok) setBanner('Progress saved. You can close this and resume later via the same link.');
     else setBanner(res.message);
@@ -111,7 +129,7 @@ export default function PublicSupplierQuestionnairePage() {
     }
     setSaving(true);
     setBanner(null);
-    const res = await submitPublicQuestionnaire(token, form, pwRef.current);
+    const res = await submitPublicQuestionnaire(token, form, pwRef.current, companyInfo);
     setSaving(false);
     if (res.ok) {
       setSubmitted(true);
@@ -230,6 +248,8 @@ export default function PublicSupplierQuestionnairePage() {
         setField={setField}
         certs={certs}
         onUploadCert={(f) => void uploadCert(f)}
+        companyInfo={companyInfo}
+        onCompanyInfoChange={setCompanyInfoField}
       />
 
       {/* Actions */}

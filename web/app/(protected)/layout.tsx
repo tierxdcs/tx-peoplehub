@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../lib/auth-context';
 import { useIsHrStaff } from '../lib/use-is-hr-staff';
@@ -46,10 +46,17 @@ export default function ProtectedLayout({
     loading: financeLoading,
   } = useFinanceAccess();
   const { isQualityUser, isQmsHead, loading: qmsLoading } = useQmsAccess();
-  const { isDesignUser, isDesignHead, loading: designLoading } = useDesignAccess();
+  const {
+    isDesignUser,
+    isDesignHead,
+    loading: designLoading,
+  } = useDesignAccess();
   const { counts } = usePendingApprovalCounts();
   const router = useRouter();
   const pathname = usePathname();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => setMobileNavOpen(false), [pathname]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -142,10 +149,18 @@ export default function ProtectedLayout({
         modules={modules}
         activeModule={currentModule}
         onSwitchModule={switchModule}
+        onOpenNavigation={() => setMobileNavOpen(true)}
       />
       <div className="flex flex-1">
-        <Sidebar groups={groups} badges={badges} />
-        <main className="flex-1 overflow-x-auto p-6">{children}</main>
+        <Sidebar
+          groups={groups}
+          badges={badges}
+          mobileOpen={mobileNavOpen}
+          onMobileClose={() => setMobileNavOpen(false)}
+        />
+        <main className="min-w-0 flex-1 overflow-x-hidden p-4 md:p-6">
+          {children}
+        </main>
       </div>
     </div>
   );

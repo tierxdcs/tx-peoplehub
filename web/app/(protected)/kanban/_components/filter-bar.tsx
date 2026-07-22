@@ -37,14 +37,14 @@ export function FilterBar({
   const active = Object.keys(filter).length > 0;
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-md border bg-card p-3">
+    <div className="flex flex-wrap items-end gap-3 rounded-md border bg-card p-3 [&>label]:w-full md:[&>label]:w-auto">
       <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
         Due after
         <Input
           type="date"
           value={filter.dueAfter ?? ''}
           onChange={(e) => set('dueAfter', e.target.value)}
-          className="h-8 w-40"
+          className="h-11 w-full md:h-8 md:w-40"
         />
       </label>
       <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
@@ -53,7 +53,7 @@ export function FilterBar({
           type="date"
           value={filter.dueBefore ?? ''}
           onChange={(e) => set('dueBefore', e.target.value)}
-          className="h-8 w-40"
+          className="h-11 w-full md:h-8 md:w-40"
         />
       </label>
 
@@ -62,7 +62,7 @@ export function FilterBar({
         <Select
           value={filter.assigneeId ?? ''}
           onChange={(e) => set('assigneeId', e.target.value)}
-          className="h-8 w-44"
+          className="h-11 w-full md:h-8 md:w-44"
         >
           <option value="">Anyone</option>
           {members.map((m) => (
@@ -78,7 +78,7 @@ export function FilterBar({
         <Select
           value={filter.createdBy ?? ''}
           onChange={(e) => set('createdBy', e.target.value)}
-          className="h-8 w-44"
+          className="h-11 w-full md:h-8 md:w-44"
         >
           <option value="">Anyone</option>
           {members.map((m) => (
@@ -94,7 +94,7 @@ export function FilterBar({
         <Select
           value={filter.sprintId ?? ''}
           onChange={(e) => set('sprintId', e.target.value)}
-          className="h-8 w-44"
+          className="h-11 w-full md:h-8 md:w-44"
         >
           <option value="">Any sprint</option>
           <option value="none">No sprint</option>
@@ -111,7 +111,7 @@ export function FilterBar({
         <Select
           value={filter.priority ?? ''}
           onChange={(e) => set('priority', e.target.value as LeadPriority | '')}
-          className="h-8 w-32"
+          className="h-11 w-full md:h-8 md:w-32"
         >
           <option value="">Any</option>
           <option value="HIGH">High</option>

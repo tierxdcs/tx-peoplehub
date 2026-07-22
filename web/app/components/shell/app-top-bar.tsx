@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, Hexagon, KeyRound, LogOut, User } from 'lucide-react';
+import {
+  ChevronDown,
+  Hexagon,
+  KeyRound,
+  LogOut,
+  Menu,
+  User,
+} from 'lucide-react';
 import { BRAND } from '../../lib/theme';
 import type { DecodedAccessToken } from '../../lib/jwt';
 import type { ModuleKey } from '../../lib/nav';
@@ -23,11 +30,13 @@ export function AppTopBar({
   modules,
   activeModule,
   onSwitchModule,
+  onOpenNavigation,
 }: {
   user: DecodedAccessToken;
   modules: ModuleKey[];
   activeModule: ModuleKey | undefined;
   onSwitchModule: (m: ModuleKey) => void;
+  onOpenNavigation: () => void;
 }) {
   const { logout } = useAuth();
   const router = useRouter();
@@ -57,15 +66,23 @@ export function AppTopBar({
   const MODULE_LABEL: Record<ModuleKey, string> = { hr: 'HR', sales: 'Sales' };
 
   return (
-    <header className="flex h-14 items-center gap-6 border-b bg-card px-4">
+    <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-card px-3 md:gap-6 md:px-4">
+      <button
+        type="button"
+        onClick={onOpenNavigation}
+        className="flex size-11 items-center justify-center rounded-md hover:bg-accent md:hidden"
+        aria-label="Open navigation"
+      >
+        <Menu className="size-5" />
+      </button>
       <div className="flex items-center gap-2 font-semibold">
         <Hexagon className="h-5 w-5 text-primary" />
-        <span>{BRAND.appName}</span>
+        <span className="hidden sm:inline">{BRAND.appName}</span>
       </div>
 
       {modules.length > 1 && (
         <div
-          className="flex items-center gap-1 rounded-lg bg-muted p-1"
+          className="hidden items-center gap-1 rounded-lg bg-muted p-1 sm:flex"
           role="tablist"
           aria-label="Module switcher"
         >
@@ -100,13 +117,13 @@ export function AppTopBar({
             className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
           >
             <Avatar name={user.email} />
-            <span className="text-left leading-tight">
+            <span className="hidden text-left leading-tight lg:inline">
               <span className="block font-medium">{user.email}</span>
               <span className="block text-xs text-muted-foreground">
                 {user.role ? humanizeEnum(user.role) : ''}
               </span>
             </span>
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            <ChevronDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
           </button>
 
           {menuOpen && (

@@ -455,6 +455,161 @@ describe('Supplier Qualification / SCM (e2e)', () => {
     expect(finalSupplier.status).toBe('APPROVED_PREFERRED');
   });
 
+  it('creates a supplier with only companyName + contactEmail; every other master field is genuinely optional at the API level', async () => {
+    const minimal = {
+      companyName: `Minimal Supplier ${Math.floor(performance.now())}`,
+      contactEmail: 'minimal@rawco.example',
+    };
+    const supplier = (
+      await request(app.getHttpServer())
+        .post('/suppliers')
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .send(minimal)
+        .expect(201)
+    ).body.data;
+    createdSupplierIds.push(supplier.id);
+    expect(supplier.companyName).toBe(minimal.companyName);
+    expect(supplier.contactEmail).toBe(minimal.contactEmail);
+    expect(supplier.registeredAddress).toBeNull();
+    expect(supplier.factoryAddress).toBeNull();
+    expect(supplier.yearEstablished).toBeNull();
+    expect(supplier.numberOfEmployees).toBeNull();
+    expect(supplier.annualTurnover).toBeNull();
+    expect(supplier.contactPersonName).toBeNull();
+    expect(supplier.contactPersonDesignation).toBeNull();
+    expect(supplier.contactPhone).toBeNull();
+
+    // Invite generation still works on a minimally-created supplier.
+    const questionnaireId = (
+      await request(app.getHttpServer())
+        .get(`/suppliers/${supplier.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data.questionnaires[0].id;
+    const invite = (
+      await request(app.getHttpServer())
+        .post(`/suppliers/questionnaires/${questionnaireId}/invites`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .send({})
+        .expect(201)
+    ).body.data;
+    expect(invite.token).toBeTruthy();
+  });
+
+  it('missing companyName or contactEmail is still rejected (400)', async () => {
+    await request(app.getHttpServer())
+      .post('/suppliers')
+      .set('Authorization', `Bearer ${scmManagerToken}`)
+      .send({ contactEmail: 'only-email@rawco.example' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post('/suppliers')
+      .set('Authorization', `Bearer ${scmManagerToken}`)
+      .send({ companyName: 'Only Name Co' })
+      .expect(400);
+  });
+
+  it('the public form Company Information section writes back to the Supplier master record', async () => {
+    const supplier = (
+      await request(app.getHttpServer())
+        .post('/suppliers')
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .send({
+          companyName: `Blank Supplier ${Math.floor(performance.now())}`,
+          contactEmail: 'blank@rawco.example',
+        })
+        .expect(201)
+    ).body.data;
+    createdSupplierIds.push(supplier.id);
+    const questionnaireId = (
+      await request(app.getHttpServer())
+        .get(`/suppliers/${supplier.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data.questionnaires[0].id;
+    const invite = (
+      await request(app.getHttpServer())
+        .post(`/suppliers/questionnaires/${questionnaireId}/invites`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .send({})
+        .expect(201)
+    ).body.data;
+    const token = invite.token;
+
+    const resolved = (
+      await request(app.getHttpServer())
+        .post(`/public/supplier-questionnaire/${token}/resolve`)
+        .send({})
+        .expect(201)
+    ).body.data;
+    expect(resolved.companyInfo.companyName).toBe(supplier.companyName);
+    expect(resolved.companyInfo.registeredAddress).toBeNull();
+
+    const saved = (
+      await request(app.getHttpServer())
+        .post(`/public/supplier-questionnaire/${token}/save`)
+        .send({
+          companyInfo: {
+            registeredAddress: '9 New Ore Rd',
+            contactPersonName: 'New Contact',
+          },
+        })
+        .expect(201)
+    ).body.data;
+    expect(saved.companyInfo.registeredAddress).toBe('9 New Ore Rd');
+    expect(saved.companyInfo.contactPersonName).toBe('New Contact');
+    expect(saved.companyInfo.factoryAddress).toBeNull();
+
+    const supplierAfter = (
+      await request(app.getHttpServer())
+        .get(`/suppliers/${supplier.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data;
+    expect(supplierAfter.registeredAddress).toBe('9 New Ore Rd');
+    expect(supplierAfter.contactPersonName).toBe('New Contact');
+
+    // companyName is not part of PublicCompanyInfoDto — rejected (400).
+    await request(app.getHttpServer())
+      .post(`/public/supplier-questionnaire/${token}/save`)
+      .send({ companyInfo: { companyName: 'Hijacked Name' } })
+      .expect(400);
+  });
+
+  it('internal-fill companyInfo also writes back to the Supplier master record', async () => {
+    const supplier = (
+      await request(app.getHttpServer())
+        .post('/suppliers')
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .send({
+          companyName: `Internal Blank Supplier ${Math.floor(performance.now())}`,
+          contactEmail: 'internal-blank@rawco.example',
+        })
+        .expect(201)
+    ).body.data;
+    createdSupplierIds.push(supplier.id);
+    const questionnaireId = (
+      await request(app.getHttpServer())
+        .get(`/suppliers/${supplier.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data.questionnaires[0].id;
+
+    await request(app.getHttpServer())
+      .post(`/suppliers/questionnaires/${questionnaireId}/internal-fill/save`)
+      .set('Authorization', `Bearer ${scmManagerToken}`)
+      .send({ companyInfo: { annualTurnover: '₹5 Cr' } })
+      .expect(201);
+
+    const supplierAfter = (
+      await request(app.getHttpServer())
+        .get(`/suppliers/${supplier.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data;
+    expect(supplierAfter.annualTurnover).toBe('₹5 Cr');
+  });
+
   function supplierBody() {
     return {
       companyName: `Raw Materials Co ${Math.floor(performance.now())}`,

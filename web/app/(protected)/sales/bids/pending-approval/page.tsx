@@ -8,6 +8,10 @@ import { formatINR } from '../../../../lib/sales';
 import { Button } from '../../../../components/ui/button';
 import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
+import { Input } from '../../../../components/ui/input';
+import { Card, CardContent } from '../../../../components/ui/card';
+import { PageContainer } from '../../../../components/ui/page-container';
+import { PageHeader } from '../../../../components/ui/page-header';
 
 export default function BidApprovalQueuePage() {
   const toast = useToast();
@@ -40,7 +44,10 @@ export default function BidApprovalQueuePage() {
   async function act(id: string, action: 'approve' | 'reject') {
     const ok = await confirm(
       action === 'approve'
-        ? { title: 'Approve this bid?', description: 'The bid will be marked APPROVED.' }
+        ? {
+            title: 'Approve this bid?',
+            description: 'The bid will be marked APPROVED.',
+          }
         : {
             title: 'Reject this bid?',
             description: 'The bid will be marked REJECTED.',
@@ -65,11 +72,11 @@ export default function BidApprovalQueuePage() {
   }
 
   return (
-    <div>
-      <h1>Bid Approvals</h1>
-      <p style={{ color: '#666' }}>
-        Bids awaiting your approval. Your own submitted bids never appear here.
-      </p>
+    <PageContainer>
+      <PageHeader
+        title="Bid Approvals"
+        description="Bids awaiting your approval. Your own submitted bids never appear here."
+      />
 
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
       {loading ? (
@@ -77,56 +84,112 @@ export default function BidApprovalQueuePage() {
       ) : bids.length === 0 ? (
         <p>No bids pending approval.</p>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
-              <th>Bid #</th>
-              <th>Discount %</th>
-              <th>Total</th>
-              <th>Comments</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {bids.map((b) => (
-              <tr key={b.id} style={{ borderBottom: '1px solid #eee' }}>
-                <td>
-                  <Link href={`/sales/bids/${b.id}`}>{b.bidNumber}</Link>
-                </td>
-                <td>{b.discountPercent}%</td>
-                <td>{formatINR(b.totalAmount)}</td>
-                <td>
-                  <input
-                    placeholder="Optional"
+        <Card>
+          <CardContent className="p-3 md:p-0">
+            <div className="space-y-3 md:hidden">
+              {bids.map((b) => (
+                <article key={b.id} className="space-y-3 rounded-lg border p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <Link
+                      className="font-medium text-primary"
+                      href={`/sales/bids/${b.id}`}
+                    >
+                      {b.bidNumber}
+                    </Link>
+                    <span className="font-semibold">
+                      {formatINR(b.totalAmount)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Discount: {b.discountPercent}%
+                  </p>
+                  <Input
+                    placeholder="Optional approval comment"
                     value={comments[b.id] ?? ''}
                     onChange={(e) =>
                       setComments((c) => ({ ...c, [b.id]: e.target.value }))
                     }
-                    style={{ padding: 4 }}
                   />
-                </td>
-                <td style={{ display: 'flex', gap: 6 }}>
-                  <Button
-                    size="sm"
-                    disabled={acting === b.id}
-                    onClick={() => act(b.id, 'approve')}
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      disabled={acting === b.id}
+                      onClick={() => act(b.id, 'approve')}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      disabled={acting === b.id}
+                      onClick={() => act(b.id, 'reject')}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr
+                    style={{
+                      textAlign: 'left',
+                      borderBottom: '1px solid #ccc',
+                    }}
                   >
-                    Approve
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={acting === b.id}
-                    onClick={() => act(b.id, 'reject')}
-                  >
-                    Reject
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    <th>Bid #</th>
+                    <th>Discount %</th>
+                    <th>Total</th>
+                    <th>Comments</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bids.map((b) => (
+                    <tr key={b.id} style={{ borderBottom: '1px solid #eee' }}>
+                      <td>
+                        <Link href={`/sales/bids/${b.id}`}>{b.bidNumber}</Link>
+                      </td>
+                      <td>{b.discountPercent}%</td>
+                      <td>{formatINR(b.totalAmount)}</td>
+                      <td>
+                        <Input
+                          placeholder="Optional"
+                          value={comments[b.id] ?? ''}
+                          onChange={(e) =>
+                            setComments((c) => ({
+                              ...c,
+                              [b.id]: e.target.value,
+                            }))
+                          }
+                          className="w-48"
+                        />
+                      </td>
+                      <td style={{ display: 'flex', gap: 6 }}>
+                        <Button
+                          size="sm"
+                          disabled={acting === b.id}
+                          onClick={() => act(b.id, 'approve')}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={acting === b.id}
+                          onClick={() => act(b.id, 'reject')}
+                        >
+                          Reject
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
       )}
-    </div>
+    </PageContainer>
   );
 }

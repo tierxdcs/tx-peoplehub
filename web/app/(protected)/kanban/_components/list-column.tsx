@@ -124,6 +124,7 @@ export function ListColumn({
                 card.sprintId ? sprintNames[card.sprintId] : undefined
               }
               onOpen={onOpenCard}
+              dndDisabled={dndDisabled}
             />
           ))}
         </SortableContext>

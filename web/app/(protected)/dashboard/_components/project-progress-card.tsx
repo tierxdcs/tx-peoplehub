@@ -49,7 +49,7 @@ export function ProjectProgressCard({ project }: { project: ProjectProgress }) {
               {new Date(project.updatedAt).toLocaleDateString()}
             </p>
           </div>
-          <div className="text-right">
+          <div className="w-full text-left sm:w-auto sm:text-right">
             <span
               className={cn(
                 'inline-flex rounded-full px-2.5 py-1 text-xs font-medium',

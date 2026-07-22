@@ -40,6 +40,7 @@ import {
   UsersRound,
   Warehouse,
   Wrench,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import type { NavGroup } from '../../lib/nav';
@@ -148,9 +149,13 @@ function iconForHref(href: string): LucideIcon {
 export function Sidebar({
   groups,
   badges,
+  mobileOpen = false,
+  onMobileClose,
 }: {
   groups: NavGroup[];
   badges?: Record<string, number>;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }) {
   const pathname = usePathname();
 
@@ -187,71 +192,131 @@ export function Sidebar({
     .filter((href) => pathname === href || pathname.startsWith(href + '/'))
     .sort((a, b) => b.length - a.length)[0];
 
+  const allItems = groups.flatMap((group) => group.items);
+  const quickItems = allItems.filter(
+    (item, index, items) =>
+      (item.href === '/dashboard' ||
+        item.href === '/kanban' ||
+        item.href.includes('pending-approval') ||
+        item.href.includes('leave-approvals')) &&
+      items.findIndex((candidate) => candidate.href === item.href) === index,
+  );
+
   return (
-    <aside className="w-60 shrink-0 border-r bg-card">
-      <nav className="flex flex-col gap-4 p-4">
-        {groups.map((group) => {
-          // Never hide the group that holds the current page.
-          const hasActive = group.items.some((i) => i.href === activeHref);
-          const isCollapsed = collapsed.has(group.heading) && !hasActive;
-          return (
-            <div key={group.heading}>
-              <button
-                type="button"
-                onClick={() => toggle(group.heading)}
-                aria-expanded={!isCollapsed}
-                className="mb-1 flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <span>{group.heading}</span>
-                <ChevronDown
-                  className={cn(
-                    'h-3.5 w-3.5 shrink-0 transition-transform',
-                    isCollapsed && '-rotate-90',
-                  )}
-                />
-              </button>
-              {!isCollapsed && (
-                <ul className="flex flex-col gap-0.5">
-                  {group.items.map((item) => {
-                    const active = item.href === activeHref;
-                    const count = badges?.[item.href];
-                    const ItemIcon = iconForHref(item.href);
-                    return (
-                      <li key={item.href}>
-                        <Link
-                          href={item.href}
-                          className={cn(
-                            'flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                            active
-                              ? 'bg-primary/10 font-medium text-primary'
-                              : 'text-foreground/80 hover:bg-accent hover:text-accent-foreground',
-                          )}
-                        >
-                          <span className="flex min-w-0 items-center gap-2">
-                            <ItemIcon
-                              aria-hidden="true"
-                              className="size-4 shrink-0 opacity-75"
-                            />
-                            <span className="truncate">{item.label}</span>
-                          </span>
-                          {typeof count === 'number' && count > 0 && (
-                            <Badge
-                              variant="destructive"
-                              className="px-1.5 py-0 text-[10px] leading-5"
-                            >
-                              {count}
-                            </Badge>
-                          )}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+    <>
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          onClick={onMobileClose}
+          className="fixed inset-0 top-14 z-40 bg-black/40 md:hidden"
+        />
+      )}
+      <aside
+        className={cn(
+          'fixed bottom-0 left-0 top-14 z-50 w-[min(20rem,86vw)] shrink-0 overflow-y-auto border-r bg-card transition-transform md:static md:z-auto md:w-60 md:translate-x-0',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-card px-4 py-2 md:hidden">
+          <span className="text-sm font-semibold">Navigation</span>
+          <button
+            type="button"
+            onClick={onMobileClose}
+            className="flex size-11 items-center justify-center rounded-md hover:bg-accent"
+            aria-label="Close navigation"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+        <nav className="flex flex-col gap-4 p-4">
+          {quickItems.length > 0 && (
+            <div className="md:hidden">
+              <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Quick access
+              </p>
+              <ul className="space-y-1">
+                {quickItems.map((item) => {
+                  const ItemIcon = iconForHref(item.href);
+                  return (
+                    <li key={`quick-${item.href}`}>
+                      <Link
+                        href={item.href}
+                        className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium hover:bg-accent"
+                      >
+                        <ItemIcon className="size-5 text-primary" />
+                        {item.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="mt-4 border-t" />
             </div>
-          );
-        })}
-      </nav>
-    </aside>
+          )}
+          {groups.map((group) => {
+            // Never hide the group that holds the current page.
+            const hasActive = group.items.some((i) => i.href === activeHref);
+            const isCollapsed = collapsed.has(group.heading) && !hasActive;
+            return (
+              <div key={group.heading}>
+                <button
+                  type="button"
+                  onClick={() => toggle(group.heading)}
+                  aria-expanded={!isCollapsed}
+                  className="mb-1 flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <span>{group.heading}</span>
+                  <ChevronDown
+                    className={cn(
+                      'h-3.5 w-3.5 shrink-0 transition-transform',
+                      isCollapsed && '-rotate-90',
+                    )}
+                  />
+                </button>
+                {!isCollapsed && (
+                  <ul className="flex flex-col gap-0.5">
+                    {group.items.map((item) => {
+                      const active = item.href === activeHref;
+                      const count = badges?.[item.href];
+                      const ItemIcon = iconForHref(item.href);
+                      return (
+                        <li key={item.href}>
+                          <Link
+                            href={item.href}
+                            className={cn(
+                              'flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                              active
+                                ? 'bg-primary/10 font-medium text-primary'
+                                : 'text-foreground/80 hover:bg-accent hover:text-accent-foreground',
+                            )}
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              <ItemIcon
+                                aria-hidden="true"
+                                className="size-4 shrink-0 opacity-75"
+                              />
+                              <span className="truncate">{item.label}</span>
+                            </span>
+                            {typeof count === 'number' && count > 0 && (
+                              <Badge
+                                variant="destructive"
+                                className="px-1.5 py-0 text-[10px] leading-5"
+                              >
+                                {count}
+                              </Badge>
+                            )}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+      </aside>
+    </>
   );
 }

@@ -1,5 +1,187 @@
 'use client';
-import{FormEvent,useEffect,useState}from'react';import{useParams}from'next/navigation';import{apiFetch}from'../../../../lib/api';import{useQmsAccess}from'../../../../lib/use-qms-access';import{Button}from'../../../../components/ui/button';import{Card,CardContent}from'../../../../components/ui/card';import{Input}from'../../../../components/ui/input';import{Select}from'../../../../components/ui/select';import{PageContainer}from'../../../../components/ui/page-container';import{PageHeader}from'../../../../components/ui/page-header';
-type E={id:string;firstName:string;lastName:string};type N={id:string;ncrNumber:string;title:string;description:string;severity:string;status:string;containmentAction?:string;disposition?:string;capa?:{id:string;capaNumber:string}};
-export default function NcrDetail(){const{id}=useParams<{id:string}>(),{isQmsHead}=useQmsAccess(),[n,setN]=useState<N>(),[emps,setEmps]=useState<E[]>([]),[containment,setContainment]=useState(''),[disposition,setDisposition]=useState('REWORK'),[notes,setNotes]=useState(''),[problem,setProblem]=useState(''),[owner,setOwner]=useState(''),[root,setRoot]=useState(''),[criteria,setCriteria]=useState(''),[due,setDue]=useState('');const load=()=>Promise.all([apiFetch<N>(`/qms/ncrs/${id}`),apiFetch<E[]>('/qms/references/employees')]).then(([x,e])=>{setN(x);setEmps(e)});useEffect(()=>{load()},[id]); // eslint-disable-line react-hooks/exhaustive-deps
-async function post(path:string,body:object){await apiFetch(path,{method:'POST',body:JSON.stringify(body)});await load();}async function capa(e:FormEvent){e.preventDefault();await post(`/qms/ncrs/${id}/capa`,{problemStatement:problem,ownerId:owner,rootCauseMethod:'5-WHY',rootCauseConclusion:root,effectivenessCriteria:criteria,effectivenessDueDate:due||undefined});}if(!n)return null;return <PageContainer><PageHeader title={`${n.ncrNumber} · ${n.title}`} description={`${n.severity} · ${n.status}`}/><Card className="mb-6"><CardContent className="p-5"><p>{n.description}</p><h3 className="mt-4 font-semibold">Containment</h3><div className="flex gap-2"><Input value={containment} onChange={e=>setContainment(e.target.value)} placeholder={n.containmentAction||'Immediate containment action'}/><Button onClick={()=>post(`/qms/ncrs/${id}/contain`,{containmentAction:containment})}>Record containment</Button></div>{isQmsHead&&<><h3 className="mt-4 font-semibold">Disposition</h3><div className="grid gap-2 md:grid-cols-3"><Select value={disposition} onChange={e=>setDisposition(e.target.value)}>{['REWORK','REPAIR','USE_AS_IS','RETURN_TO_SUPPLIER','SCRAP','CONCESSION'].map(x=><option key={x}>{x}</option>)}</Select><Input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Approval/disposition notes"/><Button onClick={()=>post(`/qms/ncrs/${id}/disposition`,{disposition,dispositionNotes:notes,concessionRequired:disposition==='CONCESSION'})}>Approve disposition</Button></div></>}</CardContent></Card>{!n.capa?<Card><CardContent className="p-5"><h2 className="mb-3 font-semibold">Create CAPA</h2><form className="grid gap-3 md:grid-cols-2" onSubmit={capa}><Input required value={problem} onChange={e=>setProblem(e.target.value)} placeholder="Problem statement"/><Select required value={owner} onChange={e=>setOwner(e.target.value)}><option value="">CAPA owner</option>{emps.map(x=><option value={x.id} key={x.id}>{x.firstName} {x.lastName}</option>)}</Select><Input required value={root} onChange={e=>setRoot(e.target.value)} placeholder="Root-cause conclusion"/><Input required value={criteria} onChange={e=>setCriteria(e.target.value)} placeholder="Effectiveness criteria"/><Input type="date" value={due} onChange={e=>setDue(e.target.value)}/><Button type="submit">Create CAPA</Button></form></CardContent></Card>:<Card><CardContent className="p-5"><a className="text-primary" href="/qms/capas">CAPA {n.capa.capaNumber} is tracking this NCR</a></CardContent></Card>}</PageContainer>}
+import { FormEvent, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { apiFetch } from '../../../../lib/api';
+import { useQmsAccess } from '../../../../lib/use-qms-access';
+import { Button } from '../../../../components/ui/button';
+import { Card, CardContent } from '../../../../components/ui/card';
+import { Input } from '../../../../components/ui/input';
+import { Select } from '../../../../components/ui/select';
+import { PageContainer } from '../../../../components/ui/page-container';
+import { PageHeader } from '../../../../components/ui/page-header';
+type E = { id: string; firstName: string; lastName: string };
+type N = {
+  id: string;
+  ncrNumber: string;
+  title: string;
+  description: string;
+  severity: string;
+  status: string;
+  containmentAction?: string;
+  disposition?: string;
+  capa?: { id: string; capaNumber: string };
+};
+export default function NcrDetail() {
+  const { id } = useParams<{ id: string }>(),
+    { isQmsHead } = useQmsAccess(),
+    [n, setN] = useState<N>(),
+    [emps, setEmps] = useState<E[]>([]),
+    [containment, setContainment] = useState(''),
+    [disposition, setDisposition] = useState('REWORK'),
+    [notes, setNotes] = useState(''),
+    [problem, setProblem] = useState(''),
+    [owner, setOwner] = useState(''),
+    [root, setRoot] = useState(''),
+    [criteria, setCriteria] = useState(''),
+    [due, setDue] = useState('');
+  const load = () =>
+    Promise.all([
+      apiFetch<N>(`/qms/ncrs/${id}`),
+      apiFetch<E[]>('/qms/references/employees'),
+    ]).then(([x, e]) => {
+      setN(x);
+      setEmps(e);
+    });
+  useEffect(() => {
+    load();
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function post(path: string, body: object) {
+    await apiFetch(path, { method: 'POST', body: JSON.stringify(body) });
+    await load();
+  }
+  async function capa(e: FormEvent) {
+    e.preventDefault();
+    await post(`/qms/ncrs/${id}/capa`, {
+      problemStatement: problem,
+      ownerId: owner,
+      rootCauseMethod: '5-WHY',
+      rootCauseConclusion: root,
+      effectivenessCriteria: criteria,
+      effectivenessDueDate: due || undefined,
+    });
+  }
+  if (!n) return null;
+  return (
+    <PageContainer>
+      <PageHeader
+        title={`${n.ncrNumber} · ${n.title}`}
+        description={`${n.severity} · ${n.status}`}
+      />
+      <Card className="mb-6">
+        <CardContent className="p-5">
+          <p>{n.description}</p>
+          <h3 className="mt-4 font-semibold">Containment</h3>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              value={containment}
+              onChange={(e) => setContainment(e.target.value)}
+              placeholder={
+                n.containmentAction || 'Immediate containment action'
+              }
+            />
+            <Button
+              onClick={() =>
+                post(`/qms/ncrs/${id}/contain`, {
+                  containmentAction: containment,
+                })
+              }
+            >
+              Record containment
+            </Button>
+          </div>
+          {isQmsHead && (
+            <>
+              <h3 className="mt-4 font-semibold">Disposition</h3>
+              <div className="grid gap-2 md:grid-cols-3">
+                <Select
+                  value={disposition}
+                  onChange={(e) => setDisposition(e.target.value)}
+                >
+                  {[
+                    'REWORK',
+                    'REPAIR',
+                    'USE_AS_IS',
+                    'RETURN_TO_SUPPLIER',
+                    'SCRAP',
+                    'CONCESSION',
+                  ].map((x) => (
+                    <option key={x}>{x}</option>
+                  ))}
+                </Select>
+                <Input
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Approval/disposition notes"
+                />
+                <Button
+                  onClick={() =>
+                    post(`/qms/ncrs/${id}/disposition`, {
+                      disposition,
+                      dispositionNotes: notes,
+                      concessionRequired: disposition === 'CONCESSION',
+                    })
+                  }
+                >
+                  Approve disposition
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+      {!n.capa ? (
+        <Card>
+          <CardContent className="p-5">
+            <h2 className="mb-3 font-semibold">Create CAPA</h2>
+            <form className="grid gap-3 md:grid-cols-2" onSubmit={capa}>
+              <Input
+                required
+                value={problem}
+                onChange={(e) => setProblem(e.target.value)}
+                placeholder="Problem statement"
+              />
+              <Select
+                required
+                value={owner}
+                onChange={(e) => setOwner(e.target.value)}
+              >
+                <option value="">CAPA owner</option>
+                {emps.map((x) => (
+                  <option value={x.id} key={x.id}>
+                    {x.firstName} {x.lastName}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                required
+                value={root}
+                onChange={(e) => setRoot(e.target.value)}
+                placeholder="Root-cause conclusion"
+              />
+              <Input
+                required
+                value={criteria}
+                onChange={(e) => setCriteria(e.target.value)}
+                placeholder="Effectiveness criteria"
+              />
+              <Input
+                type="date"
+                value={due}
+                onChange={(e) => setDue(e.target.value)}
+              />
+              <Button type="submit">Create CAPA</Button>
+            </form>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-5">
+            <a className="text-primary" href="/qms/capas">
+              CAPA {n.capa.capaNumber} is tracking this NCR
+            </a>
+          </CardContent>
+        </Card>
+      )}
+    </PageContainer>
+  );
+}

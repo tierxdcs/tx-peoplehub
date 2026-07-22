@@ -2660,16 +2660,18 @@ model Vendor {
   /// Plain, matchable company name — the future reconciliation target for
   /// Project Kickoff's free-text vendorName. Deliberately not normalized away.
   companyName              String
-  registeredAddress        String                   @db.Text
-  factoryAddress           String                   @db.Text
-  yearEstablished          String
-  numberOfEmployees        String
-  annualTurnover           String
+  /// Only companyName + contactEmail are required at creation — everything else
+  /// below is optional and expected to arrive via the vendor's own questionnaire.
+  registeredAddress        String?                  @db.Text
+  factoryAddress           String?                  @db.Text
+  yearEstablished          String?
+  numberOfEmployees        String?
+  annualTurnover           String?
   msmeUdyamCertificate     String?
-  contactPersonName        String
-  contactPersonDesignation String
+  contactPersonName        String?
+  contactPersonDesignation String?
   contactEmail             String
-  contactPhone             String
+  contactPhone             String?
   website                  String?
   status                   VendorStatus             @default(PENDING_QUESTIONNAIRE)
   createdById              String
@@ -2826,17 +2828,19 @@ model Supplier {
   id                       String                   @id @default(uuid())
   /// Plain, matchable company name (future Item↔Supplier reconciliation).
   companyName              String
-  registeredAddress        String                   @db.Text
+  /// Only companyName + contactEmail are required at creation — everything else
+  /// below is optional and expected to arrive via the supplier's own questionnaire.
+  registeredAddress        String?                  @db.Text
   /// Factory / origin location of the raw materials.
-  factoryAddress           String                   @db.Text
-  yearEstablished          String
-  numberOfEmployees        String
-  annualTurnover           String
+  factoryAddress           String?                  @db.Text
+  yearEstablished          String?
+  numberOfEmployees        String?
+  annualTurnover           String?
   msmeUdyamCertificate     String?
-  contactPersonName        String
-  contactPersonDesignation String
+  contactPersonName        String?
+  contactPersonDesignation String?
   contactEmail             String
-  contactPhone             String
+  contactPhone             String?
   website                  String?
   status                   SupplierStatus           @default(PENDING_QUESTIONNAIRE)
   createdById              String

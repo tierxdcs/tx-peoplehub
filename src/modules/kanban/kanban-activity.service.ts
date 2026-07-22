@@ -57,4 +57,7 @@ export class KanbanActivityService {
       ? `set the ${label} to ${date.slice(0, 10)}`
       : `cleared the ${label}`;
   }
+  attachmentAdded(filename: string): string {
+    return `attached \`${filename}\``;
+  }
 }

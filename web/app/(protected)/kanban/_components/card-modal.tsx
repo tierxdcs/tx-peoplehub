@@ -294,7 +294,7 @@ export function CardModal({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="left-0 top-0 h-dvh max-h-dvh w-screen max-w-none translate-x-0 translate-y-0 rounded-none p-4 sm:left-1/2 sm:top-1/2 sm:h-auto sm:max-h-[90vh] sm:w-full sm:max-w-2xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6">
         {loading ? (
           <div className="flex h-40 items-center justify-center">
             <Spinner className="text-muted-foreground" />
@@ -328,7 +328,7 @@ export function CardModal({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_200px]">
               {/* Main column */}
-              <div className="space-y-4">
+              <div className="order-2 space-y-4 sm:order-1">
                 {/* Labels */}
                 <div className="flex flex-wrap items-center gap-1.5">
                   {card.labels?.map((l) => (
@@ -406,8 +406,9 @@ export function CardModal({
                 {/* Attachments */}
                 <CardAttachments
                   cardId={cardId}
-                  canManage={canManage}
+                  canDeleteAny
                   currentUserId={user?.sub}
+                  onChanged={refreshFeed}
                 />
 
                 {/* Feed */}
@@ -488,13 +489,13 @@ export function CardModal({
               </div>
 
               {/* Sidebar: metadata */}
-              <div className="space-y-3">
-                <SideField label="List">
+              <div className="order-1 space-y-3 sm:order-2">
+                <SideField label="Move to…">
                   <Select
                     value={card.listId}
                     onChange={(e) => void onMoveToList(e.target.value)}
                     disabled={moving}
-                    className="h-8"
+                    className="h-11 sm:h-8"
                   >
                     {lists.map((list) => (
                       <option key={list.id} value={list.id}>
@@ -508,7 +509,7 @@ export function CardModal({
                   lists.some((list) => list.isDoneList) && (
                     <Button
                       size="sm"
-                      className="w-full"
+                      className="h-11 w-full sm:h-8"
                       disabled={moving}
                       onClick={() => {
                         const done = lists.find((list) => list.isDoneList);
@@ -557,7 +558,7 @@ export function CardModal({
                 </SideField>
 
                 <SideField label="Vertical">
-                  <div className="flex h-8 items-center rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground">
+                  <div className="flex h-11 items-center rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground sm:h-8">
                     {card.verticalName ?? 'Not assigned'}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -571,7 +572,7 @@ export function CardModal({
                     onChange={(e) =>
                       void patch({ priority: e.target.value as LeadPriority })
                     }
-                    className="h-8"
+                    className="h-11 sm:h-8"
                   >
                     <option value="HIGH">High</option>
                     <option value="MEDIUM">Medium</option>
@@ -586,7 +587,7 @@ export function CardModal({
                     onChange={(e) =>
                       void patch({ startDate: e.target.value || null })
                     }
-                    className="h-8"
+                    className="h-11 sm:h-8"
                   />
                 </SideField>
 
@@ -598,7 +599,7 @@ export function CardModal({
                       void patch({ dueDate: e.target.value || null })
                     }
                     className={cn(
-                      'h-8',
+                      'h-11 sm:h-8',
                       card.isOverdue && 'border-destructive',
                     )}
                   />
@@ -614,7 +615,7 @@ export function CardModal({
                     <Select
                       value={card.sprintId ?? ''}
                       onChange={(e) => void onSetSprint(e.target.value)}
-                      className="h-8"
+                      className="h-11 sm:h-8"
                     >
                       <option value="">No sprint</option>
                       {sprints.map((s) => (

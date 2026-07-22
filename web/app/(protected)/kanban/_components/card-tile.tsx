@@ -30,13 +30,25 @@ export function CardTile({
   card,
   sprintName,
   onOpen,
+  dndDisabled = false,
 }: {
   card: KanbanCard;
   sprintName?: string;
   onOpen: (card: KanbanCard) => void;
+  dndDisabled?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: card.id, data: { type: 'card', card } });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: card.id,
+    data: { type: 'card', card },
+    disabled: dndDisabled,
+  });
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -47,8 +59,8 @@ export function CardTile({
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(!dndDisabled ? attributes : {})}
+      {...(!dndDisabled ? listeners : {})}
       onClick={() => onOpen(card)}
       role="button"
       tabIndex={0}
@@ -59,7 +71,7 @@ export function CardTile({
         }
       }}
       className={cn(
-        'cursor-pointer rounded-md border bg-card p-2.5 text-left shadow-sm transition-colors hover:border-primary',
+        'min-h-11 cursor-pointer rounded-md border bg-card p-3 text-left shadow-sm transition-colors hover:border-primary md:p-2.5',
         isDragging && 'opacity-50',
       )}
     >
@@ -90,7 +102,10 @@ export function CardTile({
 
       <div className="mt-2 flex items-center gap-2">
         <span
-          className={cn('h-2 w-2 shrink-0 rounded-full', PRIORITY_DOT[card.priority])}
+          className={cn(
+            'h-2 w-2 shrink-0 rounded-full',
+            PRIORITY_DOT[card.priority],
+          )}
           title={`${card.priority} priority`}
         />
         {card.dueDate && (

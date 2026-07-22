@@ -98,7 +98,7 @@ export function QuestionnaireView({
           <Row label="Year Established" value={vendor.yearEstablished} />
           <Row label="Employees" value={vendor.numberOfEmployees} />
           <Row label="Annual Turnover" value={vendor.annualTurnover} />
-          <Row label="Contact" value={`${vendor.contactPersonName} · ${vendor.contactPersonDesignation}`} />
+          <Row label="Contact" value={joinParts([vendor.contactPersonName, vendor.contactPersonDesignation])} />
         </div>
       </section>
 
@@ -140,11 +140,17 @@ export function QuestionnaireView({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="grid grid-cols-[minmax(120px,220px)_1fr] gap-2">
       <span className="text-muted-foreground">{label}</span>
-      <span>{value}</span>
+      <span>{value ?? <span className="text-muted-foreground">—</span>}</span>
     </div>
   );
+}
+
+/** Join non-empty parts with " · ", falling back to "—" when nothing is set. */
+function joinParts(parts: (string | null | undefined)[]): string {
+  const present = parts.filter((p): p is string => !!p?.trim());
+  return present.length > 0 ? present.join(' · ') : '—';
 }

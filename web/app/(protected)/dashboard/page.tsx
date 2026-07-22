@@ -160,7 +160,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <PageContainer className="space-y-8 py-2">
+    <PageContainer className="space-y-6 py-2 md:space-y-8">
       {/* Greeting + editorial quote — the one serif moment on the page. */}
       <header className="space-y-4">
         <h1 className="text-2xl font-semibold tracking-tight">
@@ -194,7 +194,7 @@ export default function DashboardPage() {
       )}
 
       {/* Task analytics — 4 stat cards. */}
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard icon={ListChecks} label="Assigned" value={stats.assigned} />
         <StatCard
           icon={CheckCircle2}
@@ -244,7 +244,7 @@ export default function DashboardPage() {
                     <Link
                       href={`/kanban/cards/${t.id}`}
                       className={cn(
-                        'flex items-center gap-3 border-l-2 px-4 py-3 transition-colors hover:bg-accent/40',
+                        'flex min-h-14 items-center gap-3 border-l-2 px-4 py-3 transition-colors hover:bg-accent/40',
                         t.isOverdue
                           ? 'border-l-destructive'
                           : t.dueDate &&
@@ -283,7 +283,7 @@ export default function DashboardPage() {
       {/* Participant-scoped, live Order-to-Dispatch project tracking. */}
       {projects.length > 0 && (
         <section>
-          <div className="mb-3 flex items-end justify-between gap-3">
+          <div className="mb-3 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-end sm:gap-3">
             <div>
               <h2 className="text-lg font-semibold">Project progress</h2>
               <p className="text-sm text-muted-foreground">
@@ -335,7 +335,7 @@ function StatCard({
   }[tone];
   return (
     <Card>
-      <CardContent className="flex items-center gap-3 p-4">
+      <CardContent className="flex items-center gap-2 p-3 sm:gap-3 sm:p-4">
         <div
           className={cn(
             'flex size-9 shrink-0 items-center justify-center rounded-full bg-muted',

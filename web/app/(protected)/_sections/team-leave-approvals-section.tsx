@@ -162,7 +162,9 @@ export function TeamLeaveApprovalsSection({
       )}
 
       <Card>
-        <CardContent className={loading || requests.length === 0 ? 'pt-6' : 'p-0'}>
+        <CardContent
+          className={loading || requests.length === 0 ? 'pt-6' : 'p-0'}
+        >
           {loading ? (
             <Skeleton className="h-40 w-full" />
           ) : requests.length === 0 ? (
@@ -173,72 +175,136 @@ export function TeamLeaveApprovalsSection({
               description="No leave requests are waiting for your approval right now."
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Dates</TableHead>
-                  <TableHead className="text-right">Days</TableHead>
-                  <TableHead>Reason</TableHead>
-                  <TableHead>Comment</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <div className="space-y-3 p-3 md:hidden">
                 {requests.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar name={employeeNames[r.employeeId] ?? '?'} />
-                        <span className="font-medium">
+                  <article
+                    key={r.id}
+                    className="space-y-3 rounded-lg border p-4"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Avatar name={employeeNames[r.employeeId] ?? '?'} />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">
                           {employeeNames[r.employeeId] ?? '…'}
-                        </span>
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {leaveTypeName(r.leaveTypeId)} · {r.numberOfDays}{' '}
+                          day(s)
+                        </p>
                       </div>
-                    </TableCell>
-                    <TableCell>{leaveTypeName(r.leaveTypeId)}</TableCell>
-                    <TableCell>
-                      {r.startDate.slice(0, 10)} → {r.endDate.slice(0, 10)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {r.numberOfDays}
-                    </TableCell>
-                    <TableCell className="max-w-[220px] truncate">
-                      {r.reason}
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        className="w-40"
-                        placeholder="Optional comment"
-                        value={comments[r.id] ?? ''}
-                        onChange={(e) =>
-                          setComments((c) => ({ ...c, [r.id]: e.target.value }))
-                        }
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          disabled={acting === r.id}
-                          onClick={() => act(r.id, 'approve')}
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          disabled={acting === r.id}
-                          onClick={() => act(r.id, 'reject')}
-                        >
-                          Reject
-                        </Button>
+                    </div>
+                    <dl className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Dates</dt>
+                        <dd>
+                          {r.startDate.slice(0, 10)} → {r.endDate.slice(0, 10)}
+                        </dd>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Reason
+                        </dt>
+                        <dd className="break-words">{r.reason}</dd>
+                      </div>
+                    </dl>
+                    <Input
+                      placeholder="Optional approval comment"
+                      value={comments[r.id] ?? ''}
+                      onChange={(e) =>
+                        setComments((c) => ({ ...c, [r.id]: e.target.value }))
+                      }
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                        disabled={acting === r.id}
+                        onClick={() => act(r.id, 'approve')}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        disabled={acting === r.id}
+                        onClick={() => act(r.id, 'reject')}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </article>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Dates</TableHead>
+                      <TableHead className="text-right">Days</TableHead>
+                      <TableHead>Reason</TableHead>
+                      <TableHead>Comment</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {requests.map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar name={employeeNames[r.employeeId] ?? '?'} />
+                            <span className="font-medium">
+                              {employeeNames[r.employeeId] ?? '…'}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{leaveTypeName(r.leaveTypeId)}</TableCell>
+                        <TableCell>
+                          {r.startDate.slice(0, 10)} → {r.endDate.slice(0, 10)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {r.numberOfDays}
+                        </TableCell>
+                        <TableCell className="max-w-[220px] truncate">
+                          {r.reason}
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            className="w-40"
+                            placeholder="Optional comment"
+                            value={comments[r.id] ?? ''}
+                            onChange={(e) =>
+                              setComments((c) => ({
+                                ...c,
+                                [r.id]: e.target.value,
+                              }))
+                            }
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              disabled={acting === r.id}
+                              onClick={() => act(r.id, 'approve')}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              disabled={acting === r.id}
+                              onClick={() => act(r.id, 'reject')}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

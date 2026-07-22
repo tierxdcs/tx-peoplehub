@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import { VendorAuditType } from '@prisma/client';
 import {
   IsDateString,
@@ -11,55 +12,71 @@ import {
   Max,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 
 // ── Vendor ─────────────────────────────────────────────────────────
+/**
+ * Only companyName + contactEmail are required at creation — staff often don't
+ * know the rest yet, and it's expected to arrive via the vendor's own
+ * questionnaire (see the public "Company Information" section). Everything
+ * else here is optional but still settable by staff if they DO know it.
+ */
 export class CreateVendorDto {
   @ApiProperty()
   @IsString()
   @MinLength(1)
   companyName!: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  registeredAddress!: string;
+  registeredAddress?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  factoryAddress!: string;
+  factoryAddress?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  yearEstablished!: string;
+  yearEstablished?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  numberOfEmployees!: string;
+  numberOfEmployees?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  annualTurnover!: string;
+  annualTurnover?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   msmeUdyamCertificate?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  contactPersonName!: string;
+  contactPersonName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  contactPersonDesignation?: string;
 
   @ApiProperty()
   @IsString()
-  contactPersonDesignation!: string;
-
-  @ApiProperty()
-  @IsString()
+  @MinLength(1)
   contactEmail!: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  contactPhone!: string;
+  contactPhone?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -84,15 +101,43 @@ export class CreateInviteDto {
   password?: string;
 }
 
+/**
+ * The Vendor master fields the vendor themselves may complete/correct via the
+ * public form's "Company Information" section — exactly the fields Part 1
+ * relaxed to optional at creation (NOT companyName/contactEmail, which stay
+ * staff-set: companyName is the reconciliation key, contactEmail identifies
+ * who the invite was sent to). All optional so a partial save doesn't force
+ * every field at once.
+ */
+export class PublicCompanyInfoDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() registeredAddress?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() factoryAddress?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() yearEstablished?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() numberOfEmployees?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() annualTurnover?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() msmeUdyamCertificate?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() contactPersonName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() contactPersonDesignation?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() contactPhone?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() website?: string;
+}
+
 // ── Public questionnaire (save/resume + submit) ──────────────────────
 /**
  * Partial save OR final submit of questionnaire section data. Each section is
  * an opaque JSON object (the VSAQ's 18 sections); all optional so a vendor can
  * save whatever they've filled so far. `password` carries the optional invite
- * password in the BODY (never the URL).
+ * password in the BODY (never the URL). `companyInfo` is NOT a section — it
+ * writes back to the Vendor master record itself (see savePublic/submitPublic).
  */
 export class PublicQuestionnaireSaveDto {
   @ApiPropertyOptional() @IsOptional() @IsString() password?: string;
+
+  @ApiPropertyOptional({ type: () => PublicCompanyInfoDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PublicCompanyInfoDto)
+  companyInfo?: PublicCompanyInfoDto;
 
   @ApiPropertyOptional() @IsOptional() @IsObject() businessProfile?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() manufacturingCapability?: object;

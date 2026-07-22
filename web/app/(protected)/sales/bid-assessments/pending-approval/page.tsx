@@ -106,44 +106,78 @@ export default function BidAssessmentQueuePage() {
           {loading ? (
             <Skeleton className="h-40 w-full" />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Opportunity</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((a) => (
-                  <TableRow key={a.id}>
-                    <TableCell className="font-medium">
-                      {oppNames[a.opportunityId] ?? a.opportunityId}
-                    </TableCell>
-                    <TableCell>{dateOnlyStr(a.createdAt)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelected(a)}
-                      >
-                        Review →
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+            <>
+              <div className="space-y-3 md:hidden">
+                {items.map((assessment) => (
+                  <article
+                    key={assessment.id}
+                    className="space-y-3 rounded-lg border p-4"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {oppNames[assessment.opportunityId] ??
+                          assessment.opportunityId}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Submitted {dateOnlyStr(assessment.createdAt)}
+                      </p>
+                    </div>
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={() => setSelected(assessment)}
+                    >
+                      Review assessment
+                    </Button>
+                  </article>
                 ))}
                 {items.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={3}
-                      className="text-center text-muted-foreground"
-                    >
-                      No assessments pending review.
-                    </TableCell>
-                  </TableRow>
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    No assessments pending review.
+                  </p>
                 )}
-              </TableBody>
-            </Table>
+              </div>
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Opportunity</TableHead>
+                      <TableHead>Submitted</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((a) => (
+                      <TableRow key={a.id}>
+                        <TableCell className="font-medium">
+                          {oppNames[a.opportunityId] ?? a.opportunityId}
+                        </TableCell>
+                        <TableCell>{dateOnlyStr(a.createdAt)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelected(a)}
+                          >
+                            Review →
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {items.length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={3}
+                          className="text-center text-muted-foreground"
+                        >
+                          No assessments pending review.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -204,7 +238,9 @@ function ReviewDialog({
     try {
       await apiFetch(`/bid-assessments/${assessment.id}/${action}`, {
         method: 'PATCH',
-        body: JSON.stringify({ reviewerComments: comments.trim() || undefined }),
+        body: JSON.stringify({
+          reviewerComments: comments.trim() || undefined,
+        }),
       });
       toast.success(
         action === 'approve' ? 'Assessment approved' : 'Assessment rejected',
@@ -221,7 +257,7 @@ function ReviewDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="left-0 top-0 h-dvh max-h-dvh w-screen max-w-none translate-x-0 translate-y-0 rounded-none p-4 sm:left-1/2 sm:top-1/2 sm:h-auto sm:max-h-[90vh] sm:w-full sm:max-w-xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6">
         <DialogHeader>
           <DialogTitle>Review assessment</DialogTitle>
           <DialogDescription>

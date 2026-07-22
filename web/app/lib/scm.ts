@@ -33,16 +33,16 @@ export type VendorClassification =
 export interface Vendor {
   id: string;
   companyName: string;
-  registeredAddress: string;
-  factoryAddress: string;
-  yearEstablished: string;
-  numberOfEmployees: string;
-  annualTurnover: string;
+  registeredAddress: string | null;
+  factoryAddress: string | null;
+  yearEstablished: string | null;
+  numberOfEmployees: string | null;
+  annualTurnover: string | null;
   msmeUdyamCertificate: string | null;
-  contactPersonName: string;
-  contactPersonDesignation: string;
+  contactPersonName: string | null;
+  contactPersonDesignation: string | null;
   contactEmail: string;
-  contactPhone: string;
+  contactPhone: string | null;
   website: string | null;
   status: VendorStatus;
   createdById: string;
@@ -81,12 +81,38 @@ export const SECTION_KEYS = [
 
 export type SectionKey = (typeof SECTION_KEYS)[number];
 
+/**
+ * The Vendor master fields surfaced on the public form's "Company
+ * Information" section. companyName/contactEmail are staff-set and shown
+ * read-only there; everything else is editable via PublicCompanyInfo.
+ */
+export interface VendorCompanyInfo {
+  companyName: string;
+  contactEmail: string;
+  registeredAddress: string | null;
+  factoryAddress: string | null;
+  yearEstablished: string | null;
+  numberOfEmployees: string | null;
+  annualTurnover: string | null;
+  msmeUdyamCertificate: string | null;
+  contactPersonName: string | null;
+  contactPersonDesignation: string | null;
+  contactPhone: string | null;
+  website: string | null;
+}
+
+/** Editable subset of VendorCompanyInfo — what the public form may write back. */
+export type PublicCompanyInfo = Partial<
+  Omit<VendorCompanyInfo, 'companyName' | 'contactEmail'>
+>;
+
 export type VendorQuestionnaire = {
   id: string;
   vendorId: string;
   revisionNumber: number;
   status: QuestionnaireStatus;
   submittedAt: string | null;
+  companyInfo: VendorCompanyInfo;
   qualityCertificateFiles: CertificateFile[];
   createdAt: string;
   updatedAt: string;
@@ -135,18 +161,22 @@ export interface VendorDetail extends Vendor {
 }
 
 // ── Authenticated (SCM staff) calls ──────────────────────────────────
+/**
+ * Only companyName + contactEmail are required at creation — everything else
+ * is optional and can arrive later via the vendor's own questionnaire.
+ */
 export interface CreateVendorInput {
   companyName: string;
-  registeredAddress: string;
-  factoryAddress: string;
-  yearEstablished: string;
-  numberOfEmployees: string;
-  annualTurnover: string;
-  msmeUdyamCertificate?: string;
-  contactPersonName: string;
-  contactPersonDesignation: string;
   contactEmail: string;
-  contactPhone: string;
+  registeredAddress?: string;
+  factoryAddress?: string;
+  yearEstablished?: string;
+  numberOfEmployees?: string;
+  annualTurnover?: string;
+  msmeUdyamCertificate?: string;
+  contactPersonName?: string;
+  contactPersonDesignation?: string;
+  contactPhone?: string;
   website?: string;
 }
 
@@ -307,10 +337,11 @@ export function savePublicQuestionnaire(
   token: string,
   sections: Partial<Record<SectionKey, unknown>>,
   password?: string,
+  companyInfo?: PublicCompanyInfo,
 ) {
   return publicPost<VendorQuestionnaire>(
     `/public/vendor-questionnaire/${encodeURIComponent(token)}/save`,
-    { ...sections, password },
+    { ...sections, password, companyInfo },
   );
 }
 
@@ -318,10 +349,11 @@ export function submitPublicQuestionnaire(
   token: string,
   sections: Partial<Record<SectionKey, unknown>>,
   password?: string,
+  companyInfo?: PublicCompanyInfo,
 ) {
   return publicPost<VendorQuestionnaire>(
     `/public/vendor-questionnaire/${encodeURIComponent(token)}/submit`,
-    { ...sections, password },
+    { ...sections, password, companyInfo },
   );
 }
 

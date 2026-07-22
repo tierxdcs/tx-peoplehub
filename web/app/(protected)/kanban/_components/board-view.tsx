@@ -43,6 +43,8 @@ import {
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { useIsScrumMaster } from '../../../lib/use-is-scrum-master';
+import { useIsMobile } from '../../../lib/use-is-mobile';
+import { cn } from '../../../lib/utils';
 import { useToast } from '../../../components/ui/toaster';
 import { PageContainer } from '../../../components/ui/page-container';
 import { Button } from '../../../components/ui/button';
@@ -90,6 +92,7 @@ export function BoardView({
   const toast = useToast();
   const { isScrumMaster } = useIsScrumMaster();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isMobile = useIsMobile();
 
   const [board, setBoard] = useState<KanbanBoard | null>(null);
   const [lists, setLists] = useState<KanbanList[]>([]);
@@ -111,6 +114,8 @@ export function BoardView({
   const [showMembers, setShowMembers] = useState(false);
   const [addingList, setAddingList] = useState(false);
   const [activeCard, setActiveCard] = useState<KanbanCard | null>(null);
+  const [mobileListIndex, setMobileListIndex] = useState(0);
+  const mobileBoardRef = useRef<HTMLDivElement>(null);
 
   // Board-wide management (sprints/members/labels) is SUPER_ADMIN, or a Scrum
   // Master who is a member — no creator exception. The board fetch already
@@ -118,8 +123,7 @@ export function BoardView({
   const canManageBoard = Boolean(isSuperAdmin || isScrumMaster);
   // List management additionally carves out the board's own creator, mirroring
   // KanbanAccessService.assertCanManageLists.
-  const canManageLists =
-    canManageBoard || board?.createdById === user?.sub;
+  const canManageLists = canManageBoard || board?.createdById === user?.sub;
 
   // sprintId → name, for the sprint chip on each card face.
   const sprintNames = useMemo(
@@ -421,10 +425,15 @@ export function BoardView({
                 variant="outline"
                 size="sm"
                 onClick={() => setManageOpen(true)}
+                className="hidden md:inline-flex"
               >
                 <Settings className="h-4 w-4" /> Manage
               </Button>
-              <Button size="sm" onClick={() => setAddingList(true)}>
+              <Button
+                size="sm"
+                onClick={() => setAddingList(true)}
+                className="hidden md:inline-flex"
+              >
                 <Plus className="h-4 w-4" /> New List
               </Button>
             </>
@@ -473,6 +482,70 @@ export function BoardView({
               : 'This board has no lists yet.'
           }
         />
+      ) : isMobile ? (
+        <div>
+          <div
+            ref={mobileBoardRef}
+            className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            onScroll={(event) => {
+              const element = event.currentTarget;
+              if (!element.clientWidth) return;
+              const next = Math.round(element.scrollLeft / element.clientWidth);
+              setMobileListIndex(Math.max(0, Math.min(lists.length - 1, next)));
+            }}
+          >
+            {lists.map((list) => (
+              <div
+                key={list.id}
+                className="w-[calc(100vw-2rem)] shrink-0 snap-center [&>div]:w-full"
+              >
+                <ListColumn
+                  list={list}
+                  cards={cardsByList[list.id] ?? []}
+                  canManage={false}
+                  dndDisabled
+                  sprintNames={sprintNames}
+                  onOpenCard={setOpenCard}
+                  onAddCard={addCard}
+                />
+              </div>
+            ))}
+          </div>
+          <div
+            className="flex items-center justify-center gap-2"
+            aria-live="polite"
+          >
+            <span className="mr-1 text-xs font-medium text-muted-foreground">
+              {lists[mobileListIndex]?.name} · {mobileListIndex + 1}/
+              {lists.length}
+            </span>
+            {lists.map((list, index) => (
+              <button
+                key={list.id}
+                type="button"
+                aria-label={`Show ${list.name}`}
+                aria-current={index === mobileListIndex ? 'true' : undefined}
+                onClick={() => {
+                  mobileBoardRef.current?.children[index]?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                    inline: 'center',
+                  });
+                  setMobileListIndex(index);
+                }}
+                className={cn(
+                  'size-2.5 rounded-full transition-colors',
+                  index === mobileListIndex
+                    ? 'bg-primary'
+                    : 'bg-muted-foreground/30',
+                )}
+              />
+            ))}
+          </div>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            Swipe between lists. Tap a card to view or move it.
+          </p>
+        </div>
       ) : (
         <DndContext
           sensors={sensors}

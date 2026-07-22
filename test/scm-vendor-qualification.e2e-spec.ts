@@ -353,6 +353,163 @@ describe('Vendor Qualification / SCM (e2e)', () => {
     }
   });
 
+  it('creates a vendor with only companyName + contactEmail; every other master field is genuinely optional at the API level', async () => {
+    const minimal = {
+      companyName: `Minimal Vendor ${Math.floor(performance.now())}`,
+      contactEmail: 'minimal@acme.example',
+    };
+    const vendor = (
+      await request(app.getHttpServer())
+        .post('/vendors')
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .send(minimal)
+        .expect(201)
+    ).body.data;
+    createdVendorIds.push(vendor.id);
+    expect(vendor.companyName).toBe(minimal.companyName);
+    expect(vendor.contactEmail).toBe(minimal.contactEmail);
+    expect(vendor.registeredAddress).toBeNull();
+    expect(vendor.factoryAddress).toBeNull();
+    expect(vendor.yearEstablished).toBeNull();
+    expect(vendor.numberOfEmployees).toBeNull();
+    expect(vendor.annualTurnover).toBeNull();
+    expect(vendor.contactPersonName).toBeNull();
+    expect(vendor.contactPersonDesignation).toBeNull();
+    expect(vendor.contactPhone).toBeNull();
+
+    // Invite generation still works on a minimally-created vendor.
+    const questionnaireId = (
+      await request(app.getHttpServer())
+        .get(`/vendors/${vendor.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data.questionnaires[0].id;
+    const invite = (
+      await request(app.getHttpServer())
+        .post(`/vendors/questionnaires/${questionnaireId}/invites`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .send({})
+        .expect(201)
+    ).body.data;
+    expect(invite.token).toBeTruthy();
+  });
+
+  it('missing companyName or contactEmail is still rejected (400)', async () => {
+    await request(app.getHttpServer())
+      .post('/vendors')
+      .set('Authorization', `Bearer ${scmManagerToken}`)
+      .send({ contactEmail: 'only-email@acme.example' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post('/vendors')
+      .set('Authorization', `Bearer ${scmManagerToken}`)
+      .send({ companyName: 'Only Name Co' })
+      .expect(400);
+  });
+
+  it('the public form Company Information section writes back to the Vendor master record', async () => {
+    // Created with only the two required fields — everything else starts null.
+    const vendor = (
+      await request(app.getHttpServer())
+        .post('/vendors')
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .send({
+          companyName: `Blank Vendor ${Math.floor(performance.now())}`,
+          contactEmail: 'blank@acme.example',
+        })
+        .expect(201)
+    ).body.data;
+    createdVendorIds.push(vendor.id);
+    const questionnaireId = (
+      await request(app.getHttpServer())
+        .get(`/vendors/${vendor.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data.questionnaires[0].id;
+    const invite = (
+      await request(app.getHttpServer())
+        .post(`/vendors/questionnaires/${questionnaireId}/invites`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .send({})
+        .expect(201)
+    ).body.data;
+    const token = invite.token;
+
+    // Resolve shows the blank fields as an editable companyInfo (staff-set
+    // fields are already populated; everything else is null).
+    const resolved = (
+      await request(app.getHttpServer())
+        .post(`/public/vendor-questionnaire/${token}/resolve`)
+        .send({})
+        .expect(201)
+    ).body.data;
+    expect(resolved.companyInfo.companyName).toBe(vendor.companyName);
+    expect(resolved.companyInfo.contactEmail).toBe(vendor.contactEmail);
+    expect(resolved.companyInfo.registeredAddress).toBeNull();
+
+    // Vendor completes their own Company Information via partial save.
+    const saved = (
+      await request(app.getHttpServer())
+        .post(`/public/vendor-questionnaire/${token}/save`)
+        .send({
+          companyInfo: {
+            registeredAddress: '9 New Address Rd',
+            contactPersonName: 'New Contact',
+          },
+        })
+        .expect(201)
+    ).body.data;
+    expect(saved.companyInfo.registeredAddress).toBe('9 New Address Rd');
+    expect(saved.companyInfo.contactPersonName).toBe('New Contact');
+    // Fields not sent in this partial save remain untouched (still null).
+    expect(saved.companyInfo.factoryAddress).toBeNull();
+
+    // companyName/contactEmail are staff-set and not part of companyInfo's
+    // writable shape at all — they're unaffected by this save.
+    expect(saved.companyInfo.companyName).toBe(vendor.companyName);
+    expect(saved.companyInfo.contactEmail).toBe(vendor.contactEmail);
+
+    // companyName is not a field on PublicCompanyInfoDto — sending it inside
+    // companyInfo is rejected by the global forbidNonWhitelisted pipe (400),
+    // not silently written.
+    await request(app.getHttpServer())
+      .post(`/public/vendor-questionnaire/${token}/save`)
+      .send({ companyInfo: { companyName: 'Hijacked Name' } })
+      .expect(400);
+
+    // Confirmed against the Vendor master record directly, not just the
+    // questionnaire response shape.
+    const vendorAfter = (
+      await request(app.getHttpServer())
+        .get(`/vendors/${vendor.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data;
+    expect(vendorAfter.registeredAddress).toBe('9 New Address Rd');
+    expect(vendorAfter.contactPersonName).toBe('New Contact');
+
+    // Submit can also carry companyInfo (e.g. filling in the rest at the end).
+    const submitted = (
+      await request(app.getHttpServer())
+        .post(`/public/vendor-questionnaire/${token}/submit`)
+        .send({
+          declaration: { name: 'V. Vendor', date: '2026-07-19' },
+          companyInfo: { factoryAddress: '10 Factory Rd' },
+        })
+        .expect(201)
+    ).body.data;
+    expect(submitted.companyInfo.factoryAddress).toBe('10 Factory Rd');
+    expect(submitted.companyInfo.registeredAddress).toBe('9 New Address Rd');
+
+    const vendorFinal = (
+      await request(app.getHttpServer())
+        .get(`/vendors/${vendor.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data;
+    expect(vendorFinal.factoryAddress).toBe('10 Factory Rd');
+  });
+
   function vendorBody() {
     return {
       companyName: `Acme Fab ${Math.floor(performance.now())}`,

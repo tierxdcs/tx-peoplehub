@@ -15,6 +15,7 @@ import { Button } from '../../../components/ui/button';
 import { Avatar } from '../../../components/ui/avatar';
 import { Badge } from '../../../components/ui/badge';
 import { Spinner } from '../../../components/ui/spinner';
+import { CardAttachments } from './card-attachments';
 
 function toDateDisplay(iso: string | null): string {
   if (!iso) return '—';
@@ -39,7 +40,7 @@ function relative(iso: string): string {
  * card's assignee (card-only access — see KanbanAccessService.assertCanViewCard
  * and KanbanCardEntity.viewerHasBoardAccess). No board chrome, no other
  * cards, no membership info: title/description/fields/labels/dates/priority/
- * sprint are read-only, and the feed supports reading + adding comments only
+ * sprint are read-only, and the feed supports comments and file attachments
  * — no move, no edit, no "Mark complete", no delete.
  */
 export function CardOnlyView({ card }: { card: KanbanCard }) {
@@ -83,8 +84,8 @@ export function CardOnlyView({ card }: { card: KanbanCard }) {
     <div className="mx-auto w-full max-w-2xl">
       <div className="rounded-lg border bg-card p-6">
         <p className="mb-1 text-xs text-muted-foreground">
-          Shared with you as the assignee of this card — you’re not a member
-          of its board.
+          Shared with you as the assignee of this card — you’re not a member of
+          its board.
         </p>
         <h1 className="text-lg font-semibold">{card.title}</h1>
 
@@ -129,6 +130,15 @@ export function CardOnlyView({ card }: { card: KanbanCard }) {
           <Field label="Sprint">
             <span className="text-sm">{card.sprintName ?? 'No sprint'}</span>
           </Field>
+        </div>
+
+        <div className="mt-6">
+          <CardAttachments
+            cardId={card.id}
+            canDeleteAny={false}
+            currentUserId={user?.sub}
+            onChanged={refreshFeed}
+          />
         </div>
 
         <div className="mt-6">
@@ -204,7 +214,13 @@ export function CardOnlyView({ card }: { card: KanbanCard }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <p className="mb-1 text-xs font-medium text-muted-foreground">{label}</p>

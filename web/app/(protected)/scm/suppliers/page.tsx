@@ -157,7 +157,7 @@ export default function SuppliersPage() {
                     <TableCell>
                       <StatusBadge value={s.status} />
                     </TableCell>
-                    <TableCell>{s.contactPersonName}</TableCell>
+                    <TableCell>{s.contactPersonName ?? '—'}</TableCell>
                     <TableCell>
                       {new Date(s.createdAt).toLocaleDateString()}
                     </TableCell>

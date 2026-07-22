@@ -9,6 +9,7 @@ import {
   saveInternal,
   submitInternal,
   type CertificateFile,
+  type PublicCompanyInfo,
   type SectionKey,
   type SupplierQuestionnaire,
 } from '../../../../lib/scm-supplier';
@@ -59,6 +60,18 @@ export function InternalFillDialog({
     });
     return seeded;
   });
+  const [companyInfo, setCompanyInfo] = useState<PublicCompanyInfo>({
+    registeredAddress: questionnaire.companyInfo.registeredAddress ?? '',
+    factoryAddress: questionnaire.companyInfo.factoryAddress ?? '',
+    yearEstablished: questionnaire.companyInfo.yearEstablished ?? '',
+    numberOfEmployees: questionnaire.companyInfo.numberOfEmployees ?? '',
+    annualTurnover: questionnaire.companyInfo.annualTurnover ?? '',
+    msmeUdyamCertificate: questionnaire.companyInfo.msmeUdyamCertificate ?? '',
+    contactPersonName: questionnaire.companyInfo.contactPersonName ?? '',
+    contactPersonDesignation: questionnaire.companyInfo.contactPersonDesignation ?? '',
+    contactPhone: questionnaire.companyInfo.contactPhone ?? '',
+    website: questionnaire.companyInfo.website ?? '',
+  });
   const [certs, setCerts] = useState<CertificateFile[]>(
     questionnaire.certificateFiles ?? [],
   );
@@ -69,11 +82,15 @@ export function InternalFillDialog({
     setForm((f) => ({ ...f, [section]: { ...(f[section] ?? {}), [key]: value } }));
   }
 
+  function setCompanyInfoField(key: keyof PublicCompanyInfo, value: string) {
+    setCompanyInfo((c) => ({ ...c, [key]: value }));
+  }
+
   async function save() {
     setBusy(true);
     setBanner(null);
     try {
-      await saveInternal(questionnaire.id, form);
+      await saveInternal(questionnaire.id, form, companyInfo);
       toast.success('Progress saved.');
     } catch (err) {
       setBanner(err instanceof ApiError ? err.message : 'Failed to save.');
@@ -95,7 +112,7 @@ export function InternalFillDialog({
     setBusy(true);
     setBanner(null);
     try {
-      await submitInternal(questionnaire.id, form);
+      await submitInternal(questionnaire.id, form, companyInfo);
       toast.success('Questionnaire marked as submitted.');
       onSubmitted();
     } catch (err) {
@@ -147,6 +164,8 @@ export function InternalFillDialog({
           setField={setField}
           certs={certs}
           onUploadCert={(f) => void uploadCert(f)}
+          companyInfo={companyInfo}
+          onCompanyInfoChange={setCompanyInfoField}
         />
 
         <DialogFooter>
