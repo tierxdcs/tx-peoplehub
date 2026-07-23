@@ -162,7 +162,10 @@
 /* Desktop-only workflows remain safely reachable on a phone without forcing
  * the entire page wider than the viewport. Purpose-built mobile screens use
  * cards; legacy dense tables retain horizontal scrolling inside themselves. */
-@media (max-width: 767px) {
+/* `screen` is intentional: print preview can expose a narrow CSS viewport.
+ * Applying this rule while printing makes document tables use their intrinsic
+ * width and clips columns/text beyond the right edge of the paper. */
+@media screen and (max-width: 767px) {
   table {
     display: block;
     max-width: 100%;
@@ -219,6 +222,23 @@
   .print-document * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    box-sizing: border-box;
+  }
+
+  /* Keep long descriptions, terms and identifiers inside the printable area. */
+  .print-document table {
+    display: table;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: visible;
+  }
+  .print-document td,
+  .print-document th,
+  .print-document p,
+  .print-document li {
+    overflow-wrap: anywhere;
+    word-break: normal;
   }
 
   /* Belt-and-suspenders: anything explicitly marked no-print is removed. */

@@ -143,7 +143,10 @@ export function sharedNav(access: Access): NavGroup[] {
   if (!access.isHrStaff) {
     groups.push({
       heading: 'Projects',
-      items: [{ label: 'Project Kickoff', href: '/project-kickoff' }],
+      items: [
+        { label: 'Project Kickoff', href: '/project-kickoff' },
+        { label: 'Product Lifecycle', href: '/plm' },
+      ],
     });
   }
 

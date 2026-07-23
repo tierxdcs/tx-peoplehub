@@ -139,6 +139,13 @@ describe('sidebarNav — the reported bug', () => {
     const a = access('EMPLOYEE', { isSalesStaff: true });
     const shown = labels(a, activeModule('/sales/leads', availableModules(a)));
     expect(shown).toContain('Project Kickoff');
+    expect(shown).toContain('Product Lifecycle');
+  });
+
+  it('HR staff do not see the operational Product Lifecycle workspace', () => {
+    const a = access('EMPLOYEE', { isHrStaff: true });
+    const shown = labels(a, activeModule('/hr/roster', availableModules(a)));
+    expect(shown).not.toContain('Product Lifecycle');
   });
 
   it('an HR MANAGER sees Leave & Attendance + Payroll (HR-lead functions)', () => {

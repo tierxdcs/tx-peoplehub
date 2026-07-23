@@ -40,6 +40,7 @@ import {
   UsersRound,
   Warehouse,
   Wrench,
+  Workflow,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -60,6 +61,7 @@ function iconForHref(href: string): LucideIcon {
   if (href === '/kanban') return Columns3;
   if (href.includes('/sprints')) return CalendarRange;
   if (href === '/project-kickoff') return Rocket;
+  if (href === '/plm') return Workflow;
 
   if (href.includes('pending-approval') || href.includes('leave-approvals'))
     return BadgeCheck;
