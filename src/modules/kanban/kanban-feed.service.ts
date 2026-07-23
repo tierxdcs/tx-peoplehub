@@ -29,8 +29,9 @@ export class KanbanFeedService {
   ) {}
 
   /**
-   * Add a comment — any board member, OR (card-only access) the card's own
-   * assignee. Notifies the card's assignee.
+   * Add a comment — anyone who can view the card. This includes every board
+   * member and a non-member assignee with card-only access. Commenting is
+   * communication and does not grant structural edit permission.
    */
   async addComment(
     cardId: string,
@@ -38,7 +39,7 @@ export class KanbanFeedService {
     user: AuthenticatedUser,
   ): Promise<KanbanCommentEntity> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanEditCard(user, card.boardId, card.assigneeId);
+    await this.access.assertCanViewCard(user, card.boardId, card.assigneeId);
     const comment = await this.prisma.kanbanCardComment.create({
       data: { cardId, authorId: user.id, text: dto.text },
       include: { author: { select: { firstName: true, lastName: true } } },
@@ -63,7 +64,7 @@ export class KanbanFeedService {
     user: AuthenticatedUser,
   ): Promise<void> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanEditCard(user, card.boardId, card.assigneeId);
+    await this.access.assertCanViewCard(user, card.boardId, card.assigneeId);
     const comment = await this.prisma.kanbanCardComment.findUnique({
       where: { id: commentId },
     });

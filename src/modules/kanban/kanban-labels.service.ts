@@ -79,9 +79,14 @@ export class KanbanLabelsService {
     labelId: string,
     user: AuthenticatedUser,
   ): Promise<KanbanCardEntity> {
-    const { boardId, assigneeId } =
+    const { boardId, assigneeId, createdById } =
       await this.assertCardAndLabelSameBoard(cardId, labelId);
-    await this.access.assertCanEditCard(user, boardId, assigneeId);
+    await this.access.assertCanEditCard(
+      user,
+      boardId,
+      assigneeId,
+      createdById,
+    );
     // Idempotent: ignore a duplicate attach.
     await this.prisma.kanbanCardLabel.upsert({
       where: { cardId_labelId: { cardId, labelId } },
@@ -97,9 +102,14 @@ export class KanbanLabelsService {
     labelId: string,
     user: AuthenticatedUser,
   ): Promise<KanbanCardEntity> {
-    const { boardId, assigneeId } =
+    const { boardId, assigneeId, createdById } =
       await this.assertCardAndLabelSameBoard(cardId, labelId);
-    await this.access.assertCanEditCard(user, boardId, assigneeId);
+    await this.access.assertCanEditCard(
+      user,
+      boardId,
+      assigneeId,
+      createdById,
+    );
     await this.prisma.kanbanCardLabel.deleteMany({ where: { cardId, labelId } });
     return this.cardEntity(cardId);
   }
@@ -121,13 +131,18 @@ export class KanbanLabelsService {
   private async assertCardAndLabelSameBoard(
     cardId: string,
     labelId: string,
-  ): Promise<{ boardId: string; assigneeId: string | null }> {
+  ): Promise<{
+    boardId: string;
+    assigneeId: string | null;
+    createdById: string;
+  }> {
     const [card, label] = await Promise.all([
       this.prisma.kanbanCard.findUnique({
         where: { id: cardId },
         select: {
           status: true,
           assigneeId: true,
+          createdById: true,
           list: { select: { boardId: true } },
         },
       }),
@@ -145,7 +160,11 @@ export class KanbanLabelsService {
         'The label must belong to the same board as the card',
       );
     }
-    return { boardId: label.boardId, assigneeId: card.assigneeId };
+    return {
+      boardId: label.boardId,
+      assigneeId: card.assigneeId,
+      createdById: card.createdById,
+    };
   }
 
   /** Re-read a card with its labels for the response after attach/detach. */

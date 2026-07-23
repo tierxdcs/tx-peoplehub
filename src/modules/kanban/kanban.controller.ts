@@ -333,7 +333,7 @@ export class KanbanController {
 
   // ── Comments + feed ────────────────────────────────────────────────
   @Post('cards/:id/comments')
-  @ApiOperation({ summary: 'Comment on a card (any board member)' })
+  @ApiOperation({ summary: 'Comment on a card (any user who can view it)' })
   addComment(
     @Param('id') id: string,
     @Body() dto: CreateCommentDto,

@@ -24,8 +24,10 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
  *     scoped to lists (+ cards, already open to any member); it does NOT
  *     extend to sprints, members, or labels, which stay Scrum-Master-only
  *     with no creator exception (assertCanManageBoard).
- *   - Card-only access: a card's assignee may view that single card (+ its
- *     comments) even without board membership — see assertCanViewCard.
+ *   - Card owner: the employee who created a card retains its structural edit
+ *     rights after assigning it to someone else.
+ *   - Card-only access: a card's assignee may view and comment on that single
+ *     card even without board membership — see assertCanViewCard.
  *     Assignment is the sharing mechanism now that assignment no longer
  *     requires board membership (assertAssigneeExists).
  *
@@ -212,14 +214,15 @@ export class KanbanAccessService {
     );
   }
 
-  /** Structural edits are limited to the assignee or a board manager. */
+  /** Structural edits are limited to the card creator or a board manager. */
   async assertCanEditCard(
     user: AuthenticatedUser,
     boardId: string,
     cardAssigneeId: string | null,
+    cardCreatedById: string,
   ): Promise<{ canManageBoard: boolean }> {
     if (this.isSuperAdmin(user)) return { canManageBoard: true };
-    if (cardAssigneeId === user.id) {
+    if (cardCreatedById === user.id) {
       await this.assertCanViewCard(user, boardId, cardAssigneeId);
       return { canManageBoard: false };
     }

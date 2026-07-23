@@ -60,10 +60,9 @@ function relative(iso: string): string {
  * both from a click and a deep-link). Only ever mounted from BoardView, which
  * itself 403s non-members — so every viewer here already has full board
  * access. (A non-member card-only assignee gets a separate, standalone card
- * view instead — see kanban/cards/[id]/page.tsx.) Any member edits title/
- * description/dates/priority/assignee/labels and comments; the sprint field
- * is read-only for members and an editable dropdown for canManage; delete is
- * shown to the creator or a managing user.
+ * view instead — see kanban/cards/[id]/page.tsx.) The card creator and board
+ * managers can edit its structure; assignees and other viewers can comment.
+ * Sprint management remains restricted to managing users.
  */
 export function CardModal({
   cardId,
@@ -141,7 +140,7 @@ export function CardModal({
     return () => document.removeEventListener('mousedown', onDown);
   }, [labelMenuOpen]);
 
-  const canEdit = !!card && (canManage || card.assigneeId === user?.sub);
+  const canEdit = !!card && (canManage || card.createdById === user?.sub);
   const canDelete = canEdit;
 
   async function patch(
@@ -328,7 +327,8 @@ export function CardModal({
               <p className="text-xs text-muted-foreground">in {board.name}</p>
               {!canEdit && (
                 <p className="text-xs text-muted-foreground">
-                  Read only — this card is assigned to another user.
+                  Read only — only the card creator or a board manager can edit
+                  it.
                 </p>
               )}
             </DialogHeader>
@@ -425,15 +425,15 @@ export function CardModal({
                   <p className="mb-2 text-xs font-medium text-muted-foreground">
                     Comments and activity
                   </p>
-                  {canEdit && <div className="flex gap-2">
+                  <div className="flex gap-2">
                     <Textarea
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
                       placeholder="Write a comment…"
                       rows={2}
                     />
-                  </div>}
-                  {canEdit && <div className="mt-2 flex justify-end">
+                  </div>
+                  <div className="mt-2 flex justify-end">
                     <Button
                       size="sm"
                       onClick={postComment}
@@ -441,7 +441,7 @@ export function CardModal({
                     >
                       {posting ? 'Posting…' : 'Comment'}
                     </Button>
-                  </div>}
+                  </div>
 
                   <ul className="mt-3 space-y-3">
                     {feed.map((item) => (
@@ -540,7 +540,7 @@ export function CardModal({
                       <span className="min-w-0 flex-1 truncate">
                         {card.assigneeName}
                       </span>
-                      {canManage && <button
+                      {canEdit && <button
                         type="button"
                         aria-label="Unassign"
                         onClick={() => void patch({ assigneeId: null })}

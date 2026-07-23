@@ -45,8 +45,9 @@ export class KanbanAttachmentsService {
   }
 
   /**
-   * Step 1 — anyone with comment-level card access. Validates size, creates a PENDING attachment row
-   * so we own the id (and therefore the storage key), then presigns the PUT.
+   * Step 1 — the card creator or a board manager. Validates size, creates a
+   * PENDING attachment row so we own the id (and therefore the storage key),
+   * then presigns the PUT.
    */
   async createUploadUrl(
     cardId: string,
@@ -54,7 +55,12 @@ export class KanbanAttachmentsService {
     user: AuthenticatedUser,
   ): Promise<KanbanAttachmentUploadTicketEntity> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanEditCard(user, card.boardId, card.assigneeId);
+    await this.access.assertCanEditCard(
+      user,
+      card.boardId,
+      card.assigneeId,
+      card.createdById,
+    );
     assertExtensionAllowed(dto.filename);
     assertSizeWithinCap(dto.sizeBytes);
 
@@ -98,7 +104,12 @@ export class KanbanAttachmentsService {
     user: AuthenticatedUser,
   ): Promise<KanbanAttachmentEntity> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanEditCard(user, card.boardId, card.assigneeId);
+    await this.access.assertCanEditCard(
+      user,
+      card.boardId,
+      card.assigneeId,
+      card.createdById,
+    );
     const attachment = await this.prisma.kanbanCardAttachment.findUnique({
       where: { id: attachmentId },
       include: { uploadedBy: { select: { firstName: true, lastName: true } } },
@@ -191,6 +202,7 @@ export class KanbanAttachmentsService {
       user,
       card.boardId,
       card.assigneeId,
+      card.createdById,
     );
     const attachment = await this.prisma.kanbanCardAttachment.findUnique({
       where: { id: attachmentId },
@@ -203,9 +215,10 @@ export class KanbanAttachmentsService {
       .assertCanManageBoard(user, card.boardId)
       .then(() => true)
       .catch(() => false);
-    if (!isUploader && !canManage) {
+    const isCardOwner = card.createdById === user.id;
+    if (!isUploader && !isCardOwner && !canManage) {
       throw new ForbiddenException(
-        'Only the uploader or a Scrum Master/SUPER_ADMIN may delete this attachment',
+        'Only the uploader, card creator, or a Scrum Master/SUPER_ADMIN may delete this attachment',
       );
     }
     // A successful API response guarantees the bytes are gone. Delete R2
@@ -220,13 +233,19 @@ export class KanbanAttachmentsService {
 
   private async getCardOrThrow(
     id: string,
-  ): Promise<{ id: string; boardId: string; assigneeId: string | null }> {
+  ): Promise<{
+    id: string;
+    boardId: string;
+    assigneeId: string | null;
+    createdById: string;
+  }> {
     const card = await this.prisma.kanbanCard.findUnique({
       where: { id },
       select: {
         id: true,
         status: true,
         assigneeId: true,
+        createdById: true,
         list: { select: { boardId: true } },
       },
     });
@@ -237,6 +256,7 @@ export class KanbanAttachmentsService {
       id: card.id,
       boardId: card.list.boardId,
       assigneeId: card.assigneeId,
+      createdById: card.createdById,
     };
   }
 

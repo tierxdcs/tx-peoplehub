@@ -288,9 +288,9 @@ export class KanbanCardsService {
   }
 
   /**
-   * General edit — managing users may edit any card; regular users may edit
-   * and hand off only a card currently assigned to them. Regular users cannot
-   * leave a card unassigned. sprintId is absent from UpdateCardDto (and
+   * General edit — managing users may edit any card; otherwise only the card
+   * creator may edit or reassign it. The assignee has view/comment access but
+   * no structural edit rights. sprintId is absent from UpdateCardDto (and
    * rejected by the global forbidNonWhitelisted pipe), so it cannot be changed
    * through this path.
    */
@@ -300,16 +300,12 @@ export class KanbanCardsService {
     user: AuthenticatedUser,
   ): Promise<KanbanCardEntity> {
     const card = await this.getCardOrThrow(id);
-    const editAccess = await this.access.assertCanEditCard(
+    await this.access.assertCanEditCard(
       user,
       card.list.boardId,
       card.assigneeId,
+      card.createdById,
     );
-    if (dto.assigneeId === null && !editAccess.canManageBoard) {
-      throw new ForbiddenException(
-        'Only a Scrum Master or SUPER_ADMIN may leave a card unassigned',
-      );
-    }
     if (dto.assigneeId) {
       await this.access.assertAssigneeExists(dto.assigneeId);
     }
@@ -434,6 +430,7 @@ export class KanbanCardsService {
       user,
       card.list.boardId,
       card.assigneeId,
+      card.createdById,
     );
 
     // The target list must belong to the SAME board (no cross-board moves).
@@ -569,13 +566,14 @@ export class KanbanCardsService {
     return this.toEntity(updated);
   }
 
-  /** Soft-delete: the assignee, or a managing Scrum Master / SUPER_ADMIN. */
+  /** Soft-delete: the card creator, or a managing Scrum Master/SUPER_ADMIN. */
   async archive(id: string, user: AuthenticatedUser): Promise<void> {
     const card = await this.getCardOrThrow(id);
     await this.access.assertCanEditCard(
       user,
       card.list.boardId,
       card.assigneeId,
+      card.createdById,
     );
     await this.prisma.kanbanCard.update({
       where: { id },

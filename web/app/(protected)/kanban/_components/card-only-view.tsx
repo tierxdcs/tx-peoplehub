@@ -135,9 +135,9 @@ export function CardOnlyView({ card }: { card: KanbanCard }) {
         <div className="mt-6">
           <CardAttachments
             cardId={card.id}
-            canWrite
+            canWrite={false}
             canDeleteAny={false}
-            currentUserId={user?.sub}
+            currentUserId={undefined}
             onChanged={refreshFeed}
           />
         </div>

@@ -25,7 +25,8 @@ function formatSize(bytes: number): string {
 /**
  * Card attachments: lists ACTIVE files, uploads new ones browser→R2 via a
  * presigned PUT (create-url → PUT → confirm), downloads via a presigned GET,
- * and deletes using comment-level card access. Mirrors the Vault upload flow.
+ * and deletes for users with structural card-edit access. Viewers can still
+ * list and download attachments. Mirrors the Vault upload flow.
  */
 export function CardAttachments({
   cardId,
@@ -36,7 +37,7 @@ export function CardAttachments({
 }: {
   cardId: string;
   canWrite: boolean;
-  /** Board members may delete any attachment; card-only assignees only their own. */
+  /** Card creators and board managers may delete any attachment. */
   canDeleteAny: boolean;
   currentUserId: string | undefined;
   onChanged?: () => void | Promise<void>;

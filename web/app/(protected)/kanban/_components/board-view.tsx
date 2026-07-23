@@ -125,7 +125,7 @@ export function BoardView({
   // KanbanAccessService.assertCanManageLists.
   const canManageLists = canManageBoard || board?.createdById === user?.sub;
   const canEditCard = useCallback(
-    (card: KanbanCard) => canManageBoard || card.assigneeId === user?.sub,
+    (card: KanbanCard) => canManageBoard || card.createdById === user?.sub,
     [canManageBoard, user?.sub],
   );
 

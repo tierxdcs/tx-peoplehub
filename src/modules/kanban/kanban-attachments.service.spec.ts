@@ -16,7 +16,8 @@ describe('KanbanAttachmentsService', () => {
   const card = {
     id: 'card-1',
     status: KanbanCardStatus.ACTIVE,
-    assigneeId: user.id,
+    assigneeId: 'assignee-1',
+    createdById: user.id,
     list: { boardId: 'board-1' },
   };
   const attachment = {
@@ -84,7 +85,7 @@ describe('KanbanAttachmentsService', () => {
     return { service, prisma, access, storage, activity, tx };
   }
 
-  it('allows a card-only assignee to create an upload ticket', async () => {
+  it('allows the card creator to create an upload ticket after assignment', async () => {
     const { service, access, storage } = setup(false);
 
     await expect(
@@ -102,6 +103,7 @@ describe('KanbanAttachmentsService', () => {
       user,
       card.list.boardId,
       card.assigneeId,
+      card.createdById,
     );
     expect(storage.createUploadUrl).toHaveBeenCalled();
   });
@@ -176,17 +178,37 @@ describe('KanbanAttachmentsService', () => {
     );
   });
 
-  it('blocks a card-only assignee from deleting another uploader’s file', async () => {
+  it('lets the card creator delete another uploader’s file', async () => {
     const { service, prisma, storage } = setup(false);
     prisma.kanbanCardAttachment.findUnique.mockResolvedValue({
       ...attachment,
       uploadedById: 'someone-else',
     });
 
-    await expect(service.remove(card.id, attachment.id, user)).rejects.toThrow(
-      ForbiddenException,
+    await service.remove(card.id, attachment.id, user);
+    expect(storage.deleteObjectStrict).toHaveBeenCalledWith(
+      attachment.storageKey,
     );
-    expect(storage.deleteObjectStrict).not.toHaveBeenCalled();
+  });
+
+  it('blocks an assignee with comment-only access from uploading', async () => {
+    const { service, access, storage } = setup(false);
+    access.assertCanEditCard.mockRejectedValue(
+      new ForbiddenException('Only the card creator may edit this card'),
+    );
+
+    await expect(
+      service.createUploadUrl(
+        card.id,
+        {
+          filename: attachment.filename,
+          contentType: attachment.contentType,
+          sizeBytes: Number(attachment.sizeBytes),
+        },
+        { ...user, id: card.assigneeId },
+      ),
+    ).rejects.toThrow(ForbiddenException);
+    expect(storage.createUploadUrl).not.toHaveBeenCalled();
   });
 
   it('keeps database metadata when strict R2 deletion fails', async () => {
