@@ -138,9 +138,15 @@ export function sharedNav(access: Access): NavGroup[] {
   });
 
   // Project Kickoff — cross-cutting and membership-scoped like Kanban; access
-  // to individual kickoffs is decided server-side. Hidden from HR-vertical staff
-  // (project kickoffs aren't part of the HR function).
-  if (!access.isHrStaff) {
+  // to individual kickoffs is decided server-side. Hidden from HR-vertical
+  // staff (project kickoffs aren't part of the HR function) and from
+  // Accounts-vertical staff (not part of the Accounts function either).
+  // isFinanceUser is true for SUPER_ADMIN too (company-wide override), so it
+  // must be combined with !isSuperAdmin here to avoid hiding this from them.
+  const isAccountsVerticalStaff =
+    (access.isFinanceUser && !flags(access.user).isSuperAdmin) ||
+    access.isAccountsHead;
+  if (!access.isHrStaff && !isAccountsVerticalStaff) {
     groups.push({
       heading: 'Projects',
       items: [

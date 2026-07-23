@@ -317,6 +317,33 @@ describe('sidebarNav — the reported bug', () => {
     expect(shown).not.toContain('Roster');
   });
 
+  it('Accounts-vertical staff do not see the Projects group (Project Kickoff / Product Lifecycle)', () => {
+    const a = access('EMPLOYEE', { isFinanceUser: true });
+    const shown = labels(
+      a,
+      activeModule('/finance/ar/invoices', availableModules(a)),
+    );
+    expect(shown).not.toContain('Project Kickoff');
+    expect(shown).not.toContain('Product Lifecycle');
+  });
+
+  it('the designated Accounts Head does not see the Projects group either', () => {
+    const a = { ...access('EMPLOYEE'), isAccountsHead: true };
+    const shown = labels(a, activeModule('/finance/daybook', availableModules(a)));
+    expect(shown).not.toContain('Project Kickoff');
+    expect(shown).not.toContain('Product Lifecycle');
+  });
+
+  it('SUPER_ADMIN still sees the Projects group despite isFinanceUser being true for them', () => {
+    const a = access('SUPER_ADMIN');
+    const shown = labels(
+      a,
+      activeModule('/finance/ar/invoices', availableModules(a)),
+    );
+    expect(shown).toContain('Project Kickoff');
+    expect(shown).toContain('Product Lifecycle');
+  });
+
   it('Finance shows the Tally-style voucher/report labels and hides the leaf-module items', () => {
     const a = access('EMPLOYEE', { isFinanceUser: true });
     const shown = labels(
