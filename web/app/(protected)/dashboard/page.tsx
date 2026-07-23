@@ -28,6 +28,8 @@ import { cn } from '../../lib/utils';
 import { DeadlineChip, deadlineLabel } from './_components/deadline-chip';
 import { ProcessFlowModal } from './_components/process-flow-modal';
 import { ProjectProgressCard } from './_components/project-progress-card';
+import { getMyPlmWork, type PlmDashboardItem } from '../../lib/plm';
+import { PlmWorkCard } from './_components/plm-work-card';
 
 const TASK_CAP = 8;
 const DAY_MS = 86_400_000;
@@ -54,6 +56,7 @@ export default function DashboardPage() {
   const [firstName, setFirstName] = useState<string | null>(null);
   const [cards, setCards] = useState<MyCard[] | null>(null);
   const [projects, setProjects] = useState<ProjectProgress[]>([]);
+  const [plmWork, setPlmWork] = useState<PlmDashboardItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // A single "now" per render pass keeps greeting/quote/chips consistent.
@@ -68,11 +71,13 @@ export default function DashboardPage() {
       apiFetch<Employee>(`/employees/${user.sub}`),
       myCards(),
       listProjectProgress(),
-    ]).then(([emp, cardsRes, projectsRes]) => {
+      getMyPlmWork(),
+    ]).then(([emp, cardsRes, projectsRes, plmRes]) => {
       if (!alive) return;
       if (emp.status === 'fulfilled') setFirstName(emp.value.firstName);
       setCards(cardsRes.status === 'fulfilled' ? cardsRes.value : []);
       setProjects(projectsRes.status === 'fulfilled' ? projectsRes.value : []);
+      setPlmWork(plmRes.status === 'fulfilled' ? plmRes.value : []);
       if (cardsRes.status === 'fulfilled')
         window.sessionStorage.removeItem('kanban-dashboard-dirty');
       setLoading(false);
@@ -301,6 +306,18 @@ export default function DashboardPage() {
             {projects.map((project) => (
               <ProjectProgressCard key={project.kickoffId} project={project} />
             ))}
+          </div>
+        </section>
+      )}
+
+      {plmWork.length > 0 && (
+        <section>
+          <div className="mb-3">
+            <h2 className="text-lg font-semibold">Product lifecycle work</h2>
+            <p className="text-sm text-muted-foreground">Active order lines where you are an owner, kickoff participant, approver, or auditor.</p>
+          </div>
+          <div className="space-y-3">
+            {plmWork.map((item) => <PlmWorkCard key={item.trackerId} item={item} />)}
           </div>
         </section>
       )}

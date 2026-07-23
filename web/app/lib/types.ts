@@ -25,6 +25,7 @@ export interface Employee {
   isScrumMaster: boolean;
   isProjectManager: boolean;
   isInternalAuditor: boolean;
+  isProductionHead: boolean;
   isQcInspector: boolean;
   isQmsHead: boolean;
   isDesignHead: boolean;

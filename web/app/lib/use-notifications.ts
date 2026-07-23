@@ -9,7 +9,16 @@ export type NotificationType =
   | 'CARD_COMMENTED'
   | 'CARD_UPDATED'
   | 'VENDOR_QUESTIONNAIRE_SUBMITTED'
-  | 'SUPPLIER_QUESTIONNAIRE_SUBMITTED';
+  | 'SUPPLIER_QUESTIONNAIRE_SUBMITTED'
+  | 'BOM_SUBMITTED'
+  | 'BOM_APPROVED'
+  | 'BOM_REJECTED'
+  | 'QMS_ACTION_ASSIGNED'
+  | 'QMS_ACTION_OVERDUE'
+  | 'PLM_DESIGN_REVIEW_REQUESTED'
+  | 'PLM_DESIGN_REVIEW_DECIDED'
+  | 'PLM_STAGE_ADVANCED'
+  | 'PLM_PRODUCTION_UPDATE';
 
 export interface AppNotification {
   id: string;
@@ -17,6 +26,9 @@ export interface AppNotification {
   relatedCardId: string | null;
   relatedVendorId: string | null;
   relatedSupplierId: string | null;
+  relatedBomId: string | null;
+  relatedPlmTrackerId: string | null;
+  relatedPlmOrderId: string | null;
   message: string;
   isRead: boolean;
   createdAt: string;

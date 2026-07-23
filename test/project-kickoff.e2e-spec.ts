@@ -422,6 +422,92 @@ describe('Project Kickoff (e2e)', () => {
       .expect(200);
   });
 
+  it('an internal attendee who is not a PM has read-only access — every mutation is 403; SUPER_ADMIN and the PM can still write', async () => {
+    const kickoff = (
+      await request(app.getHttpServer())
+        .post('/project-kickoffs')
+        .set('Authorization', `Bearer ${pmToken}`)
+        .send({ orderId: executedOrderId, meetingDate: '2026-08-06T10:00:00.000Z' })
+        .expect(201)
+    ).body.data;
+    const kid = kickoff.id;
+    createdBoardIds.push(kickoff.kanbanBoardId);
+
+    // memberToken becomes an internal attendee — gains VIEW access, but not
+    // write, since they're not a Project Manager.
+    await request(app.getHttpServer())
+      .post(`/project-kickoffs/${kid}/attendees`)
+      .set('Authorization', `Bearer ${pmToken}`)
+      .send({ employeeId: memberId, designation: 'Engineer' })
+      .expect(201);
+
+    // View still works for the attendee.
+    await request(app.getHttpServer())
+      .get(`/project-kickoffs/${kid}`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .expect(200);
+
+    // Every mutation is 403 for the non-PM attendee.
+    await request(app.getHttpServer())
+      .patch(`/project-kickoffs/${kid}`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ overviewAndScope: 'Hijacked overview' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/project-kickoffs/${kid}/attendees`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ externalName: 'Sneaky Guest' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/project-kickoffs/${kid}/milestones`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ name: 'Rogue milestone', targetDate: '2026-08-20' })
+      .expect(403);
+    const milestoneForPatchTests = (
+      await request(app.getHttpServer())
+        .post(`/project-kickoffs/${kid}/milestones`)
+        .set('Authorization', `Bearer ${pmToken}`)
+        .send({ name: 'Legit milestone', targetDate: '2026-08-20' })
+        .expect(201)
+    ).body.data;
+    await request(app.getHttpServer())
+      .patch(`/project-kickoffs/${kid}/milestones/${milestoneForPatchTests.id}`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ status: 'COMPLETED' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .delete(`/project-kickoffs/${kid}/milestones/${milestoneForPatchTests.id}`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/project-kickoffs/${kid}/action-items`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ description: 'Rogue action item', ownerId: memberId })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/project-kickoffs/${kid}/risks`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ description: 'Rogue risk' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .patch(`/project-kickoffs/${kid}/delivery-items/${lineItemId}`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ deliveryType: 'NPD' })
+      .expect(403);
+
+    // The PM (creator) and SUPER_ADMIN can still write on the same kickoff.
+    await request(app.getHttpServer())
+      .patch(`/project-kickoffs/${kid}`)
+      .set('Authorization', `Bearer ${pmToken}`)
+      .send({ overviewAndScope: 'Legitimate overview' })
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch(`/project-kickoffs/${kid}`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ overviewAndScope: 'SUPER_ADMIN overview' })
+      .expect(200);
+  });
+
   it('surfaces the linked order EXECUTED confirmation sheet + presigned signed-copy URL', async () => {
     // A fresh executed order → kickoff. The seeded EXECUTED sheet has no signed
     // copy yet, so hasSignedCopy is false and downloadUrl is null.

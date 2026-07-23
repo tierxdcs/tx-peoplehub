@@ -20,6 +20,7 @@ export class KickoffDeliveryItemEntity {
   @ApiProperty() quantity!: string;
   @ApiProperty({ enum: OrderLineDeliveryType, nullable: true })
   deliveryType!: OrderLineDeliveryType | null;
+  @ApiProperty({ nullable: true }) vendorId!: string | null;
   @ApiProperty({ nullable: true }) vendorName!: string | null;
   @ApiProperty({ nullable: true }) vendorContactInfo!: string | null;
   @ApiProperty({ nullable: true }) vendorExpectedLeadTime!: string | null;
@@ -33,12 +34,17 @@ export class KickoffAttendeeEntity {
   @ApiProperty() id!: string;
   @ApiProperty() kickoffId!: string;
   @ApiProperty({ nullable: true }) employeeId!: string | null;
-  @ApiProperty({ nullable: true, description: 'Resolved name (internal or external)' })
+  @ApiProperty({
+    nullable: true,
+    description: 'Resolved name (internal or external)',
+  })
   name!: string | null;
   @ApiProperty({ nullable: true }) externalOrganization!: string | null;
   @ApiProperty({ nullable: true }) designation!: string | null;
   @ApiProperty({ nullable: true }) department!: string | null;
-  @ApiProperty({ description: 'true = internal (employee-linked), false = external' })
+  @ApiProperty({
+    description: 'true = internal (employee-linked), false = external',
+  })
   isInternal!: boolean;
 
   constructor(p: Partial<KickoffAttendeeEntity>) {
@@ -53,7 +59,8 @@ export class KickoffMilestoneEntity {
   @ApiProperty() targetDate!: string;
   @ApiProperty({ nullable: true }) ownerId!: string | null;
   @ApiProperty({ nullable: true }) ownerName!: string | null;
-  @ApiProperty({ enum: KickoffMilestoneStatus }) status!: KickoffMilestoneStatus;
+  @ApiProperty({ enum: KickoffMilestoneStatus })
+  status!: KickoffMilestoneStatus;
 
   constructor(p: Partial<KickoffMilestoneEntity>) {
     Object.assign(this, p);
@@ -62,11 +69,7 @@ export class KickoffMilestoneEntity {
 
 /** The action item's status is COMPUTED from its linked Kanban card, never stored. */
 export type ActionItemComputedStatus =
-  | 'TODO'
-  | 'IN_PROGRESS'
-  | 'DONE'
-  | 'ARCHIVED'
-  | 'UNLINKED';
+  'TODO' | 'IN_PROGRESS' | 'DONE' | 'ARCHIVED' | 'UNLINKED';
 
 export class KickoffActionItemEntity {
   @ApiProperty() id!: string;

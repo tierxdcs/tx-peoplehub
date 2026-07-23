@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { AlertTriangle, ArrowLeft, LayoutGrid, Plus, Rocket, Trash2, X } from 'lucide-react';
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
+import { useIsProjectManager } from '../../../lib/use-is-project-manager';
 import {
   addActionItem,
   addAttendee,
@@ -75,6 +76,7 @@ export default function KickoffDetailPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const { user } = useAuth();
+  const { isProjectManager } = useIsProjectManager();
 
   const [kickoff, setKickoff] = useState<ProjectKickoff | null>(null);
   const [members, setMembers] = useState<KanbanBoardMember[]>([]);
@@ -177,6 +179,11 @@ export default function KickoffDetailPage() {
 
   const canManageStatus =
     user?.role === 'SUPER_ADMIN' || kickoff.createdById === user?.sub;
+  // Write access to every kickoff section (overview, attendees, milestones,
+  // action items, risks, delivery classification, minutes) — mirrors the
+  // backend's assertCanManage: Project Manager or SUPER_ADMIN only. Everyone
+  // else who can view the kickoff (e.g. an internal attendee) is read-only.
+  const canManage = user?.role === 'SUPER_ADMIN' || isProjectManager;
 
   async function toggleCompleted() {
     if (!kickoff) return;
@@ -304,14 +311,19 @@ export default function KickoffDetailPage() {
         />
 
         <SignedConfirmationSheetCard kickoffId={kickoff.id} />
-        <OverviewSection kickoff={kickoff} onSaved={(k) => setKickoff(k)} />
-        <DeliveryClassificationSection kickoff={kickoff} onChanged={refresh} />
-        <AttendeesSection kickoff={kickoff} onChanged={refresh} />
-        <MilestonesSection kickoff={kickoff} onChanged={refresh} />
-        <ActionItemsSection kickoff={kickoff} members={members} onChanged={refresh} />
-        <RisksSection kickoff={kickoff} onChanged={refresh} />
+        <OverviewSection kickoff={kickoff} canManage={canManage} onSaved={(k) => setKickoff(k)} />
+        <DeliveryClassificationSection kickoff={kickoff} canManage={canManage} onChanged={refresh} />
+        <AttendeesSection kickoff={kickoff} canManage={canManage} onChanged={refresh} />
+        <MilestonesSection kickoff={kickoff} canManage={canManage} onChanged={refresh} />
+        <ActionItemsSection
+          kickoff={kickoff}
+          members={members}
+          canManage={canManage}
+          onChanged={refresh}
+        />
+        <RisksSection kickoff={kickoff} canManage={canManage} onChanged={refresh} />
         <StockAvailabilitySection kickoffId={kickoff.id} />
-        <MinutesSection kickoff={kickoff} onSaved={(k) => setKickoff(k)} />
+        <MinutesSection kickoff={kickoff} canManage={canManage} onSaved={(k) => setKickoff(k)} />
       </PageContainer>
     </>
   );
@@ -320,9 +332,11 @@ export default function KickoffDetailPage() {
 // ── Overview & scope ─────────────────────────────────────────────────
 function OverviewSection({
   kickoff,
+  canManage,
   onSaved,
 }: {
   kickoff: ProjectKickoff;
+  canManage: boolean;
   onSaved: (k: ProjectKickoff) => void;
 }) {
   const toast = useToast();
@@ -356,8 +370,9 @@ function OverviewSection({
           onChange={(e) => setText(e.target.value)}
           rows={4}
           placeholder="Project overview and scope…"
+          disabled={!canManage}
         />
-        {dirty && (
+        {dirty && canManage && (
           <Button size="sm" onClick={save} disabled={saving}>
             {saving ? 'Saving…' : 'Save'}
           </Button>
@@ -370,9 +385,11 @@ function OverviewSection({
 // ── Attendees ────────────────────────────────────────────────────────
 function AttendeesSection({
   kickoff,
+  canManage,
   onChanged,
 }: {
   kickoff: ProjectKickoff;
+  canManage: boolean;
   onChanged: () => void;
 }) {
   const toast = useToast();
@@ -440,17 +457,19 @@ function AttendeesSection({
     <Card className="mb-4">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Attendees</CardTitle>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => setMode('internal')}>
-            <Plus className="size-4" /> Internal
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setMode('external')}>
-            <Plus className="size-4" /> External
-          </Button>
-        </div>
+        {canManage && (
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setMode('internal')}>
+              <Plus className="size-4" /> Internal
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setMode('external')}>
+              <Plus className="size-4" /> External
+            </Button>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="pt-0">
-        {mode === 'internal' && (
+        {canManage && mode === 'internal' && (
           <div className="mb-3 rounded-md border p-3">
             <p className="mb-2 text-xs text-muted-foreground">
               Internal attendees are also added to the project board.
@@ -463,7 +482,7 @@ function AttendeesSection({
             />
           </div>
         )}
-        {mode === 'external' && (
+        {canManage && mode === 'external' && (
           <div className="mb-3 grid gap-2 rounded-md border p-3 sm:grid-cols-3">
             <Input
               placeholder="Name"
@@ -522,14 +541,16 @@ function AttendeesSection({
                   <TableCell>{a.designation ?? '—'}</TableCell>
                   <TableCell>{a.department ?? '—'}</TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Remove attendee"
-                      onClick={() => remove(a.id, a.name)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    {canManage && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Remove attendee"
+                        onClick={() => remove(a.id, a.name)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
@@ -551,9 +572,11 @@ const MILESTONE_STATUSES: MilestoneStatus[] = [
 
 function MilestonesSection({
   kickoff,
+  canManage,
   onChanged,
 }: {
   kickoff: ProjectKickoff;
+  canManage: boolean;
   onChanged: () => void;
 }) {
   const toast = useToast();
@@ -611,12 +634,14 @@ function MilestonesSection({
     <Card className="mb-4">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Milestones</CardTitle>
-        <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
-          <Plus className="size-4" /> Add
-        </Button>
+        {canManage && (
+          <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
+            <Plus className="size-4" /> Add
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="pt-0">
-        {adding && (
+        {canManage && adding && (
           <div className="mb-3 flex flex-wrap items-end gap-2 rounded-md border p-3">
             <Input
               placeholder="Milestone name"
@@ -663,6 +688,7 @@ function MilestonesSection({
                       value={m.status}
                       onChange={(e) => setStatus(m.id, e.target.value as MilestoneStatus)}
                       className="h-8 w-40"
+                      disabled={!canManage}
                     >
                       {MILESTONE_STATUSES.map((s) => (
                         <option key={s} value={s}>
@@ -672,14 +698,16 @@ function MilestonesSection({
                     </Select>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Delete milestone"
-                      onClick={() => remove(m.id)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    {canManage && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Delete milestone"
+                        onClick={() => remove(m.id)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
@@ -695,10 +723,12 @@ function MilestonesSection({
 function ActionItemsSection({
   kickoff,
   members,
+  canManage,
   onChanged,
 }: {
   kickoff: ProjectKickoff;
   members: KanbanBoardMember[];
+  canManage: boolean;
   onChanged: () => void;
 }) {
   const router = useRouter();
@@ -750,12 +780,14 @@ function ActionItemsSection({
     <Card className="mb-4">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Action Items</CardTitle>
-        <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
-          <Plus className="size-4" /> Add
-        </Button>
+        {canManage && (
+          <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
+            <Plus className="size-4" /> Add
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="pt-0">
-        {adding && (
+        {canManage && adding && (
           <div className="mb-3 flex flex-wrap items-end gap-2 rounded-md border p-3">
             <Input
               placeholder="Description"
@@ -825,14 +857,16 @@ function ActionItemsSection({
                     <StatusBadge value={i.status} />
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Delete action item"
-                      onClick={() => remove(i.id)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    {canManage && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Delete action item"
+                        onClick={() => remove(i.id)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
@@ -850,9 +884,11 @@ const RISK_STATUSES: RiskStatus[] = ['OPEN', 'MITIGATED', 'CLOSED'];
 
 function RisksSection({
   kickoff,
+  canManage,
   onChanged,
 }: {
   kickoff: ProjectKickoff;
+  canManage: boolean;
   onChanged: () => void;
 }) {
   const toast = useToast();
@@ -917,12 +953,14 @@ function RisksSection({
     <Card className="mb-4">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Risk Register</CardTitle>
-        <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
-          <Plus className="size-4" /> Add
-        </Button>
+        {canManage && (
+          <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
+            <Plus className="size-4" /> Add
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="pt-0">
-        {adding && (
+        {canManage && adding && (
           <div className="mb-3 grid gap-2 rounded-md border p-3 sm:grid-cols-2">
             <Input
               placeholder="Risk description"
@@ -1007,6 +1045,7 @@ function RisksSection({
                       value={r.status}
                       onChange={(e) => setStatus(r.id, e.target.value as RiskStatus)}
                       className="h-8 w-32"
+                      disabled={!canManage}
                     >
                       {RISK_STATUSES.map((s) => (
                         <option key={s} value={s}>
@@ -1016,14 +1055,16 @@ function RisksSection({
                     </Select>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Delete risk"
-                      onClick={() => remove(r.id)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    {canManage && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Delete risk"
+                        onClick={() => remove(r.id)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
@@ -1040,9 +1081,11 @@ const DELIVERY_TYPES: DeliveryType[] = ['NPD', 'IN_HOUSE', 'VENDOR'];
 
 function DeliveryClassificationSection({
   kickoff,
+  canManage,
   onChanged,
 }: {
   kickoff: ProjectKickoff;
+  canManage: boolean;
   onChanged: () => void;
 }) {
   const items = kickoff.deliveryItems ?? [];
@@ -1072,6 +1115,7 @@ function DeliveryClassificationSection({
                   key={li.id}
                   kickoffId={kickoff.id}
                   item={li}
+                  canManage={canManage}
                   onChanged={onChanged}
                 />
               ))}
@@ -1086,10 +1130,12 @@ function DeliveryClassificationSection({
 function DeliveryRow({
   kickoffId,
   item,
+  canManage,
   onChanged,
 }: {
   kickoffId: string;
   item: KickoffDeliveryItem;
+  canManage: boolean;
   onChanged: () => void;
 }) {
   const toast = useToast();
@@ -1154,7 +1200,7 @@ function DeliveryRow({
           <Select
             value={item.deliveryType ?? ''}
             onChange={(e) => setType(e.target.value as DeliveryType)}
-            disabled={busy}
+            disabled={busy || !canManage}
             className="h-8 w-36"
           >
             <option value="" disabled>
@@ -1184,6 +1230,7 @@ function DeliveryRow({
                 }}
                 placeholder="Vendor name"
                 className="h-8"
+                disabled={!canManage}
               />
               <Input
                 value={vendorContact}
@@ -1194,6 +1241,7 @@ function DeliveryRow({
                 }}
                 placeholder="Contact (name / phone / email)"
                 className="h-8"
+                disabled={!canManage}
               />
               <Input
                 value={vendorLead}
@@ -1204,6 +1252,7 @@ function DeliveryRow({
                 }}
                 placeholder="Expected lead time (e.g. 6–8 weeks)"
                 className="h-8"
+                disabled={!canManage}
               />
             </div>
           ) : (
@@ -1297,9 +1346,11 @@ function VendorRiskNudge({
 // ── Minutes / notes ──────────────────────────────────────────────────
 function MinutesSection({
   kickoff,
+  canManage,
   onSaved,
 }: {
   kickoff: ProjectKickoff;
+  canManage: boolean;
   onSaved: (k: ProjectKickoff) => void;
 }) {
   const toast = useToast();
@@ -1331,8 +1382,9 @@ function MinutesSection({
           onChange={(e) => setText(e.target.value)}
           rows={4}
           placeholder="Anything not captured in the structured sections above…"
+          disabled={!canManage}
         />
-        {dirty && (
+        {dirty && canManage && (
           <Button size="sm" onClick={save} disabled={saving}>
             {saving ? 'Saving…' : 'Save'}
           </Button>

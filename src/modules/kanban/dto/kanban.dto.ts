@@ -176,6 +176,13 @@ export class CreateCardDto {
   @IsOptional()
   @IsUUID()
   assigneeId?: string;
+
+  @ApiPropertyOptional({
+    description: 'PLM tracker whose Production work this card represents',
+  })
+  @IsOptional()
+  @IsUUID()
+  plmTrackerId?: string;
 }
 
 /**

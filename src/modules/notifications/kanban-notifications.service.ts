@@ -167,12 +167,35 @@ export class KanbanNotificationsService {
     await this.prisma.notification.create({ data: { employeeId: params.recipientId, type: params.overdue ? NotificationType.QMS_ACTION_OVERDUE : NotificationType.QMS_ACTION_ASSIGNED, message: params.message } });
   }
 
+  async notifyPlm(params: {
+    recipientId: string | null;
+    actorId: string | null;
+    type:
+      | typeof NotificationType.PLM_DESIGN_REVIEW_REQUESTED
+      | typeof NotificationType.PLM_DESIGN_REVIEW_DECIDED
+      | typeof NotificationType.PLM_STAGE_ADVANCED
+      | typeof NotificationType.PLM_PRODUCTION_UPDATE;
+    trackerId: string;
+    message: string;
+  }): Promise<void> {
+    if (!params.recipientId || params.recipientId === params.actorId) return;
+    await this.prisma.notification.create({
+      data: {
+        employeeId: params.recipientId,
+        type: params.type,
+        relatedPlmTrackerId: params.trackerId,
+        message: params.message,
+      },
+    });
+  }
+
   // ── read side ────────────────────────────────────────────────────────
 
   /** The caller's notifications, most recent first. */
   async listMine(user: AuthenticatedUser): Promise<NotificationEntity[]> {
     const rows = await this.prisma.notification.findMany({
       where: { employeeId: user.id },
+      include: { relatedPlmTracker: { select: { orderId: true } } },
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
@@ -215,6 +238,8 @@ export class KanbanNotificationsService {
     relatedVendorId: string | null;
     relatedSupplierId: string | null;
     relatedBomId: string | null;
+    relatedPlmTrackerId: string | null;
+    relatedPlmTracker: { orderId: string } | null;
     message: string;
     isRead: boolean;
     createdAt: Date;
@@ -226,6 +251,8 @@ export class KanbanNotificationsService {
       relatedVendorId: n.relatedVendorId,
       relatedSupplierId: n.relatedSupplierId,
       relatedBomId: n.relatedBomId,
+      relatedPlmTrackerId: n.relatedPlmTrackerId,
+      relatedPlmOrderId: n.relatedPlmTracker?.orderId ?? null,
       message: n.message,
       isRead: n.isRead,
       createdAt: n.createdAt.toISOString(),

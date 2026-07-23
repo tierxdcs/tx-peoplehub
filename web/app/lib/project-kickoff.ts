@@ -72,6 +72,7 @@ export interface KickoffDeliveryItem {
   productSku: string;
   quantity: string;
   deliveryType: DeliveryType | null;
+  vendorId: string | null;
   vendorName: string | null;
   vendorContactInfo: string | null;
   vendorExpectedLeadTime: string | null;
@@ -328,6 +329,7 @@ export function removeRisk(kickoffId: string, riskId: string) {
 // ── Delivery classification (per order line item) ────────────────────
 export interface UpdateDeliveryItemInput {
   deliveryType?: DeliveryType;
+  vendorId?: string | null;
   vendorName?: string | null;
   vendorContactInfo?: string | null;
   vendorExpectedLeadTime?: string | null;

@@ -32,7 +32,7 @@ export class CreateQmsPlanDto {
   @IsArray() @ValidateNested({each:true}) @Type(()=>QmsPlanStageDto) stages!:QmsPlanStageDto[];
 }
 export class CreateQmsInspectionDto {
-  @IsString() templateId!:string; @IsOptional() @IsString() planId?:string; @IsOptional() @IsString() planStageId?:string; @IsOptional() @IsString() productId?:string; @IsOptional() @IsString() orderId?:string; @IsOptional() @IsString() projectKickoffId?:string; @IsOptional() @IsString() grnId?:string; @IsOptional() @IsString() batchOrSerial?:string; @IsOptional() @IsString() assignedToId?:string; @IsOptional() @Type(()=>Number) @IsNumber() quantityOffered?:number;
+  @IsString() templateId!:string; @IsOptional() @IsString() planId?:string; @IsOptional() @IsString() planStageId?:string; @IsOptional() @IsString() productId?:string; @IsOptional() @IsString() orderId?:string; @IsOptional() @IsString() orderLineId?:string; @IsOptional() @IsString() projectKickoffId?:string; @IsOptional() @IsString() grnId?:string; @IsOptional() @IsString() batchOrSerial?:string; @IsOptional() @IsString() assignedToId?:string; @IsOptional() @Type(()=>Number) @IsNumber() quantityOffered?:number;
 }
 export class QmsResponseDto { @IsString() questionKey!:string; @IsObject() answer!:object; @IsOptional() @IsEnum(QmsInspectionResult) result?:QmsInspectionResult; @IsOptional() @IsString() comments?:string; @IsOptional() @IsObject() evidence?:object; }
 export class CompleteQmsInspectionDto {

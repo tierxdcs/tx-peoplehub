@@ -135,7 +135,10 @@ export class EmployeesService {
     // Admins and HR Managers may view any employee (they run the roster / edit /
     // payroll functions). Everyone else may view only themselves or their own
     // manager (for the "who's my manager" lookup).
-    if (!(await this.isAdminOrHrManager(currentUser)) && currentUser.id !== id) {
+    if (
+      !(await this.isAdminOrHrManager(currentUser)) &&
+      currentUser.id !== id
+    ) {
       const caller = await this.prisma.employee.findUnique({
         where: { id: currentUser.id },
         select: { reportingManagerId: true },
@@ -743,9 +746,14 @@ export class EmployeesService {
   async designateQmsHead(id: string): Promise<EmployeeEntity> {
     const target = await this.findRawOrThrow(id);
     if (target.status !== EmployeeStatus.ACTIVE)
-      throw new BadRequestException('Only an active employee can be designated as QMS Head');
+      throw new BadRequestException(
+        'Only an active employee can be designated as QMS Head',
+      );
     const updated = await this.prisma.$transaction(async (tx) => {
-      await tx.employee.updateMany({ where: { isQmsHead: true, id: { not: id } }, data: { isQmsHead: false } });
+      await tx.employee.updateMany({
+        where: { isQmsHead: true, id: { not: id } },
+        data: { isQmsHead: false },
+      });
       return tx.employee.update({ where: { id }, data: { isQmsHead: true } });
     });
     return this.toEntity(updated);
@@ -754,16 +762,29 @@ export class EmployeesService {
   async revokeQmsHead(id: string): Promise<EmployeeEntity> {
     const target = await this.findRawOrThrow(id);
     if (!target.isQmsHead) return this.toEntity(target);
-    return this.toEntity(await this.prisma.employee.update({ where: { id }, data: { isQmsHead: false } }));
+    return this.toEntity(
+      await this.prisma.employee.update({
+        where: { id },
+        data: { isQmsHead: false },
+      }),
+    );
   }
 
   async designateDesignHead(id: string): Promise<EmployeeEntity> {
     const target = await this.findRawOrThrow(id);
     if (target.status !== EmployeeStatus.ACTIVE)
-      throw new BadRequestException('Only an active employee can be designated as Design Head');
+      throw new BadRequestException(
+        'Only an active employee can be designated as Design Head',
+      );
     const updated = await this.prisma.$transaction(async (tx) => {
-      await tx.employee.updateMany({ where: { isDesignHead: true, id: { not: id } }, data: { isDesignHead: false } });
-      return tx.employee.update({ where: { id }, data: { isDesignHead: true } });
+      await tx.employee.updateMany({
+        where: { isDesignHead: true, id: { not: id } },
+        data: { isDesignHead: false },
+      });
+      return tx.employee.update({
+        where: { id },
+        data: { isDesignHead: true },
+      });
     });
     return this.toEntity(updated);
   }
@@ -771,7 +792,12 @@ export class EmployeesService {
   async revokeDesignHead(id: string): Promise<EmployeeEntity> {
     const target = await this.findRawOrThrow(id);
     if (!target.isDesignHead) return this.toEntity(target);
-    return this.toEntity(await this.prisma.employee.update({ where: { id }, data: { isDesignHead: false } }));
+    return this.toEntity(
+      await this.prisma.employee.update({
+        where: { id },
+        data: { isDesignHead: false },
+      }),
+    );
   }
 
   /**
@@ -779,7 +805,10 @@ export class EmployeesService {
    * allowed (company-wide capability), so this is a simple per-employee flag
    * set — no "unset others" step.
    */
-  async setScrumMaster(id: string, isScrumMaster: boolean): Promise<EmployeeEntity> {
+  async setScrumMaster(
+    id: string,
+    isScrumMaster: boolean,
+  ): Promise<EmployeeEntity> {
     const target = await this.findRawOrThrow(id);
     if (isScrumMaster && target.status !== EmployeeStatus.ACTIVE) {
       throw new BadRequestException(
@@ -857,6 +886,35 @@ export class EmployeesService {
     const updated = await this.prisma.employee.update({
       where: { id },
       data: { isInternalAuditor },
+    });
+    return this.toEntity(updated);
+  }
+
+  /** Production Head designation — multi-holder, MANAGER-or-above only. */
+  async setProductionHead(
+    id: string,
+    isProductionHead: boolean,
+  ): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (isProductionHead) {
+      if (target.status !== EmployeeStatus.ACTIVE) {
+        throw new BadRequestException(
+          'Only an active employee can be designated as a Production Head',
+        );
+      }
+      if (
+        target.role !== Role.MANAGER &&
+        target.role !== Role.ADMIN &&
+        target.role !== Role.SUPER_ADMIN
+      ) {
+        throw new BadRequestException(
+          'Only an employee with role MANAGER or above can be a Production Head',
+        );
+      }
+    }
+    const updated = await this.prisma.employee.update({
+      where: { id },
+      data: { isProductionHead },
     });
     return this.toEntity(updated);
   }
@@ -1321,6 +1379,7 @@ export class EmployeesService {
       isQcInspector: employee.isQcInspector,
       isQmsHead: employee.isQmsHead,
       isDesignHead: employee.isDesignHead,
+      isProductionHead: employee.isProductionHead,
       isRdHead: employee.isRdHead,
       isAccountsHead: employee.isAccountsHead,
       officialEmail: employee.officialEmail,

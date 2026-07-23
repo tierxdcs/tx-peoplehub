@@ -4,6 +4,7 @@ import { KanbanModule } from '../kanban/kanban.module';
 import { ProjectKickoffController } from './project-kickoff.controller';
 import { ProjectKickoffService } from './project-kickoff.service';
 import { ProjectKickoffAccessService } from './project-kickoff-access.service';
+import { PlmModule } from '../plm/plm.module';
 
 /**
  * Project Kickoff: a structured record created once an Order's Confirmation
@@ -12,7 +13,7 @@ import { ProjectKickoffAccessService } from './project-kickoff-access.service';
  * provisioning (KanbanBoardsService).
  */
 @Module({
-  imports: [SalesModule, KanbanModule],
+  imports: [SalesModule, KanbanModule, PlmModule],
   controllers: [ProjectKickoffController],
   providers: [ProjectKickoffService, ProjectKickoffAccessService],
 })

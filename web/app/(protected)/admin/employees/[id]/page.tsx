@@ -296,6 +296,38 @@ export default function EditEmployeePage() {
     finally { setDesignating(false); }
   }
 
+  async function setProductionHead(next: boolean) {
+    if (!employee) return;
+    const ok = await confirm({
+      title: next ? 'Designate Production Head' : 'Revoke Production Head',
+      description: next
+        ? `Designate ${employee.firstName} ${employee.lastName} as a Production Head? They’ll be able to review PLM designs, assign tracker owners, and advance production handoffs.`
+        : `Revoke ${employee.firstName} ${employee.lastName}’s Production Head designation?`,
+      confirmLabel: next ? 'Designate' : 'Revoke',
+      destructive: !next,
+    });
+    if (!ok) return;
+    setDesignating(true);
+    try {
+      await apiFetch(
+        `/employees/${employee.id}/${next ? 'designate' : 'revoke'}-production-head`,
+        { method: 'PATCH' },
+      );
+      toast.success(
+        next ? 'Production Head designated' : 'Production Head revoked',
+      );
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to update Production Head designation',
+      );
+    } finally {
+      setDesignating(false);
+    }
+  }
+
   async function handleDelete() {
     if (!employee) return;
     const ok = await confirm({
@@ -432,7 +464,8 @@ export default function EditEmployeePage() {
     isSuperAdmin ||
     employee.isAccountsHead ||
     employee.isQmsHead ||
-    employee.isDesignHead;
+    employee.isDesignHead ||
+    employee.isProductionHead;
 
   return (
     <PageContainer className="max-w-2xl">
@@ -464,6 +497,9 @@ export default function EditEmployeePage() {
             )}
             {employee.isQmsHead && <Badge variant="info">QMS Head</Badge>}
             {employee.isDesignHead && <Badge variant="info">Design Head</Badge>}
+            {employee.isProductionHead && (
+              <Badge variant="info">Production Head</Badge>
+            )}
           </span>
         }
       />
@@ -672,6 +708,32 @@ export default function EditEmployeePage() {
 
       {(isSuperAdmin || employee.isDesignHead) && (
         <Card className="mb-4"><CardContent className="flex items-center justify-between gap-4 p-4"><div className="text-sm"><div className="font-medium">Design Head designation</div><div className="text-muted-foreground">{employee.isDesignHead ? 'This employee is the sole approver and production-release authority for design documents.' : 'Designate as the sole Design Engineering release authority.'}</div></div>{isSuperAdmin && <Button variant={employee.isDesignHead ? 'destructive' : 'outline'} disabled={designating} onClick={()=>setDesignHead(!employee.isDesignHead)}>{employee.isDesignHead ? 'Revoke Design Head' : 'Designate as Design Head'}</Button>}</CardContent></Card>
+      )}
+
+      {(isSuperAdmin || employee.isProductionHead) && (
+        <Card className="mb-4">
+          <CardContent className="flex items-center justify-between gap-4 p-4">
+            <div className="text-sm">
+              <div className="font-medium">Production Head designation</div>
+              <div className="text-muted-foreground">
+                {employee.isProductionHead
+                  ? 'This employee can review PLM designs, assign tracker owners, and advance production handoffs.'
+                  : 'Designate as a PLM Design Review and production-handoff authority.'}
+              </div>
+            </div>
+            {isSuperAdmin && (
+              <Button
+                variant={employee.isProductionHead ? 'destructive' : 'outline'}
+                disabled={designating || (!employee.isProductionHead && !managerOrAbove)}
+                onClick={() => setProductionHead(!employee.isProductionHead)}
+              >
+                {employee.isProductionHead
+                  ? 'Revoke Production Head'
+                  : 'Designate as Production Head'}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Force password reset — Admin/SuperAdmin, for another employee who has

@@ -47,6 +47,7 @@ import { FinanceReportingModule } from './modules/finance-reporting/finance-repo
 import { FinanceContraModule } from './modules/finance-contra/finance-contra.module';
 import { QmsModule } from './modules/qms/qms.module';
 import { DesignModule } from './modules/design/design.module';
+import { PlmModule } from './modules/plm/plm.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { DesignModule } from './modules/design/design.module';
     FinanceContraModule,
     QmsModule,
     DesignModule,
+    PlmModule,
     ScmPurchasingModule,
     LogisticsModule,
     RfqModule,

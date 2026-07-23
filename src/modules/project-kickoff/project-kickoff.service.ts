@@ -8,6 +8,7 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ConfirmationSheetsService } from '../sales/confirmation-sheets.service';
 import { KanbanBoardsService } from '../kanban/kanban-boards.service';
+import { PlmService } from '../plm/plm.service';
 import { ProjectKickoffAccessService } from './project-kickoff-access.service';
 import {
   CreateActionItemDto,
@@ -56,6 +57,7 @@ export class ProjectKickoffService {
     private readonly access: ProjectKickoffAccessService,
     private readonly confirmationSheets: ConfirmationSheetsService,
     private readonly boards: KanbanBoardsService,
+    private readonly plm: PlmService,
   ) {}
 
   // ── Create ───────────────────────────────────────────────────────────
@@ -395,7 +397,7 @@ export class ProjectKickoffService {
     dto: UpdateKickoffDto,
     user: AuthenticatedUser,
   ): Promise<ProjectKickoffEntity> {
-    await this.access.assertCanAccess(user, id);
+    await this.access.assertCanManage(user, id);
     await this.prisma.projectKickoff.update({
       where: { id },
       data: {
@@ -420,6 +422,9 @@ export class ProjectKickoffService {
         ...(dto.status !== undefined ? { status: dto.status } : {}),
       },
     });
+    if (dto.status === 'COMPLETED') {
+      await this.plm.provisionForKickoff(id);
+    }
     return this.findOne(id, user);
   }
 
@@ -429,7 +434,7 @@ export class ProjectKickoffService {
     dto: CreateAttendeeDto,
     user: AuthenticatedUser,
   ): Promise<KickoffAttendeeEntity> {
-    const kickoff = await this.access.assertCanAccess(user, kickoffId);
+    const kickoff = await this.access.assertCanManage(user, kickoffId);
 
     const hasEmployee = !!dto.employeeId;
     const hasExternal = !!dto.externalName?.trim();
@@ -464,7 +469,7 @@ export class ProjectKickoffService {
     attendeeId: string,
     user: AuthenticatedUser,
   ): Promise<void> {
-    await this.access.assertCanAccess(user, kickoffId);
+    await this.access.assertCanManage(user, kickoffId);
     const attendee = await this.prisma.kickoffAttendee.findFirst({
       where: { id: attendeeId, kickoffId },
       select: { id: true },
@@ -481,7 +486,7 @@ export class ProjectKickoffService {
     dto: CreateMilestoneDto,
     user: AuthenticatedUser,
   ): Promise<KickoffMilestoneEntity> {
-    await this.access.assertCanAccess(user, kickoffId);
+    await this.access.assertCanManage(user, kickoffId);
     const m = await this.prisma.kickoffMilestone.create({
       data: {
         kickoffId,
@@ -501,7 +506,7 @@ export class ProjectKickoffService {
     dto: UpdateMilestoneDto,
     user: AuthenticatedUser,
   ): Promise<KickoffMilestoneEntity> {
-    await this.access.assertCanAccess(user, kickoffId);
+    await this.access.assertCanManage(user, kickoffId);
     await this.getSubOrThrow('kickoffMilestone', milestoneId, kickoffId);
     const m = await this.prisma.kickoffMilestone.update({
       where: { id: milestoneId },
@@ -523,7 +528,7 @@ export class ProjectKickoffService {
     milestoneId: string,
     user: AuthenticatedUser,
   ): Promise<void> {
-    await this.access.assertCanAccess(user, kickoffId);
+    await this.access.assertCanManage(user, kickoffId);
     await this.getSubOrThrow('kickoffMilestone', milestoneId, kickoffId);
     await this.prisma.kickoffMilestone.delete({ where: { id: milestoneId } });
   }
@@ -534,7 +539,7 @@ export class ProjectKickoffService {
     dto: CreateActionItemDto,
     user: AuthenticatedUser,
   ): Promise<KickoffActionItemEntity> {
-    const kickoff = await this.access.assertCanAccess(user, kickoffId);
+    const kickoff = await this.access.assertCanManage(user, kickoffId);
 
     // Resolve the board's "To Do" list (lowest position, not a done-list).
     const todo = await this.prisma.kanbanList.findFirst({
@@ -577,7 +582,7 @@ export class ProjectKickoffService {
     dto: UpdateActionItemDto,
     user: AuthenticatedUser,
   ): Promise<KickoffActionItemEntity> {
-    await this.access.assertCanAccess(user, kickoffId);
+    await this.access.assertCanManage(user, kickoffId);
     const existing = await this.prisma.kickoffActionItem.findFirst({
       where: { id: actionItemId, kickoffId },
       select: { id: true, kanbanCardId: true },
@@ -623,7 +628,7 @@ export class ProjectKickoffService {
     actionItemId: string,
     user: AuthenticatedUser,
   ): Promise<void> {
-    await this.access.assertCanAccess(user, kickoffId);
+    await this.access.assertCanManage(user, kickoffId);
     const existing = await this.prisma.kickoffActionItem.findFirst({
       where: { id: actionItemId, kickoffId },
       select: { id: true, kanbanCardId: true },
@@ -646,7 +651,7 @@ export class ProjectKickoffService {
     dto: CreateRiskDto,
     user: AuthenticatedUser,
   ): Promise<KickoffRiskEntity> {
-    await this.access.assertCanAccess(user, kickoffId);
+    await this.access.assertCanManage(user, kickoffId);
     const r = await this.prisma.kickoffRisk.create({
       data: {
         kickoffId,
@@ -667,7 +672,7 @@ export class ProjectKickoffService {
     dto: UpdateRiskDto,
     user: AuthenticatedUser,
   ): Promise<KickoffRiskEntity> {
-    await this.access.assertCanAccess(user, kickoffId);
+    await this.access.assertCanManage(user, kickoffId);
     await this.getSubOrThrow('kickoffRisk', riskId, kickoffId);
     const r = await this.prisma.kickoffRisk.update({
       where: { id: riskId },
@@ -693,7 +698,7 @@ export class ProjectKickoffService {
     riskId: string,
     user: AuthenticatedUser,
   ): Promise<void> {
-    await this.access.assertCanAccess(user, kickoffId);
+    await this.access.assertCanManage(user, kickoffId);
     await this.getSubOrThrow('kickoffRisk', riskId, kickoffId);
     await this.prisma.kickoffRisk.delete({ where: { id: riskId } });
   }
@@ -701,9 +706,10 @@ export class ProjectKickoffService {
   // ── Delivery classification (on the linked order's line items) ──────
   /**
    * Set a line item's delivery type + vendor placeholder fields. Gated by
-   * kickoff access (same as every other kickoff edit). The line item must
-   * belong to THIS kickoff's order — we resolve the kickoff's orderId and match
-   * on it, so a caller can't edit an arbitrary order's lines.
+   * assertCanManage (Project Manager/SUPER_ADMIN, same as every other kickoff
+   * edit). The line item must belong to THIS kickoff's order — we resolve the
+   * kickoff's orderId and match on it, so a caller can't edit an arbitrary
+   * order's lines.
    *
    * Vendor-field rules on a type change:
    *   - VENDOR   → cleared, ready for manual entry.
@@ -719,14 +725,27 @@ export class ProjectKickoffService {
     dto: UpdateDeliveryItemDto,
     user: AuthenticatedUser,
   ): Promise<KickoffDeliveryItemEntity> {
-    const kickoff = await this.access.assertCanAccess(user, kickoffId);
+    const kickoff = await this.access.assertCanManage(user, kickoffId);
     const line = await this.prisma.orderLineItem.findFirst({
       where: { id: lineItemId, orderId: kickoff.orderId },
-      select: { id: true },
+      select: {
+        id: true,
+        deliveryType: true,
+        plmTracker: { select: { id: true } },
+      },
     });
     if (!line) {
       throw new NotFoundException(
         'Line item not found on this kickoff’s order',
+      );
+    }
+    if (
+      line.plmTracker &&
+      dto.deliveryType !== undefined &&
+      dto.deliveryType !== line.deliveryType
+    ) {
+      throw new BadRequestException(
+        'Delivery type cannot change after PLM tracking has started',
       );
     }
 
@@ -739,16 +758,39 @@ export class ProjectKickoffService {
         data.vendorName = IN_HOUSE_VENDOR_NAME;
         data.vendorContactInfo = null;
         data.vendorExpectedLeadTime = null;
+        data.vendor = { disconnect: true };
       } else if (dto.deliveryType === 'VENDOR') {
         // Fresh manual entry — clear anything carried over (e.g. from IN_HOUSE).
         data.vendorName = null;
         data.vendorContactInfo = null;
         data.vendorExpectedLeadTime = null;
+        data.vendor = { disconnect: true };
       } else {
         // NPD (or any future non-vendor type) — no vendor at all.
         data.vendorName = null;
         data.vendorContactInfo = null;
         data.vendorExpectedLeadTime = null;
+        data.vendor = { disconnect: true };
+      }
+    }
+    if (dto.vendorId !== undefined) {
+      if (dto.vendorId === null) {
+        data.vendor = { disconnect: true };
+      } else {
+        const vendor = await this.prisma.vendor.findUnique({
+          where: { id: dto.vendorId },
+          select: { id: true, companyName: true, status: true },
+        });
+        if (
+          !vendor ||
+          !['APPROVED', 'APPROVED_PREFERRED'].includes(vendor.status)
+        ) {
+          throw new BadRequestException(
+            'Select an approved Vendor Master record',
+          );
+        }
+        data.vendor = { connect: { id: vendor.id } };
+        if (dto.vendorName === undefined) data.vendorName = vendor.companyName;
       }
     }
     // Explicit fields in the same request win over the type-driven default
@@ -764,6 +806,7 @@ export class ProjectKickoffService {
       data,
       include: { product: { select: { name: true, sku: true } } },
     });
+    await this.plm.provisionForKickoff(kickoffId);
     return this.toDeliveryItem(updated);
   }
 
@@ -860,6 +903,7 @@ export class ProjectKickoffService {
       productSku: li.product.sku,
       quantity: li.quantity.toString(),
       deliveryType: li.deliveryType,
+      vendorId: li.vendorId,
       vendorName: li.vendorName,
       vendorContactInfo: li.vendorContactInfo,
       vendorExpectedLeadTime: li.vendorExpectedLeadTime,

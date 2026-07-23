@@ -33,9 +33,13 @@ import {
 
 /**
  * Project Kickoff API. The class-level RolesGuard keeps plain ADMIN out (they
- * see no operational data); the real gating — PM-to-create, membership-to-view
- * — lives in ProjectKickoffAccessService, since RolesGuard can't express
- * "creator or internal attendee of THIS kickoff".
+ * see no operational data); the real gating — PM-to-create, membership-to-view,
+ * PM-to-edit — lives in ProjectKickoffAccessService, since RolesGuard can't
+ * express "creator or internal attendee of THIS kickoff" nor a boolean
+ * capability flag. Only SUPER_ADMIN and a designated Project Manager may
+ * create/edit/delete anything; a plain internal attendee has read-only access
+ * (assertCanAccess lets them view; every mutation goes through the stricter
+ * assertCanManage).
  */
 @ApiTags('project-kickoff')
 @ApiBearerAuth()

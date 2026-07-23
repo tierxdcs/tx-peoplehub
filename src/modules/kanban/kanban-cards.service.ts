@@ -235,6 +235,17 @@ export class KanbanCardsService {
     if (dto.assigneeId) {
       await this.access.assertAssigneeExists(dto.assigneeId);
     }
+    if (dto.plmTrackerId) {
+      const tracker = await this.prisma.plmTracker.findUnique({
+        where: { id: dto.plmTrackerId },
+        select: { productionBoardId: true },
+      });
+      if (!tracker || tracker.productionBoardId !== list.boardId) {
+        throw new BadRequestException(
+          'PLM production cards must be created on the tracker’s linked board',
+        );
+      }
+    }
     // Append after the current max position (leaving fractional room after).
     const last = await this.prisma.kanbanCard.findFirst({
       where: { listId, status: KanbanCardStatus.ACTIVE },
@@ -257,6 +268,7 @@ export class KanbanCardsService {
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
         assigneeId: dto.assigneeId ?? null,
         verticalId,
+        plmTrackerId: dto.plmTrackerId ?? null,
         position,
         createdById: user.id,
       },

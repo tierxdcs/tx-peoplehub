@@ -233,7 +233,9 @@ export class EmployeesController {
 
   @Patch(':id/revoke-project-manager')
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Revoke this employee’s Project Manager designation' })
+  @ApiOperation({
+    summary: 'Revoke this employee’s Project Manager designation',
+  })
   revokeProjectManager(@Param('id') id: string) {
     return this.employeesService.setProjectManager(id, false);
   }
@@ -250,9 +252,30 @@ export class EmployeesController {
 
   @Patch(':id/revoke-internal-auditor')
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Revoke this employee’s Internal Auditor designation' })
+  @ApiOperation({
+    summary: 'Revoke this employee’s Internal Auditor designation',
+  })
   revokeInternalAuditor(@Param('id') id: string) {
     return this.employeesService.setInternalAuditor(id, false);
+  }
+
+  @Patch(':id/designate-production-head')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Designate this employee as a Production Head (MANAGER or above; multiple allowed)',
+  })
+  designateProductionHead(@Param('id') id: string) {
+    return this.employeesService.setProductionHead(id, true);
+  }
+
+  @Patch(':id/revoke-production-head')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Revoke this employee’s Production Head designation',
+  })
+  revokeProductionHead(@Param('id') id: string) {
+    return this.employeesService.setProductionHead(id, false);
   }
 
   @Patch(':id/designate-qc-inspector')
@@ -309,22 +332,30 @@ export class EmployeesController {
   @Patch(':id/designate-qms-head')
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Designate the sole QMS Head' })
-  designateQmsHead(@Param('id') id: string) { return this.employeesService.designateQmsHead(id); }
+  designateQmsHead(@Param('id') id: string) {
+    return this.employeesService.designateQmsHead(id);
+  }
 
   @Patch(':id/revoke-qms-head')
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Revoke the QMS Head designation' })
-  revokeQmsHead(@Param('id') id: string) { return this.employeesService.revokeQmsHead(id); }
+  revokeQmsHead(@Param('id') id: string) {
+    return this.employeesService.revokeQmsHead(id);
+  }
 
   @Patch(':id/designate-design-head')
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Designate the sole Design Head' })
-  designateDesignHead(@Param('id') id: string) { return this.employeesService.designateDesignHead(id); }
+  designateDesignHead(@Param('id') id: string) {
+    return this.employeesService.designateDesignHead(id);
+  }
 
   @Patch(':id/revoke-design-head')
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Revoke the Design Head designation' })
-  revokeDesignHead(@Param('id') id: string) { return this.employeesService.revokeDesignHead(id); }
+  revokeDesignHead(@Param('id') id: string) {
+    return this.employeesService.revokeDesignHead(id);
+  }
 
   @Patch(':id/reset-password')
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
@@ -361,7 +392,9 @@ export class EmployeesController {
   @Get(':id/statutory')
   @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
   @UseGuards(HrManagerOrAdminGuard)
-  @ApiOperation({ summary: 'View PAN/PF/ESIC (Admin or HR Manager, decrypted)' })
+  @ApiOperation({
+    summary: 'View PAN/PF/ESIC (Admin or HR Manager, decrypted)',
+  })
   getStatutory(@Param('id') id: string) {
     return this.employeesService.getStatutory(id);
   }
@@ -369,7 +402,9 @@ export class EmployeesController {
   @Get(':id/bank-details')
   @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
   @UseGuards(HrManagerOrAdminGuard)
-  @ApiOperation({ summary: 'View bank details (Admin or HR Manager, decrypted)' })
+  @ApiOperation({
+    summary: 'View bank details (Admin or HR Manager, decrypted)',
+  })
   getBankDetails(@Param('id') id: string) {
     return this.employeesService.getBankDetails(id);
   }

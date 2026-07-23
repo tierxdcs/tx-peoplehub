@@ -234,6 +234,8 @@ export function BidPrintDocument({
     fontSize: 10.5,
     verticalAlign: 'top',
     borderBottom: `1px solid ${RULE}`,
+    overflowWrap: 'break-word',
+    wordBreak: 'break-word',
   };
   const tdR: React.CSSProperties = { ...td, textAlign: 'right' };
 
@@ -367,6 +369,7 @@ export function BidPrintDocument({
                 className="print-avoid-break"
                 style={{
                   width: '100%',
+                  tableLayout: 'fixed',
                   borderCollapse: 'collapse',
                   marginTop: 10,
                   marginBottom: 8,

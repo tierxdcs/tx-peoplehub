@@ -40,6 +40,7 @@ import { useConfirm } from '../../../../components/ui/confirm';
 import { ProductCell } from '../../_components/product-cell';
 import { ConfirmationSheetsSection } from './_components/confirmation-sheets-section';
 import { ProjectKickoffSection } from './_components/project-kickoff-section';
+import { PlmSection } from './_components/plm-section';
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -317,6 +318,8 @@ export default function OrderDetailPage() {
         latestExecuted={latestExecuted}
         customerName={customer?.name ?? null}
       />
+
+      <PlmSection orderId={order.id} />
     </PageContainer>
   );
 }

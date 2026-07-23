@@ -17,11 +17,16 @@ import {
 } from 'class-validator';
 
 export class CreateKickoffDto {
-  @ApiProperty({ description: 'Order this kickoff is for (Confirmation Sheet must be EXECUTED)' })
+  @ApiProperty({
+    description:
+      'Order this kickoff is for (Confirmation Sheet must be EXECUTED)',
+  })
   @IsUUID()
   orderId!: string;
 
-  @ApiPropertyOptional({ description: 'Defaults to "<Customer> — <Order number>" if omitted' })
+  @ApiPropertyOptional({
+    description: 'Defaults to "<Customer> — <Order number>" if omitted',
+  })
   @IsOptional()
   @IsString()
   @MinLength(1)
@@ -41,7 +46,9 @@ export class CreateKickoffDto {
   @IsString()
   meetingLocation?: string;
 
-  @ApiPropertyOptional({ description: 'Overview & scope; pre-filled from the bid if omitted' })
+  @ApiPropertyOptional({
+    description: 'Overview & scope; pre-filled from the bid if omitted',
+  })
   @IsOptional()
   @IsString()
   overviewAndScope?: string;
@@ -92,12 +99,16 @@ export class UpdateKickoffDto {
 
 // ── Attendees ────────────────────────────────────────────────────────
 export class CreateAttendeeDto {
-  @ApiPropertyOptional({ description: 'Internal attendee — set this OR externalName' })
+  @ApiPropertyOptional({
+    description: 'Internal attendee — set this OR externalName',
+  })
   @IsOptional()
   @IsUUID()
   employeeId?: string;
 
-  @ApiPropertyOptional({ description: 'External attendee name — set this OR employeeId' })
+  @ApiPropertyOptional({
+    description: 'External attendee name — set this OR employeeId',
+  })
   @IsOptional()
   @IsString()
   @MinLength(1)
@@ -171,7 +182,9 @@ export class CreateActionItemDto {
   @MinLength(1)
   description!: string;
 
-  @ApiProperty({ description: 'Owner — becomes the linked Kanban card assignee' })
+  @ApiProperty({
+    description: 'Owner — becomes the linked Kanban card assignee',
+  })
   @IsUUID()
   ownerId!: string;
 
@@ -264,8 +277,16 @@ export class UpdateDeliveryItemDto {
 
   @ApiPropertyOptional({
     nullable: true,
+    description: 'Approved Vendor Master link',
+  })
+  @IsOptional()
+  @IsUUID()
+  vendorId?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
     description:
-      'Free-text vendor name — TEMPORARY placeholder until an Approved Vendor Master exists (not a FK).',
+      'Vendor-name snapshot retained for history and unmatched legacy lines.',
   })
   @IsOptional()
   @IsString()

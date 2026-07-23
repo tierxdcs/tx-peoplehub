@@ -263,6 +263,7 @@ export class StockReportService {
    */
   async computeReport(
     kickoffId: string,
+    orderLineItemId?: string,
   ): Promise<StockAvailabilityReportEntity | null> {
     const report = await this.prisma.kickoffStockReport.findUnique({
       where: { kickoffId },
@@ -271,6 +272,14 @@ export class StockReportService {
       },
     });
     if (!report) return null;
+
+    // PLM gates Material Planning per ordered product line. Other callers omit
+    // this filter and continue to receive the complete kickoff-level report.
+    const bomSelections = orderLineItemId
+      ? report.bomSelections.filter(
+          (selection) => selection.orderLineItemId === orderLineItemId,
+        )
+      : report.bomSelections;
 
     // Aggregate gross requirement per item across ALL selections/lines.
     type Agg = {
@@ -288,7 +297,7 @@ export class StockReportService {
     };
     const byItem = new Map<string, Agg>();
 
-    for (const sel of report.bomSelections) {
+    for (const sel of bomSelections) {
       const orderedQty = sel.orderedQuantity;
       for (const line of sel.lines) {
         const base = baseRequirement(line.quantityPerUnit, orderedQty);
@@ -436,7 +445,7 @@ export class StockReportService {
       kickoffId,
       generatedAt: report.generatedAt.toISOString(),
       quantityPrecision: report.quantityPrecision,
-      bomSelections: report.bomSelections.map(
+      bomSelections: bomSelections.map(
         (s) =>
           new BomSelectionEntity({
             orderLineItemId: s.orderLineItemId,

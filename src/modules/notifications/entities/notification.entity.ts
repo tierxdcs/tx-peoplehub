@@ -9,6 +9,8 @@ export class NotificationEntity {
   @ApiProperty({ nullable: true }) relatedVendorId!: string | null;
   @ApiProperty({ nullable: true }) relatedSupplierId!: string | null;
   @ApiProperty({ nullable: true }) relatedBomId!: string | null;
+  @ApiProperty({ nullable: true }) relatedPlmTrackerId!: string | null;
+  @ApiProperty({ nullable: true }) relatedPlmOrderId!: string | null;
   @ApiProperty() message!: string;
   @ApiProperty() isRead!: boolean;
   @ApiProperty() createdAt!: string;

@@ -85,6 +85,10 @@ enum NotificationType {
   BOM_REJECTED
   QMS_ACTION_ASSIGNED
   QMS_ACTION_OVERDUE
+  PLM_DESIGN_REVIEW_REQUESTED
+  PLM_DESIGN_REVIEW_DECIDED
+  PLM_STAGE_ADVANCED
+  PLM_PRODUCTION_UPDATE
 }
 
 enum LeaveAccrualType {
@@ -402,6 +406,10 @@ model Employee {
   /// Design users prepare and check documents; only this holder releases them.
   isDesignHead Boolean @default(false)
 
+  /// Production Head capability (not a Role). MULTIPLE active holders are
+  /// allowed; MANAGER-or-above only. SUPER_ADMIN is implicit in PLM access.
+  isProductionHead Boolean @default(false)
+
   /// Internal e-signature (a display layer, NOT a legally-binding e-sign).
   /// Self-service typed text rendered in a chosen signature-style font;
   /// snapshotted onto approval records at approval time.
@@ -463,18 +471,24 @@ model Employee {
   vaultExternalLinks      VaultExternalShareLink[] @relation("VaultExternalShareCreator")
 
   // Kanban back-relations.
-  kanbanBoardsCreated       KanbanBoard[]          @relation("KanbanBoardCreator")
-  kanbanMemberships         KanbanBoardMember[]    @relation("KanbanBoardMember")
-  kanbanMembersAdded        KanbanBoardMember[]    @relation("KanbanBoardMemberAddedBy")
-  kanbanListsCreated        KanbanList[]           @relation("KanbanListCreator")
-  kanbanSprintsCreated      KanbanSprint[]         @relation("KanbanSprintCreator")
-  kanbanCardsCreated        KanbanCard[]           @relation("KanbanCardCreator")
-  kanbanCardsAssigned       KanbanCard[]           @relation("KanbanCardAssignee")
-  kanbanCommentsAuthored    KanbanCardComment[]    @relation("KanbanCommentAuthor")
-  kanbanActivityActed       KanbanCardActivity[]   @relation("KanbanActivityActor")
-  kanbanAttachmentsUploaded KanbanCardAttachment[] @relation("KanbanAttachmentUploader")
-  leadAttachmentsUploaded   LeadAttachment[]       @relation("LeadAttachmentUploader")
-  notifications             Notification[]         @relation("NotificationRecipient")
+  kanbanBoardsCreated       KanbanBoard[]           @relation("KanbanBoardCreator")
+  kanbanMemberships         KanbanBoardMember[]     @relation("KanbanBoardMember")
+  kanbanMembersAdded        KanbanBoardMember[]     @relation("KanbanBoardMemberAddedBy")
+  kanbanListsCreated        KanbanList[]            @relation("KanbanListCreator")
+  kanbanSprintsCreated      KanbanSprint[]          @relation("KanbanSprintCreator")
+  kanbanCardsCreated        KanbanCard[]            @relation("KanbanCardCreator")
+  kanbanCardsAssigned       KanbanCard[]            @relation("KanbanCardAssignee")
+  kanbanCommentsAuthored    KanbanCardComment[]     @relation("KanbanCommentAuthor")
+  kanbanActivityActed       KanbanCardActivity[]    @relation("KanbanActivityActor")
+  kanbanAttachmentsUploaded KanbanCardAttachment[]  @relation("KanbanAttachmentUploader")
+  leadAttachmentsUploaded   LeadAttachment[]        @relation("LeadAttachmentUploader")
+  notifications             Notification[]          @relation("NotificationRecipient")
+  plmTrackersOwned          PlmTracker[]            @relation("PlmTrackerOwner")
+  plmDesignReviewsSubmitted PlmTracker[]            @relation("PlmDesignReviewSubmitter")
+  plmDesignReviewsReviewed  PlmTracker[]            @relation("PlmDesignReviewReviewer")
+  plmEventsActed            PlmTrackerEvent[]       @relation("PlmEventActor")
+  plmVendorInvitesCreated   PlmVendorUpdateInvite[] @relation("PlmVendorInviteCreator")
+  plmUpdatesReported        PlmProductionUpdate[]   @relation("PlmUpdateInternalReporter")
 
   // Project Kickoff back-relations.
   projectKickoffsCreated  ProjectKickoff[]    @relation("KickoffCreator")
@@ -1137,6 +1151,7 @@ model Order {
   billingMilestones  BillingMilestone[]
   salesInvoices      SalesInvoice[]
   deliveryChallans   DeliveryChallan[]
+  plmTrackers        PlmTracker[]
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
 
@@ -1186,6 +1201,11 @@ model OrderLineItem {
   vendorContactInfo      String?
   /// Rough expected lead time from the vendor, free text (e.g. "6-8 weeks").
   vendorExpectedLeadTime String?
+  vendorId               String?
+  vendor                 Vendor?                @relation("OrderLineVendor", fields: [vendorId], references: [id], onDelete: SetNull)
+
+  plmTracker     PlmTracker?
+  qmsInspections QmsInspection[]
 
   deliveryChallanLines DeliveryChallanLine[]
 
@@ -1193,6 +1213,7 @@ model OrderLineItem {
   updatedAt DateTime @updatedAt
 
   @@index([orderId])
+  @@index([vendorId])
   @@map("order_line_items")
 }
 
@@ -2240,6 +2261,7 @@ model KanbanBoard {
   sprints         KanbanSprint[]
   labels          KanbanLabel[]
   projectKickoffs ProjectKickoff[]
+  plmTrackers     PlmTracker[]        @relation("PlmProductionBoard")
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
@@ -2355,6 +2377,8 @@ model KanbanCard {
   notifications     Notification[]
   labels            KanbanCardLabel[]
   kickoffActionItem KickoffActionItem?
+  plmTrackerId      String?
+  plmTracker        PlmTracker?            @relation(fields: [plmTrackerId], references: [id], onDelete: SetNull)
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
@@ -2362,6 +2386,7 @@ model KanbanCard {
   @@index([sprintId])
   @@index([assigneeId])
   @@index([verticalId])
+  @@index([plmTrackerId])
   @@map("kanban_cards")
 }
 
@@ -2456,28 +2481,32 @@ enum KanbanCardAttachmentStatus {
 /// pending-approvals counters (things needing ACTION). Poll-based, like the
 /// rest of the app's notification surfaces.
 model Notification {
-  id                String           @id @default(uuid())
-  employeeId        String
-  employee          Employee         @relation("NotificationRecipient", fields: [employeeId], references: [id], onDelete: Cascade)
-  type              NotificationType
+  id                  String           @id @default(uuid())
+  employeeId          String
+  employee            Employee         @relation("NotificationRecipient", fields: [employeeId], references: [id], onDelete: Cascade)
+  type                NotificationType
   /// Deep-link target for card-based notifications (Kanban). Null for others.
-  relatedCardId     String?
-  relatedCard       KanbanCard?      @relation(fields: [relatedCardId], references: [id], onDelete: Cascade)
+  relatedCardId       String?
+  relatedCard         KanbanCard?      @relation(fields: [relatedCardId], references: [id], onDelete: Cascade)
   /// Deep-link target for vendor-based notifications (SCM). Null for others.
   /// A notification carries at most one related-entity id, by type.
-  relatedVendorId   String?
-  relatedVendor     Vendor?          @relation(fields: [relatedVendorId], references: [id], onDelete: Cascade)
+  relatedVendorId     String?
+  relatedVendor       Vendor?          @relation(fields: [relatedVendorId], references: [id], onDelete: Cascade)
   /// Deep-link target for supplier-based notifications (SCM raw-materials).
-  relatedSupplierId String?
-  relatedSupplier   Supplier?        @relation(fields: [relatedSupplierId], references: [id], onDelete: Cascade)
+  relatedSupplierId   String?
+  relatedSupplier     Supplier?        @relation(fields: [relatedSupplierId], references: [id], onDelete: Cascade)
   /// Deep-link target for BOM workflow notifications (R&D). Null for others.
-  relatedBomId      String?
-  relatedBom        Bom?             @relation(fields: [relatedBomId], references: [id], onDelete: Cascade)
-  message           String
-  isRead            Boolean          @default(false)
-  createdAt         DateTime         @default(now())
+  relatedBomId        String?
+  relatedBom          Bom?             @relation(fields: [relatedBomId], references: [id], onDelete: Cascade)
+  /// Deep-link target for PLM workflow notifications.
+  relatedPlmTrackerId String?
+  relatedPlmTracker   PlmTracker?      @relation(fields: [relatedPlmTrackerId], references: [id], onDelete: Cascade)
+  message             String
+  isRead              Boolean          @default(false)
+  createdAt           DateTime         @default(now())
 
   @@index([employeeId, isRead])
+  @@index([relatedPlmTrackerId])
   @@map("notifications")
 }
 
@@ -2543,6 +2572,7 @@ model ProjectKickoff {
   stockReservations StockReservation[]  @relation("KickoffReservations")
   materialIndents   MaterialIndent[]
   rfqs              Rfq[]
+  plmTrackers       PlmTracker[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2628,6 +2658,158 @@ model KickoffRisk {
   @@map("kickoff_risks")
 }
 
+// ── Product Lifecycle Management (thin per-order-line orchestration) ─────
+
+enum PlmStage {
+  DESIGN
+  DESIGN_REVIEW
+  DRAWING_RELEASE
+  RELEASE_TO_SCM
+  MATERIAL_PLANNING
+  PRODUCTION
+  QC
+  DISPATCH
+  COMPLETED
+}
+
+enum PlmTrackerStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum PlmDesignReviewStatus {
+  NOT_SUBMITTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PlmEventType {
+  CREATED
+  STAGE_CONFIRMED
+  DESIGN_REVIEW_SUBMITTED
+  DESIGN_REVIEW_APPROVED
+  DESIGN_REVIEW_REJECTED
+  DERIVED_SIGNAL_CONFIRMED
+  OWNER_CHANGED
+  PRODUCTION_BOARD_LINKED
+  VENDOR_INVITE_CREATED
+  VENDOR_INVITE_REVOKED
+  PRODUCTION_UPDATE_REPORTED
+}
+
+enum PlmUpdateReporterType {
+  VENDOR_SELF_REPORT
+  INTERNAL_AUDITOR_VISIT
+}
+
+model PlmTracker {
+  id                  String                  @id @default(uuid())
+  orderLineId         String                  @unique
+  orderLine           OrderLineItem           @relation(fields: [orderLineId], references: [id], onDelete: Cascade)
+  orderId             String
+  order               Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  kickoffId           String
+  kickoff             ProjectKickoff          @relation(fields: [kickoffId], references: [id], onDelete: Restrict)
+  flowType            OrderLineDeliveryType
+  currentStage        PlmStage
+  status              PlmTrackerStatus        @default(ACTIVE)
+  ownerId             String
+  owner               Employee                @relation("PlmTrackerOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  vendorId            String?
+  vendor              Vendor?                 @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  productionBoardId   String?
+  productionBoard     KanbanBoard?            @relation("PlmProductionBoard", fields: [productionBoardId], references: [id], onDelete: SetNull)
+  designReviewStatus  PlmDesignReviewStatus   @default(NOT_SUBMITTED)
+  designSubmittedById String?
+  designSubmittedBy   Employee?               @relation("PlmDesignReviewSubmitter", fields: [designSubmittedById], references: [id], onDelete: SetNull)
+  designSubmittedAt   DateTime?
+  designReviewedById  String?
+  designReviewedBy    Employee?               @relation("PlmDesignReviewReviewer", fields: [designReviewedById], references: [id], onDelete: SetNull)
+  designReviewedAt    DateTime?
+  designReviewComment String?                 @db.Text
+  events              PlmTrackerEvent[]
+  productionCards     KanbanCard[]
+  vendorUpdateInvites PlmVendorUpdateInvite[]
+  productionUpdates   PlmProductionUpdate[]
+  notifications       Notification[]
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  @@index([orderId])
+  @@index([kickoffId])
+  @@index([ownerId])
+  @@index([currentStage])
+  @@index([vendorId])
+  @@map("plm_trackers")
+}
+
+model PlmTrackerEvent {
+  id        String       @id @default(uuid())
+  trackerId String
+  tracker   PlmTracker   @relation(fields: [trackerId], references: [id], onDelete: Cascade)
+  type      PlmEventType
+  fromStage PlmStage?
+  toStage   PlmStage?
+  actorId   String?
+  actor     Employee?    @relation("PlmEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  comment   String?      @db.Text
+  metadata  Json?
+  createdAt DateTime     @default(now())
+
+  @@index([trackerId, createdAt])
+  @@map("plm_tracker_events")
+}
+
+model PlmVendorUpdateInvite {
+  id           String     @id @default(uuid())
+  trackerId    String
+  tracker      PlmTracker @relation(fields: [trackerId], references: [id], onDelete: Cascade)
+  token        String     @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  passwordHash String?
+  createdById  String
+  createdBy    Employee   @relation("PlmVendorInviteCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt    DateTime   @default(now())
+
+  @@index([trackerId])
+  @@map("plm_vendor_update_invites")
+}
+
+model PlmProductionUpdate {
+  id                   String                     @id @default(uuid())
+  trackerId            String
+  tracker              PlmTracker                 @relation(fields: [trackerId], references: [id], onDelete: Cascade)
+  reporterType         PlmUpdateReporterType
+  internalReporterId   String?
+  internalReporter     Employee?                  @relation("PlmUpdateInternalReporter", fields: [internalReporterId], references: [id], onDelete: SetNull)
+  reporterDisplayName  String
+  fabricationPercent   Int
+  surfaceFinishPercent Int
+  assemblyPercent      Int
+  notes                String?                    @db.Text
+  photos               PlmProductionUpdatePhoto[]
+  createdAt            DateTime                   @default(now())
+
+  @@index([trackerId, createdAt])
+  @@map("plm_production_updates")
+}
+
+model PlmProductionUpdatePhoto {
+  id         String              @id @default(uuid())
+  updateId   String
+  update     PlmProductionUpdate @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  storageKey String              @unique
+  fileName   String
+  sizeBytes  Int
+  mimeType   String
+  createdAt  DateTime            @default(now())
+
+  @@index([updateId])
+  @@map("plm_production_update_photos")
+}
+
 // ── Vendor Qualification (SCM) ─────────────────────────────────────
 // Vendor Master + self-assessment questionnaire (vendor fills online via a
 // token link) + internal audit with weighted scoring → classification. This
@@ -2683,6 +2865,8 @@ model Vendor {
   apInvoices               AccountsPayableInvoice[]
   apPayments               AccountsPayablePayment[]
   rfqInvitees              RfqInvitee[]
+  orderLines               OrderLineItem[]          @relation("OrderLineVendor")
+  plmTrackers              PlmTracker[]
   createdAt                DateTime                 @default(now())
   updatedAt                DateTime                 @updatedAt
 
@@ -4188,6 +4372,8 @@ model QmsInspection {
   productId         String?
   orderId           String?
   projectKickoffId  String?
+  orderLineId       String?
+  orderLine         OrderLineItem?          @relation(fields: [orderLineId], references: [id], onDelete: SetNull)
   grnId             String?
   batchOrSerial     String?
   quantityOffered   Decimal?                @db.Decimal(14, 4)
@@ -4210,6 +4396,7 @@ model QmsInspection {
   @@index([status, inspectionType])
   @@index([grnId])
   @@index([orderId])
+  @@index([orderLineId])
   @@map("qms_inspections")
 }
 

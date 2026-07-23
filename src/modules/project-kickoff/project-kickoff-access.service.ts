@@ -11,9 +11,14 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
  * The single place Project Kickoff access is decided.
  *
  *  - CREATE: a Project Manager (Employee.isProjectManager) or SUPER_ADMIN.
- *  - VIEW/EDIT a kickoff: membership-based, mirroring the Kanban model — the
+ *  - VIEW a kickoff: membership-based, mirroring the Kanban model — the
  *    creating PM, any INTERNAL (employee-linked) attendee, or SUPER_ADMIN.
  *    Deliberately NOT vertical- or Sales-team-wide (spec §4).
+ *  - EDIT/DELETE (header fields, attendees, milestones, action items, risks,
+ *    delivery classification): Project Manager or SUPER_ADMIN ONLY. A member
+ *    who is merely an internal attendee (not a PM) has read-only access — they
+ *    can view via assertCanAccess but every mutation is gated by
+ *    assertCanManage instead.
  *
  * SUPER_ADMIN is always treated as a Project Manager regardless of the flag,
  * matching the Scrum Master / Sales Head override convention.
@@ -42,6 +47,27 @@ export class ProjectKickoffAccessService {
         'Only a Project Manager or SUPER_ADMIN may create a project kickoff',
       );
     }
+  }
+
+  /**
+   * Load a kickoff the user may EDIT/DELETE. Requires BOTH: view access
+   * (assertCanAccess — creator, internal attendee, or SUPER_ADMIN) AND the
+   * Project Manager capability. A PM with no relation to this kickoff still
+   * can't touch it — consistent with them not being able to view it either.
+   * An internal attendee who isn't a PM passes step 1 but fails step 2, so
+   * they remain read-only. 404 if the kickoff doesn't exist, 403 otherwise.
+   */
+  async assertCanManage(
+    user: AuthenticatedUser,
+    kickoffId: string,
+  ): Promise<{ id: string; kanbanBoardId: string; orderId: string }> {
+    const kickoff = await this.assertCanAccess(user, kickoffId);
+    if (!(await this.isProjectManager(user))) {
+      throw new ForbiddenException(
+        'Only a Project Manager or SUPER_ADMIN may edit a project kickoff',
+      );
+    }
+    return kickoff;
   }
 
   /**

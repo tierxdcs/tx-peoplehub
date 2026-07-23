@@ -10,6 +10,7 @@ describe('ProjectKickoffService progress visibility', () => {
       access as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     await expect(
