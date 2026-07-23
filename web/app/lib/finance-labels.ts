@@ -3,7 +3,7 @@
  *
  * This is the SINGLE place terminology is aligned to Tally so an accountant
  * sees familiar words. It is PURELY a display concern — it renames nothing in
- * the database, API routes, DTOs, or Prisma models (those keep their WorkCore
+ * the database, API routes, DTOs, or Prisma models (those keep their PhazeOne
  * names, e.g. `SalesInvoice`, `/finance/ar/invoices`). Renaming those would be
  * churn with no user benefit and would break the Dispatch → draft-invoice
  * integration, so it is deliberately avoided.

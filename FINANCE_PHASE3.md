@@ -1,6 +1,6 @@
 # Finance Phase 3 — Accounts Payable and Payment Planning
 
-Phase 3 adds the vendor-liability and outbound-payment side of WorkCore — Phaze ERP. It uses the Phase 1 ledger and sole Finance/Accounts Head capability, and integrates with the existing Purchase Order and QC-gated GRN workflows.
+Phase 3 adds the vendor-liability and outbound-payment side of PhazeOne — Phaze ERP. It uses the Phase 1 ledger and sole Finance/Accounts Head capability, and integrates with the existing Purchase Order and QC-gated GRN workflows.
 
 ## Delivered scope
 

@@ -1,6 +1,6 @@
 # Finance Phase 5B — Management Accounting and Automation
 
-Phase 5B adds planning, asset accounting, controlled recurring postings, inventory-cost visibility and project profitability to WorkCore — Phaze ERP.
+Phase 5B adds planning, asset accounting, controlled recurring postings, inventory-cost visibility and project profitability to PhazeOne — Phaze ERP.
 
 ## Delivered scope
 

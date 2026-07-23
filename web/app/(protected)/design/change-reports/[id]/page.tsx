@@ -201,7 +201,7 @@ function ReportBody({ r }: { r: R }) {
         <div
           style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 2 }}
         >
-          Workcore · Phaze ERP
+          PhazeOne · Phaze ERP
         </div>
         <h1 style={{ fontSize: 24, fontWeight: 700 }}>
           Engineering Change Report

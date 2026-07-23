@@ -1,6 +1,6 @@
 # Finance Phase 4 — Compliance, Adjustments and Period Close
 
-Phase 4 extends WorkCore — Phaze ERP from transaction processing into statutory review, controlled adjustments, cash planning and month-end governance for the India-only, April–March finance setup.
+Phase 4 extends PhazeOne — Phaze ERP from transaction processing into statutory review, controlled adjustments, cash planning and month-end governance for the India-only, April–March finance setup.
 
 ## Delivered scope
 

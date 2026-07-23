@@ -9,7 +9,7 @@
  */
 export const BRAND = {
   /** Shown in the top bar and browser title. */
-  appName: 'Workcore',
+  appName: 'PhazeOne',
   tagline: 'Phaze ERP',
   /**
    * Logo is a placeholder glyph (a lucide icon name) until a real logo asset
