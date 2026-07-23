@@ -26,6 +26,7 @@ export function ListColumn({
   list,
   cards,
   canManage,
+  canEditCard,
   dndDisabled,
   sprintNames,
   onOpenCard,
@@ -34,6 +35,7 @@ export function ListColumn({
   list: KanbanList;
   cards: KanbanCard[];
   canManage: boolean;
+  canEditCard: (card: KanbanCard) => boolean;
   dndDisabled: boolean;
   /** Map of sprintId → sprint name, for the card-face sprint chip. */
   sprintNames: Record<string, string>;
@@ -124,7 +126,7 @@ export function ListColumn({
                 card.sprintId ? sprintNames[card.sprintId] : undefined
               }
               onOpen={onOpenCard}
-              dndDisabled={dndDisabled}
+              dndDisabled={dndDisabled || !canEditCard(card)}
             />
           ))}
         </SortableContext>

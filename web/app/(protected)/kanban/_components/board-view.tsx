@@ -124,6 +124,10 @@ export function BoardView({
   // List management additionally carves out the board's own creator, mirroring
   // KanbanAccessService.assertCanManageLists.
   const canManageLists = canManageBoard || board?.createdById === user?.sub;
+  const canEditCard = useCallback(
+    (card: KanbanCard) => canManageBoard || card.assigneeId === user?.sub,
+    [canManageBoard, user?.sub],
+  );
 
   // sprintId → name, for the sprint chip on each card face.
   const sprintNames = useMemo(
@@ -259,7 +263,11 @@ export function BoardView({
   // ── drag and drop ────────────────────────────────────────────────────
   function onDragStart(e: DragStartEvent) {
     const data = e.active.data.current;
-    if (data?.type === 'card') setActiveCard(data.card as KanbanCard);
+    if (data?.type === 'card') {
+      const card = data.card as KanbanCard;
+      if (!canEditCard(card)) return;
+      setActiveCard(card);
+    }
   }
 
   // Move a card between containers live so it renders in the hovered list.
@@ -503,6 +511,7 @@ export function BoardView({
                   list={list}
                   cards={cardsByList[list.id] ?? []}
                   canManage={false}
+                  canEditCard={canEditCard}
                   dndDisabled
                   sprintNames={sprintNames}
                   onOpenCard={setOpenCard}
@@ -565,6 +574,7 @@ export function BoardView({
                   list={l}
                   cards={cardsByList[l.id] ?? []}
                   canManage={canManageLists}
+                  canEditCard={canEditCard}
                   dndDisabled={filterActive}
                   sprintNames={sprintNames}
                   onOpenCard={setOpenCard}
