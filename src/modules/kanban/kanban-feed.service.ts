@@ -38,7 +38,7 @@ export class KanbanFeedService {
     user: AuthenticatedUser,
   ): Promise<KanbanCommentEntity> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanViewCard(user, card.boardId, card.assigneeId);
+    await this.access.assertCanEditCard(user, card.boardId, card.assigneeId);
     const comment = await this.prisma.kanbanCardComment.create({
       data: { cardId, authorId: user.id, text: dto.text },
       include: { author: { select: { firstName: true, lastName: true } } },
@@ -63,7 +63,7 @@ export class KanbanFeedService {
     user: AuthenticatedUser,
   ): Promise<void> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanViewBoard(user, card.boardId);
+    await this.access.assertCanEditCard(user, card.boardId, card.assigneeId);
     const comment = await this.prisma.kanbanCardComment.findUnique({
       where: { id: commentId },
     });

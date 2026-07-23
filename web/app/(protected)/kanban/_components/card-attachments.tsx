@@ -29,11 +29,13 @@ function formatSize(bytes: number): string {
  */
 export function CardAttachments({
   cardId,
+  canWrite,
   canDeleteAny,
   currentUserId,
   onChanged,
 }: {
   cardId: string;
+  canWrite: boolean;
   /** Board members may delete any attachment; card-only assignees only their own. */
   canDeleteAny: boolean;
   currentUserId: string | undefined;
@@ -137,7 +139,7 @@ export function CardAttachments({
     <div>
       <div className="mb-2 flex items-center justify-between">
         <p className="text-xs font-medium text-muted-foreground">Attachments</p>
-        <Button
+        {canWrite && <Button
           size="sm"
           variant="outline"
           disabled={uploading}
@@ -147,7 +149,7 @@ export function CardAttachments({
           {uploading
             ? `Uploading… ${Math.round(progress * 100)}%`
             : 'Attach file'}
-        </Button>
+        </Button>}
         <input
           ref={fileRef}
           type="file"

@@ -32,7 +32,7 @@ describe('KanbanAttachmentsService', () => {
     uploadedBy: { firstName: 'Priya', lastName: 'Shah' },
   };
 
-  function setup(hasBoardAccess = false) {
+  function setup(canManageBoard = false) {
     const tx = {
       kanbanCardAttachment: {
         update: jest.fn().mockResolvedValue({
@@ -55,10 +55,11 @@ describe('KanbanAttachmentsService', () => {
       ),
     };
     const access = {
-      assertCanViewCard: jest.fn().mockResolvedValue({ hasBoardAccess }),
-      assertCanManageBoard: jest
-        .fn()
-        .mockRejectedValue(new ForbiddenException()),
+      assertCanViewCard: jest.fn().mockResolvedValue({ hasBoardAccess: true }),
+      assertCanEditCard: jest.fn().mockResolvedValue({ canManageBoard }),
+      assertCanManageBoard: canManageBoard
+        ? jest.fn().mockResolvedValue({})
+        : jest.fn().mockRejectedValue(new ForbiddenException()),
     };
     const storage = {
       createUploadUrl: jest
@@ -97,7 +98,7 @@ describe('KanbanAttachmentsService', () => {
         user,
       ),
     ).resolves.toMatchObject({ attachmentId: attachment.id });
-    expect(access.assertCanViewCard).toHaveBeenCalledWith(
+    expect(access.assertCanEditCard).toHaveBeenCalledWith(
       user,
       card.list.boardId,
       card.assigneeId,
@@ -158,7 +159,7 @@ describe('KanbanAttachmentsService', () => {
     );
   });
 
-  it('lets a board member delete any attachment and removes R2 first', async () => {
+  it('lets a board manager delete any attachment and removes R2 first', async () => {
     const { service, prisma, storage } = setup(true);
     prisma.kanbanCardAttachment.findUnique.mockResolvedValue({
       ...attachment,

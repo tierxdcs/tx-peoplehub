@@ -54,7 +54,7 @@ export class KanbanAttachmentsService {
     user: AuthenticatedUser,
   ): Promise<KanbanAttachmentUploadTicketEntity> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanViewCard(user, card.boardId, card.assigneeId);
+    await this.access.assertCanEditCard(user, card.boardId, card.assigneeId);
     assertExtensionAllowed(dto.filename);
     assertSizeWithinCap(dto.sizeBytes);
 
@@ -98,7 +98,7 @@ export class KanbanAttachmentsService {
     user: AuthenticatedUser,
   ): Promise<KanbanAttachmentEntity> {
     const card = await this.getCardOrThrow(cardId);
-    await this.access.assertCanViewCard(user, card.boardId, card.assigneeId);
+    await this.access.assertCanEditCard(user, card.boardId, card.assigneeId);
     const attachment = await this.prisma.kanbanCardAttachment.findUnique({
       where: { id: attachmentId },
       include: { uploadedBy: { select: { firstName: true, lastName: true } } },
@@ -187,7 +187,7 @@ export class KanbanAttachmentsService {
     user: AuthenticatedUser,
   ): Promise<void> {
     const card = await this.getCardOrThrow(cardId);
-    const access = await this.access.assertCanViewCard(
+    await this.access.assertCanEditCard(
       user,
       card.boardId,
       card.assigneeId,
@@ -203,7 +203,7 @@ export class KanbanAttachmentsService {
       .assertCanManageBoard(user, card.boardId)
       .then(() => true)
       .catch(() => false);
-    if (!access.hasBoardAccess && !isUploader && !canManage) {
+    if (!isUploader && !canManage) {
       throw new ForbiddenException(
         'Only the uploader or a Scrum Master/SUPER_ADMIN may delete this attachment',
       );

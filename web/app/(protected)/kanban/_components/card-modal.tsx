@@ -326,6 +326,11 @@ export function CardModal({
                 />
               </DialogTitle>
               <p className="text-xs text-muted-foreground">in {board.name}</p>
+              {!canEdit && (
+                <p className="text-xs text-muted-foreground">
+                  Read only — this card is assigned to another user.
+                </p>
+              )}
             </DialogHeader>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_200px]">
@@ -409,7 +414,8 @@ export function CardModal({
                 {/* Attachments */}
                 <CardAttachments
                   cardId={cardId}
-                  canDeleteAny
+                  canWrite={canEdit}
+                  canDeleteAny={canEdit}
                   currentUserId={user?.sub}
                   onChanged={refreshFeed}
                 />
@@ -419,15 +425,15 @@ export function CardModal({
                   <p className="mb-2 text-xs font-medium text-muted-foreground">
                     Comments and activity
                   </p>
-                  <div className="flex gap-2">
+                  {canEdit && <div className="flex gap-2">
                     <Textarea
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
                       placeholder="Write a comment…"
                       rows={2}
                     />
-                  </div>
-                  <div className="mt-2 flex justify-end">
+                  </div>}
+                  {canEdit && <div className="mt-2 flex justify-end">
                     <Button
                       size="sm"
                       onClick={postComment}
@@ -435,7 +441,7 @@ export function CardModal({
                     >
                       {posting ? 'Posting…' : 'Comment'}
                     </Button>
-                  </div>
+                  </div>}
 
                   <ul className="mt-3 space-y-3">
                     {feed.map((item) => (

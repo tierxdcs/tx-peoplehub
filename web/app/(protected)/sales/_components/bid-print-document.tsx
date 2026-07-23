@@ -272,25 +272,41 @@ export function BidPrintDocument({
                   marginBottom: 26,
                 }}
               >
-                <div>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <Kicker>Commercial Offer</Kicker>
                   <div
                     style={{
-                      fontSize: 26,
+                      fontSize: 22,
                       fontWeight: 800,
                       color: NAVY,
                       letterSpacing: '-0.01em',
                       marginTop: 8,
                     }}
                   >
-                    TECHNO-COMMERCIAL PROPOSAL
+                    <span style={{ display: 'block', whiteSpace: 'nowrap' }}>
+                      TECHNO-COMMERCIAL
+                    </span>
+                    <span style={{ display: 'block' }}>PROPOSAL</span>
                   </div>
                 </div>
-                <table style={{ fontSize: 11, borderCollapse: 'collapse' }}>
+                <table
+                  style={{
+                    width: 250,
+                    marginLeft: 'auto',
+                    fontSize: 11,
+                    borderCollapse: 'collapse',
+                  }}
+                >
                   <tbody>
                     <tr>
                       <td style={{ color: MUTED, paddingRight: 14 }}>Quote Ref</td>
-                      <td style={{ fontWeight: 700, color: NAVY }}>
+                      <td
+                        style={{
+                          fontWeight: 700,
+                          color: NAVY,
+                          textAlign: 'right',
+                        }}
+                      >
                         {bid.bidNumber}
                       </td>
                     </tr>
@@ -298,7 +314,13 @@ export function BidPrintDocument({
                       <td style={{ color: MUTED, paddingRight: 14, paddingTop: 4 }}>
                         Quote Date
                       </td>
-                      <td style={{ fontWeight: 700, paddingTop: 4 }}>
+                      <td
+                        style={{
+                          fontWeight: 700,
+                          paddingTop: 4,
+                          textAlign: 'right',
+                        }}
+                      >
                         {generatedOn}
                       </td>
                     </tr>
@@ -306,7 +328,13 @@ export function BidPrintDocument({
                       <td style={{ color: MUTED, paddingRight: 14, paddingTop: 4 }}>
                         Valid Until
                       </td>
-                      <td style={{ fontWeight: 700, paddingTop: 4 }}>
+                      <td
+                        style={{
+                          fontWeight: 700,
+                          paddingTop: 4,
+                          textAlign: 'right',
+                        }}
+                      >
                         {bid.validUntil.slice(0, 10)}
                       </td>
                     </tr>
