@@ -9,6 +9,12 @@ import {
   PlmEventType,
   PlmStage,
   PrismaClient,
+  QmsInspectionResult,
+  QmsInspectionStatus,
+  QmsPlanStatus,
+  QmsResponseType,
+  QmsTemplateStatus,
+  QmsTemplateType,
   Role,
 } from '@prisma/client';
 
@@ -327,7 +333,211 @@ async function main() {
     });
   }
 
-  console.log(`PLM demo seeded for ${owner.email}. Open /plm or order PLM-DEMO-ORD-001.`);
+  // Quality checkpoint for the in-house line. It is deliberately pending
+  // QMS Head review so the local UI has a meaningful QC action to exercise.
+  const inHouseProduct = products[1];
+  const inHouseLine = await prisma.orderLineItem.findUniqueOrThrow({
+    where: { id: 'demo-plm-order-line-inhouse' },
+  });
+  const template = await prisma.qmsQuestionTemplate.upsert({
+    where: {
+      templateCode_version: {
+        templateCode: 'PLM-DEMO-FINAL-QC',
+        version: 1,
+      },
+    },
+    update: {
+      status: QmsTemplateStatus.APPROVED,
+      approvedById: owner.id,
+      approvedAt: new Date(),
+      effectiveFrom: new Date(),
+    },
+    create: {
+      id: 'demo-plm-qc-template',
+      templateCode: 'PLM-DEMO-FINAL-QC',
+      name: 'PLM Demo Final Quality Inspection',
+      description: 'Customer-facing final QC checks for the seeded automation line.',
+      templateType: QmsTemplateType.FINAL,
+      status: QmsTemplateStatus.APPROVED,
+      effectiveFrom: dateFromToday(-7),
+      createdById: owner.id,
+      approvedById: owner.id,
+      approvedAt: dateFromToday(-7),
+    },
+  });
+  const questions = [
+    {
+      id: 'demo-plm-qc-question-1',
+      sequence: 1,
+      prompt: 'Dimensions and assembly match the approved drawing',
+      responseType: QmsResponseType.PASS_FAIL_NA,
+      acceptanceCriteria: 'All critical dimensions within approved tolerance',
+    },
+    {
+      id: 'demo-plm-qc-question-2',
+      sequence: 2,
+      prompt: 'Functional run test completed without abnormal noise or stoppage',
+      responseType: QmsResponseType.PASS_FAIL_NA,
+      acceptanceCriteria: 'Continuous test run completed successfully',
+    },
+    {
+      id: 'demo-plm-qc-question-3',
+      sequence: 3,
+      prompt: 'Finish, labels and safety guards are complete',
+      responseType: QmsResponseType.PASS_FAIL_NA,
+      acceptanceCriteria: 'Visual inspection acceptable with all safety items fitted',
+    },
+  ];
+  for (const question of questions) {
+    await prisma.qmsTemplateQuestion.upsert({
+      where: {
+        templateId_sequence: {
+          templateId: template.id,
+          sequence: question.sequence,
+        },
+      },
+      update: {
+        prompt: question.prompt,
+        responseType: question.responseType,
+        acceptanceCriteria: question.acceptanceCriteria,
+      },
+      create: {
+        id: question.id,
+        templateId: template.id,
+        section: 'Final inspection',
+        sequence: question.sequence,
+        prompt: question.prompt,
+        responseType: question.responseType,
+        required: true,
+        acceptanceCriteria: question.acceptanceCriteria,
+      },
+    });
+  }
+
+  const plan = await prisma.qmsInspectionPlan.upsert({
+    where: { planNumber: 'PLM-DEMO-QP-001' },
+    update: {
+      status: QmsPlanStatus.APPROVED,
+      productId: inHouseProduct.id,
+      orderId: order.id,
+      projectKickoffId: kickoff.id,
+    },
+    create: {
+      id: 'demo-plm-qc-plan',
+      planNumber: 'PLM-DEMO-QP-001',
+      name: 'Apex Automation Line Quality Plan',
+      description: 'Persistent quality plan linked to the PLM demonstration order.',
+      status: QmsPlanStatus.APPROVED,
+      productId: inHouseProduct.id,
+      orderId: order.id,
+      projectKickoffId: kickoff.id,
+      createdById: owner.id,
+      approvedById: owner.id,
+      approvedAt: dateFromToday(-5),
+    },
+  });
+  const planStage = await prisma.qmsPlanStage.upsert({
+    where: { id: 'demo-plm-qc-plan-stage' },
+    update: { templateId: template.id, blocksNextStage: true },
+    create: {
+      id: 'demo-plm-qc-plan-stage',
+      planId: plan.id,
+      name: 'Final QC before dispatch',
+      stageCode: 'FINAL-QC',
+      sequence: 1,
+      controlPoint: 'HOLD',
+      templateId: template.id,
+      customerWitnessRequired: false,
+      blocksNextStage: true,
+      instructions: 'Complete and obtain QMS Head review before dispatch clearance.',
+    },
+  });
+  const templateSnapshot = {
+    templateId: template.id,
+    templateCode: template.templateCode,
+    version: template.version,
+    name: template.name,
+    questions,
+  };
+  const inspection = await prisma.qmsInspection.upsert({
+    where: { inspectionNumber: 'PLM-DEMO-QI-001' },
+    update: {
+      status: QmsInspectionStatus.PENDING_REVIEW,
+      planId: plan.id,
+      planStageId: planStage.id,
+      productId: inHouseProduct.id,
+      orderId: order.id,
+      orderLineId: inHouseLine.id,
+      projectKickoffId: kickoff.id,
+      assignedToId: owner.id,
+      inspectedById: owner.id,
+      inspectedAt: dateFromToday(-1),
+      quantityOffered: inHouseLine.quantity,
+      quantityInspected: inHouseLine.quantity,
+      quantityAccepted: inHouseLine.quantity,
+      quantityRejected: 0,
+      remarks: 'All checks passed; awaiting QMS Head review.',
+      templateSnapshot,
+    },
+    create: {
+      id: 'demo-plm-qc-inspection',
+      inspectionNumber: 'PLM-DEMO-QI-001',
+      inspectionType: QmsTemplateType.FINAL,
+      status: QmsInspectionStatus.PENDING_REVIEW,
+      planId: plan.id,
+      planStageId: planStage.id,
+      templateSnapshot,
+      productId: inHouseProduct.id,
+      orderId: order.id,
+      orderLineId: inHouseLine.id,
+      projectKickoffId: kickoff.id,
+      batchOrSerial: 'PLM-DEMO-BATCH-001',
+      quantityOffered: inHouseLine.quantity,
+      quantityInspected: inHouseLine.quantity,
+      quantityAccepted: inHouseLine.quantity,
+      quantityRejected: 0,
+      assignedToId: owner.id,
+      inspectedById: owner.id,
+      inspectedAt: dateFromToday(-1),
+      remarks: 'All checks passed; awaiting QMS Head review.',
+      createdById: owner.id,
+    },
+  });
+  for (const question of questions) {
+    await prisma.qmsInspectionResponse.upsert({
+      where: {
+        inspectionId_questionKey: {
+          inspectionId: inspection.id,
+          questionKey: question.id,
+        },
+      },
+      update: {
+        answer: { value: 'PASS' },
+        result: QmsInspectionResult.PASS,
+        comments: 'Verified during seeded final inspection.',
+      },
+      create: {
+        inspectionId: inspection.id,
+        questionKey: question.id,
+        section: 'Final inspection',
+        sequence: question.sequence,
+        promptSnapshot: question.prompt,
+        responseType: question.responseType,
+        required: true,
+        answer: { value: 'PASS' },
+        result: QmsInspectionResult.PASS,
+        comments: 'Verified during seeded final inspection.',
+      },
+    });
+  }
+  await prisma.plmTracker.update({
+    where: { orderLineId: inHouseLine.id },
+    data: { currentStage: PlmStage.QC },
+  });
+
+  console.log(
+    `PLM + QC demo seeded for ${owner.email}. Open /plm, /qms/inspections, or order PLM-DEMO-ORD-001.`,
+  );
 }
 
 main()

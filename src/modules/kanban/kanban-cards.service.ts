@@ -288,9 +288,11 @@ export class KanbanCardsService {
   }
 
   /**
-   * General edit — any board member. Handles title/description/priority/dates/
-   * assignee only. sprintId is absent from UpdateCardDto (and rejected by the
-   * global forbidNonWhitelisted pipe), so it can never be changed here.
+   * General edit — managing users may edit any card; regular users may edit
+   * and hand off only a card currently assigned to them. Regular users cannot
+   * leave a card unassigned. sprintId is absent from UpdateCardDto (and
+   * rejected by the global forbidNonWhitelisted pipe), so it cannot be changed
+   * through this path.
    */
   async update(
     id: string,
@@ -303,9 +305,9 @@ export class KanbanCardsService {
       card.list.boardId,
       card.assigneeId,
     );
-    if (dto.assigneeId !== undefined && !editAccess.canManageBoard) {
+    if (dto.assigneeId === null && !editAccess.canManageBoard) {
       throw new ForbiddenException(
-        'Only a Scrum Master or SUPER_ADMIN may reassign a card',
+        'Only a Scrum Master or SUPER_ADMIN may leave a card unassigned',
       );
     }
     if (dto.assigneeId) {

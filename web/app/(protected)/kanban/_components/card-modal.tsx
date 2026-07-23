@@ -554,13 +554,13 @@ export function CardModal({
                       Unassigned
                     </p>
                   )}
-                  {canManage && <div className="mt-1.5">
+                  {canEdit && <div className="mt-1.5">
                     <EmployeePicker
                       onSelect={(e) => void patch({ assigneeId: e.id })}
                       excludeIds={card.assigneeId ? [card.assigneeId] : []}
                     />
                   </div>}
-                  {canManage && <p className="mt-1 text-xs text-muted-foreground">
+                  {canEdit && <p className="mt-1 text-xs text-muted-foreground">
                     Any employee — assigning someone who isn’t a board member
                     gives them access to just this card.
                   </p>}
