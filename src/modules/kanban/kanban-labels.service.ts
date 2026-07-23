@@ -79,8 +79,9 @@ export class KanbanLabelsService {
     labelId: string,
     user: AuthenticatedUser,
   ): Promise<KanbanCardEntity> {
-    const { boardId } = await this.assertCardAndLabelSameBoard(cardId, labelId);
-    await this.access.assertCanViewBoard(user, boardId);
+    const { boardId, assigneeId } =
+      await this.assertCardAndLabelSameBoard(cardId, labelId);
+    await this.access.assertCanEditCard(user, boardId, assigneeId);
     // Idempotent: ignore a duplicate attach.
     await this.prisma.kanbanCardLabel.upsert({
       where: { cardId_labelId: { cardId, labelId } },
@@ -96,8 +97,9 @@ export class KanbanLabelsService {
     labelId: string,
     user: AuthenticatedUser,
   ): Promise<KanbanCardEntity> {
-    const { boardId } = await this.assertCardAndLabelSameBoard(cardId, labelId);
-    await this.access.assertCanViewBoard(user, boardId);
+    const { boardId, assigneeId } =
+      await this.assertCardAndLabelSameBoard(cardId, labelId);
+    await this.access.assertCanEditCard(user, boardId, assigneeId);
     await this.prisma.kanbanCardLabel.deleteMany({ where: { cardId, labelId } });
     return this.cardEntity(cardId);
   }
@@ -119,11 +121,15 @@ export class KanbanLabelsService {
   private async assertCardAndLabelSameBoard(
     cardId: string,
     labelId: string,
-  ): Promise<{ boardId: string }> {
+  ): Promise<{ boardId: string; assigneeId: string | null }> {
     const [card, label] = await Promise.all([
       this.prisma.kanbanCard.findUnique({
         where: { id: cardId },
-        select: { status: true, list: { select: { boardId: true } } },
+        select: {
+          status: true,
+          assigneeId: true,
+          list: { select: { boardId: true } },
+        },
       }),
       this.prisma.kanbanLabel.findUnique({
         where: { id: labelId },
@@ -139,7 +145,7 @@ export class KanbanLabelsService {
         'The label must belong to the same board as the card',
       );
     }
-    return { boardId: label.boardId };
+    return { boardId: label.boardId, assigneeId: card.assigneeId };
   }
 
   /** Re-read a card with its labels for the response after attach/detach. */

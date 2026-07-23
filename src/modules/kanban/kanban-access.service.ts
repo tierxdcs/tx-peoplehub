@@ -211,4 +211,19 @@ export class KanbanAccessService {
       'You are not a member of this board or the assignee of this card',
     );
   }
+
+  /** Structural edits are limited to the assignee or a board manager. */
+  async assertCanEditCard(
+    user: AuthenticatedUser,
+    boardId: string,
+    cardAssigneeId: string | null,
+  ): Promise<{ canManageBoard: boolean }> {
+    if (this.isSuperAdmin(user)) return { canManageBoard: true };
+    if (cardAssigneeId === user.id) {
+      await this.assertCanViewCard(user, boardId, cardAssigneeId);
+      return { canManageBoard: false };
+    }
+    await this.assertCanManageBoard(user, boardId);
+    return { canManageBoard: true };
+  }
 }

@@ -232,8 +232,18 @@ export class KanbanCardsService {
   ): Promise<KanbanCardEntity> {
     const list = await this.getListOrThrow(listId);
     await this.access.assertCanViewBoard(user, list.boardId);
-    if (dto.assigneeId) {
-      await this.access.assertAssigneeExists(dto.assigneeId);
+    const canManageBoard = await this.access
+      .assertCanManageBoard(user, list.boardId)
+      .then(() => true)
+      .catch(() => false);
+    const assigneeId = canManageBoard ? (dto.assigneeId ?? null) : user.id;
+    if (!canManageBoard && dto.assigneeId && dto.assigneeId !== user.id) {
+      throw new ForbiddenException(
+        'You may only create cards assigned to yourself',
+      );
+    }
+    if (assigneeId) {
+      await this.access.assertAssigneeExists(assigneeId);
     }
     if (dto.plmTrackerId) {
       const tracker = await this.prisma.plmTracker.findUnique({
@@ -256,7 +266,7 @@ export class KanbanCardsService {
 
     // Vertical is server-owned and always follows the assignee. Clients cannot
     // supply or edit it independently.
-    const verticalId = await this.resolveAssigneeVertical(dto.assigneeId);
+    const verticalId = await this.resolveAssigneeVertical(assigneeId);
 
     const card = await this.prisma.kanbanCard.create({
       data: {
@@ -266,7 +276,7 @@ export class KanbanCardsService {
         priority: dto.priority ?? undefined,
         startDate: dto.startDate ? new Date(dto.startDate) : null,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
-        assigneeId: dto.assigneeId ?? null,
+        assigneeId,
         verticalId,
         plmTrackerId: dto.plmTrackerId ?? null,
         position,
@@ -288,7 +298,16 @@ export class KanbanCardsService {
     user: AuthenticatedUser,
   ): Promise<KanbanCardEntity> {
     const card = await this.getCardOrThrow(id);
-    await this.access.assertCanViewBoard(user, card.list.boardId);
+    const editAccess = await this.access.assertCanEditCard(
+      user,
+      card.list.boardId,
+      card.assigneeId,
+    );
+    if (dto.assigneeId !== undefined && !editAccess.canManageBoard) {
+      throw new ForbiddenException(
+        'Only a Scrum Master or SUPER_ADMIN may reassign a card',
+      );
+    }
     if (dto.assigneeId) {
       await this.access.assertAssigneeExists(dto.assigneeId);
     }
@@ -409,7 +428,11 @@ export class KanbanCardsService {
     user: AuthenticatedUser,
   ): Promise<KanbanCardEntity> {
     const card = await this.getCardOrThrow(id);
-    await this.access.assertCanViewBoard(user, card.list.boardId);
+    await this.access.assertCanEditCard(
+      user,
+      card.list.boardId,
+      card.assigneeId,
+    );
 
     // The target list must belong to the SAME board (no cross-board moves).
     const targetList = await this.getListOrThrow(dto.listId);
@@ -544,24 +567,14 @@ export class KanbanCardsService {
     return this.toEntity(updated);
   }
 
-  /**
-   * Soft-delete (→ ARCHIVED). Deliberate rule: the card's CREATOR, or a
-   * Scrum Master / SUPER_ADMIN who manages the board, may delete — NOT every
-   * member (a member shouldn't be able to wipe a colleague's card).
-   */
+  /** Soft-delete: the assignee, or a managing Scrum Master / SUPER_ADMIN. */
   async archive(id: string, user: AuthenticatedUser): Promise<void> {
     const card = await this.getCardOrThrow(id);
-    await this.access.assertCanViewBoard(user, card.list.boardId);
-    const isOwner = card.createdById === user.id;
-    const canManage = await this.access
-      .assertCanManageBoard(user, card.list.boardId)
-      .then(() => true)
-      .catch(() => false);
-    if (!isOwner && !canManage) {
-      throw new ForbiddenException(
-        'Only the card creator or a Scrum Master/SUPER_ADMIN may delete this card',
-      );
-    }
+    await this.access.assertCanEditCard(
+      user,
+      card.list.boardId,
+      card.assigneeId,
+    );
     await this.prisma.kanbanCard.update({
       where: { id },
       data: { status: KanbanCardStatus.ARCHIVED },

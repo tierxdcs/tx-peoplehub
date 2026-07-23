@@ -141,7 +141,8 @@ export function CardModal({
     return () => document.removeEventListener('mousedown', onDown);
   }, [labelMenuOpen]);
 
-  const canDelete = !!card && (canManage || card.createdById === user?.sub);
+  const canEdit = !!card && (canManage || card.assigneeId === user?.sub);
+  const canDelete = canEdit;
 
   async function patch(
     input: Parameters<typeof updateCard>[1],
@@ -320,6 +321,7 @@ export function CardModal({
                       void patch({ title: title.trim() });
                     else setTitle(card.title);
                   }}
+                  readOnly={!canEdit}
                   className="border-none px-0 text-lg font-semibold shadow-none focus-visible:ring-0"
                 />
               </DialogTitle>
@@ -340,7 +342,7 @@ export function CardModal({
                       {l.name}
                     </span>
                   ))}
-                  <div className="relative" ref={labelMenuRef}>
+                  {canEdit && <div className="relative" ref={labelMenuRef}>
                     <button
                       type="button"
                       onClick={() => setLabelMenuOpen((v) => !v)}
@@ -383,7 +385,7 @@ export function CardModal({
                         )}
                       </div>
                     )}
-                  </div>
+                  </div>}
                 </div>
 
                 {/* Description */}
@@ -400,6 +402,7 @@ export function CardModal({
                     }}
                     placeholder="Add a more detailed description…"
                     rows={4}
+                    readOnly={!canEdit}
                   />
                 </div>
 
@@ -494,7 +497,7 @@ export function CardModal({
                   <Select
                     value={card.listId}
                     onChange={(e) => void onMoveToList(e.target.value)}
-                    disabled={moving}
+                    disabled={moving || !canEdit}
                     className="h-11 sm:h-8"
                   >
                     {lists.map((list) => (
@@ -506,7 +509,7 @@ export function CardModal({
                 </SideField>
 
                 {lists.find((list) => list.isDoneList)?.id !== card.listId &&
-                  lists.some((list) => list.isDoneList) && (
+                  lists.some((list) => list.isDoneList) && canEdit && (
                     <Button
                       size="sm"
                       className="h-11 w-full sm:h-8"
@@ -531,30 +534,30 @@ export function CardModal({
                       <span className="min-w-0 flex-1 truncate">
                         {card.assigneeName}
                       </span>
-                      <button
+                      {canManage && <button
                         type="button"
                         aria-label="Unassign"
                         onClick={() => void patch({ assigneeId: null })}
                         className="rounded-sm p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
                       >
                         <X className="h-3.5 w-3.5" />
-                      </button>
+                      </button>}
                     </div>
                   ) : (
                     <p className="mb-1.5 text-sm text-muted-foreground">
                       Unassigned
                     </p>
                   )}
-                  <div className="mt-1.5">
+                  {canManage && <div className="mt-1.5">
                     <EmployeePicker
                       onSelect={(e) => void patch({ assigneeId: e.id })}
                       excludeIds={card.assigneeId ? [card.assigneeId] : []}
                     />
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  </div>}
+                  {canManage && <p className="mt-1 text-xs text-muted-foreground">
                     Any employee — assigning someone who isn’t a board member
                     gives them access to just this card.
-                  </p>
+                  </p>}
                 </SideField>
 
                 <SideField label="Vertical">
@@ -573,6 +576,7 @@ export function CardModal({
                       void patch({ priority: e.target.value as LeadPriority })
                     }
                     className="h-11 sm:h-8"
+                    disabled={!canEdit}
                   >
                     <option value="HIGH">High</option>
                     <option value="MEDIUM">Medium</option>
@@ -588,6 +592,7 @@ export function CardModal({
                       void patch({ startDate: e.target.value || null })
                     }
                     className="h-11 sm:h-8"
+                    disabled={!canEdit}
                   />
                 </SideField>
 
@@ -602,6 +607,7 @@ export function CardModal({
                       'h-11 sm:h-8',
                       card.isOverdue && 'border-destructive',
                     )}
+                    disabled={!canEdit}
                   />
                   {card.isOverdue && (
                     <Badge variant="destructive" className="mt-1">
