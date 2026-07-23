@@ -366,7 +366,6 @@ export function BidPrintDocument({
               {/* Commercial offer table */}
               <Kicker>Commercial Offer</Kicker>
               <table
-                className="print-avoid-break"
                 style={{
                   width: '100%',
                   tableLayout: 'fixed',
