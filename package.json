@@ -19,6 +19,7 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
     "prisma:seed:project-progress": "ts-node prisma/seed-project-progress.ts",
+    "prisma:seed:plm-demo": "ts-node prisma/seed-plm-demo.ts",
     "prisma:studio": "prisma studio",
     "backfill:product-business-units": "ts-node scripts/backfill-product-business-units.ts"
   },

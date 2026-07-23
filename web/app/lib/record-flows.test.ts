@@ -56,6 +56,8 @@ describe('record flows — stage derived from actual status', () => {
     expect(kickoffFlow({ status: 'DRAFT', attendeeCount: 3, actionItemCount: 0 }).currentStage).toBe('attendees');
     expect(kickoffFlow({ status: 'DRAFT', attendeeCount: 3, actionItemCount: 2 }).currentStage).toBe('actions');
     // Completed status overrides the counts.
-    expect(kickoffFlow({ status: 'COMPLETED', attendeeCount: 0, actionItemCount: 0 }).currentStage).toBe('completed');
+    const completed = kickoffFlow({ status: 'COMPLETED', attendeeCount: 0, actionItemCount: 0 });
+    expect(completed.currentStage).toBe('completed');
+    expect(completed.completed).toBe(true);
   });
 });

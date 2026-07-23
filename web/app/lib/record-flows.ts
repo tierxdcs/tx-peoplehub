@@ -18,6 +18,7 @@ import type { SupplierStatus } from './scm-supplier';
 export interface FlowResult {
   steps: ProcessFlowStep[];
   currentStage: string | null;
+  completed?: boolean;
   cancelled: boolean;
   cancelledLabel?: string;
 }
@@ -156,5 +157,10 @@ export function kickoffFlow(input: {
   if (input.status === 'COMPLETED') stage = 'completed';
   else if (input.actionItemCount > 0) stage = 'actions';
   else if (input.attendeeCount > 0) stage = 'attendees';
-  return { steps: KICKOFF_STEPS, currentStage: stage, cancelled: false };
+  return {
+    steps: KICKOFF_STEPS,
+    currentStage: stage,
+    completed: input.status === 'COMPLETED',
+    cancelled: false,
+  };
 }

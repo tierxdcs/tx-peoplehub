@@ -24,6 +24,7 @@ export function ProcessFlow({
   title,
   steps,
   currentStage,
+  completed = false,
   cancelled,
   cancelledLabel = 'This record was cancelled.',
   className,
@@ -32,6 +33,8 @@ export function ProcessFlow({
   steps: ProcessFlowStep[];
   /** The active step key. If it matches no step, all render as upcoming. */
   currentStage: string | null;
+  /** Terminal success: render the current/final step as completed too. */
+  completed?: boolean;
   cancelled?: boolean;
   cancelledLabel?: string;
   className?: string;
@@ -61,8 +64,9 @@ export function ProcessFlow({
       )}
       <ol className="flex items-start">
         {steps.map((step, idx) => {
-          const isDone = activeIdx >= 0 && idx < activeIdx;
-          const isActive = idx === activeIdx;
+          const isDone =
+            activeIdx >= 0 && (idx < activeIdx || (completed && idx === activeIdx));
+          const isActive = !completed && idx === activeIdx;
           return (
             <li key={step.key} className="flex flex-1 items-start last:flex-none">
               <div className="flex flex-col items-center gap-1 text-center">
@@ -106,7 +110,7 @@ export function ProcessFlow({
           );
         })}
       </ol>
-      {activeIdx >= 0 && steps[activeIdx].next && (
+      {!completed && activeIdx >= 0 && steps[activeIdx].next && (
         <p className="mt-3 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">Next: </span>
           {steps[activeIdx].next}
