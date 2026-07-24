@@ -95,6 +95,10 @@ describe('OrdersService', () => {
         createdById: 'emp-1',
         customerId: 'cust-1',
         totalAmount: new Prisma.Decimal(62687500),
+        amcCharges: [
+          { yearNumber: 2, amount: new Prisma.Decimal(100000) },
+          { yearNumber: 3, amount: new Prisma.Decimal(150000) },
+        ],
         lineItems: [
           {
             productId: 'prod-1',
@@ -135,8 +139,8 @@ describe('OrdersService', () => {
       expect(result.status).toBe(OrderStatus.CONFIRMED);
       expect(result.lineItems?.[0].lineTotal).toBe('62500000');
       expect(result.ownerId).toBe('emp-1');
-      // Booked value snapshotted from the accepted bid's total.
-      expect(result.totalAmount).toBe('62687500');
+      // Booked value includes flat AMC accepted on the quotation.
+      expect(result.totalAmount).toBe('62937500');
     });
   });
 

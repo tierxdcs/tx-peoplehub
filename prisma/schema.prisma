@@ -1076,6 +1076,7 @@ model Bid {
   approverSignatureTextSnapshot String?
   approverSignatureFontSnapshot SignatureFont?
   lineItems                     BidLineItem[]
+  amcCharges                    BidAmcCharge[]
   orders                        Order[]
   createdAt                     DateTime       @default(now())
   updatedAt                     DateTime       @updatedAt
@@ -1106,6 +1107,23 @@ model BidLineItem {
 
   @@index([bidId])
   @@map("bid_line_items")
+}
+
+/// Optional flat Annual Maintenance Contract charges. Year 1 is covered by
+/// warranty and therefore intentionally excluded. These values are not passed
+/// through the bid discount or GST calculation.
+model BidAmcCharge {
+  id         String   @id @default(uuid())
+  bidId      String
+  bid        Bid      @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  yearNumber Int
+  amount     Decimal  @db.Decimal(14, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([bidId, yearNumber])
+  @@index([bidId])
+  @@map("bid_amc_charges")
 }
 
 model Order {

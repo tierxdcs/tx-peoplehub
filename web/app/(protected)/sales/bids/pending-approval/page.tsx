@@ -97,7 +97,7 @@ export default function BidApprovalQueuePage() {
                       {b.bidNumber}
                     </Link>
                     <span className="font-semibold">
-                      {formatINR(b.totalAmount)}
+                      {formatINR(b.grandTotal)}
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -151,7 +151,7 @@ export default function BidApprovalQueuePage() {
                         <Link href={`/sales/bids/${b.id}`}>{b.bidNumber}</Link>
                       </td>
                       <td>{b.discountPercent}%</td>
-                      <td>{formatINR(b.totalAmount)}</td>
+                      <td>{formatINR(b.grandTotal)}</td>
                       <td>
                         <Input
                           placeholder="Optional"

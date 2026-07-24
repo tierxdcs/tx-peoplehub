@@ -484,10 +484,33 @@ export default function BidDetailPage() {
                 </span>
                 <span>{formatINR(bid.taxAmount)}</span>
               </div>
+              {(bid.amcCharges ?? []).length > 0 && (
+                <>
+                  <div className="my-1 border-t" />
+                  {(bid.amcCharges ?? []).map((charge) => (
+                    <div className="flex justify-between" key={charge.id}>
+                      <span className="text-muted-foreground">
+                        AMC Charges for{' '}
+                        {charge.yearNumber === 2
+                          ? '2nd'
+                          : charge.yearNumber === 3
+                            ? '3rd'
+                            : `${charge.yearNumber}th`}{' '}
+                        Year
+                      </span>
+                      <span>{formatINR(charge.amount)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between font-medium">
+                    <span>AMC Total</span>
+                    <span>{formatINR(bid.amcTotal)}</span>
+                  </div>
+                </>
+              )}
               <div className="my-1 border-t" />
               <div className="flex justify-between text-lg font-semibold">
-                <span>Total</span>
-                <span>{formatINR(bid.totalAmount)}</span>
+                <span>Grand Total</span>
+                <span>{formatINR(bid.grandTotal)}</span>
               </div>
             </CardContent>
           </Card>

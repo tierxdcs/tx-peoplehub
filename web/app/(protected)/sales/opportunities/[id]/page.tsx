@@ -318,7 +318,7 @@ export default function OpportunityDetailPage() {
                     <StatusBadge value={b.status} />
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatINR(b.totalAmount)}
+                    {formatINR(b.grandTotal)}
                   </TableCell>
                   <TableCell className="text-right">
                     <Link

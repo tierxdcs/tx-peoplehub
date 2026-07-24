@@ -524,6 +524,13 @@ export interface BidLineItem {
   lineTotal: string;
 }
 
+export interface BidAmcCharge {
+  id: string;
+  bidId: string;
+  yearNumber: 2 | 3 | 4 | 5;
+  amount: string;
+}
+
 export interface Bid {
   id: string;
   bidNumber: string;
@@ -541,7 +548,12 @@ export interface Bid {
   taxType: SalesTaxType | null;
   taxRate: string | null;
   taxAmount: string;
+  /** Product/discount/GST total only; AMC is intentionally excluded. */
   totalAmount: string;
+  /** Computed sum of flat, untaxed AMC charges. */
+  amcTotal: string;
+  /** Computed totalAmount + amcTotal. */
+  grandTotal: string;
   createdById: string;
   ownerName: string;
   enquiryCreatorId: string;
@@ -555,6 +567,7 @@ export interface Bid {
   approverSignatureTextSnapshot: string | null;
   approverSignatureFontSnapshot: SignatureFont | null;
   lineItems?: BidLineItem[];
+  amcCharges?: BidAmcCharge[];
   /** Non-null once this bid has been converted to an order. */
   convertedOrderId: string | null;
   createdAt: string;

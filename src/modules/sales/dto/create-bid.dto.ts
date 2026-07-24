@@ -1,8 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayUnique,
   IsArray,
   IsDateString,
+  IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -31,6 +34,18 @@ export class BidLineItemDto {
   @Min(0)
   @Max(100)
   lineDiscountPercent?: number;
+}
+
+export class BidAmcChargeDto {
+  @ApiProperty({ enum: [2, 3, 4, 5] })
+  @IsInt()
+  @IsIn([2, 3, 4, 5])
+  yearNumber!: number;
+
+  @ApiProperty({ example: 25000 })
+  @IsNumber()
+  @Min(0)
+  amount!: number;
 }
 
 export class CreateBidDto {
@@ -92,4 +107,16 @@ export class CreateBidDto {
   @ValidateNested({ each: true })
   @Type(() => BidLineItemDto)
   lineItems!: BidLineItemDto[];
+
+  @ApiPropertyOptional({
+    type: [BidAmcChargeDto],
+    description:
+      'Optional flat, untaxed AMC charges for years 2-5. Omit blank years.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique((charge: BidAmcChargeDto) => charge.yearNumber)
+  @ValidateNested({ each: true })
+  @Type(() => BidAmcChargeDto)
+  amcCharges?: BidAmcChargeDto[];
 }

@@ -109,6 +109,15 @@ describe('BidsService', () => {
                 bidId: 'bid-1',
                 product: { name: `Product ${li.productId}`, sku: `SKU-${i}` },
               })),
+              amcCharges: (data.amcCharges?.create ?? []).map(
+                (charge: any, i: number) => ({
+                  ...charge,
+                  id: `amc-${i}`,
+                  bidId: 'bid-1',
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                }),
+              ),
             })),
           },
         }),
@@ -135,6 +144,8 @@ describe('BidsService', () => {
       expect(result.taxAmount).toBe('9562500');
       // total = 53,125,000 + 9,562,500 = 62,687,500
       expect(result.totalAmount).toBe('62687500');
+      expect(result.amcTotal).toBe('0');
+      expect(result.grandTotal).toBe(result.totalAmount);
       // price was snapshotted from the product, not passed in
       expect(result.lineItems?.[0].unitPrice).toBe('125000');
     });
@@ -171,6 +182,32 @@ describe('BidsService', () => {
       expect(result.taxType).toBeNull();
       expect(result.taxAmount).toBe('0');
       expect(result.totalAmount).toBe('125000');
+    });
+
+    it('adds only entered AMC years after tax without taxing them', async () => {
+      const result = await service.create(
+        {
+          opportunityId: 'opp-1',
+          customerId: 'cust-1',
+          validUntil: '2026-10-31',
+          lineItems: [{ productId: 'prod-1', quantity: 1 }],
+          amcCharges: [
+            { yearNumber: 2, amount: 10000 },
+            { yearNumber: 4, amount: 25000.5 },
+          ],
+        },
+        rep,
+      );
+
+      // Product 125,000 + 18% GST = 147,500. AMC remains flat and untaxed.
+      expect(result.taxAmount).toBe('22500');
+      expect(result.totalAmount).toBe('147500');
+      expect(result.amcTotal).toBe('35000.5');
+      expect(result.grandTotal).toBe('182500.5');
+      expect(result.amcCharges).toEqual([
+        expect.objectContaining({ yearNumber: 2, amount: '10000' }),
+        expect.objectContaining({ yearNumber: 4, amount: '25000.5' }),
+      ]);
     });
 
     it('rejects a bid with no line items', async () => {

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import {
   Bid,
+  BidAmcCharge,
   BidLineItem,
   BidStatus,
   Customer,
@@ -19,7 +20,11 @@ import {
 } from '../../common/dto/pagination.dto';
 import { CreateBidDto } from './dto/create-bid.dto';
 import { BidActionDto } from './dto/bid-action.dto';
-import { BidEntity, BidLineItemEntity } from './entities/bid.entity';
+import {
+  BidAmcChargeEntity,
+  BidEntity,
+  BidLineItemEntity,
+} from './entities/bid.entity';
 import {
   SalesAccessService,
   isAdmin,
@@ -46,6 +51,7 @@ type BidLineItemWithProduct = BidLineItem & {
 };
 type BidWithLines = Bid & {
   lineItems: BidLineItemWithProduct[];
+  amcCharges?: BidAmcCharge[];
   orders?: { id: string }[];
   enquiryCreator?: { firstName: string; lastName: string };
   opportunity?: { owner: { firstName: string; lastName: string } };
@@ -139,6 +145,12 @@ export class BidsService {
       discountPercent,
       taxRate,
     );
+    const amcData = (dto.amcCharges ?? [])
+      .filter((charge) => charge.amount > 0)
+      .map((charge) => ({
+        yearNumber: charge.yearNumber,
+        amount: this.money(new Prisma.Decimal(charge.amount)),
+      }));
 
     const created = await this.prisma.$transaction(async (tx) => {
       const bidNumber = await this.numbering.nextNumber(
@@ -169,9 +181,11 @@ export class BidsService {
           enquiryCreatorId: opportunity.enquiryCreatorId,
           businessUnitId: opportunity.businessUnitId,
           lineItems: { create: lineData },
+          amcCharges: { create: amcData },
         },
         include: {
           lineItems: { include: { product: true } },
+          amcCharges: { orderBy: { yearNumber: 'asc' } },
           enquiryCreator: { select: { firstName: true, lastName: true } },
           opportunity: {
             select: { owner: { select: { firstName: true, lastName: true } } },
@@ -198,6 +212,7 @@ export class BidsService {
         where,
         include: {
           lineItems: { include: { product: true } },
+          amcCharges: { orderBy: { yearNumber: 'asc' } },
           enquiryCreator: { select: { firstName: true, lastName: true } },
           opportunity: {
             select: { owner: { select: { firstName: true, lastName: true } } },
@@ -260,6 +275,7 @@ export class BidsService {
         where,
         include: {
           lineItems: { include: { product: true } },
+          amcCharges: { orderBy: { yearNumber: 'asc' } },
           enquiryCreator: { select: { firstName: true, lastName: true } },
           opportunity: {
             select: { owner: { select: { firstName: true, lastName: true } } },
@@ -309,7 +325,10 @@ export class BidsService {
       const updated = await this.prisma.bid.update({
         where: { id },
         data: { status: BidStatus.SENT, approverId: null, approvedAt: null },
-        include: { lineItems: { include: { product: true } } },
+        include: {
+          lineItems: { include: { product: true } },
+          amcCharges: { orderBy: { yearNumber: 'asc' } },
+        },
       });
       return this.toEntity(updated);
     }
@@ -325,7 +344,10 @@ export class BidsService {
     const updated = await this.prisma.bid.update({
       where: { id },
       data: { status: BidStatus.PENDING_APPROVAL, approverId },
-      include: { lineItems: { include: { product: true } } },
+      include: {
+        lineItems: { include: { product: true } },
+        amcCharges: { orderBy: { yearNumber: 'asc' } },
+      },
     });
     return this.toEntity(updated);
   }
@@ -359,7 +381,10 @@ export class BidsService {
         approverSignatureTextSnapshot: emp?.signatureText ?? null,
         approverSignatureFontSnapshot: emp?.signatureFont ?? null,
       },
-      include: { lineItems: { include: { product: true } } },
+      include: {
+        lineItems: { include: { product: true } },
+        amcCharges: { orderBy: { yearNumber: 'asc' } },
+      },
     });
     return this.toEntity(updated);
   }
@@ -386,7 +411,10 @@ export class BidsService {
         approvedAt: new Date(),
         approverComments: dto.approverComments ?? null,
       },
-      include: { lineItems: { include: { product: true } } },
+      include: {
+        lineItems: { include: { product: true } },
+        amcCharges: { orderBy: { yearNumber: 'asc' } },
+      },
     });
     return this.toEntity(updated);
   }
@@ -417,7 +445,10 @@ export class BidsService {
     const updated = await this.prisma.bid.update({
       where: { id },
       data: { status: target },
-      include: { lineItems: { include: { product: true } } },
+      include: {
+        lineItems: { include: { product: true } },
+        amcCharges: { orderBy: { yearNumber: 'asc' } },
+      },
     });
     return this.toEntity(updated);
   }
@@ -488,6 +519,7 @@ export class BidsService {
       where: { id },
       include: {
         lineItems: { include: { product: true } },
+        amcCharges: { orderBy: { yearNumber: 'asc' } },
         enquiryCreator: { select: { firstName: true, lastName: true } },
         opportunity: {
           select: { owner: { select: { firstName: true, lastName: true } } },
@@ -504,6 +536,15 @@ export class BidsService {
   }
 
   private toEntity(bid: BidWithLines): BidEntity {
+    const amcCharges = bid.amcCharges ?? [];
+    const amcTotal = this.money(
+      amcCharges.reduce(
+        (sum, charge) => sum.plus(charge.amount),
+        new Prisma.Decimal(0),
+      ),
+    );
+    const grandTotal = this.money(bid.totalAmount.plus(amcTotal));
+
     return new BidEntity({
       id: bid.id,
       bidNumber: bid.bidNumber,
@@ -522,6 +563,8 @@ export class BidsService {
       taxRate: bid.taxRate?.toString() ?? null,
       taxAmount: bid.taxAmount.toString(),
       totalAmount: bid.totalAmount.toString(),
+      amcTotal: amcTotal.toString(),
+      grandTotal: grandTotal.toString(),
       createdById: bid.createdById,
       enquiryCreatorId: bid.enquiryCreatorId,
       enquiryCreatorName: bid.enquiryCreator
@@ -553,6 +596,15 @@ export class BidsService {
             unitPrice: li.unitPrice.toString(),
             lineDiscountPercent: li.lineDiscountPercent?.toString() ?? null,
             lineTotal: li.lineTotal.toString(),
+          }),
+      ),
+      amcCharges: amcCharges.map(
+        (charge) =>
+          new BidAmcChargeEntity({
+            id: charge.id,
+            bidId: charge.bidId,
+            yearNumber: charge.yearNumber,
+            amount: charge.amount.toString(),
           }),
       ),
       createdAt: bid.createdAt,

@@ -110,7 +110,7 @@ export default function BidsPage() {
       sent: summaryRows.filter((bid) => bid.status === 'SENT').length,
       acceptedValue: summaryRows
         .filter((bid) => bid.status === 'ACCEPTED')
-        .reduce((sum, bid) => sum + Number(bid.totalAmount), 0),
+        .reduce((sum, bid) => sum + Number(bid.grandTotal), 0),
     }),
     [summaryRows],
   );
@@ -235,7 +235,7 @@ export default function BidsPage() {
                       />
                     </TableCell>
                     <TableCell>{Number(bid.discountPercent)}%</TableCell>
-                    <TableCell>{formatINR(bid.totalAmount)}</TableCell>
+                    <TableCell>{formatINR(bid.grandTotal)}</TableCell>
                     <TableCell>{bid.ownerName}</TableCell>
                     <TableCell>
                       {new Date(bid.validUntil).toLocaleDateString('en-IN')}

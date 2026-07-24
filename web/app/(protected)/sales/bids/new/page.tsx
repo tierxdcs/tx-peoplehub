@@ -27,6 +27,13 @@ interface LineDraft {
   lineDiscountPercent: string;
 }
 
+const AMC_YEARS = [
+  { yearNumber: 2, label: 'AMC Charges for 2nd Year' },
+  { yearNumber: 3, label: 'AMC Charges for 3rd Year' },
+  { yearNumber: 4, label: 'AMC Charges for 4th Year' },
+  { yearNumber: 5, label: 'AMC Charges for 5th Year' },
+] as const;
+
 /** Client-side preview of bid totals. Always re-validated server-side on submit. */
 function computeTotals(
   lines: LineDraft[],
@@ -66,6 +73,12 @@ export default function NewBidPage() {
   const [attachmentName, setAttachmentName] = useState('');
   const [attachmentUrl, setAttachmentUrl] = useState('');
   const [discountPercent, setDiscountPercent] = useState('0');
+  const [amcAmounts, setAmcAmounts] = useState<Record<number, string>>({
+    2: '',
+    3: '',
+    4: '',
+    5: '',
+  });
   const [lines, setLines] = useState<LineDraft[]>([
     { productId: '', quantity: '', lineDiscountPercent: '' },
   ]);
@@ -93,6 +106,10 @@ export default function NewBidPage() {
     [lines, products, discountNum],
   );
   const needsApproval = discountNum > 10;
+  const amcTotal = AMC_YEARS.reduce(
+    (sum, { yearNumber }) => sum + (Number(amcAmounts[yearNumber]) || 0),
+    0,
+  );
 
   function updateLine(i: number, patch: Partial<LineDraft>) {
     setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
@@ -153,6 +170,10 @@ export default function NewBidPage() {
           technicalSpecification: technicalSpecification || undefined,
           attachments,
           discountPercent: discountNum,
+          amcCharges: AMC_YEARS.map(({ yearNumber }) => ({
+            yearNumber,
+            amount: Number(amcAmounts[yearNumber]) || 0,
+          })).filter((charge) => charge.amount > 0),
           lineItems: validLines.map((l) => ({
             productId: l.productId,
             quantity: Number(l.quantity),
@@ -395,6 +416,40 @@ export default function NewBidPage() {
           />
         </div>
 
+        <section className="mb-4 max-w-md rounded-md border p-4">
+          <h3 className="mb-3 text-base font-semibold">AMC Charges</h3>
+          <div className="space-y-3">
+            {AMC_YEARS.map(({ yearNumber, label }) => (
+              <label
+                key={yearNumber}
+                className="grid gap-1 text-sm sm:grid-cols-[1fr_160px] sm:items-center"
+              >
+                <span>{label}</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  inputMode="decimal"
+                  value={amcAmounts[yearNumber]}
+                  onChange={(event) =>
+                    setAmcAmounts((current) => ({
+                      ...current,
+                      [yearNumber]: event.target.value,
+                    }))
+                  }
+                  placeholder="0.00"
+                  aria-label={label}
+                  style={fieldStyle}
+                />
+              </label>
+            ))}
+          </div>
+          <div className="mt-3 flex justify-between border-t pt-3 font-semibold">
+            <span>AMC Total</span>
+            <span>{formatINR(amcTotal)}</span>
+          </div>
+        </section>
+
         {/* Live totals preview (tax computed server-side, shown on detail). */}
         <div
           style={{
@@ -409,6 +464,11 @@ export default function NewBidPage() {
           <div>Discount: −{formatINR(totals.discountAmount)}</div>
           <div style={{ fontWeight: 'bold' }}>
             Taxable: {formatINR(totals.taxable)}
+          </div>
+          <div>AMC Total (untaxed): {formatINR(amcTotal)}</div>
+          <div className="mt-1 flex justify-between border-t pt-1 font-bold">
+            <span>Grand Total before GST</span>
+            <span>{formatINR(totals.taxable + amcTotal)}</span>
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
             Tax is applied server-side from the active GST config; the final

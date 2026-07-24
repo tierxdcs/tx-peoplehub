@@ -69,7 +69,10 @@ export class OrdersService {
     await this.access.assertSalesAccess(user);
     const bid = await this.prisma.bid.findUnique({
       where: { id: bidId },
-      include: { lineItems: { include: { product: true } } },
+      include: {
+        lineItems: { include: { product: true } },
+        amcCharges: true,
+      },
     });
     if (!bid) {
       throw new NotFoundException('Bid not found');
@@ -89,6 +92,10 @@ export class OrdersService {
     }
 
     const created = await this.prisma.$transaction(async (tx) => {
+      const amcTotal = (bid.amcCharges ?? []).reduce(
+        (sum, charge) => sum.plus(charge.amount),
+        new Prisma.Decimal(0),
+      );
       const orderNumber = await this.numbering.nextNumber(
         'ORD',
         'order',
@@ -103,8 +110,8 @@ export class OrdersService {
           ownerId: bid.createdById,
           enquiryCreatorId: bid.enquiryCreatorId,
           businessUnitId: bid.businessUnitId,
-          // Snapshot the accepted bid's total as the order's booked value.
-          totalAmount: bid.totalAmount,
+          // Snapshot the full accepted quotation value, including flat AMC.
+          totalAmount: bid.totalAmount.plus(amcTotal),
           lineItems: {
             create: bid.lineItems.map((li) => ({
               productId: li.productId,

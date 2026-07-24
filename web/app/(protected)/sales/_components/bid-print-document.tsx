@@ -220,6 +220,8 @@ export function BidPrintDocument({
 
   const preparedBy = preparedByName ?? 'Sales & Business Development';
   const lineItems = bid.lineItems ?? [];
+  const amcCharges = bid.amcCharges ?? [];
+  const grandTotal = bid.grandTotal ?? bid.totalAmount;
 
   const th: React.CSSProperties = {
     padding: '8px 8px',
@@ -436,6 +438,45 @@ export function BidPrintDocument({
                       <td style={tdR}>{formatINR(li.lineTotal)}</td>
                     </tr>
                   ))}
+                  {amcCharges.length > 0 && (
+                    <tr className="print-avoid-break">
+                      <td
+                        colSpan={6}
+                        style={{
+                          padding: '7px 8px',
+                          textAlign: 'right',
+                          fontWeight: 600,
+                          color: NAVY,
+                        }}
+                      >
+                        BID TOTAL INCLUDING TAX (INR)
+                      </td>
+                      <td style={{ ...tdR, fontWeight: 600 }}>
+                        {formatINR(bid.totalAmount)}
+                      </td>
+                    </tr>
+                  )}
+                  {amcCharges.map((charge) => (
+                    <tr key={charge.id} className="print-avoid-break">
+                      <td
+                        colSpan={6}
+                        style={{
+                          padding: '7px 8px',
+                          textAlign: 'right',
+                          color: NAVY,
+                        }}
+                      >
+                        AMC Charges for{' '}
+                        {charge.yearNumber === 2
+                          ? '2nd'
+                          : charge.yearNumber === 3
+                            ? '3rd'
+                            : `${charge.yearNumber}th`}{' '}
+                        Year
+                      </td>
+                      <td style={tdR}>{formatINR(charge.amount)}</td>
+                    </tr>
+                  ))}
                   {/* Grand total — highlighted */}
                   <tr className="print-avoid-break" style={{ background: '#eef1f4' }}>
                     <td
@@ -460,7 +501,7 @@ export function BidPrintDocument({
                         fontSize: 12,
                       }}
                     >
-                      {formatINR(bid.totalAmount)}
+                      {formatINR(grandTotal)}
                     </td>
                   </tr>
                 </tbody>
@@ -468,7 +509,7 @@ export function BidPrintDocument({
 
               {/* Amount in words + tax caption */}
               <p style={{ fontSize: 10.5, color: MUTED, marginBottom: 24 }}>
-                Amount in words: {amountToIndianWords(bid.totalAmount)}. Prices
+                Amount in words: {amountToIndianWords(grandTotal)}. Prices
                 are exclusive of applicable taxes and duties unless stated
                 otherwise.
               </p>

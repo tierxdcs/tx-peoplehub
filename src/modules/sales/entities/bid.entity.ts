@@ -45,6 +45,24 @@ export class BidLineItemEntity {
   }
 }
 
+export class BidAmcChargeEntity {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  bidId!: string;
+
+  @ApiProperty({ enum: [2, 3, 4, 5] })
+  yearNumber!: number;
+
+  @ApiProperty({ description: 'Flat untaxed amount serialized as string' })
+  amount!: string;
+
+  constructor(partial: Partial<BidAmcChargeEntity>) {
+    Object.assign(this, partial);
+  }
+}
+
 export class BidEntity {
   @ApiProperty()
   id!: string;
@@ -107,6 +125,16 @@ export class BidEntity {
   @ApiProperty()
   totalAmount!: string;
 
+  @ApiProperty({
+    description: 'Computed sum of optional AMC charges; not stored on Bid',
+  })
+  amcTotal!: string;
+
+  @ApiProperty({
+    description: 'Computed totalAmount + amcTotal; not stored on Bid',
+  })
+  grandTotal!: string;
+
   @ApiProperty()
   createdById!: string;
 
@@ -150,6 +178,9 @@ export class BidEntity {
 
   @ApiProperty({ type: [BidLineItemEntity], required: false })
   lineItems?: BidLineItemEntity[];
+
+  @ApiProperty({ type: [BidAmcChargeEntity], required: false })
+  amcCharges?: BidAmcChargeEntity[];
 
   @ApiProperty({
     nullable: true,
