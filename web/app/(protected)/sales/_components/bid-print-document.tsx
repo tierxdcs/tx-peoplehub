@@ -239,7 +239,11 @@ export function BidPrintDocument({
     overflowWrap: 'break-word',
     wordBreak: 'break-word',
   };
-  const tdR: React.CSSProperties = { ...td, textAlign: 'right' };
+  const tdR: React.CSSProperties = {
+    ...td,
+    textAlign: 'right',
+    whiteSpace: 'nowrap',
+  };
 
   return (
     <div className="print-document" style={{ color: '#111', lineHeight: 1.5 }}>
@@ -412,7 +416,7 @@ export function BidPrintDocument({
                     <th style={{ ...thR, width: '7%' }}>Qty</th>
                     <th style={{ ...th, width: '9%' }}>Units</th>
                     <th style={{ ...thR, width: '13%' }}>Unit Price (INR)</th>
-                    <th style={{ ...thR, width: '13%' }}>Total (INR)</th>
+                    <th style={{ ...thR, width: '16%' }}>Total (INR)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -488,6 +492,7 @@ export function BidPrintDocument({
                         color: NAVY,
                         fontSize: 11,
                         letterSpacing: '0.04em',
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       GRAND TOTAL (INR)
@@ -499,6 +504,7 @@ export function BidPrintDocument({
                         fontWeight: 800,
                         color: NAVY,
                         fontSize: 12,
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       {formatINR(grandTotal)}
