@@ -2,9 +2,7 @@
 @plugin 'tailwindcss-animate';
 
 /*
- * Dark-mode selector strategy: shadcn toggles a `.dark` class on <html>.
- * (This app is light-only for now, but the tokens are defined for both so a
- * theme toggle is a small later change.)
+ * Dark-mode selector strategy: next-themes toggles a `.dark` class on <html>.
  */
 @custom-variant dark (&:is(.dark *));
 
@@ -83,6 +81,60 @@
   --warning-foreground: 0 0% 100%;
   --info: 217 91% 60%;
   --info-foreground: 0 0% 100%;
+}
+
+/*
+ * Generated/customer-facing document previews remain print-white even while
+ * the surrounding authenticated application is dark. This resets the existing
+ * token set locally; it does not introduce a parallel palette.
+ */
+.fixed-light-surface {
+  color-scheme: light;
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 217 91% 45%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 217 91% 45%;
+  --success: 142 71% 40%;
+  --success-foreground: 0 0% 100%;
+  --warning: 32 95% 44%;
+  --warning-foreground: 0 0% 100%;
+  --info: 217 91% 45%;
+  --info-foreground: 0 0% 100%;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.supplier-questionnaire-body {
+  --questionnaire-ink: #1e2340;
+  --questionnaire-muted: #6b7280;
+  --questionnaire-text: #374151;
+  --questionnaire-border: #d8dbe2;
+  --questionnaire-surface: #fff;
+  --questionnaire-subtle: #f8f8f9;
+}
+
+.dark .supplier-questionnaire-body {
+  --questionnaire-ink: hsl(var(--foreground));
+  --questionnaire-muted: hsl(var(--muted-foreground));
+  --questionnaire-text: hsl(var(--foreground));
+  --questionnaire-border: hsl(var(--border));
+  --questionnaire-surface: hsl(var(--background));
+  --questionnaire-subtle: hsl(var(--muted));
 }
 
 /*

@@ -308,7 +308,7 @@ function ItemSuppliers({ itemId }: { itemId: string }) {
               <span
                 className={
                   link.isQualified
-                    ? 'text-xs text-green-600'
+                    ? 'text-xs text-success'
                     : 'text-xs text-muted-foreground'
                 }
               >

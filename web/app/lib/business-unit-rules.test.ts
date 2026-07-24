@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { inferBusinessUnitCode } from './business-unit-rules';
+import {
+  BUSINESS_UNIT_RULES,
+  inferBusinessUnitCode,
+  orderProductsForOpportunity,
+} from './business-unit-rules';
 
 describe('inferBusinessUnitCode', () => {
   it('matches a single clear keyword (name)', () => {
@@ -36,4 +40,27 @@ describe('inferBusinessUnitCode', () => {
   it('returns null when nothing matches', () => {
     expect(inferBusinessUnitCode('Generic Thing XYZ')).toBeNull();
   });
+});
+
+describe('orderProductsForOpportunity', () => {
+  const products = BUSINESS_UNIT_RULES.map((rule) => ({
+    id: `product-${rule.businessUnitCode}`,
+    businessUnitId: rule.businessUnitCode,
+  }));
+
+  it.each(BUSINESS_UNIT_RULES.map((rule) => rule.businessUnitCode))(
+    'keeps products from every BU selectable for a %s opportunity',
+    (opportunityBusinessUnitId) => {
+      const ordered = orderProductsForOpportunity(
+        products,
+        opportunityBusinessUnitId,
+      );
+
+      expect(ordered).toHaveLength(products.length);
+      expect(ordered.map((product) => product.businessUnitId).sort()).toEqual(
+        products.map((product) => product.businessUnitId).sort(),
+      );
+      expect(ordered[0].businessUnitId).toBe(opportunityBusinessUnitId);
+    },
+  );
 });

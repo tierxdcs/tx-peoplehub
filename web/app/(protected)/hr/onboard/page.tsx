@@ -249,7 +249,7 @@ export default function OnboardEmployeePage() {
                   className={cn(
                     'flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-medium',
                     active && 'border-primary bg-primary text-primary-foreground',
-                    done && 'border-success bg-success text-white',
+                    done && 'border-success bg-success text-success-foreground',
                     !active && !done && 'border-muted-foreground/30 text-muted-foreground',
                   )}
                 >

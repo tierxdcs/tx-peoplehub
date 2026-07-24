@@ -100,7 +100,10 @@ describe('sidebarNav — the reported bug', () => {
       const groups = sidebarNav(a, activeNavModule);
       expect(groups[0]).toEqual({
         heading: 'Home',
-        items: [{ label: 'Dashboard', href: '/dashboard' }],
+        items: [
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Help & SOP', href: '/help' },
+        ],
       });
     }
   });

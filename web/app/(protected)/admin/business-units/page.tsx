@@ -111,12 +111,12 @@ export default function BusinessUnitsPage() {
   return (
     <div>
       <h1>Business Units</h1>
-      <p style={{ color: '#666', marginBottom: 16 }}>
+      <p className="mb-4 text-muted-foreground">
         Deactivating a unit hides it from the product dropdown but keeps it on
         products already tagged with it.
       </p>
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p className="text-destructive">{error}</p>}
 
       {loading ? (
         <p>Loading…</p>
@@ -129,7 +129,7 @@ export default function BusinessUnitsPage() {
           }}
         >
           <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
+            <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
               <th>Order</th>
               <th>Name</th>
               <th>Code</th>
@@ -141,7 +141,7 @@ export default function BusinessUnitsPage() {
           </thead>
           <tbody>
             {units.map((u) => (
-              <tr key={u.id} style={{ borderBottom: '1px solid #eee' }}>
+              <tr key={u.id} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
                 {editingId === u.id ? (
                   <>
                     <td>
@@ -194,7 +194,7 @@ export default function BusinessUnitsPage() {
                     <td>{u.displayOrder}</td>
                     <td>{u.name}</td>
                     <td>{u.code}</td>
-                    <td style={{ color: '#666' }}>{u.description ?? '—'}</td>
+                    <td className="text-muted-foreground">{u.description ?? '—'}</td>
                     <td>
                       <span
                         style={{

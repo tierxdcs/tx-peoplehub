@@ -383,7 +383,7 @@ function CustomerForm({
       <form
         onSubmit={handleSubmit}
         style={{
-          background: '#fff',
+          background: 'hsl(var(--card))',
           padding: 24,
           borderRadius: 6,
           width: 460,
@@ -475,7 +475,7 @@ function CustomerForm({
                 ))}
               </ul>
             ) : (
-              <span style={{ color: '#666' }}>No contacts.</span>
+              <span className="text-muted-foreground">No contacts.</span>
             )}
           </div>
         ) : (
@@ -487,7 +487,7 @@ function CustomerForm({
               <div
                 key={i}
                 style={{
-                  border: '1px solid #eee',
+                  border: '1px solid hsl(var(--border))',
                   borderRadius: 4,
                   padding: 8,
                   marginBottom: 8,
@@ -543,7 +543,7 @@ function CustomerForm({
           </div>
         )}
 
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
+        {error && <p className="text-destructive">{error}</p>}
 
         <div style={{ display: 'flex', gap: 8 }}>
           <Button type="submit" disabled={submitting}>

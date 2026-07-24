@@ -66,7 +66,7 @@ export default function PendingAccessPage() {
     <div>
       <h1>Pending Access</h1>
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p className="text-destructive">{error}</p>}
       {loading ? (
         <p>Loading…</p>
       ) : items.length === 0 ? (
@@ -74,7 +74,7 @@ export default function PendingAccessPage() {
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
+            <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
               <th>Employee ID</th>
               <th>Name</th>
               <th>Vertical</th>
@@ -85,7 +85,7 @@ export default function PendingAccessPage() {
           </thead>
           <tbody>
             {items.map((e) => (
-              <tr key={e.id} style={{ borderBottom: '1px solid #eee' }}>
+              <tr key={e.id} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
                 <td>{e.employeeId}</td>
                 <td>
                   {e.firstName} {e.lastName}
@@ -131,7 +131,7 @@ export default function PendingAccessPage() {
           onClick={() => setGranted(null)}
         >
           <div
-            style={{ background: '#fff', padding: 24, borderRadius: 6 }}
+            style={{ background: 'hsl(var(--card))', padding: 24, borderRadius: 6 }}
             onClick={(e) => e.stopPropagation()}
           >
             <h2>Access granted</h2>
@@ -235,7 +235,7 @@ function GrantAccessForm({
       <form
         onSubmit={handleSubmit}
         style={{
-          background: '#fff',
+          background: 'hsl(var(--card))',
           padding: 24,
           borderRadius: 6,
           width: 400,
@@ -321,7 +321,7 @@ function GrantAccessForm({
           />
         </div>
 
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
+        {error && <p className="text-destructive">{error}</p>}
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="submit" disabled={submitting} style={{ padding: 8 }}>

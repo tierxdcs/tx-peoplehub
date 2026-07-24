@@ -202,6 +202,46 @@ describe('BidsService', () => {
       ).rejects.toThrow(/approved Bid\/No-Bid assessment/);
       expect(bidAssessments.latestApprovedFor).toHaveBeenCalledWith('opp-1');
     });
+
+    it.each([
+      'INFRA',
+      'EDGE',
+      'HYPERSCALE',
+      'MOD',
+      'INTELLIGENCE',
+      'SERVICES',
+    ])(
+      'allows products from every business unit for a %s opportunity',
+      async (opportunityBusinessUnitId) => {
+        prisma.opportunity.findUnique.mockResolvedValue({
+          id: 'opp-1',
+          businessUnitId: opportunityBusinessUnitId,
+        });
+        prisma.product.findMany.mockResolvedValue([
+          {
+            id: 'prod-1',
+            sku: 'CROSS-SELL-1',
+            businessUnitId:
+              opportunityBusinessUnitId === 'SERVICES'
+                ? 'EDGE'
+                : 'SERVICES',
+            unitPrice: new Prisma.Decimal(125000),
+          },
+        ]);
+
+        await expect(
+          service.create(
+            {
+              opportunityId: 'opp-1',
+              customerId: 'cust-1',
+              validUntil: '2026-10-31',
+              lineItems: [{ productId: 'prod-1', quantity: 1 }],
+            },
+            rep,
+          ),
+        ).resolves.toBeDefined();
+      },
+    );
   });
 
   describe('submit — discount approval routing', () => {

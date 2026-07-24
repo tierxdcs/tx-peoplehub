@@ -19,6 +19,7 @@ import { Avatar } from '../ui/avatar';
 import { cn } from '../../lib/utils';
 import { ResetPasswordDialog } from './reset-password-dialog';
 import { NotificationBell } from './notification-bell';
+import { ThemeToggle } from './theme-toggle';
 
 /**
  * Top bar: brand (left) · module switcher (center, only if the user has both
@@ -107,6 +108,7 @@ export function AppTopBar({
 
       <div className="ml-auto flex items-center gap-1">
         <NotificationBell />
+        <ThemeToggle />
 
         <div className="relative" ref={menuRef}>
           <button

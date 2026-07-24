@@ -78,7 +78,7 @@ export default function BidApprovalQueuePage() {
         description="Bids awaiting your approval. Your own submitted bids never appear here."
       />
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p className="text-destructive">{error}</p>}
       {loading ? (
         <p>Loading…</p>
       ) : bids.length === 0 ? (
@@ -134,7 +134,7 @@ export default function BidApprovalQueuePage() {
                   <tr
                     style={{
                       textAlign: 'left',
-                      borderBottom: '1px solid #ccc',
+                      borderBottom: '1px solid hsl(var(--border))',
                     }}
                   >
                     <th>Bid #</th>
@@ -146,7 +146,7 @@ export default function BidApprovalQueuePage() {
                 </thead>
                 <tbody>
                   {bids.map((b) => (
-                    <tr key={b.id} style={{ borderBottom: '1px solid #eee' }}>
+                    <tr key={b.id} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
                       <td>
                         <Link href={`/sales/bids/${b.id}`}>{b.bidNumber}</Link>
                       </td>

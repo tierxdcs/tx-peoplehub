@@ -10,6 +10,7 @@ import {
   Product,
 } from '../../../../lib/types';
 import { formatINR } from '../../../../lib/sales';
+import { orderProductsForOpportunity } from '../../../../lib/business-unit-rules';
 import { todayDateStr } from '../../../../lib/date';
 import { Button } from '../../../../components/ui/button';
 import { useConfirm } from '../../../../components/ui/confirm';
@@ -193,7 +194,7 @@ export default function NewBidPage() {
             ))}
           </select>
           {selectedOpp && !customerId && (
-            <p style={{ color: 'crimson', fontSize: 13 }}>
+            <p className="text-sm text-destructive">
               This opportunity has no linked customer.
             </p>
           )}
@@ -235,7 +236,7 @@ export default function NewBidPage() {
             placeholder="e.g. Submission of quotation for supply of 24U & 42U 800x800 racks, along with MDU"
             style={fieldStyle}
           />
-          <p style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+          <p className="mt-1 text-xs text-muted-foreground">
             Used in both the Subject line and the opening paragraph of the
             proposal.
           </p>
@@ -250,7 +251,7 @@ export default function NewBidPage() {
             onChange={(e) => setTechnicalSpecification(e.target.value)}
             style={{ ...fieldStyle, minHeight: 80 }}
           />
-          <p style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+          <p className="mt-1 text-xs text-muted-foreground">
             Internal notes only — not printed on the proposal (the per-line
             product description carries the technical detail).
           </p>
@@ -281,7 +282,7 @@ export default function NewBidPage() {
           style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}
         >
           <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
+            <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
               <th>Product</th>
               <th>Unit price</th>
               <th>Qty</th>
@@ -298,7 +299,7 @@ export default function NewBidPage() {
               const disc = Number(l.lineDiscountPercent) || 0;
               const lineTotal = unit * qty * (1 - disc / 100);
               return (
-                <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
+                <tr key={i} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
                   <td>
                     <select
                       value={l.productId}
@@ -308,16 +309,15 @@ export default function NewBidPage() {
                       style={{ padding: 4, minWidth: 180 }}
                     >
                       <option value="">Select…</option>
-                      {products
-                        .filter(
-                          (candidate) =>
-                            !selectedOpp ||
-                            candidate.businessUnitId ===
-                              selectedOpp.businessUnitId,
-                        )
-                        .map((p) => (
+                      {orderProductsForOpportunity(
+                        products,
+                        selectedOpp?.businessUnitId,
+                      ).map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.name} ({p.sku})
+                            {p.businessUnitName
+                              ? ` · ${p.businessUnitName}`
+                              : ''}
                           </option>
                         ))}
                     </select>
@@ -398,7 +398,7 @@ export default function NewBidPage() {
         {/* Live totals preview (tax computed server-side, shown on detail). */}
         <div
           style={{
-            border: '1px solid #ccc',
+            border: '1px solid hsl(var(--border))',
             borderRadius: 6,
             padding: 12,
             maxWidth: 300,
@@ -410,20 +410,20 @@ export default function NewBidPage() {
           <div style={{ fontWeight: 'bold' }}>
             Taxable: {formatINR(totals.taxable)}
           </div>
-          <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+          <div className="mt-1 text-xs text-muted-foreground">
             Tax is applied server-side from the active GST config; the final
             total appears on the bid after saving.
           </div>
         </div>
 
         {needsApproval && (
-          <p style={{ color: '#a06000' }}>
+          <p className="text-warning">
             ⚠ This bid&apos;s discount exceeds 10% — it will require manager
             approval before it can be sent.
           </p>
         )}
 
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
+        {error && <p className="text-destructive">{error}</p>}
 
         <div style={{ display: 'flex', gap: 8 }}>
           <Button type="submit" disabled={submitting}>

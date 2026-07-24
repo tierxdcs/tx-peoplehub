@@ -33,7 +33,7 @@ function StageStrip({ tracker }: { tracker: PlmTracker }) {
       {stages.map((stage, index) => (
         <li key={stage} className="flex items-start last:flex-none">
           <div className="flex w-20 flex-col items-center text-center">
-            <span className={`flex size-8 items-center justify-center rounded-full border-2 text-xs font-semibold ${index < active ? 'border-success bg-success text-white' : index === active ? 'border-primary bg-primary/10 text-primary' : 'border-muted-foreground/25 text-muted-foreground'}`}>
+            <span className={`flex size-8 items-center justify-center rounded-full border-2 text-xs font-semibold ${index < active ? 'border-success bg-success text-success-foreground' : index === active ? 'border-primary bg-primary/10 text-primary' : 'border-muted-foreground/25 text-muted-foreground'}`}>
               {index < active ? <Check className="size-4" /> : index + 1}
             </span>
             <span className="mt-1 text-[11px] leading-tight text-muted-foreground">{prettyEnum(stage)}</span>

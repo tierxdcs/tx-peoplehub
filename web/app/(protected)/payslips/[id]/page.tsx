@@ -10,8 +10,8 @@ const PAYSLIPS_ENABLED = process.env.NEXT_PUBLIC_PAYSLIPS_ENABLED === 'true';
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <tr style={{ borderBottom: '1px solid #eee' }}>
-      <td style={{ padding: '6px 12px 6px 0', color: '#666' }}>{label}</td>
+    <tr style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+      <td style={{ padding: '6px 12px 6px 0', color: 'hsl(var(--muted-foreground))' }}>{label}</td>
       <td style={{ padding: '6px 0', fontWeight: 'bold' }}>{value}</td>
     </tr>
   );
@@ -39,7 +39,7 @@ export default function MyPayslipDetailPage() {
 
   if (!PAYSLIPS_ENABLED) return null;
   if (loading) return <p>Loading…</p>;
-  if (error || !payslip) return <p style={{ color: 'crimson' }}>{error}</p>;
+  if (error || !payslip) return <p className="text-destructive">{error}</p>;
 
   return (
     <div>

@@ -31,7 +31,7 @@ export default function MyPayslipsPage() {
     <div>
       <h1>My Payslips</h1>
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p className="text-destructive">{error}</p>}
       {loading ? (
         <p>Loading…</p>
       ) : payslips.length === 0 ? (
@@ -39,7 +39,7 @@ export default function MyPayslipsPage() {
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
+            <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
               <th>Generated</th>
               <th>Gross</th>
               <th>Net Pay</th>
@@ -49,7 +49,7 @@ export default function MyPayslipsPage() {
           </thead>
           <tbody>
             {payslips.map((p) => (
-              <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+              <tr key={p.id} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
                 <td>{new Date(p.createdAt).toLocaleDateString()}</td>
                 <td>{p.grossEarnings}</td>
                 <td>{p.netPay}</td>

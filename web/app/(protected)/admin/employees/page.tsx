@@ -13,8 +13,8 @@ const rosterBadgeStyle: React.CSSProperties = {
   marginLeft: 8,
   fontSize: 11,
   fontWeight: 600,
-  color: '#1d4ed8',
-  background: '#dbeafe',
+  color: 'hsl(var(--primary))',
+  background: 'hsl(var(--primary) / 0.1)',
   borderRadius: 10,
   padding: '1px 8px',
 };
@@ -178,14 +178,14 @@ export default function EmployeesListPage() {
         </select>
       </div>
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p className="text-destructive">{error}</p>}
       {loading ? (
         <p>Loading…</p>
       ) : (
         <>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
                 <th>Employee ID</th>
                 <th>Name</th>
                 <th>Email</th>
@@ -197,7 +197,7 @@ export default function EmployeesListPage() {
             </thead>
             <tbody>
               {filtered.map((e) => (
-                <tr key={e.id} style={{ borderBottom: '1px solid #eee' }}>
+                <tr key={e.id} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
                   <td>{e.employeeId}</td>
                   <td>
                     <Link href={`/admin/employees/${e.id}`}>
@@ -237,7 +237,7 @@ export default function EmployeesListPage() {
                       {isSuperAdmin && (
                         <button
                           onClick={() => handleDelete(e)}
-                          style={{ color: 'crimson' }}
+                          className="text-destructive"
                         >
                           Delete
                         </button>

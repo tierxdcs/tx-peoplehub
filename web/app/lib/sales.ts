@@ -55,7 +55,7 @@ export function badgeStyle(background: string): React.CSSProperties {
     borderRadius: 10,
     fontSize: 12,
     fontWeight: 600,
-    color: '#fff',
+    color: 'hsl(var(--primary-foreground))',
     background,
   };
 }
@@ -64,52 +64,53 @@ export function badgeStyle(background: string): React.CSSProperties {
 export function priorityColor(p: LeadPriority): string {
   switch (p) {
     case 'HIGH':
-      return '#c0392b';
+      return 'hsl(var(--destructive))';
     case 'MEDIUM':
-      return '#e67e22';
+      return 'hsl(var(--warning))';
     case 'LOW':
-      return '#7f8c8d';
+      return 'hsl(var(--muted-foreground))';
   }
 }
 
 /** Neutral-to-green-ish color for a blended lead/opportunity display status. */
 export function pipelineStatusColor(displayStatus: string): string {
   const s = displayStatus.toLowerCase();
-  if (s.includes('won')) return '#27ae60';
-  if (s.includes('lost') || s.includes('disqualified')) return '#c0392b';
+  if (s.includes('won')) return 'hsl(var(--success))';
+  if (s.includes('lost') || s.includes('disqualified'))
+    return 'hsl(var(--destructive))';
   if (s.includes('qualified') || s.includes('proposal') || s.includes('negotiation'))
-    return '#2980b9';
-  return '#7f8c8d'; // New / Contacted / Prospecting / etc.
+    return 'hsl(var(--info))';
+  return 'hsl(var(--muted-foreground))'; // New / Contacted / Prospecting / etc.
 }
 
 export function bidStatusColor(status: BidStatus): string {
   switch (status) {
     case 'ACCEPTED':
-      return '#27ae60';
+      return 'hsl(var(--success))';
     case 'APPROVED':
     case 'SENT':
-      return '#2980b9';
+      return 'hsl(var(--info))';
     case 'PENDING_APPROVAL':
-      return '#e67e22';
+      return 'hsl(var(--warning))';
     case 'REJECTED':
     case 'EXPIRED':
-      return '#c0392b';
+      return 'hsl(var(--destructive))';
     case 'DRAFT':
     default:
-      return '#7f8c8d';
+      return 'hsl(var(--muted-foreground))';
   }
 }
 
 export function orderStatusColor(status: OrderStatus): string {
   switch (status) {
     case 'DELIVERED':
-      return '#27ae60';
+      return 'hsl(var(--success))';
     case 'CANCELLED':
-      return '#c0392b';
+      return 'hsl(var(--destructive))';
     case 'CONFIRMED':
-      return '#7f8c8d';
+      return 'hsl(var(--muted-foreground))';
     default:
-      return '#2980b9'; // in-flight states
+      return 'hsl(var(--info))'; // in-flight states
   }
 }
 

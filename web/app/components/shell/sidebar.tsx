@@ -25,6 +25,7 @@ import {
   IndianRupee,
   LayoutDashboard,
   ListChecks,
+  BookOpen,
   Package,
   PackageCheck,
   ReceiptText,
@@ -57,6 +58,7 @@ const COLLAPSE_KEY = 'sidebar:collapsedGroups';
  */
 function iconForHref(href: string): LucideIcon {
   if (href === '/dashboard') return LayoutDashboard;
+  if (href === '/help') return BookOpen;
   if (href === '/vault' || href.includes('/documents')) return FolderOpen;
   if (href === '/kanban') return Columns3;
   if (href.includes('/sprints')) return CalendarRange;

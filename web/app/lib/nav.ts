@@ -102,7 +102,10 @@ export function sharedNav(access: Access): NavGroup[] {
   // first entry back to "home" regardless of module.
   groups.push({
     heading: 'Home',
-    items: [{ label: 'Dashboard', href: '/dashboard' }],
+    items: [
+      { label: 'Dashboard', href: '/dashboard' },
+      { label: 'Help & SOP', href: '/help' },
+    ],
   });
 
   // Profile is available from the account dropdown, so it is not duplicated

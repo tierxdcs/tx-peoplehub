@@ -101,14 +101,6 @@ export class BidsService {
     const products = await this.prisma.product.findMany({
       where: { id: { in: dto.lineItems.map((li) => li.productId) } },
     });
-    const mismatchedProduct = products.find(
-      (product) => product.businessUnitId !== opportunity.businessUnitId,
-    );
-    if (mismatchedProduct) {
-      throw new BadRequestException(
-        `Product ${mismatchedProduct.sku} belongs to a different business unit than this opportunity`,
-      );
-    }
     const priceById = new Map(products.map((p) => [p.id, p.unitPrice]));
 
     const discountPercent = new Prisma.Decimal(dto.discountPercent ?? 0);

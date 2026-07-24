@@ -421,8 +421,8 @@ function FilledByTag({ filledBy }: { filledBy: FilledBy | null }) {
       className={
         'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ' +
         (internal
-          ? 'bg-amber-100 text-amber-800'
-          : 'bg-emerald-100 text-emerald-800')
+          ? 'bg-warning/15 text-warning'
+          : 'bg-success/15 text-success')
       }
     >
       {FILLED_BY_LABEL[filledBy]}

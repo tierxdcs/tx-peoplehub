@@ -51,7 +51,7 @@ export default function VerticalsPage() {
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
           <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
+            <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
               <th>Name</th>
               <th>Code</th>
               <th>Active</th>
@@ -59,7 +59,7 @@ export default function VerticalsPage() {
           </thead>
           <tbody>
             {verticals.map((v) => (
-              <tr key={v.id} style={{ borderBottom: '1px solid #eee' }}>
+              <tr key={v.id} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
                 <td>{v.name}</td>
                 <td>{v.code}</td>
                 <td>{v.isActive ? 'Yes' : 'No'}</td>
@@ -91,7 +91,7 @@ export default function VerticalsPage() {
             style={{ width: '100%', padding: 8 }}
           />
         </div>
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
+        {error && <p className="text-destructive">{error}</p>}
         <button type="submit" disabled={submitting} style={{ padding: 8 }}>
           {submitting ? 'Creating…' : 'Create'}
         </button>

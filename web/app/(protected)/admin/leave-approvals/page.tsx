@@ -125,7 +125,7 @@ export default function AdminLeaveApprovalsPage() {
         </select>
       </div>
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p className="text-destructive">{error}</p>}
       {loading ? (
         <p>Loading…</p>
       ) : filtered.length === 0 ? (
@@ -133,7 +133,7 @@ export default function AdminLeaveApprovalsPage() {
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
+            <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
               <th>Employee</th>
               <th>Vertical</th>
               <th>Type</th>
@@ -149,7 +149,7 @@ export default function AdminLeaveApprovalsPage() {
             {filtered.map((r) => {
               const emp = employees[r.employeeId];
               return (
-                <tr key={r.id} style={{ borderBottom: '1px solid #eee' }}>
+                <tr key={r.id} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
                   <td>{emp ? `${emp.firstName} ${emp.lastName}` : r.employeeId}</td>
                   <td>{verticalName(emp?.verticalId ?? null)}</td>
                   <td>{leaveTypeName(r.leaveTypeId)}</td>

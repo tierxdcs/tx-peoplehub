@@ -16,6 +16,12 @@ import type { CertificateFile, PublicCompanyInfo, SectionKey } from '../../lib/s
 
 export const ACCENT = '#f97316';
 export const INK = '#1e2340';
+const THEME_INK = 'var(--questionnaire-ink, #1e2340)';
+const THEME_MUTED = 'var(--questionnaire-muted, #6b7280)';
+const THEME_TEXT = 'var(--questionnaire-text, #374151)';
+const THEME_BORDER = 'var(--questionnaire-border, #d8dbe2)';
+const THEME_SURFACE = 'var(--questionnaire-surface, #fff)';
+const THEME_SUBTLE = 'var(--questionnaire-subtle, #f8f8f9)';
 
 export type SectionState = Record<string, unknown>;
 export type FormState = Partial<Record<SectionKey, SectionState>>;
@@ -38,10 +44,10 @@ export function QuestionnaireSections({
   const g = (s: SectionKey) => (form[s] ?? {}) as SectionState;
 
   return (
-    <>
+    <div className="supplier-questionnaire-body">
       {/* 1. Company Information — writes back to the Supplier master record. */}
       <Section n="1" title="Company Information">
-        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 10px' }}>
+        <p style={{ fontSize: 13, color: THEME_MUTED, margin: '0 0 10px' }}>
           Please confirm or complete your company details below.
         </p>
         <FieldRow
@@ -127,7 +133,7 @@ export function QuestionnaireSections({
           onChange={(v) => setField('materialCertifications', 'certifications', v)}
         />
         <div style={{ margin: '10px 0' }}>
-          <label style={{ fontSize: 13.5, color: '#374151', marginRight: 10 }}>
+          <label style={{ fontSize: 13.5, color: THEME_TEXT, marginRight: 10 }}>
             Upload Certificates
           </label>
           <input
@@ -140,7 +146,7 @@ export function QuestionnaireSections({
             }}
           />
           {certs.length > 0 && (
-            <ul style={{ fontSize: 13, color: '#374151' }}>
+            <ul style={{ fontSize: 13, color: THEME_TEXT }}>
               {certs.map((c) => (
                 <li key={c.storageKey}>{c.name}</li>
               ))}
@@ -213,7 +219,7 @@ export function QuestionnaireSections({
 
       {/* 7. Packaging & Delivery — OPTIONAL */}
       <Section n="7" title="Packaging & Delivery" optional>
-        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 10px' }}>
+        <p style={{ fontSize: 13, color: THEME_MUTED, margin: '0 0 10px' }}>
           This section is optional — you may leave it blank if it does not apply.
         </p>
         <FieldRows
@@ -250,7 +256,7 @@ export function QuestionnaireSections({
       {/* 9. References */}
       <Section n="9" title="References">
         {[0, 1, 2].map((i) => (
-          <div key={i} style={{ padding: '12px 14px', background: '#f8f8f9', borderRadius: 4, marginBottom: 12 }}>
+          <div key={i} style={{ padding: '12px 14px', background: THEME_SUBTLE, borderRadius: 4, marginBottom: 12 }}>
             <H4>{`Reference ${i + 1}`}</H4>
             {(['company', 'contact', 'phoneEmail', 'relationship'] as const).map((f) => (
               <FieldRow
@@ -270,7 +276,7 @@ export function QuestionnaireSections({
 
       {/* 10. Declaration */}
       <Section n="10" title="Declaration">
-        <p style={{ fontSize: 13.5, color: '#374151' }}>
+        <p style={{ fontSize: 13.5, color: THEME_TEXT }}>
           We certify that the information provided in this questionnaire is true
           and accurate to the best of our knowledge.
         </p>
@@ -293,7 +299,7 @@ export function QuestionnaireSections({
           ]}
         />
       </Section>
-    </>
+    </div>
   );
 }
 
@@ -301,16 +307,17 @@ export function QuestionnaireSections({
 export const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '6px 8px',
-  border: '1px solid #d8dbe2',
+  border: `1px solid ${THEME_BORDER}`,
   borderRadius: 3,
   fontSize: 13.5,
   fontFamily: 'inherit',
-  color: INK,
+  color: THEME_INK,
+  background: THEME_SURFACE,
   boxSizing: 'border-box',
 };
 export const btnPrimary: React.CSSProperties = {
-  background: INK,
-  color: '#fff',
+  background: THEME_INK,
+  color: THEME_SURFACE,
   border: 'none',
   padding: '9px 18px',
   borderRadius: 4,
@@ -318,9 +325,9 @@ export const btnPrimary: React.CSSProperties = {
   cursor: 'pointer',
 };
 export const btnSecondary: React.CSSProperties = {
-  background: '#fff',
-  color: INK,
-  border: `1px solid ${INK}`,
+  background: THEME_SURFACE,
+  color: THEME_INK,
+  border: `1px solid ${THEME_INK}`,
   padding: '9px 18px',
   borderRadius: 4,
   fontSize: 13.5,
@@ -340,11 +347,11 @@ function Section({
 }) {
   return (
     <section style={{ marginTop: 30 }}>
-      <h2 style={{ fontSize: 16, margin: '0 0 14px', paddingBottom: 8, borderBottom: `2px solid ${INK}`, color: INK }}>
+      <h2 style={{ fontSize: 16, margin: '0 0 14px', paddingBottom: 8, borderBottom: `2px solid ${THEME_INK}`, color: THEME_INK }}>
         <span style={{ color: ACCENT, fontWeight: 700, marginRight: 6 }}>{n}</span>
         {title}
         {optional && (
-          <span style={{ marginLeft: 8, fontSize: 12.5, fontWeight: 400, color: '#6b7280' }}>
+          <span style={{ marginLeft: 8, fontSize: 12.5, fontWeight: 400, color: THEME_MUTED }}>
             (Optional)
           </span>
         )}
@@ -354,10 +361,10 @@ function Section({
   );
 }
 function H3({ children }: { children: React.ReactNode }) {
-  return <h3 style={{ fontSize: 13.5, margin: '16px 0 8px', color: INK }}>{children}</h3>;
+  return <h3 style={{ fontSize: 13.5, margin: '16px 0 8px', color: THEME_INK }}>{children}</h3>;
 }
 function H4({ children }: { children: React.ReactNode }) {
-  return <h4 style={{ fontSize: 13, margin: '0 0 8px', color: '#6b7280' }}>{children}</h4>;
+  return <h4 style={{ fontSize: 13, margin: '0 0 8px', color: THEME_MUTED }}>{children}</h4>;
 }
 
 function CheckGrid({
@@ -372,7 +379,7 @@ function CheckGrid({
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 26px', marginBottom: 6 }}>
       {options.map((o) => (
-        <label key={o} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: '#374151', minWidth: 150 }}>
+        <label key={o} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: THEME_TEXT, minWidth: 150 }}>
           <input
             type="checkbox"
             checked={selected.includes(o)}
@@ -424,8 +431,8 @@ function DynamicList({
 
 function FieldRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '5px 0', borderBottom: '1px solid #d8dbe2' }}>
-      <span style={{ width: '40%', fontSize: 13.5, color: '#374151' }}>{label}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '5px 0', borderBottom: `1px solid ${THEME_BORDER}` }}>
+      <span style={{ width: '40%', fontSize: 13.5, color: THEME_TEXT }}>{label}</span>
       <input style={inputStyle} value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   );

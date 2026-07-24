@@ -11,6 +11,7 @@ import { AuthProvider } from './lib/auth-context';
 import { BRAND } from './lib/theme';
 import { ToasterProvider } from './components/ui/toaster';
 import { ConfirmProvider } from './components/ui/confirm';
+import { AppThemeProvider } from './components/theme/app-theme-provider';
 
 // Signature-style fonts for the internal e-signature display layer. Exposed as
 // CSS variables so a snapshotted signature renders in its chosen font both
@@ -66,13 +67,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={signatureFontVars}>
+    <html lang="en" className={signatureFontVars} suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground antialiased">
-        <AuthProvider>
-          <ToasterProvider>
-            <ConfirmProvider>{children}</ConfirmProvider>
-          </ToasterProvider>
-        </AuthProvider>
+        <AppThemeProvider>
+          <AuthProvider>
+            <ToasterProvider>
+              <ConfirmProvider>{children}</ConfirmProvider>
+            </ToasterProvider>
+          </AuthProvider>
+        </AppThemeProvider>
       </body>
     </html>
   );

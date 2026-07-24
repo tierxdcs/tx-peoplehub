@@ -133,14 +133,14 @@ export default function ProductsPage() {
         </label>
       </div>
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p className="text-destructive">{error}</p>}
       {loading ? (
         <p>Loading…</p>
       ) : (
         <>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
                 <th>SKU</th>
                 <th>Name</th>
                 <th>Business Unit</th>
@@ -152,7 +152,7 @@ export default function ProductsPage() {
             </thead>
             <tbody>
               {filtered.map((p) => (
-                <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                <tr key={p.id} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
                   <td>{p.sku}</td>
                   <td>{p.name}</td>
                   <td>
@@ -166,7 +166,7 @@ export default function ProductsPage() {
                         style={{
                           marginLeft: 6,
                           fontSize: 12,
-                          color: '#b45309',
+                          color: 'hsl(var(--warning))',
                         }}
                       >
                         ✨ auto
@@ -193,7 +193,7 @@ export default function ProductsPage() {
                 <tr>
                   <td
                     colSpan={canEdit ? 7 : 6}
-                    style={{ padding: 12, color: '#666' }}
+                    style={{ padding: 12, color: 'hsl(var(--muted-foreground))' }}
                   >
                     No products.
                   </td>
@@ -385,7 +385,7 @@ function ProductForm({
     >
       <form
         onSubmit={handleSubmit}
-        style={{ background: '#fff', padding: 24, borderRadius: 6, width: 400 }}
+        style={{ background: 'hsl(var(--card))', padding: 24, borderRadius: 6, width: 400 }}
         onClick={(e) => e.stopPropagation()}
       >
         <h2>{isEdit ? 'Edit Product' : 'New Product'}</h2>
@@ -445,7 +445,7 @@ function ProductForm({
             ))}
           </select>
           {autoAssigned && businessUnitId && (
-            <p style={{ fontSize: 12, color: '#b45309', marginTop: 4 }}>
+            <p className="mt-1 text-xs text-warning">
               ✨ Auto-selected from product name — change it or save to confirm.
             </p>
           )}
@@ -501,7 +501,7 @@ function ProductForm({
               </option>
             ))}
           </select>
-          <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+          <p className="mt-1 text-xs text-muted-foreground">
             Link to the Item Master item this product is built as. Required for
             its BOM and the project-kickoff stock-availability report.
           </p>
@@ -517,7 +517,7 @@ function ProductForm({
           </label>
         </div>
 
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
+        {error && <p className="text-destructive">{error}</p>}
 
         <div style={{ display: 'flex', gap: 8 }}>
           <Button type="submit" disabled={submitting}>

@@ -69,3 +69,26 @@ export function inferBusinessUnitCode(
   if (scored.length > 1 && scored[0].count === scored[1].count) return null;
   return scored[0].code;
 }
+
+/**
+ * Keep every active product selectable on a quotation while placing products
+ * from the Opportunity's BU first. Original order remains stable per group.
+ */
+export function orderProductsForOpportunity<
+  T extends { businessUnitId: string | null },
+>(products: T[], opportunityBusinessUnitId?: string | null): T[] {
+  if (!opportunityBusinessUnitId) return [...products];
+
+  return products
+    .map((product, index) => ({ product, index }))
+    .sort((left, right) => {
+      const leftMatches =
+        left.product.businessUnitId === opportunityBusinessUnitId;
+      const rightMatches =
+        right.product.businessUnitId === opportunityBusinessUnitId;
+
+      if (leftMatches !== rightMatches) return leftMatches ? -1 : 1;
+      return left.index - right.index;
+    })
+    .map(({ product }) => product);
+}

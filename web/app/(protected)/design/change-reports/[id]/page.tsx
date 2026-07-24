@@ -190,7 +190,7 @@ export default function ChangeReport() {
 function ReportBody({ r }: { r: R }) {
   const c = r.frozenPayload.change;
   return (
-    <div style={{ color: '#111', lineHeight: 1.5 }}>
+    <div className="fixed-light-surface p-1" style={{ lineHeight: 1.5 }}>
       <header
         style={{
           borderBottom: '3px solid #ea580c',
