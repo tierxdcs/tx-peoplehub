@@ -419,6 +419,10 @@ export class KanbanCardsService {
    * so the common case is a single-row update — no reindexing. Only when two
    * adjacent positions are closer than MIN_POSITION_GAP do we re-space that
    * list's cards to integer steps and retry.
+   *
+   * Gated by assertCanMoveCard rather than assertCanEditCard: the card's own
+   * assignee may change its list (status) even without full structural edit
+   * rights over the card.
    */
   async move(
     id: string,
@@ -426,7 +430,7 @@ export class KanbanCardsService {
     user: AuthenticatedUser,
   ): Promise<KanbanCardEntity> {
     const card = await this.getCardOrThrow(id);
-    await this.access.assertCanEditCard(
+    await this.access.assertCanMoveCard(
       user,
       card.list.boardId,
       card.assigneeId,

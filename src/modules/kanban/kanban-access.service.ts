@@ -30,6 +30,10 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
  *     card even without board membership — see assertCanViewCard.
  *     Assignment is the sharing mechanism now that assignment no longer
  *     requires board membership (assertAssigneeExists).
+ *   - Card assignee (board member): may MOVE their own assigned card between
+ *     lists, i.e. change its status, even without structural edit rights —
+ *     see assertCanMoveCard. Does NOT extend to editing the card's other
+ *     fields, deleting it, or moving a card they don't own.
  *
  * ADMIN gets nothing by default — account-management-only, like every module —
  * unless explicitly added as a board member.
@@ -224,6 +228,34 @@ export class KanbanAccessService {
     if (this.isSuperAdmin(user)) return { canManageBoard: true };
     if (cardCreatedById === user.id) {
       await this.assertCanViewCard(user, boardId, cardAssigneeId);
+      return { canManageBoard: false };
+    }
+    await this.assertCanManageBoard(user, boardId);
+    return { canManageBoard: true };
+  }
+
+  /**
+   * Moving a card between lists (i.e. changing its status) is allowed for
+   * everyone assertCanEditCard already allows, PLUS the card's own assignee —
+   * narrower than a full structural edit, so a non-creator/non-manager
+   * assignee can still update their own card's status without gaining rights
+   * over its title/description/assignee/etc. Does not extend to a card
+   * assigned to someone ELSE, nor to a card-only assignee with no board
+   * membership (moving requires seeing the board's lists).
+   */
+  async assertCanMoveCard(
+    user: AuthenticatedUser,
+    boardId: string,
+    cardAssigneeId: string | null,
+    cardCreatedById: string,
+  ): Promise<{ canManageBoard: boolean }> {
+    if (this.isSuperAdmin(user)) return { canManageBoard: true };
+    if (cardCreatedById === user.id) {
+      await this.assertCanViewCard(user, boardId, cardAssigneeId);
+      return { canManageBoard: false };
+    }
+    if (cardAssigneeId && cardAssigneeId === user.id) {
+      await this.assertCanViewBoard(user, boardId);
       return { canManageBoard: false };
     }
     await this.assertCanManageBoard(user, boardId);

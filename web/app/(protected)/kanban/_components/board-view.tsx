@@ -124,8 +124,15 @@ export function BoardView({
   // List management additionally carves out the board's own creator, mirroring
   // KanbanAccessService.assertCanManageLists.
   const canManageLists = canManageBoard || board?.createdById === user?.sub;
-  const canEditCard = useCallback(
-    (card: KanbanCard) => canManageBoard || card.createdById === user?.sub,
+  // Drag-and-drop moves a card between lists, i.e. changes its status — this
+  // mirrors KanbanAccessService.assertCanMoveCard, which additionally allows
+  // the card's own assignee (not just its creator or a board manager) to do
+  // this without granting them full structural edit rights over the card.
+  const canMoveCard = useCallback(
+    (card: KanbanCard) =>
+      canManageBoard ||
+      card.createdById === user?.sub ||
+      card.assigneeId === user?.sub,
     [canManageBoard, user?.sub],
   );
 
@@ -265,7 +272,7 @@ export function BoardView({
     const data = e.active.data.current;
     if (data?.type === 'card') {
       const card = data.card as KanbanCard;
-      if (!canEditCard(card)) return;
+      if (!canMoveCard(card)) return;
       setActiveCard(card);
     }
   }
@@ -511,7 +518,7 @@ export function BoardView({
                   list={list}
                   cards={cardsByList[list.id] ?? []}
                   canManage={false}
-                  canEditCard={canEditCard}
+                  canEditCard={canMoveCard}
                   dndDisabled
                   sprintNames={sprintNames}
                   onOpenCard={setOpenCard}
@@ -574,7 +581,7 @@ export function BoardView({
                   list={l}
                   cards={cardsByList[l.id] ?? []}
                   canManage={canManageLists}
-                  canEditCard={canEditCard}
+                  canEditCard={canMoveCard}
                   dndDisabled={filterActive}
                   sprintNames={sprintNames}
                   onOpenCard={setOpenCard}

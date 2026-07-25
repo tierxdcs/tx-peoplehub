@@ -142,6 +142,10 @@ export function CardModal({
 
   const canEdit = !!card && (canManage || card.createdById === user?.sub);
   const canDelete = canEdit;
+  // Moving a card between lists (its status) is additionally allowed for the
+  // card's own assignee, without granting them full structural edit rights —
+  // mirrors KanbanAccessService.assertCanMoveCard.
+  const canMove = canEdit || (!!card && card.assigneeId === user?.sub);
 
   async function patch(
     input: Parameters<typeof updateCard>[1],
@@ -327,8 +331,9 @@ export function CardModal({
               <p className="text-xs text-muted-foreground">in {board.name}</p>
               {!canEdit && (
                 <p className="text-xs text-muted-foreground">
-                  Read only — only the card creator or a board manager can edit
-                  it.
+                  {canMove
+                    ? 'You can move this card between lists, but only the card creator or a board manager can edit its other fields.'
+                    : 'Read only — only the card creator or a board manager can edit it.'}
                 </p>
               )}
             </DialogHeader>
@@ -503,7 +508,7 @@ export function CardModal({
                   <Select
                     value={card.listId}
                     onChange={(e) => void onMoveToList(e.target.value)}
-                    disabled={moving || !canEdit}
+                    disabled={moving || !canMove}
                     className="h-11 sm:h-8"
                   >
                     {lists.map((list) => (
@@ -515,7 +520,7 @@ export function CardModal({
                 </SideField>
 
                 {lists.find((list) => list.isDoneList)?.id !== card.listId &&
-                  lists.some((list) => list.isDoneList) && canEdit && (
+                  lists.some((list) => list.isDoneList) && canMove && (
                     <Button
                       size="sm"
                       className="h-11 w-full sm:h-8"
