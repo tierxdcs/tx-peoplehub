@@ -19,6 +19,7 @@ const VERTICALS: Array<{ name: string; code: string }> = [
   { name: 'R&D', code: 'RND' },
   { name: 'Accounts', code: 'ACCOUNTS' },
   { name: 'Design', code: 'DESIGN' },
+  { name: 'Quality', code: 'QUALITY' },
 ];
 
 /// Business units a product can belong to. Idempotent upsert by `code`.

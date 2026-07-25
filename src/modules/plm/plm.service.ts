@@ -113,12 +113,17 @@ export class PlmService {
         ? null
         : await this.prisma.employee.findUnique({
             where: { id: user.id },
-            select: { isProductionHead: true, isInternalAuditor: true },
+            select: {
+              isProductionHead: true,
+              isInternalAuditor: true,
+              isProjectManager: true,
+            },
           });
     const privileged =
       user.role === 'SUPER_ADMIN' ||
       employee?.isProductionHead ||
-      employee?.isInternalAuditor;
+      employee?.isInternalAuditor ||
+      employee?.isProjectManager;
     const trackers = await this.prisma.plmTracker.findMany({
       where: {
         status: PlmTrackerStatus.ACTIVE,
@@ -185,7 +190,8 @@ export class PlmService {
           productSku: tracker.orderLine.product.sku,
           flowType: tracker.flowType,
           currentStage: tracker.currentStage,
-          ownerName: `${tracker.owner.firstName} ${tracker.owner.lastName}`.trim(),
+          ownerName:
+            `${tracker.owner.firstName} ${tracker.owner.lastName}`.trim(),
           ageDays,
           blocker,
           health: blocker ? 'BLOCKED' : ageDays >= 7 ? 'AT_RISK' : 'ON_TRACK',
@@ -277,7 +283,10 @@ export class PlmService {
       return updated;
     });
     const heads = await this.prisma.employee.findMany({
-      where: { status: 'ACTIVE', isProductionHead: true },
+      where: {
+        status: 'ACTIVE',
+        OR: [{ isProductionHead: true }, { isProjectManager: true }],
+      },
       select: { id: true },
     });
     await Promise.all(

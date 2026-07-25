@@ -148,7 +148,9 @@ describe('PlmService', () => {
     );
     prisma.$transaction.mockImplementation((fn: (tx: unknown) => unknown) =>
       fn({
-        plmTracker: { update: jest.fn().mockResolvedValue({ id: 'tracker-1' }) },
+        plmTracker: {
+          update: jest.fn().mockResolvedValue({ id: 'tracker-1' }),
+        },
         plmTrackerEvent: { create: jest.fn().mockResolvedValue(undefined) },
       }),
     );

@@ -108,8 +108,13 @@ export function PlmSection({ orderId, trackerId }: PlmSectionProps) {
       </CardHeader>
       <CardContent className="space-y-4 pt-0">
         {trackers.map((tracker) => {
-          const canOperate = user?.role === 'SUPER_ADMIN' || me?.isProductionHead || user?.sub === tracker.ownerId;
-          const canAudit = user?.role === 'SUPER_ADMIN' || me?.isInternalAuditor;
+          const hasFullAccess =
+            user?.role === 'SUPER_ADMIN' ||
+            me?.isProductionHead ||
+            me?.isProjectManager;
+          const canOperate = hasFullAccess || user?.sub === tracker.ownerId;
+          const canAudit =
+            hasFullAccess || me?.isInternalAuditor;
           return (
             <details key={tracker.id} className="group rounded-lg border bg-background" open={trackers.length === 1}>
               <summary className="cursor-pointer list-none p-4">
@@ -130,7 +135,7 @@ export function PlmSection({ orderId, trackerId }: PlmSectionProps) {
                   {tracker.currentStage === 'DESIGN' && (
                     <Button size="sm" disabled={acting === tracker.id} onClick={() => void act(tracker, 'design-review/submit')}>Submit Design Review</Button>
                   )}
-                  {tracker.currentStage === 'DESIGN_REVIEW' && tracker.designReviewStatus === 'PENDING' && (user?.role === 'SUPER_ADMIN' || me?.isProductionHead) && (
+                  {tracker.currentStage === 'DESIGN_REVIEW' && tracker.designReviewStatus === 'PENDING' && hasFullAccess && (
                     <><Button size="sm" disabled={acting === tracker.id || tracker.designSubmittedById === user?.sub} onClick={() => void act(tracker, 'design-review/approve')}>Approve</Button><Button size="sm" variant="destructive" disabled={acting === tracker.id || tracker.designSubmittedById === user?.sub} onClick={() => { const comment = window.prompt('Rejection reason'); if (comment?.trim()) void act(tracker, 'design-review/reject', { comment }); }}>Reject</Button></>
                   )}
                   {!['DESIGN', 'DESIGN_REVIEW', 'COMPLETED'].includes(tracker.currentStage) && canOperate && (

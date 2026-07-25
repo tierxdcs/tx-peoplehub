@@ -7,6 +7,16 @@ import { PrismaService } from '../../core/database/prisma.service';
 export class PlmAccessService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Company-wide PLM authority: Super Admin, Production Head, or Project Manager. */
+  async hasFullAccess(user: AuthenticatedUser): Promise<boolean> {
+    if (user.role === Role.SUPER_ADMIN) return true;
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: user.id },
+      select: { isProductionHead: true, isProjectManager: true },
+    });
+    return !!(employee?.isProductionHead || employee?.isProjectManager);
+  }
+
   async isProductionHead(user: AuthenticatedUser): Promise<boolean> {
     if (user.role === Role.SUPER_ADMIN) return true;
     const employee = await this.prisma.employee.findUnique({
@@ -17,9 +27,9 @@ export class PlmAccessService {
   }
 
   async assertProductionHead(user: AuthenticatedUser): Promise<void> {
-    if (!(await this.isProductionHead(user))) {
+    if (!(await this.hasFullAccess(user))) {
       throw new ForbiddenException(
-        'Only a Production Head or SUPER_ADMIN may perform this action',
+        'Only a Project Manager, Production Head, or SUPER_ADMIN may perform this action',
       );
     }
   }
@@ -28,9 +38,9 @@ export class PlmAccessService {
     user: AuthenticatedUser,
     ownerId: string,
   ): Promise<void> {
-    if (user.id === ownerId || (await this.isProductionHead(user))) return;
+    if (user.id === ownerId || (await this.hasFullAccess(user))) return;
     throw new ForbiddenException(
-      'Only the tracker owner, a Production Head, or SUPER_ADMIN may advance this tracker',
+      'Only the tracker owner, a Project Manager, Production Head, or SUPER_ADMIN may advance this tracker',
     );
   }
 
@@ -41,18 +51,20 @@ export class PlmAccessService {
       select: {
         isDesignHead: true,
         isRdHead: true,
+        isProjectManager: true,
         vertical: { select: { code: true } },
       },
     });
     if (
       employee?.isDesignHead ||
       employee?.isRdHead ||
+      employee?.isProjectManager ||
       ['DESIGN', 'RND'].includes(employee?.vertical?.code ?? '')
     ) {
       return;
     }
     throw new ForbiddenException(
-      'Only Design or R&D staff may submit Design for review',
+      'Only Design, R&D, a Project Manager, or SUPER_ADMIN may submit Design for review',
     );
   }
 
@@ -60,11 +72,11 @@ export class PlmAccessService {
     if (user.role === Role.SUPER_ADMIN) return;
     const employee = await this.prisma.employee.findUnique({
       where: { id: user.id },
-      select: { isInternalAuditor: true },
+      select: { isInternalAuditor: true, isProjectManager: true },
     });
-    if (employee?.isInternalAuditor) return;
+    if (employee?.isInternalAuditor || employee?.isProjectManager) return;
     throw new ForbiddenException(
-      'Only an Internal Auditor or SUPER_ADMIN may record a vendor site-visit update',
+      'Only an Internal Auditor, Project Manager, or SUPER_ADMIN may record a vendor site-visit update',
     );
   }
 
@@ -88,7 +100,11 @@ export class PlmAccessService {
       }),
       this.prisma.employee.findUnique({
         where: { id: user.id },
-        select: { isProductionHead: true, isInternalAuditor: true },
+        select: {
+          isProductionHead: true,
+          isInternalAuditor: true,
+          isProjectManager: true,
+        },
       }),
     ]);
     if (
@@ -97,7 +113,8 @@ export class PlmAccessService {
         tracker.order.ownerId === user.id ||
         tracker.kickoff.attendees.length > 0 ||
         employee?.isProductionHead ||
-        employee?.isInternalAuditor)
+        employee?.isInternalAuditor ||
+        employee?.isProjectManager)
     ) {
       return;
     }
@@ -123,9 +140,18 @@ export class PlmAccessService {
     if (tracker) return;
     const employee = await this.prisma.employee.findUnique({
       where: { id: user.id },
-      select: { isProductionHead: true, isInternalAuditor: true },
+      select: {
+        isProductionHead: true,
+        isInternalAuditor: true,
+        isProjectManager: true,
+      },
     });
-    if (employee?.isProductionHead || employee?.isInternalAuditor) return;
+    if (
+      employee?.isProductionHead ||
+      employee?.isInternalAuditor ||
+      employee?.isProjectManager
+    )
+      return;
     throw new ForbiddenException('You are not involved in this order’s PLM work');
   }
 }

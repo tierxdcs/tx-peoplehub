@@ -19,6 +19,7 @@ function access(
     isStoreStaff?: boolean;
     isScmStaff?: boolean;
     isFinanceUser?: boolean;
+    isQualityUser?: boolean;
   } = {},
 ): Access {
   const user: DecodedAccessToken = {
@@ -38,6 +39,7 @@ function access(
     isRndStaff: opts.isRndStaff ?? false,
     isStoreStaff: opts.isStoreStaff ?? false,
     isScmStaff: opts.isScmStaff ?? false,
+    isQualityUser: opts.isQualityUser ?? false,
     payslipsEnabled: false,
   };
 }
@@ -236,6 +238,27 @@ describe('sidebarNav — the reported bug', () => {
     expect(shown).not.toContain('Vendors');
     expect(shown).not.toContain('Suppliers');
     expect(shown).not.toContain('Purchase Orders');
+  });
+
+  it('Quality users see the complete Quality Management workspace', () => {
+    const a = access('EMPLOYEE', { isQualityUser: true });
+    const shown = labels(a, activeModule('/qms', availableModules(a)));
+
+    expect(shown).toContain('QMS Dashboard');
+    expect(shown).toContain('Inspections');
+    expect(shown).toContain('Quality Plans');
+    expect(shown).toContain('NCR Register');
+    expect(shown).toContain('CAPA Tracker');
+    expect(shown).toContain('Quality Reports');
+  });
+
+  it('a user without Quality access does not see Quality Management', () => {
+    const a = access('EMPLOYEE');
+    const shown = labels(a, activeModule('/dashboard', availableModules(a)));
+
+    expect(shown).not.toContain('QMS Dashboard');
+    expect(shown).not.toContain('Inspections');
+    expect(shown).not.toContain('NCR Register');
   });
 
   it('SUPER_ADMIN still sees the SCM group', () => {
