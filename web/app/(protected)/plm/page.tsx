@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, Factory, RefreshCw, Workflow } from 'lucide-react';
 import { ApiError } from '../../lib/api';
-import { getMyPlmWork, PlmDashboardItem } from '../../lib/plm';
+import {
+  getMyPlmWork,
+  PlmDashboardItem,
+  plmTrackerHref,
+} from '../../lib/plm';
 import { prettyEnum } from '../../lib/sales';
 import { PageContainer } from '../../components/ui/page-container';
 import { PageHeader } from '../../components/ui/page-header';
@@ -87,7 +91,7 @@ function LifecycleRow({ item }: { item: PlmDashboardItem }) {
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <Link href={`/sales/orders/${item.orderId}#plm`} className="font-semibold text-primary hover:underline">{item.orderNumber}</Link>
+              <Link href={plmTrackerHref(item.trackerId)} className="font-semibold text-primary hover:underline">{item.orderNumber}</Link>
               <span className="font-medium">{item.productName}</span>
               <span className="text-xs text-muted-foreground">{item.productSku}</span>
             </div>
@@ -98,7 +102,7 @@ function LifecycleRow({ item }: { item: PlmDashboardItem }) {
             <StatusBadge value={item.currentStage} />
             <span className={cn('rounded-full px-2.5 py-1 text-xs font-medium', health.className)}>{health.label}</span>
             {item.currentStage === 'PRODUCTION' && <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs"><CheckCircle2 className="size-3.5" />{item.production.done}/{item.production.total} cards</span>}
-            <Link href={`/sales/orders/${item.orderId}#plm`}><Button size="sm" variant="outline">Open tracker</Button></Link>
+            <Link href={plmTrackerHref(item.trackerId)}><Button size="sm" variant="outline">Open tracker</Button></Link>
           </div>
         </div>
       </CardContent>

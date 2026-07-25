@@ -67,8 +67,8 @@ export function NotificationBell() {
     // null). Kanban → relatedCardId, Vendor → relatedVendorId, Supplier →
     // relatedSupplierId. Each is its own explicit branch; the Supplier case
     // does NOT piggyback on Vendor's handling.
-    if (n.relatedPlmOrderId) {
-      router.push(`/sales/orders/${n.relatedPlmOrderId}#plm`);
+    if (n.relatedPlmTrackerId) {
+      router.push(`/plm/trackers/${encodeURIComponent(n.relatedPlmTrackerId)}`);
     } else if (n.type === 'VENDOR_QUESTIONNAIRE_SUBMITTED' && n.relatedVendorId) {
       router.push(`/scm/vendors/${n.relatedVendorId}`);
     } else if (

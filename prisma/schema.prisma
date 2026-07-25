@@ -2575,6 +2575,15 @@ model ProjectKickoff {
   overviewAndScope String?            @db.Text
   minutesNotes     String?            @db.Text
   status           KickoffStatus      @default(DRAFT)
+  /// Whether checking Phaze's own stock/BOM is meaningful for this project.
+  /// Defaults from the order's line-level deliveryType at creation (false only
+  /// when every line is VENDOR), but is always manually overridable — the
+  /// default is a convenience, not a restriction. When false, the Material
+  /// Stock Availability report is skipped entirely (out of scope, e.g. a
+  /// vendor-managed turnkey arrangement) and PLM's Material Planning gate
+  /// falls back to manual confirmation instead of requiring a report that
+  /// will never exist.
+  supplyInScope    Boolean            @default(true)
   /// The project board auto-provisioned at creation (§5). Restrict so a board
   /// backing a kickoff can't be deleted out from under it.
   kanbanBoardId    String

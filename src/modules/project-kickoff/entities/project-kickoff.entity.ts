@@ -118,6 +118,11 @@ export class ProjectKickoffEntity {
   @ApiProperty({ nullable: true }) overviewAndScope!: string | null;
   @ApiProperty({ nullable: true }) minutesNotes!: string | null;
   @ApiProperty({ enum: KickoffStatus }) status!: KickoffStatus;
+  @ApiProperty({
+    description:
+      'Whether checking Phaze’s own stock/BOM is meaningful for this project. Defaults from the order’s line-level deliveryType, but is always manually overridable.',
+  })
+  supplyInScope!: boolean;
   @ApiProperty() kanbanBoardId!: string;
   @ApiProperty() createdById!: string;
   @ApiProperty() createdAt!: string;

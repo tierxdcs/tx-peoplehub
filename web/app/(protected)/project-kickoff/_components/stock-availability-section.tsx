@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Info } from 'lucide-react';
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { createRfqFromKickoff } from '../../../lib/rfq';
+import { updateKickoff, type ProjectKickoff } from '../../../lib/project-kickoff';
 import {
   AVAILABILITY_LABEL,
   cancelReservation,
@@ -23,6 +25,7 @@ import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { Badge } from '../../../components/ui/badge';
+import { Switch } from '../../../components/ui/switch';
 import {
   Table,
   TableBody,
@@ -39,8 +42,24 @@ import { useConfirm } from '../../../components/ui/confirm';
  * everyone with kickoff access; "Generate" snapshots the released BOMs on first
  * run. Reservations require Store access (the backend enforces it; a 403 is
  * surfaced as a toast). Never blocks the kickoff — purely informational.
+ *
+ * When `supplyInScope` is false (a PM has marked material supply out of scope
+ * for this project, e.g. a vendor-managed turnkey arrangement), the report is
+ * never generated or fetched at all — no error, no red toast, just a calm
+ * explanatory state.
  */
-export function StockAvailabilitySection({ kickoffId }: { kickoffId: string }) {
+export function StockAvailabilitySection({
+  kickoffId,
+  supplyInScope,
+  canManage,
+  onSupplyInScopeChanged,
+}: {
+  kickoffId: string;
+  supplyInScope: boolean;
+  /** Project Manager / SUPER_ADMIN — mirrors every other kickoff edit gate. */
+  canManage: boolean;
+  onSupplyInScopeChanged: (updated: ProjectKickoff) => void;
+}) {
   const { user } = useAuth();
   const router = useRouter();
   const toast = useToast();
@@ -50,6 +69,36 @@ export function StockAvailabilitySection({ kickoffId }: { kickoffId: string }) {
   const [stores, setStores] = useState<StoreLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [togglingScope, setTogglingScope] = useState(false);
+  // Distinguishes "no report generated yet" (calm, expected) from an actual
+  // fetch failure. Only ever set by generate()'s own error handling below —
+  // load() never treats an absent report as an error.
+  const [noReleasedBom, setNoReleasedBom] = useState(false);
+
+  async function toggleSupplyInScope(next: boolean) {
+    setTogglingScope(true);
+    try {
+      const updated = await updateKickoff(kickoffId, { supplyInScope: next });
+      onSupplyInScopeChanged(updated);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to update.',
+      );
+    } finally {
+      setTogglingScope(false);
+    }
+  }
+
+  const supplyInScopeToggle = (
+    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+      <Switch
+        checked={supplyInScope}
+        onCheckedChange={toggleSupplyInScope}
+        disabled={!canManage || togglingScope}
+      />
+      Material supply in scope
+    </label>
+  );
 
   const canReserve =
     user?.role === 'SUPER_ADMIN' ||
@@ -58,6 +107,10 @@ export function StockAvailabilitySection({ kickoffId }: { kickoffId: string }) {
     user?.role === 'EMPLOYEE';
 
   const load = useCallback(async () => {
+    if (!supplyInScope) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [rep, res] = await Promise.all([
@@ -71,26 +124,38 @@ export function StockAvailabilitySection({ kickoffId }: { kickoffId: string }) {
     } finally {
       setLoading(false);
     }
-  }, [kickoffId]);
+  }, [kickoffId, supplyInScope]);
 
   useEffect(() => {
     void load();
+    if (!supplyInScope) return;
     listStores()
       .then(setStores)
       .catch(() => setStores([]));
-  }, [load]);
+  }, [load, supplyInScope]);
 
   async function generate() {
     setBusy(true);
+    setNoReleasedBom(false);
     try {
       const rep = await generateStockReport(kickoffId);
       setReport(rep);
       await load();
       toast.success('Stock-availability report generated.');
     } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : 'Failed to generate report.',
-      );
+      // "No released BOM yet" is an expected, normal state early in a
+      // project — not a system error. Detect it by the exact backend message
+      // and show the calm informational card instead of a red toast.
+      if (
+        err instanceof ApiError &&
+        err.message.includes('No released BOM exists')
+      ) {
+        setNoReleasedBom(true);
+      } else {
+        toast.error(
+          err instanceof ApiError ? err.message : 'Failed to generate report.',
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -120,11 +185,32 @@ export function StockAvailabilitySection({ kickoffId }: { kickoffId: string }) {
     }
   }
 
+  if (!supplyInScope) {
+    return (
+      <Card className="mb-4">
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle>Material Stock Availability</CardTitle>
+          {supplyInScopeToggle}
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="flex items-start gap-2 rounded-md border border-info/40 bg-info/10 p-3 text-sm text-info">
+            <Info className="mt-0.5 size-4 shrink-0" />
+            <p>
+              Material supply is out of scope for this project (vendor-managed)
+              — stock availability reporting skipped.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="mb-4">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Material Stock Availability</CardTitle>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {supplyInScopeToggle}
           {shortfallCount > 0 && (
             <Button size="sm" onClick={createRfq} disabled={busy}>
               Create RFQ for shortfalls ({shortfallCount})
@@ -138,6 +224,14 @@ export function StockAvailabilitySection({ kickoffId }: { kickoffId: string }) {
       <CardContent className="pt-0">
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : noReleasedBom ? (
+          <div className="flex items-start gap-2 rounded-md border border-info/40 bg-info/10 p-3 text-sm text-info">
+            <Info className="mt-0.5 size-4 shrink-0" />
+            <p>
+              No released BOM exists yet for this order&apos;s items — release
+              a BOM to generate the stock availability report.
+            </p>
+          </div>
         ) : !report ? (
           <p className="text-sm text-muted-foreground">
             No report yet. Generating snapshots the released BOM for each ordered

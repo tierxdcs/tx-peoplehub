@@ -7,6 +7,7 @@ import { Employee } from '../../../../../lib/types';
 import {
   createPlmInvite,
   getOrderPlm,
+  getPlmTracker,
   getPlmInvites,
   PlmStage,
   PlmTracker,
@@ -45,7 +46,11 @@ function StageStrip({ tracker }: { tracker: PlmTracker }) {
   );
 }
 
-export function PlmSection({ orderId }: { orderId: string }) {
+type PlmSectionProps =
+  | { orderId: string; trackerId?: never }
+  | { trackerId: string; orderId?: never };
+
+export function PlmSection({ orderId, trackerId }: PlmSectionProps) {
   const { user } = useAuth();
   const toast = useToast();
   const [trackers, setTrackers] = useState<PlmTracker[]>([]);
@@ -57,7 +62,9 @@ export function PlmSection({ orderId }: { orderId: string }) {
   const load = useCallback(async () => {
     try {
       const [rows, employee] = await Promise.all([
-        getOrderPlm(orderId),
+        trackerId
+          ? getPlmTracker(trackerId).then((tracker) => [tracker])
+          : getOrderPlm(orderId as string),
         user ? apiFetch<Employee>(`/employees/${user.sub}`) : Promise.resolve(null),
       ]);
       setTrackers(rows);
@@ -67,7 +74,7 @@ export function PlmSection({ orderId }: { orderId: string }) {
     } finally {
       setLoading(false);
     }
-  }, [orderId, toast, user]);
+  }, [orderId, toast, trackerId, user]);
 
   useEffect(() => { void load(); }, [load]);
 

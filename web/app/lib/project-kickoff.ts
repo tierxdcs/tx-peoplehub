@@ -88,6 +88,12 @@ export interface ProjectKickoff {
   overviewAndScope: string | null;
   minutesNotes: string | null;
   status: KickoffStatus;
+  /**
+   * Whether checking Phaze's own stock/BOM is meaningful for this project.
+   * Defaults from the order's line-level deliveryType (false only when every
+   * line is VENDOR), but is always manually overridable.
+   */
+  supplyInScope: boolean;
   kanbanBoardId: string;
   createdById: string;
   createdAt: string;
@@ -193,6 +199,7 @@ export interface UpdateKickoffInput {
   overviewAndScope?: string | null;
   minutesNotes?: string | null;
   status?: KickoffStatus;
+  supplyInScope?: boolean;
 }
 
 export function updateKickoff(id: string, input: UpdateKickoffInput) {

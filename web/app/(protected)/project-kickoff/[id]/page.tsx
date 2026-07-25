@@ -322,7 +322,12 @@ export default function KickoffDetailPage() {
           onChanged={refresh}
         />
         <RisksSection kickoff={kickoff} canManage={canManage} onChanged={refresh} />
-        <StockAvailabilitySection kickoffId={kickoff.id} />
+        <StockAvailabilitySection
+          kickoffId={kickoff.id}
+          supplyInScope={kickoff.supplyInScope}
+          canManage={canManage}
+          onSupplyInScopeChanged={(updated) => setKickoff(updated)}
+        />
         <MinutesSection kickoff={kickoff} canManage={canManage} onSaved={(k) => setKickoff(k)} />
       </PageContainer>
     </>

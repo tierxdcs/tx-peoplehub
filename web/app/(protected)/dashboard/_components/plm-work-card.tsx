@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { AlertTriangle, ExternalLink, Factory } from 'lucide-react';
-import { PlmDashboardItem } from '../../../lib/plm';
+import { PlmDashboardItem, plmTrackerHref } from '../../../lib/plm';
 import { prettyEnum } from '../../../lib/sales';
 import { Card, CardContent } from '../../../components/ui/card';
 import { cn } from '../../../lib/utils';
@@ -16,7 +16,7 @@ export function PlmWorkCard({ item }: { item: PlmDashboardItem }) {
       <CardContent className="space-y-3 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <Link href={`/sales/orders/${item.orderId}#plm`} className="inline-flex items-center gap-1 font-semibold hover:text-primary">
+            <Link href={plmTrackerHref(item.trackerId)} className="inline-flex items-center gap-1 font-semibold hover:text-primary">
               <span>{item.orderNumber} · {item.productName}</span><ExternalLink className="size-3.5" />
             </Link>
             <p className="text-xs text-muted-foreground">{item.productSku} · {prettyEnum(item.flowType)} · Owner: {item.ownerName}</p>

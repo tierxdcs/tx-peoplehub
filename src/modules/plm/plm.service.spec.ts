@@ -16,6 +16,7 @@ describe('PlmService', () => {
       orderLineId: 'line-1',
       orderId: 'order-1',
       kickoffId: 'kickoff-1',
+      kickoff: { supplyInScope: true },
       flowType: 'NPD',
       currentStage: PlmStage.DESIGN_REVIEW,
       status: 'ACTIVE',
@@ -136,6 +137,26 @@ describe('PlmService', () => {
         'Material Planning cannot complete while the Kickoff Stock Availability Report has unresolved shortages or unknown stock',
       ),
     );
+  });
+
+  it('skips the stock-report check and advances Material Planning by manual confirmation when supply is out of scope', async () => {
+    const { service, prisma, stockReports } = setup(
+      tracker({
+        currentStage: PlmStage.MATERIAL_PLANNING,
+        kickoff: { supplyInScope: false },
+      }),
+    );
+    prisma.$transaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+      fn({
+        plmTracker: { update: jest.fn().mockResolvedValue({ id: 'tracker-1' }) },
+        plmTrackerEvent: { create: jest.fn().mockResolvedValue(undefined) },
+      }),
+    );
+
+    await service.confirmStage('tracker-1', {}, user);
+
+    expect(stockReports.computeReport).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalled();
   });
 
   it('requires a line-linked passed QC inspection before moving to Dispatch', async () => {

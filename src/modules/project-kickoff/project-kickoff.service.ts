@@ -76,7 +76,11 @@ export class ProjectKickoffService {
 
     const order = await this.prisma.order.findUnique({
       where: { id: dto.orderId },
-      include: { bid: true, customer: { select: { name: true } } },
+      include: {
+        bid: true,
+        customer: { select: { name: true } },
+        lineItems: { select: { deliveryType: true } },
+      },
     });
     if (!order) {
       throw new NotFoundException('Order not found');
@@ -99,6 +103,14 @@ export class ProjectKickoffService {
       order.bid?.quotationSubject ??
       order.bid?.technicalSpecification ??
       null;
+    // Material supply is out of scope only when every classified line is
+    // VENDOR — a mix of NPD/IN_HOUSE lines (or no lines classified yet) keeps
+    // it in scope by default. Purely a convenience default; always overridable
+    // afterwards via update().
+    const supplyInScope = !(
+      order.lineItems.length > 0 &&
+      order.lineItems.every((li) => li.deliveryType === 'VENDOR')
+    );
 
     // Privileged board provisioning (creator is the sole initial member; more
     // members join as internal attendees are added).
@@ -117,6 +129,7 @@ export class ProjectKickoffService {
         meetingLocation: dto.meetingLocation ?? null,
         overviewAndScope: overview,
         minutesNotes: dto.minutesNotes ?? null,
+        supplyInScope,
         kanbanBoardId: boardId,
         createdById: user.id,
       },
@@ -420,6 +433,9 @@ export class ProjectKickoffService {
           ? { minutesNotes: dto.minutesNotes }
           : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
+        ...(dto.supplyInScope !== undefined
+          ? { supplyInScope: dto.supplyInScope }
+          : {}),
       },
     });
     if (dto.status === 'COMPLETED') {
@@ -884,6 +900,7 @@ export class ProjectKickoffService {
       overviewAndScope: row.overviewAndScope,
       minutesNotes: row.minutesNotes,
       status: row.status,
+      supplyInScope: row.supplyInScope,
       kanbanBoardId: row.kanbanBoardId,
       createdById: row.createdById,
       createdAt: row.createdAt.toISOString(),

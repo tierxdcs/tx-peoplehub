@@ -153,7 +153,10 @@ export class PlmService {
           !derived.derived.drawingReleased
         ) {
           blocker = 'Released BOM required';
-        } else if (tracker.currentStage === PlmStage.MATERIAL_PLANNING) {
+        } else if (
+          tracker.currentStage === PlmStage.MATERIAL_PLANNING &&
+          tracker.kickoff.supplyInScope
+        ) {
           const report = await this.stockReports.computeReport(
             tracker.kickoffId,
             tracker.orderLineId,
@@ -397,6 +400,14 @@ export class PlmService {
       case PlmStage.RELEASE_TO_SCM:
         return PlmStage.MATERIAL_PLANNING;
       case PlmStage.MATERIAL_PLANNING: {
+        // Material supply is out of scope for this project (e.g. a vendor is
+        // supplying the finished item under a turnkey arrangement) — the
+        // Kickoff Stock Availability Report never runs, so there is nothing
+        // for this gate to check. Fall back to simple manual confirmation
+        // rather than permanently blocking the tracker.
+        if (!tracker.kickoff.supplyInScope) {
+          return PlmStage.PRODUCTION;
+        }
         const report = await this.stockReports.computeReport(
           tracker.kickoffId,
           tracker.orderLineId,
@@ -532,6 +543,7 @@ export class PlmService {
       owner: { select: { id: true, firstName: true, lastName: true } },
       vendor: { select: { id: true, companyName: true } },
       order: { select: { id: true, orderNumber: true, ownerId: true } },
+      kickoff: { select: { supplyInScope: true } },
       events: {
         include: { actor: { select: { firstName: true, lastName: true } } },
         orderBy: { createdAt: 'asc' as const },

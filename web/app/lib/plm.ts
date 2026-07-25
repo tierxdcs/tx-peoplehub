@@ -85,6 +85,12 @@ export const getMyPlmWork = () => apiFetch<PlmDashboardItem[]>('/plm/dashboard')
 export const getOrderPlm = (orderId: string) =>
   apiFetch<PlmTracker[]>(`/plm/orders/${orderId}`);
 
+export const getPlmTracker = (trackerId: string) =>
+  apiFetch<PlmTracker>(`/plm/trackers/${trackerId}`);
+
+export const plmTrackerHref = (trackerId: string) =>
+  `/plm/trackers/${encodeURIComponent(trackerId)}`;
+
 export const plmAction = (trackerId: string, action: string, body?: unknown) =>
   apiFetch(`/plm/trackers/${trackerId}/${action}`, {
     method: 'POST',

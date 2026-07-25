@@ -8,6 +8,7 @@ import {
   OrderLineDeliveryType,
 } from '@prisma/client';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsOptional,
@@ -95,6 +96,14 @@ export class UpdateKickoffDto {
   @IsOptional()
   @IsEnum(KickoffStatus)
   status?: KickoffStatus;
+
+  @ApiPropertyOptional({
+    description:
+      'Whether checking Phaze’s own stock/BOM is meaningful for this project (e.g. false for a vendor-managed turnkey arrangement). Always manually overridable regardless of the auto-derived default.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  supplyInScope?: boolean;
 }
 
 // ── Attendees ────────────────────────────────────────────────────────
