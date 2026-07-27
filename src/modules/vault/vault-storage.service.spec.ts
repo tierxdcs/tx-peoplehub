@@ -60,4 +60,21 @@ describe('VaultStorageService', () => {
     // Presigned query params present → it's a genuine signed URL.
     expect(res.url).toContain('X-Amz-Signature');
   });
+
+  it('never injects SDK checksum params into a presigned PUT URL (R2 CORS breaks on these)', async () => {
+    // Regression guard: newer @aws-sdk/client-s3 defaults to
+    // requestChecksumCalculation: 'WHEN_SUPPORTED', which auto-adds
+    // x-amz-sdk-checksum-algorithm / x-amz-checksum-crc32 to every presigned
+    // PutObject URL. R2's CORS policy doesn't allow those request
+    // headers/params, so the browser's direct upload fails preflight with a
+    // CORS error before R2 responds. The client must set
+    // requestChecksumCalculation: 'WHEN_REQUIRED' to suppress this.
+    const svc = await build(fullCfg);
+    const res = await svc.createUploadUrl(
+      'vault/files/f/v1',
+      'application/pdf',
+    );
+    expect(res.url).not.toContain('x-amz-sdk-checksum-algorithm');
+    expect(res.url).not.toContain('x-amz-checksum-crc32');
+  });
 });

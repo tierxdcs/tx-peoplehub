@@ -62,6 +62,14 @@ export class VaultStorageService {
         endpoint: this.cfg.endpoint,
         // R2 uses path-style; virtual-hosted-style is not supported.
         forcePathStyle: true,
+        // Recent SDK versions default to WHEN_SUPPORTED, which injects
+        // x-amz-sdk-checksum-algorithm/x-amz-checksum-crc32 into presigned
+        // PUT URLs. R2's CORS policy doesn't allow those on the browser's
+        // direct-upload request, so the preflight fails with a CORS error
+        // before R2 ever returns a response. Put/Get don't require a
+        // checksum, so WHEN_REQUIRED stops the SDK from adding one.
+        requestChecksumCalculation: 'WHEN_REQUIRED',
+        responseChecksumValidation: 'WHEN_REQUIRED',
         credentials: {
           accessKeyId: this.cfg.accessKeyId as string,
           secretAccessKey: this.cfg.secretAccessKey as string,
