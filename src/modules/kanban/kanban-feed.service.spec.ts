@@ -55,4 +55,70 @@ describe('KanbanFeedService', () => {
     expect(access.assertCanEditCard).not.toHaveBeenCalled();
     expect(prisma.kanbanCardComment.create).toHaveBeenCalled();
   });
+
+  it('returns the combined feed newest-first, interleaving comments and activity', async () => {
+    const prisma = {
+      kanbanCard: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'card-1',
+          status: 'ACTIVE',
+          title: 'SCM support',
+          assigneeId: 'assignee-1',
+          list: { boardId: 'board-1' },
+        }),
+      },
+      kanbanCardComment: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'comment-old',
+            authorId: 'author-1',
+            text: 'first ever',
+            createdAt: new Date('2026-07-23T09:00:00.000Z'),
+            author: { firstName: 'Punith', lastName: 'NS' },
+          },
+          {
+            id: 'comment-new',
+            authorId: 'author-1',
+            text: 'latest word',
+            createdAt: new Date('2026-07-23T15:00:00.000Z'),
+            author: { firstName: 'Punith', lastName: 'NS' },
+          },
+        ]),
+      },
+      kanbanCardActivity: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'activity-mid',
+            actorId: 'author-1',
+            description: 'moved the card',
+            createdAt: new Date('2026-07-23T12:00:00.000Z'),
+            actor: { firstName: 'Punith', lastName: 'NS' },
+          },
+        ]),
+      },
+    };
+    const access = {
+      assertCanViewCard: jest
+        .fn()
+        .mockResolvedValue({ hasBoardAccess: true }),
+    };
+    const service = new KanbanFeedService(
+      prisma as never,
+      access as never,
+      {} as never,
+    );
+
+    const feed = await service.getFeed('card-1', {
+      id: 'author-1',
+      email: 'punith@example.com',
+      role: 'EMPLOYEE',
+    } as never);
+
+    // Descending by createdAt, comments and activity interleaved by timestamp.
+    expect(feed.map((i) => i.id)).toEqual([
+      'comment-new',
+      'activity-mid',
+      'comment-old',
+    ]);
+  });
 });

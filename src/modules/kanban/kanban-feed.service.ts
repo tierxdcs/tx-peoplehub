@@ -85,9 +85,12 @@ export class KanbanFeedService {
   }
 
   /**
-   * Combined feed: comments + activity merged chronologically (oldest→newest),
-   * each tagged COMMENT or ACTIVITY so the UI can render them differently.
-   * Any board member, OR (card-only access) the card's own assignee.
+   * Combined feed: comments + activity merged chronologically, NEWEST FIRST
+   * (descending by createdAt), each tagged COMMENT or ACTIVITY so the UI can
+   * render them differently. The two streams stay interleaved by their actual
+   * timestamps — the most recent update is at the top, so a viewer sees what
+   * just happened without scrolling. Any board member, OR (card-only access)
+   * the card's own assignee.
    */
   async getFeed(
     cardId: string,
@@ -135,7 +138,9 @@ export class KanbanFeedService {
           }),
       ),
     ];
-    items.sort((x, y) => x.createdAt.localeCompare(y.createdAt));
+    // Newest first: descending by ISO timestamp (y vs x), so the latest
+    // comment/activity entry renders at the top of the merged timeline.
+    items.sort((x, y) => y.createdAt.localeCompare(x.createdAt));
     return items;
   }
 
