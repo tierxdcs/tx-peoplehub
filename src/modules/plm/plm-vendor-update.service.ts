@@ -8,6 +8,7 @@ import {
   NotificationType,
   PlmEventType,
   PlmUpdateReporterType,
+  PlmVendorUpdateType,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import {
@@ -26,9 +27,11 @@ import {
   CreatePlmVendorInviteDto,
   PlmPhotoUploadUrlDto,
   PlmProductionUpdateDto,
+  PlmQuickCommentDto,
 } from './dto/plm.dto';
 import { PlmAccessService } from './plm-access.service';
 import { KanbanNotificationsService } from '../notifications/kanban-notifications.service';
+import { deriveVendorCadence } from './plm-vendor-cadence';
 
 @Injectable()
 export class PlmVendorUpdateService {
@@ -145,6 +148,7 @@ export class PlmVendorUpdateService {
     const update = await this.recordUpdate(
       tracker,
       dto,
+      PlmVendorUpdateType.FULL_PROGRESS,
       PlmUpdateReporterType.VENDOR_SELF_REPORT,
       null,
       tracker.vendor!.companyName,
@@ -155,6 +159,30 @@ export class PlmVendorUpdateService {
       type: NotificationType.PLM_PRODUCTION_UPDATE,
       trackerId: tracker.id,
       message: `${tracker.vendor!.companyName} reported production progress for ${tracker.order.orderNumber} · ${tracker.orderLine.product.name}`,
+    });
+    return update;
+  }
+
+  async submitPublicComment(token: string, dto: PlmQuickCommentDto) {
+    const invite = await this.validInvite(token, dto.password);
+    const tracker = await this.trackerOrThrow(invite.trackerId);
+    if (!dto.notes.trim()) {
+      throw new BadRequestException('Quick comment cannot be empty');
+    }
+    const update = await this.recordUpdate(
+      tracker,
+      { notes: dto.notes },
+      PlmVendorUpdateType.COMMENT_ONLY,
+      PlmUpdateReporterType.VENDOR_SELF_REPORT,
+      null,
+      tracker.vendor!.companyName,
+    );
+    await this.notifications.notifyPlm({
+      recipientId: tracker.ownerId,
+      actorId: null,
+      type: NotificationType.PLM_PRODUCTION_UPDATE,
+      trackerId: tracker.id,
+      message: `${tracker.vendor!.companyName} added a production comment for ${tracker.order.orderNumber} · ${tracker.orderLine.product.name}`,
     });
     return update;
   }
@@ -185,6 +213,7 @@ export class PlmVendorUpdateService {
     const update = await this.recordUpdate(
       tracker,
       dto,
+      PlmVendorUpdateType.FULL_PROGRESS,
       PlmUpdateReporterType.INTERNAL_AUDITOR_VISIT,
       user.id,
       `${employee?.firstName ?? ''} ${employee?.lastName ?? ''}`.trim() || user.email,
@@ -216,7 +245,8 @@ export class PlmVendorUpdateService {
 
   private async recordUpdate(
     tracker: Awaited<ReturnType<PlmVendorUpdateService['trackerOrThrow']>>,
-    dto: PlmProductionUpdateDto,
+    dto: PlmProductionUpdateDto | PlmQuickCommentDto,
+    updateType: PlmVendorUpdateType,
     reporterType: PlmUpdateReporterType,
     internalReporterId: string | null,
     reporterDisplayName: string,
@@ -235,7 +265,11 @@ export class PlmVendorUpdateService {
       sizeBytes: number;
       mimeType: string;
     }> = [];
-    for (const photo of dto.photos ?? []) {
+    const progressDto =
+      updateType === PlmVendorUpdateType.FULL_PROGRESS
+        ? (dto as PlmProductionUpdateDto)
+        : null;
+    for (const photo of progressDto?.photos ?? []) {
       if (!photo.storageKey.startsWith(`plm/${tracker.id}/updates/`)) {
         throw new BadRequestException('A progress photo does not belong to this tracker');
       }
@@ -257,11 +291,12 @@ export class PlmVendorUpdateService {
         data: {
           trackerId: tracker.id,
           reporterType,
+          updateType,
           internalReporterId,
           reporterDisplayName,
-          fabricationPercent: dto.fabricationPercent,
-          surfaceFinishPercent: dto.surfaceFinishPercent,
-          assemblyPercent: dto.assemblyPercent,
+          fabricationPercent: progressDto?.fabricationPercent ?? null,
+          surfaceFinishPercent: progressDto?.surfaceFinishPercent ?? null,
+          assemblyPercent: progressDto?.assemblyPercent ?? null,
           notes: dto.notes?.trim() || null,
           photos: { create: photos },
         },
@@ -276,10 +311,11 @@ export class PlmVendorUpdateService {
           metadata: {
             updateId: update.id,
             reporterType,
+            updateType,
             reporterDisplayName,
-            fabricationPercent: dto.fabricationPercent,
-            surfaceFinishPercent: dto.surfaceFinishPercent,
-            assemblyPercent: dto.assemblyPercent,
+            fabricationPercent: progressDto?.fabricationPercent ?? null,
+            surfaceFinishPercent: progressDto?.surfaceFinishPercent ?? null,
+            assemblyPercent: progressDto?.assemblyPercent ?? null,
           },
         },
       });
@@ -302,6 +338,13 @@ export class PlmVendorUpdateService {
       include: {
         vendor: { select: { id: true, companyName: true } },
         order: { select: { orderNumber: true } },
+        kickoff: { select: { vendorUpdateCadenceDays: true } },
+        events: {
+          where: { toStage: 'PRODUCTION' },
+          select: { createdAt: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
         orderLine: { include: { product: { select: { name: true, sku: true } } } },
       },
     });
@@ -330,12 +373,22 @@ export class PlmVendorUpdateService {
         ),
       })),
     );
+    const latest = updates[0]?.createdAt ?? null;
+    const cadenceReference = latest ?? tracker.events[0]?.createdAt ?? tracker.createdAt;
+    const cadence = deriveVendorCadence(
+      cadenceReference,
+      tracker.kickoff.vendorUpdateCadenceDays,
+    );
     return {
       trackerId,
       orderNumber: tracker.order.orderNumber,
       product: tracker.orderLine.product,
       vendorName: tracker.vendor?.companyName,
       currentStage: tracker.currentStage,
+      vendorUpdateCadenceDays: tracker.kickoff.vendorUpdateCadenceDays,
+      lastVendorUpdateAt: latest?.toISOString() ?? null,
+      vendorCadenceStatus: cadence.status,
+      vendorUpdateDueAt: cadence.dueAt.toISOString(),
       updates: publicUpdates,
     };
   }

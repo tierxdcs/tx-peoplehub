@@ -16,7 +16,7 @@ describe('PlmService', () => {
       orderLineId: 'line-1',
       orderId: 'order-1',
       kickoffId: 'kickoff-1',
-      kickoff: { supplyInScope: true },
+      kickoff: { supplyInScope: true, vendorUpdateCadenceDays: 1 },
       flowType: 'NPD',
       currentStage: PlmStage.DESIGN_REVIEW,
       status: 'ACTIVE',
@@ -32,6 +32,7 @@ describe('PlmService', () => {
         deliveryChallanLines: [],
       },
       productionCards: [],
+      productionUpdates: [],
       events: [],
       ...overrides,
     };

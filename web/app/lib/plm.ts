@@ -21,6 +21,10 @@ export interface PlmTracker {
   ownerId: string;
   owner: { id: string; firstName: string; lastName: string };
   vendor: { id: string; companyName: string } | null;
+  kickoff: {
+    supplyInScope: boolean;
+    vendorUpdateCadenceDays: number;
+  };
   designReviewStatus: 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED';
   designSubmittedById: string | null;
   designReviewComment: string | null;
@@ -38,11 +42,12 @@ export interface PlmTracker {
   }>;
   productionUpdates: Array<{
     id: string;
+    updateType: 'FULL_PROGRESS' | 'COMMENT_ONLY';
     reporterType: 'VENDOR_SELF_REPORT' | 'INTERNAL_AUDITOR_VISIT';
     reporterDisplayName: string;
-    fabricationPercent: number;
-    surfaceFinishPercent: number;
-    assemblyPercent: number;
+    fabricationPercent: number | null;
+    surfaceFinishPercent: number | null;
+    assemblyPercent: number | null;
     notes: string | null;
     createdAt: string;
     photos: Array<{ id: string; fileName: string; sizeBytes: number }>;
@@ -52,6 +57,13 @@ export interface PlmTracker {
     qcPassed: boolean;
     dispatched: boolean;
     production: { done: number; total: number };
+    lastVendorUpdateAt: string | null;
+    vendorCadence: {
+      status: 'GREEN' | 'AMBER' | 'RED';
+      cadenceDays: number;
+      dueAt: string;
+      lastVendorUpdateAt: string | null;
+    } | null;
   };
 }
 

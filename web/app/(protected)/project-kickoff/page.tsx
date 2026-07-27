@@ -181,6 +181,7 @@ function NewKickoffDialog({
   const [meetingDate, setMeetingDate] = useState('');
   const [meetingMode, setMeetingMode] = useState<KickoffMeetingMode>('VIRTUAL');
   const [meetingLocation, setMeetingLocation] = useState('');
+  const [vendorUpdateCadenceDays, setVendorUpdateCadenceDays] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -219,6 +220,7 @@ function NewKickoffDialog({
         meetingDate: new Date(meetingDate).toISOString(),
         meetingMode,
         meetingLocation: meetingLocation.trim() || undefined,
+        vendorUpdateCadenceDays,
       });
       toast.success('Project kickoff created.');
       onCreated(created.id);
@@ -299,6 +301,21 @@ function NewKickoffDialog({
               onChange={(e) => setMeetingLocation(e.target.value)}
               placeholder="Physical address or virtual meeting link"
             />
+          </Field>
+
+          <Field label="Vendor update cadence (days)" htmlFor="pk-vendor-cadence">
+            <Input
+              id="pk-vendor-cadence"
+              type="number"
+              min={1}
+              value={vendorUpdateCadenceDays}
+              onChange={(e) =>
+                setVendorUpdateCadenceDays(Math.max(1, Number(e.target.value) || 1))
+              }
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              A progress update or quick comment resets this clock.
+            </p>
           </Field>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

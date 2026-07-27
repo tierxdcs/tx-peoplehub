@@ -8,6 +8,7 @@ import {
   PlmPublicView,
   resolvePlmVendorUpdate,
   submitPlmVendorUpdate,
+  submitPlmVendorComment,
 } from '../../../lib/plm-public';
 
 const stages = [
@@ -15,6 +16,18 @@ const stages = [
   ['Surface finish', 'surfaceFinish'] as const,
   ['Assembly', 'assembly'] as const,
 ];
+
+function relativeTime(iso: string | null) {
+  if (!iso) return 'No update submitted yet';
+  const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
 
 export default function PlmVendorUpdatePage() {
   const { token } = useParams<{ token: string }>();
@@ -26,6 +39,8 @@ export default function PlmVendorUpdatePage() {
     assembly: 0,
   });
   const [notes, setNotes] = useState('');
+  const [quickComment, setQuickComment] = useState('');
+  const [mode, setMode] = useState<'FULL_PROGRESS' | 'COMMENT_ONLY'>('FULL_PROGRESS');
   const [files, setFiles] = useState<File[]>([]);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -36,12 +51,14 @@ export default function PlmVendorUpdatePage() {
     const result = await resolvePlmVendorUpdate(token, passwordValue || undefined);
     if (result.ok) {
       setView(result.data);
-      const latest = result.data.updates[0];
+      const latest = result.data.updates.find(
+        (update) => update.updateType === 'FULL_PROGRESS',
+      );
       if (latest) {
         setValues({
-          fabrication: latest.fabricationPercent,
-          surfaceFinish: latest.surfaceFinishPercent,
-          assembly: latest.assemblyPercent,
+          fabrication: latest.fabricationPercent ?? 0,
+          surfaceFinish: latest.surfaceFinishPercent ?? 0,
+          assembly: latest.assemblyPercent ?? 0,
         });
       }
       setMessage('');
@@ -49,6 +66,27 @@ export default function PlmVendorUpdatePage() {
       setMessage(result.message);
     }
     setLoading(false);
+  }
+
+  async function submitQuickComment(event: FormEvent) {
+    event.preventDefault();
+    if (!quickComment.trim()) return;
+    setSubmitting(true);
+    setMessage('');
+    try {
+      const result = await submitPlmVendorComment(token, {
+        password: password || undefined,
+        notes: quickComment.trim(),
+      });
+      if (!result.ok) throw new Error(result.message);
+      setQuickComment('');
+      setMessage('Quick comment submitted successfully.');
+      await resolve(password);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to submit comment');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   useEffect(() => {
@@ -135,6 +173,12 @@ export default function PlmVendorUpdatePage() {
               <p className="mt-1 text-sm text-blue-900/70">
                 This submission will be recorded as a vendor self-report and retained in the PLM timeline.
               </p>
+              <div className="mt-3 border-t border-blue-200 pt-3 text-sm">
+                <strong>Last update: {relativeTime(view.lastVendorUpdateAt)}</strong>
+                <span className="ml-2 text-blue-900/70">
+                  · Expected every {view.vendorUpdateCadenceDays} day(s)
+                </span>
+              </div>
             </section>
 
             <section className="rounded-xl border bg-white p-5 shadow-sm">
@@ -145,6 +189,24 @@ export default function PlmVendorUpdatePage() {
               </div>
             </section>
 
+            <div className="grid grid-cols-2 rounded-lg border bg-white p-1 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setMode('FULL_PROGRESS')}
+                className={`min-h-11 rounded-md px-3 text-sm font-medium ${mode === 'FULL_PROGRESS' ? 'bg-blue-600 text-white' : 'text-slate-600'}`}
+              >
+                Full progress update
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('COMMENT_ONLY')}
+                className={`min-h-11 rounded-md px-3 text-sm font-medium ${mode === 'COMMENT_ONLY' ? 'bg-blue-600 text-white' : 'text-slate-600'}`}
+              >
+                Quick comment
+              </button>
+            </div>
+
+            {mode === 'FULL_PROGRESS' ? (
             <form onSubmit={submit} className="space-y-5 rounded-xl border bg-white p-5 shadow-sm">
               {stages.map(([label, key]) => (
                 <label key={key} className="block">
@@ -196,6 +258,66 @@ export default function PlmVendorUpdatePage() {
                 {submitting ? 'Submitting…' : 'Submit progress update'}
               </button>
             </form>
+            ) : (
+              <form onSubmit={submitQuickComment} className="space-y-4 rounded-xl border bg-white p-5 shadow-sm">
+                <div>
+                  <h2 className="font-semibold">Quick comment</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Share a status note without changing the latest progress percentages.
+                  </p>
+                </div>
+                <textarea
+                  required
+                  value={quickComment}
+                  onChange={(event) => setQuickComment(event.target.value)}
+                  rows={5}
+                  className="w-full rounded-md border p-3"
+                  placeholder="Current status, blocker, material update, expected next step…"
+                />
+                {message && <p className="text-sm text-slate-700">{message}</p>}
+                <button
+                  type="submit"
+                  disabled={submitting || !quickComment.trim()}
+                  className="min-h-12 w-full rounded-md bg-blue-600 px-5 font-medium text-white disabled:opacity-50"
+                >
+                  {submitting ? 'Submitting…' : 'Submit quick comment'}
+                </button>
+              </form>
+            )}
+
+            <section className="rounded-xl border bg-white p-5 shadow-sm">
+              <h2 className="font-semibold">Update history</h2>
+              {view.updates.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-500">No updates submitted yet.</p>
+              ) : (
+                <div className="mt-4 space-y-4">
+                  {view.updates.map((update) => (
+                    <article key={update.id} className="border-l-2 border-blue-200 pl-4">
+                      <div className="flex flex-wrap justify-between gap-2 text-sm">
+                        <strong>
+                          {update.updateType === 'COMMENT_ONLY' ? 'Quick comment' : 'Progress update'}
+                        </strong>
+                        <time className="text-slate-500">
+                          {new Date(update.createdAt).toLocaleString()}
+                        </time>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {update.reporterDisplayName}
+                        {update.reporterType === 'INTERNAL_AUDITOR_VISIT' ? ' · Internal auditor visit' : ''}
+                      </p>
+                      {update.updateType === 'FULL_PROGRESS' && (
+                        <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                          <span>Fabrication {update.fabricationPercent}%</span>
+                          <span>Surface finish {update.surfaceFinishPercent}%</span>
+                          <span>Assembly {update.assemblyPercent}%</span>
+                        </div>
+                      )}
+                      {update.notes && <p className="mt-2 text-sm">{update.notes}</p>}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
           </>
         )}
       </div>

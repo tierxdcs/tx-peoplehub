@@ -26,6 +26,8 @@ function input(
     overdueMilestones: 0,
     overdueActions: 0,
     openHighRisks: 0,
+    overdueVendorUpdates: 0,
+    approachingVendorUpdates: 0,
     ...overrides,
   };
 }
@@ -53,5 +55,19 @@ describe('deriveProjectProgress', () => {
     );
     expect(result.health).toBe('AT_RISK');
     expect(result.healthReason).toContain('2 overdue action item(s)');
+  });
+
+  it('marks an overdue vendor production update as blocking', () => {
+    const result = deriveProjectProgress(input({ overdueVendorUpdates: 1 }));
+    expect(result.health).toBe('BLOCKED');
+    expect(result.healthReason).toContain('vendor production update');
+  });
+
+  it('marks an approaching vendor update deadline as at risk', () => {
+    const result = deriveProjectProgress(
+      input({ approachingVendorUpdates: 1 }),
+    );
+    expect(result.health).toBe('AT_RISK');
+    expect(result.healthReason).toContain('due soon');
   });
 });

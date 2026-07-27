@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   KickoffMeetingMode,
   KickoffMilestoneStatus,
@@ -11,10 +12,12 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   MinLength,
+  Min,
 } from 'class-validator';
 
 export class CreateKickoffDto {
@@ -58,6 +61,16 @@ export class CreateKickoffDto {
   @IsOptional()
   @IsString()
   minutesNotes?: string;
+
+  @ApiPropertyOptional({
+    default: 1,
+    description: 'Maximum expected days between vendor production updates',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  vendorUpdateCadenceDays?: number;
 }
 
 export class UpdateKickoffDto {
@@ -104,6 +117,15 @@ export class UpdateKickoffDto {
   @IsOptional()
   @IsBoolean()
   supplyInScope?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Maximum expected days between vendor production updates',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  vendorUpdateCadenceDays?: number;
 }
 
 // ── Attendees ────────────────────────────────────────────────────────

@@ -23,7 +23,9 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
  *     even without being a Scrum Master — see assertCanManageLists. This is
  *     scoped to lists (+ cards, already open to any member); it does NOT
  *     extend to sprints, members, or labels, which stay Scrum-Master-only
- *     with no creator exception (assertCanManageBoard).
+ *     with no creator exception (assertCanManageBoard). The creator (as the
+ *     board's owner) may ALSO delete the whole board — an owner-only action a
+ *     Scrum Master does NOT get (see assertCanDeleteBoard).
  *   - Card owner: the employee who created a card retains its structural edit
  *     rights after assigning it to someone else.
  *   - Card-only access: a card's assignee may view and comment on that single
@@ -164,6 +166,31 @@ export class KanbanAccessService {
       );
     }
     return board;
+  }
+
+  /**
+   * Assert the user may DELETE the whole board. Deliberately the NARROWEST
+   * board-level gate: only the board's own creator (its owner) or a
+   * SUPER_ADMIN. A Scrum Master who merely manages the board's
+   * sprints/members/labels canNOT delete it — deleting an entire board is an
+   * owner-only action, distinct from assertCanManageBoard. The creator is
+   * always a member (auto-added on create, never removable), so
+   * assertCanViewBoard passes for them.
+   */
+  async assertCanDeleteBoard(
+    user: AuthenticatedUser,
+    boardId: string,
+  ): Promise<KanbanBoard> {
+    const board = await this.assertCanViewBoard(user, boardId);
+    if (this.isSuperAdmin(user)) {
+      return board;
+    }
+    if (board.createdById === user.id) {
+      return board;
+    }
+    throw new ForbiddenException(
+      'Only the board’s creator or a SUPER_ADMIN may delete it',
+    );
   }
 
   /**

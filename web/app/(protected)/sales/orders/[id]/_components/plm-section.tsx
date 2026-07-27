@@ -46,6 +46,18 @@ function StageStrip({ tracker }: { tracker: PlmTracker }) {
   );
 }
 
+function relativeTime(iso: string | null) {
+  if (!iso) return 'No vendor update yet';
+  const hours = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000),
+  );
+  if (hours < 1) return 'Updated within the last hour';
+  if (hours < 24) return `Updated ${hours} hour${hours === 1 ? '' : 's'} ago`;
+  const days = Math.floor(hours / 24);
+  return `Updated ${days} day${days === 1 ? '' : 's'} ago`;
+}
+
 type PlmSectionProps =
   | { orderId: string; trackerId?: never }
   | { trackerId: string; orderId?: never };
@@ -131,6 +143,22 @@ export function PlmSection({ orderId, trackerId }: PlmSectionProps) {
                   </div>
                 )}
 
+                {tracker.flowType === 'VENDOR' && tracker.derived.vendorCadence && (
+                  <div
+                    className={{
+                      GREEN: 'border-success/40 bg-success/10 text-success',
+                      AMBER: 'border-warning/40 bg-warning/10 text-warning-foreground',
+                      RED: 'border-destructive/40 bg-destructive/10 text-destructive',
+                    }[tracker.derived.vendorCadence.status] + ' rounded-md border p-3 text-sm'}
+                  >
+                    <strong>{relativeTime(tracker.derived.lastVendorUpdateAt)}</strong>
+                    <span className="ml-2">
+                      · Cadence: every {tracker.derived.vendorCadence.cadenceDays} day(s)
+                      · Next due {new Date(tracker.derived.vendorCadence.dueAt).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-2">
                   {tracker.currentStage === 'DESIGN' && (
                     <Button size="sm" disabled={acting === tracker.id} onClick={() => void act(tracker, 'design-review/submit')}>Submit Design Review</Button>
@@ -152,7 +180,7 @@ export function PlmSection({ orderId, trackerId }: PlmSectionProps) {
                 )}
 
                 {tracker.productionUpdates.length > 0 && (
-                  <section><h4 className="mb-2 text-sm font-semibold">Production update history</h4><div className="space-y-2">{tracker.productionUpdates.map((update) => <div key={update.id} className="rounded-md border p-3 text-sm"><div className="flex flex-wrap justify-between gap-2"><strong>Updated by: {update.reporterDisplayName}{update.reporterType === 'INTERNAL_AUDITOR_VISIT' ? ' (site visit)' : ''}</strong><span className="text-muted-foreground">{new Date(update.createdAt).toLocaleString()}</span></div><div className="mt-2 flex flex-wrap gap-3 text-xs"><span>Fabrication {update.fabricationPercent}%</span><span>Surface finish {update.surfaceFinishPercent}%</span><span>Assembly {update.assemblyPercent}%</span></div>{update.notes && <p className="mt-2 text-muted-foreground">{update.notes}</p>}<div className="mt-2 flex flex-wrap gap-2">{update.photos.map((photo) => <button key={photo.id} className="inline-flex items-center gap-1 text-xs text-primary hover:underline" onClick={async () => { const result = await apiFetch<{downloadUrl:string}>(`/plm/update-photos/${photo.id}/download-url`); window.open(result.downloadUrl, '_blank', 'noopener,noreferrer'); }}><FileImage className="size-3" />{photo.fileName}</button>)}</div></div>)}</div></section>
+                  <section><h4 className="mb-2 text-sm font-semibold">Production update history</h4><div className="space-y-2">{tracker.productionUpdates.map((update) => <div key={update.id} className="rounded-md border p-3 text-sm"><div className="flex flex-wrap justify-between gap-2"><strong>{update.updateType === 'COMMENT_ONLY' ? 'Quick comment' : 'Progress update'} · {update.reporterDisplayName}{update.reporterType === 'INTERNAL_AUDITOR_VISIT' ? ' (site visit)' : ''}</strong><span className="text-muted-foreground">{new Date(update.createdAt).toLocaleString()}</span></div>{update.updateType === 'FULL_PROGRESS' && <div className="mt-2 flex flex-wrap gap-3 text-xs"><span>Fabrication {update.fabricationPercent}%</span><span>Surface finish {update.surfaceFinishPercent}%</span><span>Assembly {update.assemblyPercent}%</span></div>}{update.notes && <p className="mt-2 text-muted-foreground">{update.notes}</p>}<div className="mt-2 flex flex-wrap gap-2">{update.photos.map((photo) => <button key={photo.id} className="inline-flex items-center gap-1 text-xs text-primary hover:underline" onClick={async () => { const result = await apiFetch<{downloadUrl:string}>(`/plm/update-photos/${photo.id}/download-url`); window.open(result.downloadUrl, '_blank', 'noopener,noreferrer'); }}><FileImage className="size-3" />{photo.fileName}</button>)}</div></div>)}</div></section>
                 )}
 
                 <section><h4 className="mb-2 text-sm font-semibold">Timeline</h4><div className="space-y-2">{tracker.events.map((event) => <div key={event.id} className="flex gap-3 text-sm"><span className="mt-1 size-2 shrink-0 rounded-full bg-primary" /><div><span className="font-medium">{prettyEnum(event.type)}</span>{event.actor && <span> · {event.actor.firstName} {event.actor.lastName}</span>}<span className="text-muted-foreground"> · {new Date(event.createdAt).toLocaleString()}</span>{event.comment && <p className="text-muted-foreground">{event.comment}</p>}</div></div>)}</div></section>

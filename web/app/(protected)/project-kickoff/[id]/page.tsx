@@ -312,6 +312,7 @@ export default function KickoffDetailPage() {
 
         <SignedConfirmationSheetCard kickoffId={kickoff.id} />
         <OverviewSection kickoff={kickoff} canManage={canManage} onSaved={(k) => setKickoff(k)} />
+        <VendorCadenceSection kickoff={kickoff} canManage={canManage} onSaved={setKickoff} />
         <DeliveryClassificationSection kickoff={kickoff} canManage={canManage} onChanged={refresh} />
         <AttendeesSection kickoff={kickoff} canManage={canManage} onChanged={refresh} />
         <MilestonesSection kickoff={kickoff} canManage={canManage} onChanged={refresh} />
@@ -331,6 +332,71 @@ export default function KickoffDetailPage() {
         <MinutesSection kickoff={kickoff} canManage={canManage} onSaved={(k) => setKickoff(k)} />
       </PageContainer>
     </>
+  );
+}
+
+function VendorCadenceSection({
+  kickoff,
+  canManage,
+  onSaved,
+}: {
+  kickoff: ProjectKickoff;
+  canManage: boolean;
+  onSaved: (kickoff: ProjectKickoff) => void;
+}) {
+  const toast = useToast();
+  const [days, setDays] = useState(kickoff.vendorUpdateCadenceDays);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const updated = await updateKickoff(kickoff.id, {
+        vendorUpdateCadenceDays: Math.max(1, days),
+      });
+      onSaved(updated);
+      toast.success('Vendor update cadence saved.');
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Save failed.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle>Vendor update cadence</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex max-w-md items-end gap-3">
+          <label className="flex-1 text-sm font-medium">
+            Expected update every
+            <div className="mt-2 flex items-center gap-2">
+              <Input
+                type="number"
+                min={1}
+                disabled={!canManage}
+                value={days}
+                onChange={(event) => setDays(Math.max(1, Number(event.target.value) || 1))}
+              />
+              <span className="text-muted-foreground">day(s)</span>
+            </div>
+          </label>
+          {canManage && (
+            <Button
+              onClick={save}
+              disabled={saving || days === kickoff.vendorUpdateCadenceDays}
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </Button>
+          )}
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Applies to every Vendor-flow tracker. Full updates and quick comments both reset the clock.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

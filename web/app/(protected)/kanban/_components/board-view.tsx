@@ -18,8 +18,9 @@ import {
   arrayMove,
   horizontalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { LayoutGrid, Plus, Settings, Users } from 'lucide-react';
+import { LayoutGrid, Plus, Settings, Trash2, Users } from 'lucide-react';
 import {
+  archiveBoard,
   createCard,
   createList,
   filterBoardCards,
@@ -46,6 +47,7 @@ import { useIsScrumMaster } from '../../../lib/use-is-scrum-master';
 import { useIsMobile } from '../../../lib/use-is-mobile';
 import { cn } from '../../../lib/utils';
 import { useToast } from '../../../components/ui/toaster';
+import { useConfirm } from '../../../components/ui/confirm';
 import { PageContainer } from '../../../components/ui/page-container';
 import { Button } from '../../../components/ui/button';
 import { Avatar } from '../../../components/ui/avatar';
@@ -90,6 +92,7 @@ export function BoardView({
   const router = useRouter();
   const { user } = useAuth();
   const toast = useToast();
+  const confirm = useConfirm();
   const { isScrumMaster } = useIsScrumMaster();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isMobile = useIsMobile();
@@ -124,6 +127,11 @@ export function BoardView({
   // List management additionally carves out the board's own creator, mirroring
   // KanbanAccessService.assertCanManageLists.
   const canManageLists = canManageBoard || board?.createdById === user?.sub;
+  // Deleting the WHOLE board is owner-only: its creator or a SUPER_ADMIN,
+  // mirroring KanbanAccessService.assertCanDeleteBoard (a Scrum Master who only
+  // manages the board does NOT get this).
+  const canDeleteBoard =
+    isSuperAdmin || board?.createdById === user?.sub;
   // Drag-and-drop moves a card between lists, i.e. changes its status — this
   // mirrors KanbanAccessService.assertCanMoveCard, which additionally allows
   // the card's own assignee (not just its creator or a board manager) to do
@@ -265,6 +273,30 @@ export function BoardView({
       return next;
     });
     setOpenCard(moved);
+  }
+
+  // Delete (archive) the whole board — owner-only, gated on canDeleteBoard.
+  // Soft-deletes on the backend (status → ARCHIVED) so it drops out of every
+  // listing; we route back to the boards index afterwards.
+  async function handleDeleteBoard() {
+    if (!board) return;
+    const ok = await confirm({
+      title: `Delete “${board.name}”?`,
+      description:
+        'This removes the board and all its lists and cards from everyone who has access. This cannot be undone.',
+      confirmLabel: 'Delete board',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await archiveBoard(board.id);
+      toast.success('Board deleted.');
+      router.push('/kanban');
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to delete board.',
+      );
+    }
   }
 
   // ── drag and drop ────────────────────────────────────────────────────
@@ -452,6 +484,18 @@ export function BoardView({
                 <Plus className="h-4 w-4" /> New List
               </Button>
             </>
+          )}
+          {canDeleteBoard && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDeleteBoard}
+              className="text-destructive hover:bg-destructive/10"
+              title="Delete board"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="hidden md:inline">Delete</span>
+            </Button>
           )}
         </div>
       </div>

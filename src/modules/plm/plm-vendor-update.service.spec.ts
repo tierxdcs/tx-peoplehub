@@ -1,5 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
-import { NotificationType, PlmUpdateReporterType, Role } from '@prisma/client';
+import {
+  NotificationType,
+  PlmUpdateReporterType,
+  PlmVendorUpdateType,
+  Role,
+} from '@prisma/client';
 import { PlmVendorUpdateService } from './plm-vendor-update.service';
 
 describe('PlmVendorUpdateService', () => {
@@ -73,6 +78,7 @@ describe('PlmVendorUpdateService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           reporterType: PlmUpdateReporterType.VENDOR_SELF_REPORT,
+          updateType: PlmVendorUpdateType.FULL_PROGRESS,
           reporterDisplayName: 'Balaji MetalTech',
           internalReporterId: null,
         }),
@@ -86,6 +92,26 @@ describe('PlmVendorUpdateService', () => {
         recipientId: 'owner-1',
         type: NotificationType.PLM_PRODUCTION_UPDATE,
         trackerId: 'tracker-1',
+      }),
+    );
+  });
+
+  it('records a quick comment without changing progress percentages', async () => {
+    const { service, tx } = setup();
+
+    await service.submitPublicComment('token', {
+      notes: 'Material received; welding resumes tomorrow.',
+    });
+
+    expect(tx.plmProductionUpdate.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          updateType: PlmVendorUpdateType.COMMENT_ONLY,
+          fabricationPercent: null,
+          surfaceFinishPercent: null,
+          assemblyPercent: null,
+          notes: 'Material received; welding resumes tomorrow.',
+        }),
       }),
     );
   });

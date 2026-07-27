@@ -22,6 +22,8 @@ export interface ProjectProgressInput {
   overdueMilestones: number;
   overdueActions: number;
   openHighRisks: number;
+  overdueVendorUpdates: number;
+  approachingVendorUpdates: number;
 }
 
 export interface ProjectProgressStage {
@@ -194,15 +196,18 @@ export function deriveProjectProgress(
 
   let health: ProjectHealth = 'ON_TRACK';
   let healthReason = 'No active blockers';
-  if (cancelled || qualityFailed) {
+  if (cancelled || qualityFailed || input.overdueVendorUpdates) {
     health = 'BLOCKED';
     healthReason = cancelled
       ? 'Order is cancelled'
-      : 'A quality inspection has failed';
+      : qualityFailed
+        ? 'A quality inspection has failed'
+        : `${input.overdueVendorUpdates} vendor production update(s) overdue`;
   } else if (
     input.overdueMilestones ||
     input.overdueActions ||
-    input.openHighRisks
+    input.openHighRisks ||
+    input.approachingVendorUpdates
   ) {
     health = 'AT_RISK';
     const reasons = [
@@ -214,6 +219,9 @@ export function deriveProjectProgress(
         : null,
       input.openHighRisks
         ? `${input.openHighRisks} open high-impact risk(s)`
+        : null,
+      input.approachingVendorUpdates
+        ? `${input.approachingVendorUpdates} vendor update(s) due soon`
         : null,
     ].filter(Boolean);
     healthReason = reasons.join(' · ');

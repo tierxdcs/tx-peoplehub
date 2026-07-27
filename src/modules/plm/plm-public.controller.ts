@@ -5,6 +5,7 @@ import {
   PlmPhotoUploadUrlDto,
   PlmProductionUpdateDto,
   PlmPublicResolveDto,
+  PlmQuickCommentDto,
 } from './dto/plm.dto';
 import { PlmVendorUpdateService } from './plm-vendor-update.service';
 
@@ -38,5 +39,15 @@ export class PlmPublicController {
     @Body() dto: PlmProductionUpdateDto,
   ) {
     return this.service.submitPublic(token, dto);
+  }
+
+  @Public()
+  @Post(':token/comment')
+  @ApiOperation({ summary: 'Submit a vendor quick comment without changing progress' })
+  comment(
+    @Param('token') token: string,
+    @Body() dto: PlmQuickCommentDto,
+  ) {
+    return this.service.submitPublicComment(token, dto);
   }
 }

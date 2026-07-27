@@ -64,6 +64,11 @@ export class PlmProductionUpdateDto {
   photos?: PlmUpdatePhotoDto[];
 }
 
+export class PlmQuickCommentDto {
+  @IsOptional() @IsString() password?: string;
+  @IsString() @MinLength(1) notes!: string;
+}
+
 export class PlmPhotoUploadUrlDto {
   @IsOptional() @IsString() password?: string;
   @IsString() @MinLength(1) name!: string;

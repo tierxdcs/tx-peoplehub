@@ -123,6 +123,11 @@ export class ProjectKickoffEntity {
       'Whether checking Phaze’s own stock/BOM is meaningful for this project. Defaults from the order’s line-level deliveryType, but is always manually overridable.',
   })
   supplyInScope!: boolean;
+  @ApiProperty({
+    description: 'Maximum expected days between vendor production updates',
+    default: 1,
+  })
+  vendorUpdateCadenceDays!: number;
   @ApiProperty() kanbanBoardId!: string;
   @ApiProperty() createdById!: string;
   @ApiProperty() createdAt!: string;

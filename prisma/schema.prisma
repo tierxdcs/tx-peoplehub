@@ -2565,16 +2565,16 @@ enum KickoffRiskStatus {
 }
 
 model ProjectKickoff {
-  id               String             @id @default(uuid())
-  orderId          String
-  order            Order              @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  projectName      String
-  meetingDate      DateTime
-  meetingMode      KickoffMeetingMode @default(VIRTUAL)
-  meetingLocation  String?
-  overviewAndScope String?            @db.Text
-  minutesNotes     String?            @db.Text
-  status           KickoffStatus      @default(DRAFT)
+  id                      String             @id @default(uuid())
+  orderId                 String
+  order                   Order              @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  projectName             String
+  meetingDate             DateTime
+  meetingMode             KickoffMeetingMode @default(VIRTUAL)
+  meetingLocation         String?
+  overviewAndScope        String?            @db.Text
+  minutesNotes            String?            @db.Text
+  status                  KickoffStatus      @default(DRAFT)
   /// Whether checking Phaze's own stock/BOM is meaningful for this project.
   /// Defaults from the order's line-level deliveryType at creation (false only
   /// when every line is VENDOR), but is always manually overridable — the
@@ -2583,13 +2583,16 @@ model ProjectKickoff {
   /// vendor-managed turnkey arrangement) and PLM's Material Planning gate
   /// falls back to manual confirmation instead of requiring a report that
   /// will never exist.
-  supplyInScope    Boolean            @default(true)
+  supplyInScope           Boolean            @default(true)
+  /// Expected maximum gap between vendor production updates. Both full
+  /// progress reports and comment-only updates satisfy this cadence.
+  vendorUpdateCadenceDays Int                @default(1)
   /// The project board auto-provisioned at creation (§5). Restrict so a board
   /// backing a kickoff can't be deleted out from under it.
-  kanbanBoardId    String
-  kanbanBoard      KanbanBoard        @relation(fields: [kanbanBoardId], references: [id], onDelete: Restrict)
-  createdById      String
-  createdBy        Employee           @relation("KickoffCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  kanbanBoardId           String
+  kanbanBoard             KanbanBoard        @relation(fields: [kanbanBoardId], references: [id], onDelete: Restrict)
+  createdById             String
+  createdBy               Employee           @relation("KickoffCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
   attendees         KickoffAttendee[]
   milestones        KickoffMilestone[]
@@ -2730,6 +2733,11 @@ enum PlmUpdateReporterType {
   INTERNAL_AUDITOR_VISIT
 }
 
+enum PlmVendorUpdateType {
+  FULL_PROGRESS
+  COMMENT_ONLY
+}
+
 model PlmTracker {
   id                  String                  @id @default(uuid())
   orderLineId         String                  @unique
@@ -2812,9 +2820,10 @@ model PlmProductionUpdate {
   internalReporterId   String?
   internalReporter     Employee?                  @relation("PlmUpdateInternalReporter", fields: [internalReporterId], references: [id], onDelete: SetNull)
   reporterDisplayName  String
-  fabricationPercent   Int
-  surfaceFinishPercent Int
-  assemblyPercent      Int
+  updateType           PlmVendorUpdateType        @default(FULL_PROGRESS)
+  fabricationPercent   Int?
+  surfaceFinishPercent Int?
+  assemblyPercent      Int?
   notes                String?                    @db.Text
   photos               PlmProductionUpdatePhoto[]
   createdAt            DateTime                   @default(now())

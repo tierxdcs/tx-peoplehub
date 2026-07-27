@@ -36,6 +36,7 @@ import {
   deriveProjectProgress,
   type ProjectProgressView,
 } from './project-progress';
+import { deriveVendorCadence } from '../plm/plm-vendor-cadence';
 
 /** Employee shape needed to render an owner/attendee name. */
 type EmployeeName = { firstName: string; lastName: string } | null;
@@ -130,6 +131,7 @@ export class ProjectKickoffService {
         overviewAndScope: overview,
         minutesNotes: dto.minutesNotes ?? null,
         supplyInScope,
+        vendorUpdateCadenceDays: dto.vendorUpdateCadenceDays ?? 1,
         kanbanBoardId: boardId,
         createdById: user.id,
       },
@@ -224,6 +226,7 @@ export class ProjectKickoffService {
         projectName: true,
         status: true,
         meetingDate: true,
+        vendorUpdateCadenceDays: true,
         updatedAt: true,
         orderId: true,
         order: {
@@ -264,6 +267,27 @@ export class ProjectKickoffService {
           },
         },
         rfqs: { select: { status: true, updatedAt: true } },
+        plmTrackers: {
+          where: {
+            flowType: 'VENDOR',
+            status: 'ACTIVE',
+            currentStage: 'PRODUCTION',
+          },
+          select: {
+            createdAt: true,
+            events: {
+              where: { toStage: 'PRODUCTION' },
+              select: { createdAt: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
+            productionUpdates: {
+              select: { createdAt: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
+          },
+        },
       },
     });
     if (!kickoffs.length) return [];
@@ -322,6 +346,15 @@ export class ProjectKickoffService {
       const updatedAt = new Date(
         Math.max(...timestamps.map((value) => value.getTime())),
       );
+      const vendorCadenceStatuses = kickoff.plmTrackers.map((tracker) =>
+        deriveVendorCadence(
+          tracker.productionUpdates[0]?.createdAt ??
+            tracker.events[0]?.createdAt ??
+            tracker.createdAt,
+          kickoff.vendorUpdateCadenceDays,
+          new Date(now),
+        ),
+      );
 
       return deriveProjectProgress({
         kickoffId: kickoff.id,
@@ -357,6 +390,12 @@ export class ProjectKickoffService {
           (risk) =>
             risk.status === 'OPEN' &&
             (risk.impact === 'HIGH' || risk.likelihood === 'HIGH'),
+        ).length,
+        overdueVendorUpdates: vendorCadenceStatuses.filter(
+          (cadence) => cadence.status === 'RED',
+        ).length,
+        approachingVendorUpdates: vendorCadenceStatuses.filter(
+          (cadence) => cadence.status === 'AMBER',
         ).length,
       });
     });
@@ -435,6 +474,9 @@ export class ProjectKickoffService {
         ...(dto.status !== undefined ? { status: dto.status } : {}),
         ...(dto.supplyInScope !== undefined
           ? { supplyInScope: dto.supplyInScope }
+          : {}),
+        ...(dto.vendorUpdateCadenceDays !== undefined
+          ? { vendorUpdateCadenceDays: dto.vendorUpdateCadenceDays }
           : {}),
       },
     });
@@ -901,6 +943,7 @@ export class ProjectKickoffService {
       minutesNotes: row.minutesNotes,
       status: row.status,
       supplyInScope: row.supplyInScope,
+      vendorUpdateCadenceDays: row.vendorUpdateCadenceDays,
       kanbanBoardId: row.kanbanBoardId,
       createdById: row.createdById,
       createdAt: row.createdAt.toISOString(),

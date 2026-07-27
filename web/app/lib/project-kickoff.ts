@@ -94,6 +94,7 @@ export interface ProjectKickoff {
    * line is VENDOR), but is always manually overridable.
    */
   supplyInScope: boolean;
+  vendorUpdateCadenceDays: number;
   kanbanBoardId: string;
   createdById: string;
   createdAt: string;
@@ -182,6 +183,7 @@ export interface CreateKickoffInput {
   meetingLocation?: string;
   overviewAndScope?: string;
   minutesNotes?: string;
+  vendorUpdateCadenceDays?: number;
 }
 
 export function createKickoff(input: CreateKickoffInput) {
@@ -200,6 +202,7 @@ export interface UpdateKickoffInput {
   minutesNotes?: string | null;
   status?: KickoffStatus;
   supplyInScope?: boolean;
+  vendorUpdateCadenceDays?: number;
 }
 
 export function updateKickoff(id: string, input: UpdateKickoffInput) {

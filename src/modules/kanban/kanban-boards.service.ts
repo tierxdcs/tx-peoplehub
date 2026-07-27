@@ -187,8 +187,14 @@ export class KanbanBoardsService {
     return this.toBoardEntity(board);
   }
 
+  /**
+   * Delete (archive) a whole board — owner-only. Gated on assertCanDeleteBoard
+   * (board creator or SUPER_ADMIN), NOT the broader manage-board gate: a Scrum
+   * Master who runs the board's sprints/members can't delete it out from under
+   * its owner. Soft-delete to ARCHIVED so it drops out of every listing.
+   */
   async archive(id: string, user: AuthenticatedUser): Promise<void> {
-    await this.access.assertCanManageBoard(user, id);
+    await this.access.assertCanDeleteBoard(user, id);
     await this.prisma.kanbanBoard.update({
       where: { id },
       data: { status: KanbanBoardStatus.ARCHIVED },

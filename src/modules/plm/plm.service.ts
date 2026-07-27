@@ -24,6 +24,7 @@ import {
 } from './dto/plm.dto';
 import { PlmAccessService } from './plm-access.service';
 import { KanbanNotificationsService } from '../notifications/kanban-notifications.service';
+import { deriveVendorCadence } from './plm-vendor-cadence';
 
 const INITIAL_STAGE: Record<OrderLineDeliveryType, PlmStage> = {
   NPD: PlmStage.DESIGN,
@@ -182,6 +183,11 @@ export class PlmService {
         ) {
           blocker = 'Dispatched challan required';
         }
+        if (!blocker && derived.derived.vendorCadence?.status === 'RED') {
+          blocker = `Vendor update overdue (expected every ${derived.derived.vendorCadence.cadenceDays} day(s))`;
+        }
+        const cadenceAtRisk =
+          derived.derived.vendorCadence?.status === 'AMBER';
         return {
           trackerId: tracker.id,
           orderId: tracker.orderId,
@@ -194,7 +200,11 @@ export class PlmService {
             `${tracker.owner.firstName} ${tracker.owner.lastName}`.trim(),
           ageDays,
           blocker,
-          health: blocker ? 'BLOCKED' : ageDays >= 7 ? 'AT_RISK' : 'ON_TRACK',
+          health: blocker
+            ? 'BLOCKED'
+            : cadenceAtRisk || ageDays >= 7
+              ? 'AT_RISK'
+              : 'ON_TRACK',
           production: derived.derived.production,
           updatedAt: tracker.updatedAt.toISOString(),
         };
@@ -552,7 +562,12 @@ export class PlmService {
       owner: { select: { id: true, firstName: true, lastName: true } },
       vendor: { select: { id: true, companyName: true } },
       order: { select: { id: true, orderNumber: true, ownerId: true } },
-      kickoff: { select: { supplyInScope: true } },
+      kickoff: {
+        select: {
+          supplyInScope: true,
+          vendorUpdateCadenceDays: true,
+        },
+      },
       events: {
         include: { actor: { select: { firstName: true, lastName: true } } },
         orderBy: { createdAt: 'asc' as const },
@@ -604,6 +619,25 @@ export class PlmService {
     const productionDone = tracker.productionCards.filter(
       (card) => card.list.isDoneList,
     ).length;
+    const latestVendorUpdateAt =
+      tracker.flowType === OrderLineDeliveryType.VENDOR
+        ? tracker.productionUpdates[0]?.createdAt ?? null
+        : null;
+    const productionStartedAt = [...tracker.events]
+      .reverse()
+      .find((event) => event.toStage === PlmStage.PRODUCTION)?.createdAt;
+    const vendorCadence =
+      tracker.flowType === OrderLineDeliveryType.VENDOR &&
+      tracker.status === PlmTrackerStatus.ACTIVE &&
+      tracker.currentStage === PlmStage.PRODUCTION
+        ? {
+            ...deriveVendorCadence(
+              latestVendorUpdateAt ?? productionStartedAt ?? tracker.createdAt,
+              tracker.kickoff.vendorUpdateCadenceDays,
+            ),
+            lastVendorUpdateAt: latestVendorUpdateAt,
+          }
+        : null;
     return {
       ...tracker,
       derived: {
@@ -617,6 +651,8 @@ export class PlmService {
           ),
         ),
         production: { done: productionDone, total: productionTotal },
+        lastVendorUpdateAt: latestVendorUpdateAt,
+        vendorCadence,
       },
     };
   }

@@ -92,7 +92,7 @@ export class KanbanController {
 
   @Delete('boards/:id')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Archive a board (Scrum Master / SUPER_ADMIN)' })
+  @ApiOperation({ summary: 'Delete a board (board creator / SUPER_ADMIN)' })
   async archiveBoard(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,

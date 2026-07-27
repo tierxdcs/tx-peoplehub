@@ -2,11 +2,12 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export interface PlmPublicUpdate {
   id: string;
+  updateType: 'FULL_PROGRESS' | 'COMMENT_ONLY';
   reporterType: 'VENDOR_SELF_REPORT' | 'INTERNAL_AUDITOR_VISIT';
   reporterDisplayName: string;
-  fabricationPercent: number;
-  surfaceFinishPercent: number;
-  assemblyPercent: number;
+  fabricationPercent: number | null;
+  surfaceFinishPercent: number | null;
+  assemblyPercent: number | null;
   notes: string | null;
   createdAt: string;
 }
@@ -17,6 +18,10 @@ export interface PlmPublicView {
   product: { name: string; sku: string };
   vendorName: string;
   currentStage: string;
+  vendorUpdateCadenceDays: number;
+  lastVendorUpdateAt: string | null;
+  vendorCadenceStatus: 'GREEN' | 'AMBER' | 'RED';
+  vendorUpdateDueAt: string;
   updates: PlmPublicUpdate[];
 }
 
@@ -67,3 +72,8 @@ export const submitPlmVendorUpdate = (
     photos?: Array<{ storageKey: string; fileName: string }>;
   },
 ) => publicPost<PlmPublicUpdate>(`${base(token)}/submit`, body);
+
+export const submitPlmVendorComment = (
+  token: string,
+  body: { password?: string; notes: string },
+) => publicPost<PlmPublicUpdate>(`${base(token)}/comment`, body);
