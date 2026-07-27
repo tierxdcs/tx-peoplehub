@@ -19,7 +19,6 @@ import {
 import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
 import { Avatar } from '../../../components/ui/avatar';
-import { Badge } from '../../../components/ui/badge';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { useToast } from '../../../components/ui/toaster';
 import { useConfirm } from '../../../components/ui/confirm';
@@ -50,6 +49,7 @@ export function InternalShareDialog({
   const [selected, setSelected] = useState<EmployeeSearchResult | null>(null);
   const [permission, setPermission] = useState<VaultSharePermission>('VIEW');
   const [submitting, setSubmitting] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,6 +90,38 @@ export function InternalShareDialog({
       );
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleChangePermission(
+    share: VaultInternalShare,
+    next: VaultSharePermission,
+  ) {
+    if (next === share.permission) return;
+    setUpdatingId(share.id);
+    // Re-sharing the same recipient is an idempotent upsert on the backend, so
+    // POST /share with the new level simply updates it (VIEW ⇄ EDIT). Edit
+    // grants write access, which is what lets that person upload files.
+    try {
+      await apiFetch(`/vault/${base}/${resourceId}/share`, {
+        method: 'POST',
+        body: JSON.stringify({
+          sharedWithEmployeeId: share.sharedWithEmployeeId,
+          permission: next,
+        }),
+      });
+      toast.success(
+        next === 'EDIT'
+          ? `${share.sharedWithEmployeeName ?? 'They'} can now edit and upload.`
+          : `${share.sharedWithEmployeeName ?? 'They'} now have view-only access.`,
+      );
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to update access',
+      );
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -195,9 +227,23 @@ export function InternalShareDialog({
                   <span className="min-w-0 flex-1 truncate text-sm">
                     {share.sharedWithEmployeeName ?? share.sharedWithEmployeeId}
                   </span>
-                  <Badge variant={share.permission === 'EDIT' ? 'default' : 'muted'}>
-                    {share.permission === 'EDIT' ? 'Edit' : 'View'}
-                  </Badge>
+                  <Select
+                    value={share.permission}
+                    onChange={(e) =>
+                      handleChangePermission(
+                        share,
+                        e.target.value as VaultSharePermission,
+                      )
+                    }
+                    disabled={updatingId === share.id}
+                    className="w-28"
+                    aria-label={`Access level for ${
+                      share.sharedWithEmployeeName ?? 'this person'
+                    }`}
+                  >
+                    <option value="VIEW">View</option>
+                    <option value="EDIT">Edit</option>
+                  </Select>
                   <Button
                     variant="ghost"
                     size="icon"
