@@ -6,16 +6,16 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import { createBom, type BomLineInput } from '../../../../lib/scm-bom';
-import { ITEM_TYPE_LABEL, listItems, type Item } from '../../../../lib/scm-item-master';
+import { listItems, type Item } from '../../../../lib/scm-item-master';
 import { PageContainer } from '../../../../components/ui/page-container';
 import { PageHeader } from '../../../../components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
-import { Select } from '../../../../components/ui/select';
 import { Textarea } from '../../../../components/ui/textarea';
 import { Field } from '../../../../components/ui/field';
 import { Skeleton } from '../../../../components/ui/skeleton';
+import { ItemPicker } from '../../../../components/ui/item-picker';
 import { useToast } from '../../../../components/ui/toaster';
 import {
   BomLineEditor,
@@ -111,18 +111,12 @@ export default function NewBomPage() {
             </CardHeader>
             <CardContent className="grid gap-3 pt-0 sm:grid-cols-2">
               <Field label="Item" required htmlFor="b-item">
-                <Select
+                <ItemPicker
                   id="b-item"
+                  items={items}
                   value={itemId}
-                  onChange={(e) => setItemId(e.target.value)}
-                >
-                  <option value="">Select item…</option>
-                  {items.map((it) => (
-                    <option key={it.id} value={it.id}>
-                      {it.itemCode} — {it.name} ({ITEM_TYPE_LABEL[it.itemType]})
-                    </option>
-                  ))}
-                </Select>
+                  onValueChange={setItemId}
+                />
               </Field>
               <Field label="Effective date" htmlFor="b-eff">
                 <Input

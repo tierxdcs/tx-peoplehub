@@ -5,6 +5,7 @@ import type { Item } from '../../../../lib/scm-item-master';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Select } from '../../../../components/ui/select';
+import { ItemPicker } from '../../../../components/ui/item-picker';
 
 /** Editable BOM line, all values held as strings (converted on submit). */
 export interface BomLineDraft {
@@ -75,17 +76,12 @@ export function BomLineEditor({
         >
           <label className="flex flex-col gap-1 text-xs text-muted-foreground sm:col-span-4">
             Item
-            <Select
+            <ItemPicker
+              context="bom-component"
+              items={items}
               value={line.itemId}
-              onChange={(e) => onItemChange(i, e.target.value)}
-            >
-              <option value="">Select item…</option>
-              {items.map((it) => (
-                <option key={it.id} value={it.id}>
-                  {it.itemCode} — {it.name}
-                </option>
-              ))}
-            </Select>
+              onValueChange={(itemId) => onItemChange(i, itemId)}
+            />
           </label>
 
           <label className="flex flex-col gap-1 text-xs text-muted-foreground sm:col-span-2">

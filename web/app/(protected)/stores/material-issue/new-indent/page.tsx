@@ -17,6 +17,7 @@ import { Field } from '../../../../components/ui/field';
 import { Textarea } from '../../../../components/ui/textarea';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { useToast } from '../../../../components/ui/toaster';
+import { ItemPicker } from '../../../../components/ui/item-picker';
 
 /** Raise a material indent (Production). Optional project/kickoff link enables
  *  reservation-aware issuing against that project's reserved stock. */
@@ -93,14 +94,12 @@ export default function NewIndentPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Field label="Item" htmlFor="item" required>
-              <Select id="item" value={itemId} onChange={(e) => setItemId(e.target.value)}>
-                <option value="">Select item…</option>
-                {items.map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.itemCode} — {it.name}
-                  </option>
-                ))}
-              </Select>
+              <ItemPicker
+                id="item"
+                items={items}
+                value={itemId}
+                onValueChange={setItemId}
+              />
             </Field>
             <Field label="Requested Quantity" htmlFor="qty" required>
               <Input

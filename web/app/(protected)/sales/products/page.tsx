@@ -13,6 +13,7 @@ import { inferBusinessUnitCode } from '../../../lib/business-unit-rules';
 import { Button } from '../../../components/ui/button';
 import { BusinessUnitLabel } from '../../../components/ui/business-unit-label';
 import { BusinessUnitHelp } from '../../../components/ui/business-unit-help';
+import { ItemPicker } from '../../../components/ui/item-picker';
 
 const fieldStyle: React.CSSProperties = {
   width: '100%',
@@ -491,18 +492,12 @@ function ProductForm({
           <label style={{ display: 'block', marginBottom: 4 }}>
             Manufactured item (optional)
           </label>
-          <select
+          <ItemPicker
+            items={items}
             value={itemId}
-            onChange={(e) => setItemId(e.target.value)}
-            style={fieldStyle}
-          >
-            <option value="">— Not linked —</option>
-            {items.map((it) => (
-              <option key={it.id} value={it.id}>
-                {it.itemCode} — {it.name}
-              </option>
-            ))}
-          </select>
+            onValueChange={setItemId}
+            placeholder="— Not linked —"
+          />
           <p className="mt-1 text-xs text-muted-foreground">
             Link to the Item Master item this product is built as. Required for
             its BOM and the project-kickoff stock-availability report.

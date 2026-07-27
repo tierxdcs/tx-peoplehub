@@ -21,6 +21,7 @@ import { Field } from '../../../../components/ui/field';
 import { Textarea } from '../../../../components/ui/textarea';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { useToast } from '../../../../components/ui/toaster';
+import { ItemPicker } from '../../../../components/ui/item-picker';
 
 interface LineDraft {
   key: number;
@@ -194,17 +195,11 @@ export default function NewRfqPage() {
                     className="grid items-end gap-3 md:grid-cols-[1fr_140px_1fr_40px]"
                   >
                     <Field label="Item">
-                      <Select
+                      <ItemPicker
+                        items={items}
                         value={line.itemId}
-                        onChange={(e) => updateLine(line.key, { itemId: e.target.value })}
-                      >
-                        <option value="">Select item…</option>
-                        {items.map((it) => (
-                          <option key={it.id} value={it.id}>
-                            {it.itemCode} — {it.name}
-                          </option>
-                        ))}
-                      </Select>
+                        onValueChange={(itemId) => updateLine(line.key, { itemId })}
+                      />
                     </Field>
                     <Field label={`Qty${item ? ` (${item.baseUnitOfMeasure})` : ''}`}>
                       <Input

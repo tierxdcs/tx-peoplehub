@@ -36,6 +36,10 @@ import {
 } from '../../../components/ui/table';
 import { useToast } from '../../../components/ui/toaster';
 import { useConfirm } from '../../../components/ui/confirm';
+import {
+  ItemPicker,
+  itemTypeFromCode,
+} from '../../../components/ui/item-picker';
 
 /**
  * Stock-availability report + reservations for a kickoff (§8–9). Read-only for
@@ -382,6 +386,12 @@ function ReservationsPanel({
   const [busy, setBusy] = useState(false);
 
   const reservableItems = report.rows.filter((r) => r.itemId);
+  const reservablePickerItems = reservableItems.map((row) => ({
+    id: row.itemId as string,
+    itemCode: row.itemCode,
+    name: row.itemName,
+    itemType: itemTypeFromCode(row.itemCode),
+  }));
 
   async function reserve() {
     if (!itemId || !storeLocationId || !quantity) {
@@ -456,18 +466,12 @@ function ReservationsPanel({
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-1 text-xs text-muted-foreground">
             Item
-            <Select
+            <ItemPicker
+              items={reservablePickerItems}
               value={itemId}
-              onChange={(e) => setItemId(e.target.value)}
-              className="h-8 w-56"
-            >
-              <option value="">Select item…</option>
-              {reservableItems.map((r) => (
-                <option key={r.itemCode} value={r.itemId ?? ''}>
-                  {r.itemCode} — {r.itemName}
-                </option>
-              ))}
-            </Select>
+              onValueChange={setItemId}
+              className="w-64"
+            />
           </label>
           <label className="flex flex-col gap-1 text-xs text-muted-foreground">
             Store

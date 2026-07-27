@@ -22,6 +22,7 @@ import { Field } from '../../../../components/ui/field';
 import { Input } from '../../../../components/ui/input';
 import { Select } from '../../../../components/ui/select';
 import { Button } from '../../../../components/ui/button';
+import { ItemPicker } from '../../../../components/ui/item-picker';
 
 const BUCKETS: StockBucket[] = ['ON_HAND', 'BLOCKED'];
 const BUCKET_LABEL: Record<StockBucket, string> = {
@@ -123,19 +124,13 @@ export function AdjustStockDialog({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Item" required htmlFor="a-item">
-            <Select
+            <ItemPicker
               id="a-item"
+              items={items}
               value={form.itemId}
-              onChange={(e) => set('itemId', e.target.value)}
+              onValueChange={(itemId) => set('itemId', itemId)}
               disabled={loading}
-            >
-              <option value="">Select item…</option>
-              {items.map((it) => (
-                <option key={it.id} value={it.id}>
-                  {it.itemCode} — {it.name}
-                </option>
-              ))}
-            </Select>
+            />
           </Field>
           <Field label="Store location" required htmlFor="a-store">
             <Select
