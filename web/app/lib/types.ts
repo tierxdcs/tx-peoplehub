@@ -590,6 +590,7 @@ export interface Order {
   orderNumber: string;
   bidId: string | null;
   customerId: string;
+  customerName: string | null;
   status: OrderStatus;
   /** Outbound finished-goods final-QC clearance (dispatch precondition). */
   finalQcStatus?: 'PENDING' | 'CLEARED';

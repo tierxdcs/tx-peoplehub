@@ -42,6 +42,7 @@ type OrderLineItemWithProduct = OrderLineItem & {
 };
 type OrderWithLines = Order & {
   lineItems: OrderLineItemWithProduct[];
+  customer?: { name: string } | null;
   enquiryCreator?: { firstName: string; lastName: string } | null;
   owner: { firstName: string; lastName: string };
   businessUnit?: { name: string; colorHex: string } | null;
@@ -123,6 +124,7 @@ export class OrdersService {
         },
         include: {
           lineItems: { include: { product: true } },
+          customer: { select: { name: true } },
           enquiryCreator: { select: { firstName: true, lastName: true } },
           owner: { select: { firstName: true, lastName: true } },
           businessUnit: { select: { name: true, colorHex: true } },
@@ -145,6 +147,7 @@ export class OrdersService {
         where,
         include: {
           lineItems: { include: { product: true } },
+          customer: { select: { name: true } },
           enquiryCreator: { select: { firstName: true, lastName: true } },
           owner: { select: { firstName: true, lastName: true } },
           businessUnit: { select: { name: true, colorHex: true } },
@@ -200,6 +203,7 @@ export class OrdersService {
       data: { status: target },
       include: {
         lineItems: { include: { product: true } },
+        customer: { select: { name: true } },
         owner: { select: { firstName: true, lastName: true } },
       },
     });
@@ -211,6 +215,7 @@ export class OrdersService {
       where: { id },
       include: {
         lineItems: { include: { product: true } },
+        customer: { select: { name: true } },
         enquiryCreator: { select: { firstName: true, lastName: true } },
         owner: { select: { firstName: true, lastName: true } },
         businessUnit: { select: { name: true, colorHex: true } },
@@ -228,6 +233,7 @@ export class OrdersService {
       orderNumber: order.orderNumber,
       bidId: order.bidId,
       customerId: order.customerId,
+      customerName: order.customer?.name ?? null,
       status: order.status,
       totalAmount: order.totalAmount.toString(),
       productionRunId: order.productionRunId,

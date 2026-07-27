@@ -186,6 +186,7 @@ export default function OrdersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Order #</TableHead>
+                <TableHead>Customer Name</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Business Unit</TableHead>
                 <TableHead>Fulfilment</TableHead>
@@ -199,7 +200,7 @@ export default function OrdersPage() {
               {loading ? (
                 Array.from({ length: 5 }).map((_, row) => (
                   <TableRow key={row}>
-                    {Array.from({ length: 8 }).map((__, column) => (
+                    {Array.from({ length: 9 }).map((__, column) => (
                       <TableCell key={column}>
                         <Skeleton className="h-4 w-24" />
                       </TableCell>
@@ -209,7 +210,7 @@ export default function OrdersPage() {
               ) : filtered.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={9}
                     className="py-8 text-center text-muted-foreground"
                   >
                     {statusFilter
@@ -229,6 +230,7 @@ export default function OrdersPage() {
                         {order.orderNumber}
                       </button>
                     </TableCell>
+                    <TableCell>{order.customerName ?? '—'}</TableCell>
                     <TableCell>
                       <StatusBadge value={order.status} />
                     </TableCell>
