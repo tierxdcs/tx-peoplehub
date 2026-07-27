@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../../../../lib/api';
+import { formatINR } from '../../../../../lib/sales';
+import { useNumberFormat } from '../../../../../lib/number-format-context';
 import { Input } from '../../../../../components/ui/input';
 import { Field } from '../../../../../components/ui/field';
 import { useToast } from '../../../../../components/ui/toaster';
@@ -31,6 +33,7 @@ interface Invoice {
 export default function NewPaymentVoucherPage() {
   const router = useRouter();
   const toast = useToast();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [suppliers, setSuppliers] = useState<Partner[]>([]);
   const [vendors, setVendors] = useState<Partner[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -101,7 +104,7 @@ export default function NewPaymentVoucherPage() {
       narration={narration}
       onNarrationChange={setNarration}
       balanced={balanced}
-      balanceLabel={balanced ? `Amount ₹${Number(amount).toFixed(2)}` : 'Fill in party and amount'}
+      balanceLabel={balanced ? `Amount ${formatINR(Number(amount), numberFormatStyle)}` : 'Fill in party and amount'}
       submitting={submitting}
       onSaveDraft={() => void create(false)}
       onSubmitForApproval={() => void create(true)}
@@ -130,7 +133,7 @@ export default function NewPaymentVoucherPage() {
             <option value="">Unallocated</option>
             {openInvoices.map((i) => (
               <option key={i.id} value={i.id}>
-                {i.internalBillNumber} · outstanding ₹{i.outstandingAmount}
+                {i.internalBillNumber} · outstanding {formatINR(i.outstandingAmount, numberFormatStyle)}
               </option>
             ))}
           </select>

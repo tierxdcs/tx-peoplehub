@@ -14,6 +14,7 @@ import { apiFetch, ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
 import { Bid, Customer, Employee } from '../../../../lib/types';
 import { formatINR, prettyEnum } from '../../../../lib/sales';
+import { useNumberFormat } from '../../../../lib/number-format-context';
 import { todayDateStr } from '../../../../lib/date';
 import { PageContainer } from '../../../../components/ui/page-container';
 import {
@@ -50,6 +51,7 @@ export default function BidDetailPage() {
   const { user } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
+  const { style: numberFormatStyle } = useNumberFormat();
 
   const [bid, setBid] = useState<Bid | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -436,13 +438,13 @@ export default function BidDetailPage() {
                     </TableCell>
                     <TableCell className="text-right">{li.quantity}</TableCell>
                     <TableCell className="text-right">
-                      {formatINR(li.unitPrice)}
+                      {formatINR(li.unitPrice, numberFormatStyle)}
                     </TableCell>
                     <TableCell className="text-right">
                       {li.lineDiscountPercent ?? '—'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {formatINR(li.lineTotal)}
+                      {formatINR(li.lineTotal, numberFormatStyle)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -467,13 +469,13 @@ export default function BidDetailPage() {
             <CardContent className="space-y-2 p-4 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span>{formatINR(bid.subtotal)}</span>
+                <span>{formatINR(bid.subtotal, numberFormatStyle)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
                   Discount ({bid.discountPercent}%)
                 </span>
-                <span>−{formatINR(bid.discountAmount)}</span>
+                <span>−{formatINR(bid.discountAmount, numberFormatStyle)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
@@ -482,7 +484,7 @@ export default function BidDetailPage() {
                     ? ` (${prettyEnum(bid.taxType)} ${bid.taxRate}%)`
                     : ''}
                 </span>
-                <span>{formatINR(bid.taxAmount)}</span>
+                <span>{formatINR(bid.taxAmount, numberFormatStyle)}</span>
               </div>
               {(bid.amcCharges ?? []).length > 0 && (
                 <>
@@ -498,19 +500,19 @@ export default function BidDetailPage() {
                             : `${charge.yearNumber}th`}{' '}
                         Year
                       </span>
-                      <span>{formatINR(charge.amount)}</span>
+                      <span>{formatINR(charge.amount, numberFormatStyle)}</span>
                     </div>
                   ))}
                   <div className="flex justify-between font-medium">
                     <span>AMC Total</span>
-                    <span>{formatINR(bid.amcTotal)}</span>
+                    <span>{formatINR(bid.amcTotal, numberFormatStyle)}</span>
                   </div>
                 </>
               )}
               <div className="my-1 border-t" />
               <div className="flex justify-between text-lg font-semibold">
                 <span>Grand Total</span>
-                <span>{formatINR(bid.grandTotal)}</span>
+                <span>{formatINR(bid.grandTotal, numberFormatStyle)}</span>
               </div>
             </CardContent>
           </Card>

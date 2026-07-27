@@ -9,6 +9,7 @@ import {
 } from '../../../lib/types';
 import { apiFetch } from '../../../lib/api';
 import { formatINR, prettyEnum } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
 import { Card, CardContent } from '../../../components/ui/card';
@@ -51,6 +52,7 @@ function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function OpportunitiesPage() {
   const router = useRouter();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [summaryRows, setSummaryRows] = useState<Opportunity[]>([]);
   const [page, setPage] = useState(1);
@@ -149,7 +151,7 @@ export default function OpportunitiesPage() {
         <StatCard label="Active Opportunities" value={summary.active} />
         <StatCard
           label="Pipeline Value"
-          value={formatINR(summary.pipelineValue)}
+          value={formatINR(summary.pipelineValue, numberFormatStyle)}
         />
         <StatCard label="Proposals" value={summary.proposals} />
         <StatCard label="Closing This Month" value={summary.closingThisMonth} />
@@ -258,7 +260,7 @@ export default function OpportunitiesPage() {
                       />
                     </TableCell>
                     <TableCell>
-                      {formatINR(opportunity.estimatedValue)}
+                      {formatINR(opportunity.estimatedValue, numberFormatStyle)}
                     </TableCell>
                     <TableCell>{opportunity.ownerName}</TableCell>
                     <TableCell>

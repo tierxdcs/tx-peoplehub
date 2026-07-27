@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { apiFetch, ApiError } from '../../../../lib/api';
+import { formatINR } from '../../../../lib/sales';
+import { useNumberFormat } from '../../../../lib/number-format-context';
 import { BankDetails, Compensation, Statutory } from '../../../../lib/types';
 import {
   Dialog,
@@ -17,12 +19,6 @@ import { useToast } from '../../../../components/ui/toaster';
 import { cn } from '../../../../lib/utils';
 
 type Tab = 'compensation' | 'statutory' | 'banking';
-
-const currency = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-  maximumFractionDigits: 2,
-});
 
 interface SensitiveDetailPanelProps {
   employeeId: string;
@@ -55,6 +51,7 @@ export function SensitiveDetailPanel({
   onClose,
 }: SensitiveDetailPanelProps) {
   const toast = useToast();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [activeTab, setActiveTab] = useState<Tab>('compensation');
   const [compensation, setCompensation] = useState<Compensation | null>(null);
   const [statutory, setStatutory] = useState<Statutory | null>(null);
@@ -166,8 +163,8 @@ export function SensitiveDetailPanel({
             <div>
               {compensation ? (
                 <>
-                  <Row label="Basic salary" value={currency.format(Number(compensation.basicSalary))} />
-                  <Row label="HRA" value={currency.format(Number(compensation.hra))} />
+                  <Row label="Basic salary" value={formatINR(compensation.basicSalary, numberFormatStyle)} />
+                  <Row label="HRA" value={formatINR(compensation.hra, numberFormatStyle)} />
                   <Row label="Effective date" value={compensation.effectiveDate} />
                 </>
               ) : (

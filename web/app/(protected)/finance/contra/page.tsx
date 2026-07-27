@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useFinanceAccess } from '../../../lib/use-finance-access';
+import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { PageContainer } from '../../../components/ui/page-container';
@@ -31,6 +33,7 @@ interface Page<T> {
 export default function ContraVouchersPage() {
   const toast = useToast();
   const { isAccountsHead } = useFinanceAccess();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [vouchers, setVouchers] = useState<ContraVoucher[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -95,7 +98,7 @@ export default function ContraVouchersPage() {
                       <td>{v.voucherDate.slice(0, 10)}</td>
                       <td>{v.fromLedgerAccount.name}</td>
                       <td>{v.toLedgerAccount.name}</td>
-                      <td>₹{Number(v.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      <td>{formatINR(v.amount, numberFormatStyle)}</td>
                       <td>
                         <StatusBadge value={v.status} />
                       </td>

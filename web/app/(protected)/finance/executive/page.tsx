@@ -2,6 +2,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useFinanceAccess } from '../../../lib/use-finance-access';
+import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
@@ -59,6 +61,7 @@ type Rollover = {
 export default function ExecutivePage() {
   const toast = useToast(),
     { isAccountsHead, isFinanceAuditor, loading: financeLoading } = useFinanceAccess(),
+    { style: numberFormatStyle } = useNumberFormat(),
     now = new Date(),
     start = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
   const [from, setFrom] = useState(`${start}-04-01`),
@@ -167,7 +170,7 @@ export default function ExecutivePage() {
                     {k.replace(/([A-Z])/g, ' $1')}
                   </div>
                   <div className="text-xl font-semibold">
-                    {k === 'dso' ? `${v} days` : `₹${v}`}
+                    {k === 'dso' ? `${v} days` : formatINR(v, numberFormatStyle)}
                   </div>
                 </CardContent>
               </Card>
@@ -183,7 +186,7 @@ export default function ExecutivePage() {
                     key={k}
                   >
                     <span>{k.replace(/([A-Z])/g, ' $1')}</span>
-                    <b>₹{v}</b>
+                    <b>{formatINR(v, numberFormatStyle)}</b>
                   </div>
                 ))}
               </CardContent>
@@ -197,7 +200,7 @@ export default function ExecutivePage() {
                     key={k}
                   >
                     <span>{k}</span>
-                    <b>₹{v}</b>
+                    <b>{formatINR(v, numberFormatStyle)}</b>
                   </div>
                 ))}
               </CardContent>

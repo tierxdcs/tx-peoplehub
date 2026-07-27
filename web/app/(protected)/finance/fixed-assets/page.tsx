@@ -2,6 +2,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useFinanceAccess } from '../../../lib/use-finance-access';
+import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
@@ -24,7 +26,8 @@ type Asset = {
 };
 export default function FixedAssetsPage() {
   const toast = useToast(),
-    { isAccountsHead } = useFinanceAccess();
+    { isAccountsHead } = useFinanceAccess(),
+    { style: numberFormatStyle } = useNumberFormat();
   const [accounts, setAccounts] = useState<Account[]>([]),
     [assets, setAssets] = useState<Asset[]>([]),
     [name, setName] = useState(''),
@@ -107,7 +110,7 @@ export default function FixedAssetsPage() {
           body: JSON.stringify({ asOf: new Date().toISOString().slice(0, 10) }),
         },
       );
-      toast.success(`${r.entriesCreated} depreciation entries · ₹${r.total}`);
+      toast.success(`${r.entriesCreated} depreciation entries · ${formatINR(r.total, numberFormatStyle)}`);
       await load();
     } catch (x) {
       toast.error(x instanceof ApiError ? x.message : 'Failed');
@@ -215,13 +218,13 @@ export default function FixedAssetsPage() {
                     {a.name}
                   </td>
                   <td>{a.capitalizationDate.slice(0, 10)}</td>
-                  <td>₹ {a.originalCost}</td>
-                  <td>₹ {a.accumulatedDepreciation}</td>
+                  <td>{formatINR(a.originalCost, numberFormatStyle)}</td>
+                  <td>{formatINR(a.accumulatedDepreciation, numberFormatStyle)}</td>
                   <td>
-                    ₹{' '}
-                    {(
-                      Number(a.originalCost) - Number(a.accumulatedDepreciation)
-                    ).toFixed(2)}
+                    {formatINR(
+                      Number(a.originalCost) - Number(a.accumulatedDepreciation),
+                      numberFormatStyle,
+                    )}
                   </td>
                   <td>{a.status}</td>
                   <td className="space-x-1">

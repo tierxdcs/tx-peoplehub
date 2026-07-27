@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-react';
 import { apiFetch } from '../../../../../../lib/api';
 import { Employee, Payslip } from '../../../../../../lib/types';
 import { formatINR } from '../../../../../../lib/sales';
+import { useNumberFormat } from '../../../../../../lib/number-format-context';
 import { PageContainer } from '../../../../../../components/ui/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../../../components/ui/card';
 import { Skeleton } from '../../../../../../components/ui/skeleton';
@@ -60,6 +61,7 @@ function ConfigSnapshotCard({ label, config }: { label: string; config: unknown 
 export default function PayslipDetailPage() {
   const { id, payslipId } = useParams<{ id: string; payslipId: string }>();
   const router = useRouter();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [payslip, setPayslip] = useState<Payslip | null>(null);
   const [employeeName, setEmployeeName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,11 +120,11 @@ export default function PayslipDetailPage() {
             <CardTitle className="text-base">Earnings</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <Row label="Basic" value={formatINR(payslip.basicPaid)} />
-            <Row label="HRA" value={formatINR(payslip.hraPaid)} />
-            <Row label="Special allowance" value={formatINR(payslip.specialAllowancePaid)} />
-            <Row label="Other allowances" value={formatINR(payslip.otherAllowancesPaid)} />
-            <Row label="Gross earnings" value={formatINR(payslip.grossEarnings)} />
+            <Row label="Basic" value={formatINR(payslip.basicPaid, numberFormatStyle)} />
+            <Row label="HRA" value={formatINR(payslip.hraPaid, numberFormatStyle)} />
+            <Row label="Special allowance" value={formatINR(payslip.specialAllowancePaid, numberFormatStyle)} />
+            <Row label="Other allowances" value={formatINR(payslip.otherAllowancesPaid, numberFormatStyle)} />
+            <Row label="Gross earnings" value={formatINR(payslip.grossEarnings, numberFormatStyle)} />
           </CardContent>
         </Card>
 
@@ -131,13 +133,13 @@ export default function PayslipDetailPage() {
             <CardTitle className="text-base">Deductions</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <Row label="PF (employee)" value={formatINR(payslip.pfEmployee)} />
-            <Row label="PF (employer)" value={formatINR(payslip.pfEmployer)} />
-            <Row label="ESI (employee)" value={payslip.esiEmployee ? formatINR(payslip.esiEmployee) : 'N/A'} />
-            <Row label="ESI (employer)" value={payslip.esiEmployer ? formatINR(payslip.esiEmployer) : 'N/A'} />
-            <Row label="Professional Tax" value={payslip.professionalTax ? formatINR(payslip.professionalTax) : 'N/A'} />
-            <Row label="TDS" value={formatINR(payslip.tdsDeducted)} />
-            <Row label="Unpaid leave deduction" value={formatINR(payslip.unpaidLeaveDeduction)} />
+            <Row label="PF (employee)" value={formatINR(payslip.pfEmployee, numberFormatStyle)} />
+            <Row label="PF (employer)" value={formatINR(payslip.pfEmployer, numberFormatStyle)} />
+            <Row label="ESI (employee)" value={payslip.esiEmployee ? formatINR(payslip.esiEmployee, numberFormatStyle) : 'N/A'} />
+            <Row label="ESI (employer)" value={payslip.esiEmployer ? formatINR(payslip.esiEmployer, numberFormatStyle) : 'N/A'} />
+            <Row label="Professional Tax" value={payslip.professionalTax ? formatINR(payslip.professionalTax, numberFormatStyle) : 'N/A'} />
+            <Row label="TDS" value={formatINR(payslip.tdsDeducted, numberFormatStyle)} />
+            <Row label="Unpaid leave deduction" value={formatINR(payslip.unpaidLeaveDeduction, numberFormatStyle)} />
           </CardContent>
         </Card>
       </div>
@@ -147,7 +149,7 @@ export default function PayslipDetailPage() {
           <span className="text-sm uppercase tracking-wide text-muted-foreground">
             Net Pay
           </span>
-          <span className="text-3xl font-semibold">{formatINR(payslip.netPay)}</span>
+          <span className="text-3xl font-semibold">{formatINR(payslip.netPay, numberFormatStyle)}</span>
         </CardContent>
       </Card>
 

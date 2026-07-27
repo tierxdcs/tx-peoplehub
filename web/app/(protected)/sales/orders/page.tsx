@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Order, OrderStatus, PaginatedResult } from '../../../lib/types';
 import { apiFetch } from '../../../lib/api';
 import { formatINR, prettyEnum } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
 import { Card, CardContent } from '../../../components/ui/card';
@@ -47,6 +48,7 @@ function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function OrdersPage() {
   const router = useRouter();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [orders, setOrders] = useState<Order[]>([]);
   const [summaryRows, setSummaryRows] = useState<Order[]>([]);
   const [page, setPage] = useState(1);
@@ -130,7 +132,10 @@ export default function OrdersPage() {
         <StatCard label="Confirmed" value={summary.confirmed} />
         <StatCard label="In Production" value={summary.inProduction} />
         <StatCard label="Ready / Shipping" value={summary.readyOrShipping} />
-        <StatCard label="Booked Value" value={formatINR(summary.bookedValue)} />
+        <StatCard
+          label="Booked Value"
+          value={formatINR(summary.bookedValue, numberFormatStyle)}
+        />
       </div>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
@@ -238,7 +243,9 @@ export default function OrdersPage() {
                         value={order.fulfilmentStatus ?? 'NOT_DISPATCHED'}
                       />
                     </TableCell>
-                    <TableCell>{formatINR(order.totalAmount)}</TableCell>
+                    <TableCell>
+                      {formatINR(order.totalAmount, numberFormatStyle)}
+                    </TableCell>
                     <TableCell>{order.ownerName}</TableCell>
                     <TableCell>
                       {new Date(order.createdAt).toLocaleDateString('en-IN')}

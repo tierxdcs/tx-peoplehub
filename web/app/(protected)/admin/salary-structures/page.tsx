@@ -5,6 +5,7 @@ import { IndianRupee } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { Employee, PaginatedResult, SalaryStructure } from '../../../lib/types';
 import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
 import { Card, CardContent } from '../../../components/ui/card';
@@ -32,6 +33,7 @@ import {
 } from '../../../components/ui/table';
 
 export default function SalaryStructuresPage() {
+  const { style: numberFormatStyle } = useNumberFormat();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [search, setSearch] = useState('');
   const [employeeId, setEmployeeId] = useState('');
@@ -149,11 +151,11 @@ export default function SalaryStructuresPage() {
               {current ? (
                 <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
                   <StatItem label="Effective from" value={current.effectiveFrom.slice(0, 10)} />
-                  <StatItem label="Basic" value={formatINR(current.basic)} />
-                  <StatItem label="HRA" value={formatINR(current.hra)} />
-                  <StatItem label="Special allowance" value={formatINR(current.specialAllowance)} />
-                  <StatItem label="Other allowances" value={current.otherAllowances ? formatINR(current.otherAllowances) : '—'} />
-                  <StatItem label="Annual CTC" value={formatINR(current.ctcAnnual)} emphasize />
+                  <StatItem label="Basic" value={formatINR(current.basic, numberFormatStyle)} />
+                  <StatItem label="HRA" value={formatINR(current.hra, numberFormatStyle)} />
+                  <StatItem label="Special allowance" value={formatINR(current.specialAllowance, numberFormatStyle)} />
+                  <StatItem label="Other allowances" value={current.otherAllowances ? formatINR(current.otherAllowances, numberFormatStyle) : '—'} />
+                  <StatItem label="Annual CTC" value={formatINR(current.ctcAnnual, numberFormatStyle)} emphasize />
                 </dl>
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -188,11 +190,11 @@ export default function SalaryStructuresPage() {
                     {history.map((h) => (
                       <TableRow key={h.id}>
                         <TableCell>{h.effectiveFrom.slice(0, 10)}</TableCell>
-                        <TableCell className="text-right">{formatINR(h.basic)}</TableCell>
-                        <TableCell className="text-right">{formatINR(h.hra)}</TableCell>
-                        <TableCell className="text-right">{formatINR(h.specialAllowance)}</TableCell>
-                        <TableCell className="text-right">{h.otherAllowances ? formatINR(h.otherAllowances) : '—'}</TableCell>
-                        <TableCell className="text-right font-medium">{formatINR(h.ctcAnnual)}</TableCell>
+                        <TableCell className="text-right">{formatINR(h.basic, numberFormatStyle)}</TableCell>
+                        <TableCell className="text-right">{formatINR(h.hra, numberFormatStyle)}</TableCell>
+                        <TableCell className="text-right">{formatINR(h.specialAllowance, numberFormatStyle)}</TableCell>
+                        <TableCell className="text-right">{h.otherAllowances ? formatINR(h.otherAllowances, numberFormatStyle) : '—'}</TableCell>
+                        <TableCell className="text-right font-medium">{formatINR(h.ctcAnnual, numberFormatStyle)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

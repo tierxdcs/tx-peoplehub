@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { Bid, PaginatedResult } from '../../../../lib/types';
 import { formatINR } from '../../../../lib/sales';
+import { useNumberFormat } from '../../../../lib/number-format-context';
 import { Button } from '../../../../components/ui/button';
 import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
@@ -16,6 +17,7 @@ import { PageHeader } from '../../../../components/ui/page-header';
 export default function BidApprovalQueuePage() {
   const toast = useToast();
   const confirm = useConfirm();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +99,7 @@ export default function BidApprovalQueuePage() {
                       {b.bidNumber}
                     </Link>
                     <span className="font-semibold">
-                      {formatINR(b.grandTotal)}
+                      {formatINR(b.grandTotal, numberFormatStyle)}
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -151,7 +153,7 @@ export default function BidApprovalQueuePage() {
                         <Link href={`/sales/bids/${b.id}`}>{b.bidNumber}</Link>
                       </td>
                       <td>{b.discountPercent}%</td>
-                      <td>{formatINR(b.grandTotal)}</td>
+                      <td>{formatINR(b.grandTotal, numberFormatStyle)}</td>
                       <td>
                         <Input
                           placeholder="Optional"

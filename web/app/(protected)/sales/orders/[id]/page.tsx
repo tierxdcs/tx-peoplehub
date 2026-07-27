@@ -13,6 +13,7 @@ import {
   formatINR,
   prettyEnum,
 } from '../../../../lib/sales';
+import { useNumberFormat } from '../../../../lib/number-format-context';
 import { PageContainer } from '../../../../components/ui/page-container';
 import {
   Card,
@@ -48,6 +49,7 @@ export default function OrderDetailPage() {
   const confirm = useConfirm();
   const { user } = useAuth();
   const { isSalesHead } = useIsSalesHead();
+  const { style: numberFormatStyle } = useNumberFormat();
 
   const [order, setOrder] = useState<Order | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -184,7 +186,7 @@ export default function OrderDetailPage() {
               Total
             </div>
             <div className="mt-1 text-2xl font-semibold">
-              {formatINR(order.totalAmount)}
+              {formatINR(order.totalAmount, numberFormatStyle)}
             </div>
           </div>
           <div>
@@ -239,10 +241,10 @@ export default function OrderDetailPage() {
                   </TableCell>
                   <TableCell className="text-right">{li.quantity}</TableCell>
                   <TableCell className="text-right">
-                    {formatINR(li.unitPrice)}
+                    {formatINR(li.unitPrice, numberFormatStyle)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatINR(li.lineTotal)}
+                    {formatINR(li.lineTotal, numberFormatStyle)}
                   </TableCell>
                 </TableRow>
               ))}

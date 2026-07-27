@@ -6,19 +6,38 @@ import {
   OrderStatus,
 } from './types';
 
-/** INR currency formatter for Decimal-as-string amounts. */
-const inr = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-  maximumFractionDigits: 2,
-});
+/**
+ * INR currency formatters for Decimal-as-string amounts. Both keep the ₹
+ * symbol and the same underlying value — only the digit grouping differs:
+ *   - india:         en-IN locale → lakh/crore grouping (₹14,10,000.00)
+ *   - international: en-US locale → thousands grouping (₹1,410,000.00)
+ */
+const inrByStyle = {
+  india: new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+  }),
+  international: new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+  }),
+};
 
-/** Format a Decimal-as-string (or number) money value as INR. '—' if empty. */
-export function formatINR(value: string | number | null | undefined): string {
+/**
+ * Format a Decimal-as-string (or number) money value as INR. '—' if empty.
+ * `style` defaults to the India lakh/crore grouping for callers that haven't
+ * been wired to the number-format preference yet (see useNumberFormat).
+ */
+export function formatINR(
+  value: string | number | null | undefined,
+  style: 'india' | 'international' = 'india',
+): string {
   if (value === null || value === undefined || value === '') return '—';
   const n = typeof value === 'number' ? value : Number(value);
   if (Number.isNaN(n)) return String(value);
-  return inr.format(n);
+  return inrByStyle[style].format(n);
 }
 
 /**

@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useFinanceAccess } from '../../../lib/use-finance-access';
+import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Select } from '../../../components/ui/select';
@@ -28,7 +30,8 @@ const checks = [
 ];
 export default function PeriodClosePage() {
   const toast = useToast(),
-    { isAccountsHead } = useFinanceAccess();
+    { isAccountsHead } = useFinanceAccess(),
+    { style: numberFormatStyle } = useNumberFormat();
   const [years, setYears] = useState<Fy[]>([]),
     [periodId, setPeriodId] = useState(''),
     [result, setResult] = useState<Result | null>(null),
@@ -175,7 +178,7 @@ export default function PeriodClosePage() {
               </div>
             </CardContent>
           </Card>
-          {result.close && <Card className="mt-6"><CardContent className="p-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Automated Close Controls</h2><p className="text-sm text-muted-foreground">Required close tasks and ledger-to-subledger reconciliation exceptions</p></div><Button onClick={() => controlAction(`/finance/close-controls/${periodId}/run`)}>Run reconciliations</Button></div><div className="grid gap-2 md:grid-cols-2">{(controls?.tasks ?? []).map((t) => <label key={t.id} className="flex items-center gap-2 rounded border p-3 text-sm"><input type="checkbox" checked={t.status === 'COMPLETED'} onChange={(e) => controlAction(`/finance/close-controls/${periodId}/tasks/${t.id}`, 'PATCH', { status: e.target.checked ? 'COMPLETED' : 'PENDING' })}/><span><b>{t.category}</b> · {t.title}{t.isRequired ? ' *' : ''}</span></label>)}</div>{controls?.reconciliation && <div className="mt-6"><div className="mb-2 text-sm">Run status: <b>{controls.reconciliation.status}</b></div><div className="space-y-2">{controls.reconciliation.exceptions.map((x) => <div key={x.id} className={`rounded border p-3 text-sm ${x.status === 'OPEN' && x.severity === 'BLOCKING' ? 'border-destructive' : ''}`}><div className="flex flex-wrap items-center justify-between gap-2"><span><b>{x.title}</b> · {x.severity} · {x.status}</span>{x.status === 'OPEN' && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => { const note = window.prompt('Resolution note'); if (note) controlAction(`/finance/close-controls/exceptions/${x.id}/resolve`, 'PATCH', { status: 'RESOLVED', resolutionNote: note }); }}>Resolve</Button>{isAccountsHead && <Button size="sm" variant="destructive" onClick={() => { const note = window.prompt('Finance Head waiver justification'); if (note) controlAction(`/finance/close-controls/exceptions/${x.id}/resolve`, 'PATCH', { status: 'WAIVED', resolutionNote: note }); }}>Waive</Button>}</div>}</div>{x.variance != null && <div className="mt-1 text-xs text-muted-foreground">Ledger ₹{x.ledgerAmount ?? '0'} · Source ₹{x.sourceAmount ?? '0'} · Variance ₹{x.variance}</div>}</div>)}</div></div>}</CardContent></Card>}
+          {result.close && <Card className="mt-6"><CardContent className="p-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Automated Close Controls</h2><p className="text-sm text-muted-foreground">Required close tasks and ledger-to-subledger reconciliation exceptions</p></div><Button onClick={() => controlAction(`/finance/close-controls/${periodId}/run`)}>Run reconciliations</Button></div><div className="grid gap-2 md:grid-cols-2">{(controls?.tasks ?? []).map((t) => <label key={t.id} className="flex items-center gap-2 rounded border p-3 text-sm"><input type="checkbox" checked={t.status === 'COMPLETED'} onChange={(e) => controlAction(`/finance/close-controls/${periodId}/tasks/${t.id}`, 'PATCH', { status: e.target.checked ? 'COMPLETED' : 'PENDING' })}/><span><b>{t.category}</b> · {t.title}{t.isRequired ? ' *' : ''}</span></label>)}</div>{controls?.reconciliation && <div className="mt-6"><div className="mb-2 text-sm">Run status: <b>{controls.reconciliation.status}</b></div><div className="space-y-2">{controls.reconciliation.exceptions.map((x) => <div key={x.id} className={`rounded border p-3 text-sm ${x.status === 'OPEN' && x.severity === 'BLOCKING' ? 'border-destructive' : ''}`}><div className="flex flex-wrap items-center justify-between gap-2"><span><b>{x.title}</b> · {x.severity} · {x.status}</span>{x.status === 'OPEN' && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => { const note = window.prompt('Resolution note'); if (note) controlAction(`/finance/close-controls/exceptions/${x.id}/resolve`, 'PATCH', { status: 'RESOLVED', resolutionNote: note }); }}>Resolve</Button>{isAccountsHead && <Button size="sm" variant="destructive" onClick={() => { const note = window.prompt('Finance Head waiver justification'); if (note) controlAction(`/finance/close-controls/exceptions/${x.id}/resolve`, 'PATCH', { status: 'WAIVED', resolutionNote: note }); }}>Waive</Button>}</div>}</div>{x.variance != null && <div className="mt-1 text-xs text-muted-foreground">Ledger {formatINR(x.ledgerAmount ?? '0', numberFormatStyle)} · Source {formatINR(x.sourceAmount ?? '0', numberFormatStyle)} · Variance {formatINR(x.variance, numberFormatStyle)}</div>}</div>)}</div></div>}</CardContent></Card>}
         </>
       )}
     </PageContainer>

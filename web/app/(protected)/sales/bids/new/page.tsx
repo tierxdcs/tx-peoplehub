@@ -10,6 +10,7 @@ import {
   Product,
 } from '../../../../lib/types';
 import { formatINR } from '../../../../lib/sales';
+import { useNumberFormat } from '../../../../lib/number-format-context';
 import { orderProductsForOpportunity } from '../../../../lib/business-unit-rules';
 import { todayDateStr } from '../../../../lib/date';
 import { Button } from '../../../../components/ui/button';
@@ -58,6 +59,7 @@ function computeTotals(
 export default function NewBidPage() {
   const router = useRouter();
   const confirm = useConfirm();
+  const { style: numberFormatStyle } = useNumberFormat();
   const params = useSearchParams();
   const presetOpportunityId = params.get('opportunityId') ?? '';
 
@@ -343,7 +345,11 @@ export default function NewBidPage() {
                         ))}
                     </select>
                   </td>
-                  <td>{product ? formatINR(product.unitPrice) : '—'}</td>
+                  <td>
+                    {product
+                      ? formatINR(product.unitPrice, numberFormatStyle)
+                      : '—'}
+                  </td>
                   <td>
                     <input
                       type="number"
@@ -367,7 +373,11 @@ export default function NewBidPage() {
                       style={{ padding: 4, width: 70 }}
                     />
                   </td>
-                  <td>{product && qty ? formatINR(lineTotal) : '—'}</td>
+                  <td>
+                    {product && qty
+                      ? formatINR(lineTotal, numberFormatStyle)
+                      : '—'}
+                  </td>
                   <td>
                     {lines.length > 1 && (
                       <Button
@@ -446,7 +456,7 @@ export default function NewBidPage() {
           </div>
           <div className="mt-3 flex justify-between border-t pt-3 font-semibold">
             <span>AMC Total</span>
-            <span>{formatINR(amcTotal)}</span>
+            <span>{formatINR(amcTotal, numberFormatStyle)}</span>
           </div>
         </section>
 
@@ -460,15 +470,23 @@ export default function NewBidPage() {
             marginBottom: 12,
           }}
         >
-          <div>Subtotal: {formatINR(totals.subtotal)}</div>
-          <div>Discount: −{formatINR(totals.discountAmount)}</div>
-          <div style={{ fontWeight: 'bold' }}>
-            Taxable: {formatINR(totals.taxable)}
+          <div>
+            Subtotal: {formatINR(totals.subtotal, numberFormatStyle)}
           </div>
-          <div>AMC Total (untaxed): {formatINR(amcTotal)}</div>
+          <div>
+            Discount: −{formatINR(totals.discountAmount, numberFormatStyle)}
+          </div>
+          <div style={{ fontWeight: 'bold' }}>
+            Taxable: {formatINR(totals.taxable, numberFormatStyle)}
+          </div>
+          <div>
+            AMC Total (untaxed): {formatINR(amcTotal, numberFormatStyle)}
+          </div>
           <div className="mt-1 flex justify-between border-t pt-1 font-bold">
             <span>Grand Total before GST</span>
-            <span>{formatINR(totals.taxable + amcTotal)}</span>
+            <span>
+              {formatINR(totals.taxable + amcTotal, numberFormatStyle)}
+            </span>
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
             Tax is applied server-side from the active GST config; the final

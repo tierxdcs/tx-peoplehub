@@ -2,6 +2,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useFinanceAccess } from '../../../lib/use-finance-access';
+import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
@@ -51,6 +53,7 @@ type Tds = {
 export default function CompliancePage() {
   const toast = useToast(),
     { isAccountsHead } = useFinanceAccess();
+  const { style: numberFormatStyle } = useNumberFormat();
   const now = new Date(),
     fy = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
   const [from, setFrom] = useState(`${fy}-04-01`),
@@ -183,11 +186,13 @@ export default function CompliancePage() {
                     <br />
                     {g.gstin || 'No GSTIN'}
                   </td>
-                  <td>{g.taxableAmount}</td>
+                  <td>{formatINR(g.taxableAmount, numberFormatStyle)}</td>
                   <td>
-                    {g.cgst} / {g.sgst} / {g.igst}
+                    {formatINR(g.cgst, numberFormatStyle)} /{' '}
+                    {formatINR(g.sgst, numberFormatStyle)} /{' '}
+                    {formatINR(g.igst, numberFormatStyle)}
                   </td>
-                  <td>{g.total}</td>
+                  <td>{formatINR(g.total, numberFormatStyle)}</td>
                   <td>{g.itcStatus.replaceAll('_', ' ')}</td>
                   <td>
                     <Select
@@ -230,7 +235,7 @@ export default function CompliancePage() {
                   <td>{a.dueDate.slice(0, 10)}</td>
                   <td>{a.daysOverdue}</td>
                   <td>{a.bucket.replaceAll('_', '–')}</td>
-                  <td>₹ {a.outstanding}</td>
+                  <td>{formatINR(a.outstanding, numberFormatStyle)}</td>
                   <td>
                     {isAccountsHead ? (
                       <Button
@@ -269,10 +274,10 @@ export default function CompliancePage() {
               {forecast.map((f) => (
                 <tr className="border-b" key={f.weekStarting}>
                   <td className="p-3">{f.weekStarting}</td>
-                  <td>₹ {f.expectedCollections}</td>
-                  <td>₹ {f.duePayables}</td>
-                  <td>₹ {f.plannedPayments}</td>
-                  <td>₹ {f.netCash}</td>
+                  <td>{formatINR(f.expectedCollections, numberFormatStyle)}</td>
+                  <td>{formatINR(f.duePayables, numberFormatStyle)}</td>
+                  <td>{formatINR(f.plannedPayments, numberFormatStyle)}</td>
+                  <td>{formatINR(f.netCash, numberFormatStyle)}</td>
                 </tr>
               ))}
             </tbody>
@@ -319,7 +324,7 @@ export default function CompliancePage() {
             {tds.map((t) => (
               <div className="border-b py-2" key={t.id}>
                 <b>{t.sectionCode}</b> · {t.description} · {t.ratePercent}%
-                above ₹{t.thresholdInr} · {t.isActive ? 'Active' : 'Inactive'}
+                above {formatINR(t.thresholdInr, numberFormatStyle)} · {t.isActive ? 'Active' : 'Inactive'}
               </div>
             ))}
           </div>

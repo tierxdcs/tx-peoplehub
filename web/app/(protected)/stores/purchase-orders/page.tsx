@@ -11,6 +11,7 @@ import {
   type PurchaseOrderStatus,
 } from '../../../lib/stores';
 import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { dateOnlyStr } from '../../../lib/date';
 import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
@@ -44,6 +45,7 @@ const STATUSES: PurchaseOrderStatus[] = [
 export default function PurchaseOrdersPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -155,7 +157,7 @@ export default function PurchaseOrdersPage() {
                       <StatusBadge value={po.status} />
                     </TableCell>
                     <TableCell className="text-right">
-                      {formatINR(po.totalAmount)}
+                      {formatINR(po.totalAmount, numberFormatStyle)}
                     </TableCell>
                   </TableRow>
                 ))}

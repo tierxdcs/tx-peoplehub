@@ -16,6 +16,7 @@ import {
   type GoodsReceiptNote,
 } from '../../../../lib/stores';
 import { formatINR } from '../../../../lib/sales';
+import { useNumberFormat } from '../../../../lib/number-format-context';
 import { dateOnlyStr } from '../../../../lib/date';
 import { PageContainer } from '../../../../components/ui/page-container';
 import {
@@ -46,6 +47,7 @@ export default function PurchaseOrderDetailPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const { user } = useAuth();
+  const { style: numberFormatStyle } = useNumberFormat();
 
   const [po, setPo] = useState<PurchaseOrder | null>(null);
   const [grns, setGrns] = useState<GoodsReceiptNote[]>([]);
@@ -194,7 +196,7 @@ export default function PurchaseOrderDetailPage() {
         <Info label="Order Date" value={dateOnlyStr(po.orderDate)} />
         <Info label="Expected Delivery" value={po.expectedDeliveryDate ? dateOnlyStr(po.expectedDeliveryDate) : '—'} />
         <Info label="Raised By" value={po.createdByName ?? '—'} />
-        <Info label="Total Value" value={formatINR(po.totalAmount)} />
+        <Info label="Total Value" value={formatINR(po.totalAmount, numberFormatStyle)} />
       </div>
 
       {po.notes && (
@@ -241,8 +243,8 @@ export default function PurchaseOrderDetailPage() {
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">{formatINR(line.unitPrice)}</TableCell>
-                    <TableCell className="text-right">{formatINR(line.lineTotal)}</TableCell>
+                    <TableCell className="text-right">{formatINR(line.unitPrice, numberFormatStyle)}</TableCell>
+                    <TableCell className="text-right">{formatINR(line.lineTotal, numberFormatStyle)}</TableCell>
                   </TableRow>
                 );
               })}

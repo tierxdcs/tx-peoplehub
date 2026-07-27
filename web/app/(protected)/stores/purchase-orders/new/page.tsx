@@ -14,6 +14,7 @@ import { listSuppliers, type Supplier } from '../../../../lib/scm-supplier';
 import { listVendors, type Vendor } from '../../../../lib/scm';
 import { listItems, type Item } from '../../../../lib/scm-item-master';
 import { formatINR } from '../../../../lib/sales';
+import { useNumberFormat } from '../../../../lib/number-format-context';
 import { humanizeEnum } from '../../../../lib/status';
 import { PageContainer } from '../../../../components/ui/page-container';
 import {
@@ -44,6 +45,7 @@ let lineKeySeq = 1;
 export default function NewPurchaseOrderPage() {
   const router = useRouter();
   const toast = useToast();
+  const { style: numberFormatStyle } = useNumberFormat();
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -276,7 +278,7 @@ export default function NewPurchaseOrderPage() {
                     </Field>
                     <Field label="Line Total">
                       <div className="flex h-9 items-center text-sm font-medium">
-                        {formatINR(lineTotal)}
+                        {formatINR(lineTotal, numberFormatStyle)}
                       </div>
                     </Field>
                     <Button
@@ -298,7 +300,7 @@ export default function NewPurchaseOrderPage() {
                 </Button>
                 <div className="text-sm">
                   <span className="text-muted-foreground">Total: </span>
-                  <span className="font-semibold">{formatINR(total)}</span>
+                  <span className="font-semibold">{formatINR(total, numberFormatStyle)}</span>
                 </div>
               </div>
             </CardContent>

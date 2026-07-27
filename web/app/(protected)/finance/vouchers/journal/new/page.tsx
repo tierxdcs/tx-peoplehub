@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../../../../lib/api';
+import { formatINR } from '../../../../../lib/sales';
+import { useNumberFormat } from '../../../../../lib/number-format-context';
 import { Input } from '../../../../../components/ui/input';
 import { Field } from '../../../../../components/ui/field';
 import { Button } from '../../../../../components/ui/button';
@@ -33,6 +35,7 @@ const emptyLine = (): Line => ({ accountId: '', debit: '', credit: '' });
 export default function NewJournalVoucherPage() {
   const router = useRouter();
   const toast = useToast();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [narration, setNarration] = useState('');
@@ -105,8 +108,8 @@ export default function NewJournalVoucherPage() {
       balanced={balanced}
       balanceLabel={
         balanced
-          ? `Balanced — Dr ₹${totalDebit.toFixed(2)} = Cr ₹${totalCredit.toFixed(2)}`
-          : `Unbalanced — Dr ₹${totalDebit.toFixed(2)} vs Cr ₹${totalCredit.toFixed(2)}`
+          ? `Balanced — Dr ${formatINR(totalDebit, numberFormatStyle)} = Cr ${formatINR(totalCredit, numberFormatStyle)}`
+          : `Unbalanced — Dr ${formatINR(totalDebit, numberFormatStyle)} vs Cr ${formatINR(totalCredit, numberFormatStyle)}`
       }
       submitting={submitting}
       onSaveDraft={() => void create(false)}

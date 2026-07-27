@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../../../../lib/api';
+import { formatINR } from '../../../../../lib/sales';
+import { useNumberFormat } from '../../../../../lib/number-format-context';
 import { Input } from '../../../../../components/ui/input';
 import { Field } from '../../../../../components/ui/field';
 import { useToast } from '../../../../../components/ui/toaster';
@@ -25,6 +27,7 @@ interface Partner {
 export default function NewPurchaseVoucherPage() {
   const router = useRouter();
   const toast = useToast();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [suppliers, setSuppliers] = useState<Partner[]>([]);
   const [vendors, setVendors] = useState<Partner[]>([]);
   const [partyId, setPartyId] = useState('');
@@ -109,7 +112,7 @@ export default function NewPurchaseVoucherPage() {
       narration={narration}
       onNarrationChange={setNarration}
       balanced={balanced}
-      balanceLabel={balanced ? `Total ₹${total.toFixed(2)}` : 'Fill in party and line details'}
+      balanceLabel={balanced ? `Total ${formatINR(total, numberFormatStyle)}` : 'Fill in party and line details'}
       submitting={submitting}
       onSaveDraft={() => void create(false)}
       onSubmitForApproval={() => void create(true)}
@@ -158,13 +161,13 @@ export default function NewPurchaseVoucherPage() {
         </div>
         <div className="mt-3 flex justify-end gap-6 border-t pt-3 text-sm">
           <span>
-            Subtotal: <strong>₹{lineTotal.toFixed(2)}</strong>
+            Subtotal: <strong>{formatINR(lineTotal, numberFormatStyle)}</strong>
           </span>
           <span>
-            Tax: <strong>₹{taxAmount.toFixed(2)}</strong>
+            Tax: <strong>{formatINR(taxAmount, numberFormatStyle)}</strong>
           </span>
           <span>
-            Total: <strong>₹{total.toFixed(2)}</strong>
+            Total: <strong>{formatINR(total, numberFormatStyle)}</strong>
           </span>
         </div>
       </div>

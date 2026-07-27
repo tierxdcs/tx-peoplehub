@@ -20,6 +20,7 @@ import { cn } from '../../lib/utils';
 import { ResetPasswordDialog } from './reset-password-dialog';
 import { NotificationBell } from './notification-bell';
 import { ThemeToggle } from './theme-toggle';
+import { NumberFormatToggle } from './number-format-toggle';
 
 /**
  * Top bar: brand (left) · module switcher (center, only if the user has both
@@ -108,6 +109,7 @@ export function AppTopBar({
 
       <div className="ml-auto flex items-center gap-1">
         <NotificationBell />
+        <NumberFormatToggle />
         <ThemeToggle />
 
         <div className="relative" ref={menuRef}>

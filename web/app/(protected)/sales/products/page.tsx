@@ -6,6 +6,7 @@ import { apiFetch, ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { PaginatedResult, Product } from '../../../lib/types';
 import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { listItems, type Item } from '../../../lib/scm-item-master';
 import { useBusinessUnitOptions } from '../../../lib/business-units';
 import { inferBusinessUnitCode } from '../../../lib/business-unit-rules';
@@ -21,6 +22,7 @@ const fieldStyle: React.CSSProperties = {
 
 export default function ProductsPage() {
   const { user } = useAuth();
+  const { style: numberFormatStyle } = useNumberFormat();
   const canEdit = user?.role === 'MANAGER' || user?.role === 'SUPER_ADMIN';
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -173,7 +175,7 @@ export default function ProductsPage() {
                       </span>
                     )}
                   </td>
-                  <td>{formatINR(p.unitPrice)}</td>
+                  <td>{formatINR(p.unitPrice, numberFormatStyle)}</td>
                   <td>{p.unitOfMeasure}</td>
                   <td>{p.isActive ? 'Yes' : 'No'}</td>
                   {canEdit && (

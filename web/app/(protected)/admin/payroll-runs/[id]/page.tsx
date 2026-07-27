@@ -6,6 +6,7 @@ import { ArrowLeft, Lock } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { Employee, PayrollRun, Payslip } from '../../../../lib/types';
 import { formatINR } from '../../../../lib/sales';
+import { useNumberFormat } from '../../../../lib/number-format-context';
 import { PageContainer } from '../../../../components/ui/page-container';
 import { Card, CardContent } from '../../../../components/ui/card';
 import { Button } from '../../../../components/ui/button';
@@ -31,6 +32,7 @@ export default function PayrollRunDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const confirm = useConfirm();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [run, setRun] = useState<PayrollRun | null>(null);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [employeeNames, setEmployeeNames] = useState<Record<string, string>>({});
@@ -254,8 +256,8 @@ export default function PayrollRunDetailPage() {
                         <TableCell className="font-medium">
                           {employeeNames[p.employeeId] ?? '…'}
                         </TableCell>
-                        <TableCell className="text-right">{formatINR(p.grossEarnings)}</TableCell>
-                        <TableCell className="text-right font-medium">{formatINR(p.netPay)}</TableCell>
+                        <TableCell className="text-right">{formatINR(p.grossEarnings, numberFormatStyle)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatINR(p.netPay, numberFormatStyle)}</TableCell>
                         <TableCell><StatusBadge value={p.status} /></TableCell>
                         <TableCell className="text-right">
                           <Button

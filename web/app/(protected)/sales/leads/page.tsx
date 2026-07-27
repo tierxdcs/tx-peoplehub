@@ -13,6 +13,7 @@ import {
   PaginatedResult,
 } from '../../../lib/types';
 import { formatINR, leadDisplayStatus } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { statusVariant } from '../../../lib/status';
 import { todayDateStr } from '../../../lib/date';
 import { PageContainer } from '../../../components/ui/page-container';
@@ -66,6 +67,7 @@ export default function LeadsPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const { user } = useAuth();
+  const { style: numberFormatStyle } = useNumberFormat();
 
   /**
    * Who may edit a lead: its owner, or a Manager/Admin/SuperAdmin (managers can
@@ -231,7 +233,10 @@ export default function LeadsPage() {
         <StatCard label="New Leads" value={summary.newLeads} />
         <StatCard label="Qualified" value={summary.qualified} />
         <StatCard label="Proposals" value={summary.proposals} />
-        <StatCard label="Won YTD" value={formatINR(summary.wonYtd)} />
+        <StatCard
+          label="Won YTD"
+          value={formatINR(summary.wonYtd, numberFormatStyle)}
+        />
       </div>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}

@@ -3,6 +3,8 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ApiError, apiFetch } from '../../../../lib/api';
 import { useFinanceAccess } from '../../../../lib/use-finance-access';
+import { formatINR } from '../../../../lib/sales';
+import { useNumberFormat } from '../../../../lib/number-format-context';
 import { Button } from '../../../../components/ui/button';
 import { Card, CardContent } from '../../../../components/ui/card';
 import { Input } from '../../../../components/ui/input';
@@ -48,6 +50,7 @@ type Page<T> = { items: T[] };
 export default function VendorInvoicesPage() {
   const toast = useToast();
   const { isAccountsHead } = useFinanceAccess();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [suppliers, setSuppliers] = useState<Partner[]>([]),
     [vendors, setVendors] = useState<Partner[]>([]),
     [pos, setPos] = useState<Po[]>([]),
@@ -240,7 +243,7 @@ export default function VendorInvoicesPage() {
                   <option value="">PO line</option>
                   {selectedPo.lines.map((l) => (
                     <option key={l.id} value={l.id}>
-                      {l.item.name} · ₹{l.unitPrice}
+                      {l.item.name} · {formatINR(l.unitPrice, numberFormatStyle)}
                     </option>
                   ))}
                 </Select>
@@ -330,9 +333,9 @@ export default function VendorInvoicesPage() {
                   <td>{i.supplier?.companyName || i.vendor?.companyName}</td>
                   <td>{i.dueDate.slice(0, 10)}</td>
                   <td>
-                    {i.currencyCode} {i.totalAmount}
+                    {formatINR(i.totalAmount, numberFormatStyle)}
                     <br />
-                    {i.outstandingAmount} open
+                    {formatINR(i.outstandingAmount, numberFormatStyle)} open
                   </td>
                   <td>{i.matchStatus.replaceAll('_', ' ')}</td>
                   <td>{i.status.replaceAll('_', ' ')}</td>

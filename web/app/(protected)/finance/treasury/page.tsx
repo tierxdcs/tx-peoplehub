@@ -2,6 +2,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useFinanceAccess } from '../../../lib/use-finance-access';
+import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
@@ -40,7 +42,8 @@ type Period = { id: string; name: string; status: string };
 type Fy = { name: string; periods: Period[] };
 export default function TreasuryPage() {
   const toast = useToast(),
-    { isAccountsHead } = useFinanceAccess();
+    { isAccountsHead } = useFinanceAccess(),
+    { style: numberFormatStyle } = useNumberFormat();
   const [data, setData] = useState<Dashboard>(),
     [customers, setCustomers] = useState<Customer[]>([]),
     [accounts, setAccounts] = useState<Account[]>([]),
@@ -170,7 +173,7 @@ export default function TreasuryPage() {
                 <div key={x.customerId} className="border-b py-2">
                   {customers.find((c) => c.id === x.customerId)?.name ??
                     x.customerId}{' '}
-                  · ₹{x.creditLimitInr} · {x.overdueGraceDays} grace days
+                  · {formatINR(x.creditLimitInr, numberFormatStyle)} · {x.overdueGraceDays} grace days
                 </div>
               ))}
             </div>
@@ -247,8 +250,8 @@ export default function TreasuryPage() {
               key={r.id}
             >
               <span>
-                <b>{r.runNumber}</b> · {r.status} · Gain ₹{r.totalGainInr} ·
-                Loss ₹{r.totalLossInr} · {r.lines.length} documents
+                <b>{r.runNumber}</b> · {r.status} · Gain {formatINR(r.totalGainInr, numberFormatStyle)} ·
+                Loss {formatINR(r.totalLossInr, numberFormatStyle)} · {r.lines.length} documents
               </span>
               <div className="flex gap-2">
                 {r.status === 'DRAFT' && (

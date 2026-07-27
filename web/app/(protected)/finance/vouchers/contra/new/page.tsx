@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../../../../lib/api';
+import { formatINR } from '../../../../../lib/sales';
+import { useNumberFormat } from '../../../../../lib/number-format-context';
 import { Input } from '../../../../../components/ui/input';
 import { Field } from '../../../../../components/ui/field';
 import { useToast } from '../../../../../components/ui/toaster';
@@ -30,6 +32,7 @@ const BANK_OR_CASH_GROUP_CODES = ['GRP-BANK', 'GRP-CASH'];
 export default function NewContraVoucherPage() {
   const router = useRouter();
   const toast = useToast();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [fromId, setFromId] = useState('');
   const [toId, setToId] = useState('');
@@ -94,7 +97,7 @@ export default function NewContraVoucherPage() {
       narration={narration}
       onNarrationChange={setNarration}
       balanced={balanced}
-      balanceLabel={balanced ? `Transfer ₹${Number(amount).toFixed(2)}` : 'Choose two different bank/cash ledgers'}
+      balanceLabel={balanced ? `Transfer ${formatINR(Number(amount), numberFormatStyle)}` : 'Choose two different bank/cash ledgers'}
       submitting={submitting}
       onSaveDraft={() => void create(false)}
       onSubmitForApproval={() => void create(true)}

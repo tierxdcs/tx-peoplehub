@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../../lib/api';
+import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
@@ -20,6 +22,7 @@ type Data = {
   plannedPayments: Entry[];
 };
 export default function PaymentCalendarPage() {
+  const { style: numberFormatStyle } = useNumberFormat();
   const today = new Date(),
     [from, setFrom] = useState(today.toISOString().slice(0, 10)),
     [to, setTo] = useState(
@@ -83,7 +86,7 @@ export default function PaymentCalendarPage() {
                   <td>{r.type.replaceAll('_', ' ')}</td>
                   <td>{r.party}</td>
                   <td className="font-mono">{r.reference}</td>
-                  <td>₹ {r.amount}</td>
+                  <td>{formatINR(r.amount, numberFormatStyle)}</td>
                   <td>{r.status || 'DUE'}</td>
                 </tr>
               ))}

@@ -2,6 +2,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useFinanceAccess } from '../../../lib/use-finance-access';
+import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
@@ -41,6 +43,7 @@ type Variance = {
 export default function BudgetsPage() {
   const toast = useToast(),
     { isAccountsHead } = useFinanceAccess();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [years, setYears] = useState<FY[]>([]),
     [accounts, setAccounts] = useState<Account[]>([]),
     [costs, setCosts] = useState<Cost[]>([]),
@@ -232,10 +235,10 @@ export default function BudgetsPage() {
                   <td>{b.fiscalYear.name}</td>
                   <td>{b.lines.length}</td>
                   <td>
-                    ₹{' '}
-                    {b.lines
-                      .reduce((s, l) => s + Number(l.amount), 0)
-                      .toFixed(2)}
+                    {formatINR(
+                      b.lines.reduce((s, l) => s + Number(l.amount), 0),
+                      numberFormatStyle,
+                    )}
                   </td>
                   <td>{b.status}</td>
                   <td className="space-x-1">
@@ -304,9 +307,9 @@ export default function BudgetsPage() {
                       {v.accountCode} · {v.accountName}
                     </td>
                     <td>{v.costCenter || v.projectReference || 'Company'}</td>
-                    <td>{v.budget}</td>
-                    <td>{v.actual}</td>
-                    <td>{v.variance}</td>
+                    <td>{formatINR(v.budget, numberFormatStyle)}</td>
+                    <td>{formatINR(v.actual, numberFormatStyle)}</td>
+                    <td>{formatINR(v.variance, numberFormatStyle)}</td>
                     <td>{v.variancePercent ?? '—'}</td>
                   </tr>
                 ))}

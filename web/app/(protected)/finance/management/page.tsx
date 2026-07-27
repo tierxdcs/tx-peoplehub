@@ -2,6 +2,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useFinanceAccess } from '../../../lib/use-finance-access';
+import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
@@ -45,7 +47,8 @@ type Project = {
 };
 export default function ManagementPage() {
   const toast = useToast(),
-    { isAccountsHead } = useFinanceAccess();
+    { isAccountsHead } = useFinanceAccess(),
+    { style: numberFormatStyle } = useNumberFormat();
   const [accounts, setAccounts] = useState<Account[]>([]),
     [schedules, setSchedules] = useState<Schedule[]>([]),
     [inventory, setInventory] = useState<Inventory[]>([]),
@@ -125,7 +128,7 @@ export default function ManagementPage() {
         '/finance/management/schedules/run-due',
         { method: 'POST', body: JSON.stringify({ asOf: to }) },
       );
-      toast.success(`${r.executionsCreated} scheduled journals · ₹${r.total}`);
+      toast.success(`${r.executionsCreated} scheduled journals · ${formatINR(r.total, numberFormatStyle)}`);
       await load();
     } catch (x) {
       toast.error(x instanceof ApiError ? x.message : 'Failed');
@@ -227,7 +230,7 @@ export default function ManagementPage() {
                   <td>
                     Dr {s.debitAccount.code} / Cr {s.creditAccount.code}
                   </td>
-                  <td>₹ {s.amountPerRun}</td>
+                  <td>{formatINR(s.amountPerRun, numberFormatStyle)}</td>
                   <td>{s.nextRunDate.slice(0, 10)}</td>
                   <td>{s.status}</td>
                   <td className="space-x-1">
@@ -290,8 +293,8 @@ export default function ManagementPage() {
                   </td>
                   <td>{i.location}</td>
                   <td>{i.onHandQuantity}</td>
-                  <td>₹ {i.weightedAverageCost}</td>
-                  <td>₹ {i.estimatedValue}</td>
+                  <td>{formatINR(i.weightedAverageCost, numberFormatStyle)}</td>
+                  <td>{formatINR(i.estimatedValue, numberFormatStyle)}</td>
                   <td>{i.costBasis}</td>
                 </tr>
               ))}
@@ -326,11 +329,11 @@ export default function ManagementPage() {
                     <span className="font-mono text-xs">{p.orderNumber}</span>
                   </td>
                   <td>{p.customer}</td>
-                  <td>₹ {p.revenue}</td>
-                  <td>₹ {p.ledgerCost}</td>
-                  <td>₹ {p.estimatedMaterialCost}</td>
-                  <td>₹ {p.totalCost}</td>
-                  <td>₹ {p.grossProfit}</td>
+                  <td>{formatINR(p.revenue, numberFormatStyle)}</td>
+                  <td>{formatINR(p.ledgerCost, numberFormatStyle)}</td>
+                  <td>{formatINR(p.estimatedMaterialCost, numberFormatStyle)}</td>
+                  <td>{formatINR(p.totalCost, numberFormatStyle)}</td>
+                  <td>{formatINR(p.grossProfit, numberFormatStyle)}</td>
                   <td>{p.marginPercent ?? '—'}%</td>
                 </tr>
               ))}

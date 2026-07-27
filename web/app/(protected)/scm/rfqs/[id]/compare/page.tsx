@@ -12,6 +12,7 @@ import {
   type ComparisonColumn,
 } from '../../../../../lib/rfq';
 import { formatINR } from '../../../../../lib/sales';
+import { useNumberFormat } from '../../../../../lib/number-format-context';
 import { humanizeEnum } from '../../../../../lib/status';
 import { PageContainer } from '../../../../../components/ui/page-container';
 import {
@@ -42,6 +43,7 @@ export default function RfqComparePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
+  const { style: numberFormatStyle } = useNumberFormat();
 
   const [comparison, setComparison] = useState<RfqComparison | null>(null);
   const [loading, setLoading] = useState(true);
@@ -244,7 +246,7 @@ export default function RfqComparePage() {
                         key={c.inviteeId}
                         className={`p-3 text-right ${ql?.isLowestUnitPrice ? 'font-medium text-success' : ''}`}
                       >
-                        {formatINR(ql?.unitPrice ?? null)}
+                        {formatINR(ql?.unitPrice ?? null, numberFormatStyle)}
                       </td>
                     );
                   })}
@@ -255,7 +257,7 @@ export default function RfqComparePage() {
               <SummaryRow label="Total quoted" cols={cols}>
                 {(c) => (
                   <span className={c.isLowestTotal ? 'font-medium text-success' : ''}>
-                    {formatINR(c.totalQuotedValue)}
+                    {formatINR(c.totalQuotedValue, numberFormatStyle)}
                   </span>
                 )}
               </SummaryRow>

@@ -2,6 +2,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useFinanceAccess } from '../../../lib/use-finance-access';
+import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
@@ -35,6 +37,7 @@ type Page<T> = { items: T[] };
 export default function AdjustmentsPage() {
   const toast = useToast(),
     { isAccountsHead } = useFinanceAccess();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [ar, setAr] = useState<Invoice[]>([]),
     [ap, setAp] = useState<Invoice[]>([]),
     [notes, setNotes] = useState<Note[]>([]);
@@ -135,7 +138,7 @@ export default function AdjustmentsPage() {
                   {i.customer?.name ||
                     i.supplier?.companyName ||
                     i.vendor?.companyName}{' '}
-                  · {i.outstandingAmount}
+                  · {formatINR(i.outstandingAmount, numberFormatStyle)}
                 </option>
               ))}
             </Select>
@@ -204,7 +207,7 @@ export default function AdjustmentsPage() {
                     {n.salesInvoice?.invoiceNumber ||
                       n.apInvoice?.internalBillNumber}
                   </td>
-                  <td>₹ {n.totalAmount}</td>
+                  <td>{formatINR(n.totalAmount, numberFormatStyle)}</td>
                   <td>{n.reason}</td>
                   <td>{n.status}</td>
                   <td className="space-x-1">

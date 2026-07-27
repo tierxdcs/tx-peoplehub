@@ -3,6 +3,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { useFinanceAccess } from '../../../../lib/use-finance-access';
+import { formatINR } from '../../../../lib/sales';
+import { useNumberFormat } from '../../../../lib/number-format-context';
 import { Button } from '../../../../components/ui/button';
 import { Card, CardContent } from '../../../../components/ui/card';
 import { Input } from '../../../../components/ui/input';
@@ -32,6 +34,7 @@ type Page<T> = { items: T[] };
 export default function VendorPaymentsPage() {
   const toast = useToast(),
     { isAccountsHead } = useFinanceAccess();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [suppliers, setSuppliers] = useState<Partner[]>([]),
     [vendors, setVendors] = useState<Partner[]>([]),
     [invoices, setInvoices] = useState<Invoice[]>([]),
@@ -151,7 +154,7 @@ export default function VendorPaymentsPage() {
               <option value="">Unallocated advance</option>
               {open.map((i) => (
                 <option key={i.id} value={i.id}>
-                  {i.internalBillNumber} · {i.outstandingAmount}
+                  {i.internalBillNumber} · {formatINR(i.outstandingAmount, numberFormatStyle)}
                 </option>
               ))}
             </Select>
@@ -192,7 +195,7 @@ export default function VendorPaymentsPage() {
                   <td className="p-3 font-mono">{p.paymentNumber}</td>
                   <td>{p.supplier?.companyName || p.vendor?.companyName}</td>
                   <td>{p.plannedDate.slice(0, 10)}</td>
-                  <td>INR {p.amount}</td>
+                  <td>{formatINR(p.amount, numberFormatStyle)}</td>
                   <td>{p.status.replaceAll('_', ' ')}</td>
                   <td className="space-x-1">
                     {['DRAFT', 'REJECTED'].includes(p.status) && (

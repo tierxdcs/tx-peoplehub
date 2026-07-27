@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Bid, BidStatus, PaginatedResult } from '../../../lib/types';
 import { apiFetch } from '../../../lib/api';
 import { formatINR, prettyEnum } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
 import { Card, CardContent } from '../../../components/ui/card';
@@ -48,6 +49,7 @@ function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function BidsPage() {
   const router = useRouter();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [bids, setBids] = useState<Bid[]>([]);
   const [summaryRows, setSummaryRows] = useState<Bid[]>([]);
   const [page, setPage] = useState(1);
@@ -130,7 +132,7 @@ export default function BidsPage() {
         <StatCard label="Sent to Customers" value={summary.sent} />
         <StatCard
           label="Accepted Value"
-          value={formatINR(summary.acceptedValue)}
+          value={formatINR(summary.acceptedValue, numberFormatStyle)}
         />
       </div>
 
@@ -235,7 +237,9 @@ export default function BidsPage() {
                       />
                     </TableCell>
                     <TableCell>{Number(bid.discountPercent)}%</TableCell>
-                    <TableCell>{formatINR(bid.grandTotal)}</TableCell>
+                    <TableCell>
+                      {formatINR(bid.grandTotal, numberFormatStyle)}
+                    </TableCell>
                     <TableCell>{bid.ownerName}</TableCell>
                     <TableCell>
                       {new Date(bid.validUntil).toLocaleDateString('en-IN')}

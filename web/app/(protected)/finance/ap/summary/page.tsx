@@ -4,6 +4,8 @@ import { apiFetch } from '../../../../lib/api';
 import { Card, CardContent } from '../../../../components/ui/card';
 import { PageContainer } from '../../../../components/ui/page-container';
 import { PageHeader } from '../../../../components/ui/page-header';
+import { formatINR } from '../../../../lib/sales';
+import { useNumberFormat } from '../../../../lib/number-format-context';
 type Row = {
   partyType: string;
   partyId: string;
@@ -27,6 +29,7 @@ type Commitment = {
 export default function ApSummaryPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [commitments, setCommitments] = useState<Commitment[]>([]);
+  const { style: numberFormatStyle } = useNumberFormat();
   useEffect(() => {
     Promise.all([
       apiFetch<Row[]>('/finance/ap/summary'),
@@ -60,8 +63,8 @@ export default function ApSummaryPage() {
                   <td className="p-3 font-medium">{r.partyName}</td>
                   <td>{r.partyType}</td>
                   <td>{r.invoiceCount}</td>
-                  <td>₹ {r.outstanding}</td>
-                  <td>₹ {r.overdue}</td>
+                  <td>{formatINR(r.outstanding, numberFormatStyle)}</td>
+                  <td>{formatINR(r.overdue, numberFormatStyle)}</td>
                 </tr>
               ))}
             </tbody>
@@ -91,11 +94,11 @@ export default function ApSummaryPage() {
                     <span className="text-xs">{p.status}</span>
                   </td>
                   <td>{p.partyName}</td>
-                  <td>₹ {p.orderedValue}</td>
-                  <td>₹ {p.acceptedValue}</td>
-                  <td>₹ {p.billedValue}</td>
-                  <td>₹ {p.unreceivedCommitment}</td>
-                  <td>₹ {p.unbilledCommitment}</td>
+                  <td>{formatINR(p.orderedValue, numberFormatStyle)}</td>
+                  <td>{formatINR(p.acceptedValue, numberFormatStyle)}</td>
+                  <td>{formatINR(p.billedValue, numberFormatStyle)}</td>
+                  <td>{formatINR(p.unreceivedCommitment, numberFormatStyle)}</td>
+                  <td>{formatINR(p.unbilledCommitment, numberFormatStyle)}</td>
                 </tr>
               ))}
             </tbody>

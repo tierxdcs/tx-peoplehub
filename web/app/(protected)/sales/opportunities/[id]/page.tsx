@@ -13,6 +13,7 @@ import {
   PaginatedResult,
 } from '../../../../lib/types';
 import { formatINR, prettyEnum } from '../../../../lib/sales';
+import { useNumberFormat } from '../../../../lib/number-format-context';
 import { deriveBidGate } from '../../../../lib/bid-assessment';
 import { PageContainer } from '../../../../components/ui/page-container';
 import {
@@ -54,6 +55,7 @@ export default function OpportunityDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const confirm = useConfirm();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [opp, setOpp] = useState<Opportunity | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
   const [assessments, setAssessments] = useState<BidDecisionAssessment[]>([]);
@@ -189,7 +191,7 @@ export default function OpportunityDetailPage() {
               Estimated value
             </div>
             <div className="mt-1 text-2xl font-semibold">
-              {formatINR(opp.estimatedValue)}
+              {formatINR(opp.estimatedValue, numberFormatStyle)}
             </div>
           </div>
           <div>
@@ -318,7 +320,7 @@ export default function OpportunityDetailPage() {
                     <StatusBadge value={b.status} />
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatINR(b.grandTotal)}
+                    {formatINR(b.grandTotal, numberFormatStyle)}
                   </TableCell>
                   <TableCell className="text-right">
                     <Link

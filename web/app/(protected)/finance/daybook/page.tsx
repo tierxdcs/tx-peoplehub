@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiError } from '../../../lib/api';
+import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
@@ -44,6 +46,7 @@ const PAGE_SIZE = 50;
 
 export default function DayBookPage() {
   const toast = useToast();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
   const [voucherType, setVoucherType] = useState('');
@@ -158,7 +161,7 @@ export default function DayBookPage() {
                         {r.party ?? '—'}
                       </td>
                       <td className="text-right tabular-nums">
-                        ₹{Number(r.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        {formatINR(r.amount, numberFormatStyle)}
                       </td>
                       <td>
                         <StatusBadge value={r.status} />
