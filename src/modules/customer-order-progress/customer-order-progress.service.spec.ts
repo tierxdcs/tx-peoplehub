@@ -26,6 +26,25 @@ describe('CustomerOrderProgressService', () => {
     ).toEqual({ state: 'OVERDUE', days: 3 });
   });
 
+  it('returns a clean password challenge instead of a 403 on initial entry', async () => {
+    const prisma = {
+      orderCustomerProgressInvite: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'invite-1',
+          orderId: 'order-1',
+          revokedAt: null,
+          expiresAt: new Date('2027-07-28T00:00:00.000Z'),
+          passwordHash: 'stored-hash',
+          order: { ownerId: 'owner-1', orderNumber: 'ORD-1' },
+        }),
+      },
+    };
+    const service = new CustomerOrderProgressService(prisma as never);
+    await expect(service.resolvePublic('opaque-token')).resolves.toEqual({
+      requiresPassword: true,
+    });
+  });
+
   it('returns only allow-listed customer-safe fields and universal stages', async () => {
     const prisma = {
       orderCustomerProgressInvite: {
@@ -68,6 +87,9 @@ describe('CustomerOrderProgressService', () => {
     };
     const service = new CustomerOrderProgressService(prisma as never);
     const response = await service.resolvePublic('opaque-token');
+    if ('requiresPassword' in response) {
+      throw new Error('Unexpected password challenge');
+    }
     const serialized = JSON.stringify(response);
 
     expect(response.lines[0].currentStage.label).toBe('Production');

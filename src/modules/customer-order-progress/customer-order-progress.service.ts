@@ -132,7 +132,17 @@ export class CustomerOrderProgressService {
   }
 
   async resolvePublic(token: string, password?: string) {
-    const invite = await this.resolveInvite(token, password);
+    const invite = await this.findInvite(token);
+    // A missing password is a normal page-entry state, not an authorization
+    // failure. Still validate revoke/expiry before revealing this challenge.
+    if (invite.passwordHash && !password) {
+      await assertInviteUsable(
+        { ...invite, passwordHash: null },
+        undefined,
+      );
+      return { requiresPassword: true as const };
+    }
+    await assertInviteUsable(invite, password);
     return this.serializePublic(invite.orderId);
   }
 
@@ -210,12 +220,17 @@ export class CustomerOrderProgressService {
   }
 
   private async resolveInvite(token: string, password?: string) {
+    const invite = await this.findInvite(token);
+    await assertInviteUsable(invite, password);
+    return invite;
+  }
+
+  private async findInvite(token: string) {
     const invite = await this.prisma.orderCustomerProgressInvite.findUnique({
       where: { token },
       include: { order: { select: { ownerId: true, orderNumber: true } } },
     });
     if (!invite) throw new NotFoundException('Progress link not found');
-    await assertInviteUsable(invite, password);
     return invite;
   }
 

@@ -119,8 +119,13 @@ export default function CustomerOrderProgressPage() {
       passwordValue || undefined,
     );
     if (result.ok) {
-      setProgress(result.data);
-      setMessage('');
+      if ('requiresPassword' in result.data) {
+        setProgress(null);
+        setMessage('This link is password protected. Enter the password to continue.');
+      } else {
+        setProgress(result.data);
+        setMessage('');
+      }
     } else {
       setMessage(result.message);
     }

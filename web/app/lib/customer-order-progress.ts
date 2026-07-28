@@ -53,7 +53,10 @@ const base = (token: string) =>
   `/public/order-progress/${encodeURIComponent(token)}`;
 
 export const resolveCustomerOrderProgress = (token: string, password?: string) =>
-  post<CustomerOrderProgress>(`${base(token)}/resolve`, { password });
+  post<CustomerOrderProgress | { requiresPassword: true }>(
+    `${base(token)}/resolve`,
+    { password },
+  );
 
 export const submitCustomerDeliverySignoff = (
   token: string,

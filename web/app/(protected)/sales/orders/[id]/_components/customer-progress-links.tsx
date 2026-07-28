@@ -85,6 +85,8 @@ export function CustomerProgressLinks({ orderId }: { orderId: string }) {
             <div className="flex max-w-xl flex-col gap-2 sm:flex-row">
               <Input
                 type="password"
+                name="customer-progress-link-password"
+                autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="Optional link password"
