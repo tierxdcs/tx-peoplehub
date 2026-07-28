@@ -32,6 +32,8 @@ export default function PlmVendorUpdatePage() {
   const [password, setPassword] = useState('');
   const [view, setView] = useState<PlmPublicView | null>(null);
   const [completedSteps, setCompletedSteps] = useState(0);
+  // Index of the step awaiting Yes/No confirmation, or null when no prompt open.
+  const [pendingStep, setPendingStep] = useState<number | null>(null);
   const [notes, setNotes] = useState('');
   const [quickComment, setQuickComment] = useState('');
   const [mode, setMode] = useState<'FULL_PROGRESS' | 'COMMENT_ONLY'>('FULL_PROGRESS');
@@ -219,8 +221,9 @@ export default function PlmVendorUpdatePage() {
                   />
                 </div>
 
-                {/* Sequential routing: tap a step to mark it (and everything
-                    before it) complete; tap the last completed step to undo. */}
+                {/* Sequential routing: only the current step can be confirmed,
+                    and confirmation is one-way — a step marked done cannot be
+                    rolled back, so completed and future steps aren't clickable. */}
                 <ol className="mt-4 space-y-2">
                   {PLM_PRODUCTION_STEPS.map((step, index) => {
                     const done = index < completedSteps;
@@ -229,22 +232,17 @@ export default function PlmVendorUpdatePage() {
                       <li key={step}>
                         <button
                           type="button"
-                          onClick={() =>
-                            // Tapping the last completed step steps back one;
-                            // otherwise advance to include this step.
-                            setCompletedSteps(
-                              done && index === completedSteps - 1
-                                ? index
-                                : index + 1,
-                            )
-                          }
+                          // Done steps are locked; only the current step opens
+                          // the Yes/No confirmation prompt.
+                          disabled={!current}
+                          onClick={() => current && setPendingStep(index)}
                           aria-pressed={done}
                           className={`flex min-h-11 w-full items-center gap-3 rounded-lg border px-3 text-left text-sm transition-colors ${
                             done
                               ? 'border-green-500 bg-green-50 text-green-900'
                               : current
-                                ? 'border-blue-500 bg-blue-50 text-blue-900'
-                                : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                                ? 'cursor-pointer border-blue-500 bg-blue-50 text-blue-900 hover:bg-blue-100'
+                                : 'border-slate-200 text-slate-400'
                           }`}
                         >
                           <span
@@ -261,12 +259,12 @@ export default function PlmVendorUpdatePage() {
                           <span className="font-medium">{step}</span>
                           {current && (
                             <span className="ml-auto text-xs font-medium text-blue-600">
-                              In progress
+                              Tap to confirm
                             </span>
                           )}
                           {done && (
-                            <span className="ml-auto text-xs font-medium text-green-600">
-                              Done
+                            <span className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-green-600">
+                              <Check className="size-3" /> Confirmed
                             </span>
                           )}
                         </button>
@@ -274,6 +272,11 @@ export default function PlmVendorUpdatePage() {
                     );
                   })}
                 </ol>
+                {completedSteps === TOTAL_STEPS && (
+                  <p className="mt-3 text-xs font-medium text-green-700">
+                    All steps confirmed.
+                  </p>
+                )}
               </div>
 
               <label className="block text-sm font-medium">
@@ -385,6 +388,47 @@ export default function PlmVendorUpdatePage() {
           </>
         )}
       </div>
+
+      {pendingStep !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPendingStep(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 className="text-base font-semibold text-slate-900">
+              Confirm “{PLM_PRODUCTION_STEPS[pendingStep]}”?
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Are you sure? Once confirmed, this step is locked and cannot be
+              rolled back.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingStep(null)}
+                className="min-h-11 rounded-md border border-slate-300 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCompletedSteps(pendingStep + 1);
+                  setPendingStep(null);
+                }}
+                className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700"
+              >
+                Yes, confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

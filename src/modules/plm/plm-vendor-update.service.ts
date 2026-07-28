@@ -32,7 +32,10 @@ import {
 import { PlmAccessService } from './plm-access.service';
 import { KanbanNotificationsService } from '../notifications/kanban-notifications.service';
 import { deriveVendorCadence } from './plm-vendor-cadence';
-import { stepsToPercent } from './plm-production-steps';
+import {
+  PLM_PRODUCTION_STEP_COUNT,
+  stepsToPercent,
+} from './plm-production-steps';
 
 @Injectable()
 export class PlmVendorUpdateService {
@@ -289,6 +292,22 @@ export class PlmVendorUpdateService {
     }
     const completedSteps = progressDto?.completedSteps ?? null;
     return this.prisma.$transaction(async (tx) => {
+      // Routing steps are confirmed one at a time and cannot be rolled back:
+      // a new full-progress update may only keep or advance the highest step
+      // count already recorded for this tracker. Enforced here (not just in the
+      // UI) because the public vendor link can POST any value.
+      if (completedSteps !== null) {
+        const furthest = await tx.plmProductionUpdate.aggregate({
+          where: { trackerId: tracker.id, completedSteps: { not: null } },
+          _max: { completedSteps: true },
+        });
+        const highest = furthest._max.completedSteps ?? 0;
+        if (completedSteps < highest) {
+          throw new BadRequestException(
+            `Confirmed steps cannot be rolled back — ${highest} of ${PLM_PRODUCTION_STEP_COUNT} step(s) are already confirmed`,
+          );
+        }
+      }
       const update = await tx.plmProductionUpdate.create({
         data: {
           trackerId: tracker.id,

@@ -11,7 +11,7 @@ export const PLM_PRODUCTION_STEPS = [
   'Punch',
   'Bend',
   'Weld',
-  'Coat',
+  'Powder Coating',
   'Assemble',
   'QC',
   'Pack',

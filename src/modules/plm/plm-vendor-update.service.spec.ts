@@ -22,6 +22,7 @@ describe('PlmVendorUpdateService', () => {
     const tx = {
       plmProductionUpdate: {
         create: jest.fn().mockResolvedValue({ id: 'update-1', photos: [] }),
+        aggregate: jest.fn().mockResolvedValue({ _max: { completedSteps: null } }),
       },
       plmTrackerEvent: { create: jest.fn().mockResolvedValue({}) },
     };
@@ -91,6 +92,32 @@ describe('PlmVendorUpdateService', () => {
         recipientId: 'owner-1',
         type: NotificationType.PLM_PRODUCTION_UPDATE,
         trackerId: 'tracker-1',
+      }),
+    );
+  });
+
+  it('rejects a progress update that rolls back below the furthest confirmed step', async () => {
+    const { service, tx } = setup();
+    tx.plmProductionUpdate.aggregate.mockResolvedValue({
+      _max: { completedSteps: 6 },
+    });
+
+    await expect(
+      service.submitPublic('token', { completedSteps: 4 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.plmProductionUpdate.create).not.toHaveBeenCalled();
+  });
+
+  it('allows a progress update that keeps or advances the furthest confirmed step', async () => {
+    const { service, tx } = setup();
+    tx.plmProductionUpdate.aggregate.mockResolvedValue({
+      _max: { completedSteps: 6 },
+    });
+
+    await service.submitPublic('token', { completedSteps: 7 });
+    expect(tx.plmProductionUpdate.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ completedSteps: 7 }),
       }),
     );
   });

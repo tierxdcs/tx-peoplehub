@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../../../compone
 import { Input } from '../../../../../components/ui/input';
 import { StatusBadge } from '../../../../../components/ui/status-badge';
 import { useToast } from '../../../../../components/ui/toaster';
+import { useConfirm } from '../../../../../components/ui/confirm';
 
 const NPD_STAGES: PlmStage[] = ['DESIGN', 'DESIGN_REVIEW', 'DRAWING_RELEASE', 'RELEASE_TO_SCM', 'MATERIAL_PLANNING', 'PRODUCTION', 'QC', 'DISPATCH', 'COMPLETED'];
 const STANDARD_STAGES: PlmStage[] = ['RELEASE_TO_SCM', 'MATERIAL_PLANNING', 'PRODUCTION', 'QC', 'DISPATCH', 'COMPLETED'];
@@ -201,6 +202,7 @@ function VendorInvites({ tracker, rows, onLoad, onCreated }: { tracker: PlmTrack
 
 function AuditorUpdate({ tracker, onSaved }: { tracker: PlmTracker; onSaved:()=>Promise<void> }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const totalSteps = PLM_PRODUCTION_STEPS.length;
   const [completedSteps, setCompletedSteps] = useState(0);
   const [notes, setNotes] = useState('');
@@ -208,6 +210,7 @@ function AuditorUpdate({ tracker, onSaved }: { tracker: PlmTracker; onSaved:()=>
   return <section className="rounded-md border p-3"><h4 className="mb-1 text-sm font-semibold">Record internal auditor site visit</h4><p className="mb-3 text-xs text-muted-foreground">The update will be attributed to you and marked “site visit”.</p>
     <div className="mb-2 flex items-center justify-between text-xs"><span className="font-medium">Production progress</span><span className="font-semibold text-primary">{completedSteps}/{totalSteps} · {Math.round((completedSteps/totalSteps)*100)}%</span></div>
     <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-success transition-all" style={{width:`${(completedSteps/totalSteps)*100}%`}} /></div>
-    <div className="flex flex-wrap gap-1.5">{PLM_PRODUCTION_STEPS.map((step,index)=>{const done=index<completedSteps;const current=index===completedSteps;return <button key={step} type="button" aria-pressed={done} onClick={()=>setCompletedSteps(done&&index===completedSteps-1?index:index+1)} className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${done?'border-success bg-success/10 text-success':current?'border-primary bg-primary/10 text-primary':'border-muted-foreground/25 text-muted-foreground hover:border-muted-foreground/50'}`}>{done&&<Check className="size-3" />}{step}</button>})}</div>
+    {/* Steps confirm one at a time and can't be rolled back: only the current step is clickable. */}
+    <div className="flex flex-wrap gap-1.5">{PLM_PRODUCTION_STEPS.map((step,index)=>{const done=index<completedSteps;const current=index===completedSteps;return <button key={step} type="button" aria-pressed={done} disabled={!current} onClick={async()=>{if(!current)return;if(await confirm({title:`Confirm “${step}”?`,description:'Are you sure? Once confirmed, this step is locked and cannot be rolled back.',confirmLabel:'Yes, confirm',cancelLabel:'No'}))setCompletedSteps(index+1)}} className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${done?'border-success bg-success/10 text-success':current?'cursor-pointer border-primary bg-primary/10 text-primary hover:bg-primary/20':'border-muted-foreground/25 text-muted-foreground/60'}`}>{done&&<Check className="size-3" />}{step}</button>})}</div>
     <textarea className="mt-3 w-full rounded-md border p-2 text-sm" placeholder="Visit notes" value={notes} onChange={event=>setNotes(event.target.value)} /><Input className="mt-2" type="file" accept="image/*" multiple onChange={event=>setFiles(Array.from(event.target.files??[]).slice(0,5))}/><Button className="mt-2" size="sm" onClick={async()=>{try{const photos=[];for(const file of files){const signed=await apiFetch<{storageKey:string;uploadUrl:string}>(`/plm/trackers/${tracker.id}/auditor-photo-upload-url`,{method:'POST',body:JSON.stringify({name:file.name,mimeType:file.type,sizeBytes:file.size})});await uploadToPresignedUrl(signed.uploadUrl,file);photos.push({storageKey:signed.storageKey,fileName:file.name})}await apiFetch(`/plm/trackers/${tracker.id}/auditor-update`,{method:'POST',body:JSON.stringify({completedSteps,notes,photos})});toast.success('Site-visit update recorded');await onSaved()}catch(error){toast.error(error instanceof ApiError?error.message:'Unable to record update')}}}>Save site-visit update</Button></section>;
 }

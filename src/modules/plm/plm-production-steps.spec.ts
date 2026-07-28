@@ -12,7 +12,7 @@ describe('plm-production-steps', () => {
       'Punch',
       'Bend',
       'Weld',
-      'Coat',
+      'Powder Coating',
       'Assemble',
       'QC',
       'Pack',
