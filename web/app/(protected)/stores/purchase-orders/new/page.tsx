@@ -29,6 +29,7 @@ import { Select } from '../../../../components/ui/select';
 import { Field } from '../../../../components/ui/field';
 import { Textarea } from '../../../../components/ui/textarea';
 import { Badge } from '../../../../components/ui/badge';
+import { OverrideTag } from '../../../../components/ui/override-tag';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { useToast } from '../../../../components/ui/toaster';
 import { ItemPicker } from '../../../../components/ui/item-picker';
@@ -203,6 +204,7 @@ export default function NewPurchaseOrderPage() {
                     {partners.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.companyName} — {humanizeEnum(p.status)}
+                        {p.statusOverridden ? ' (manually overridden)' : ''}
                         {isQualifiedStatus(p.status) ? '' : ' ⚠'}
                       </option>
                     ))}
@@ -211,11 +213,12 @@ export default function NewPurchaseOrderPage() {
               </div>
 
               {selectedPartner && (
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="text-muted-foreground">Qualification:</span>
                   <Badge variant={isQualifiedStatus(selectedPartner.status) ? 'success' : 'warning'}>
                     {humanizeEnum(selectedPartner.status)}
                   </Badge>
+                  {selectedPartner.statusOverridden && <OverrideTag />}
                 </div>
               )}
 

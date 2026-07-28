@@ -76,3 +76,37 @@ export function classificationToSupplierStatus(
       return SupplierStatus.NOT_APPROVED;
   }
 }
+
+/** The four terminal statuses that are also valid classification outcomes. */
+export const CLASSIFICATION_STATUSES: SupplierStatus[] = [
+  SupplierStatus.APPROVED_PREFERRED,
+  SupplierStatus.APPROVED,
+  SupplierStatus.CONDITIONALLY_APPROVED,
+  SupplierStatus.NOT_APPROVED,
+];
+
+/** True if a SupplierStatus is one of the four classification outcomes. */
+export function isClassificationStatus(
+  status: SupplierStatus,
+): status is SupplierStatus &
+  (
+    | 'APPROVED_PREFERRED'
+    | 'APPROVED'
+    | 'CONDITIONALLY_APPROVED'
+    | 'NOT_APPROVED'
+  ) {
+  return CLASSIFICATION_STATUSES.includes(status);
+}
+
+/**
+ * Inverse of classificationToSupplierStatus — narrows a classification-valued
+ * SupplierStatus back to a SupplierClassification. Used to surface an override
+ * (stored as a SupplierStatus) as a classification in API responses.
+ */
+export function supplierStatusToClassification(
+  status: SupplierStatus,
+): SupplierClassification | null {
+  return isClassificationStatus(status)
+    ? (status as SupplierClassification)
+    : null;
+}

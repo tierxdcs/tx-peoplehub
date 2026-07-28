@@ -49,6 +49,8 @@ export interface Supplier {
   contactPhone: string | null;
   website: string | null;
   status: SupplierStatus;
+  /** True when `status` came from a SuperAdmin override, not the audit score. */
+  statusOverridden: boolean;
   createdById: string;
   createdAt: string;
   updatedAt: string;
@@ -154,6 +156,17 @@ export interface SupplierAudit {
   totalScore: number;
   classification: SupplierClassification;
   classificationLabel: string;
+  /** SuperAdmin-forced classification, null = none (use computed). */
+  overrideClassification: SupplierClassification | null;
+  overrideClassificationLabel: string | null;
+  overrideReason: string | null;
+  overriddenById: string | null;
+  overriddenByName: string | null;
+  overriddenAt: string | null;
+  /** override ?? computed — the classification actually in effect. */
+  effectiveClassification: SupplierClassification;
+  effectiveClassificationLabel: string;
+  isOverridden: boolean;
   auditNotes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -283,6 +296,35 @@ export function createAudit(supplierId: string, input: CreateAuditInput) {
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+// ── Classification override (SUPER_ADMIN) ────────────────────────────
+export interface OverrideClassificationInput {
+  overrideClassification: SupplierClassification;
+  reason: string;
+}
+
+/** Force an audit's classification, regardless of the computed score. */
+export function overrideAuditClassification(
+  supplierId: string,
+  auditId: string,
+  input: OverrideClassificationInput,
+) {
+  return apiFetch<SupplierAudit>(
+    `/suppliers/${supplierId}/audits/${auditId}/classification-override`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+}
+
+/** Clear an override, reverting to the computed classification. */
+export function clearAuditClassificationOverride(
+  supplierId: string,
+  auditId: string,
+) {
+  return apiFetch<SupplierAudit>(
+    `/suppliers/${supplierId}/audits/${auditId}/classification-override`,
+    { method: 'DELETE' },
+  );
 }
 
 // ── Scoring (mirrors backend supplier-scoring.ts — 6 weights = 100) ──

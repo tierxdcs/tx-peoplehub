@@ -429,6 +429,12 @@ const DEFAULT_FOLDERS: Array<{
     maxVersionsRetained: null,
   },
   {
+    name: 'Vendor NDA',
+    verticalCode: null,
+    versioningEnabled: true,
+    maxVersionsRetained: null,
+  },
+  {
     name: 'IT & Security Guidelines',
     verticalCode: null,
     versioningEnabled: false,

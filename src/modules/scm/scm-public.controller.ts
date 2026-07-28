@@ -5,6 +5,8 @@ import { ScmService } from './scm.service';
 import {
   PublicCertConfirmDto,
   PublicCertUploadUrlDto,
+  PublicNdaConfirmDto,
+  PublicNdaUploadUrlDto,
   PublicQuestionnaireSaveDto,
   PublicResolveDto,
 } from './dto/scm.dto';
@@ -70,5 +72,32 @@ export class ScmPublicController {
     @Body() dto: PublicCertConfirmDto,
   ) {
     return this.service.publicCertConfirm(token, dto);
+  }
+
+  @Public()
+  @Post(':token/nda-template-download')
+  ndaTemplate(
+    @Param('token') token: string,
+    @Body() dto: PublicResolveDto,
+  ) {
+    return this.service.publicNdaTemplateDownload(token, dto.password);
+  }
+
+  @Public()
+  @Post(':token/signed-nda-upload-url')
+  signedNdaUpload(
+    @Param('token') token: string,
+    @Body() dto: PublicNdaUploadUrlDto,
+  ) {
+    return this.service.publicSignedNdaUploadUrl(token, dto);
+  }
+
+  @Public()
+  @Post(':token/signed-nda-confirm')
+  signedNdaConfirm(
+    @Param('token') token: string,
+    @Body() dto: PublicNdaConfirmDto,
+  ) {
+    return this.service.publicSignedNdaConfirm(token, dto);
   }
 }

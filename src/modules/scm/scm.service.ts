@@ -22,7 +22,9 @@ import { VaultStorageService } from '../vault/vault-storage.service';
 import {
   assertExtensionAllowed,
   assertSizeWithinCap,
+  fileExtension,
 } from '../vault/vault-guardrails';
+import { VaultFilesService } from '../vault/vault-files.service';
 import { KanbanNotificationsService } from '../notifications/kanban-notifications.service';
 import { ScmAccessService } from './scm-access.service';
 import {
@@ -30,13 +32,19 @@ import {
   classificationToVendorStatus,
   CLASSIFICATION_LABEL,
   computeTotalScore,
+  vendorStatusToClassification,
+  type VendorClassification,
 } from './vendor-scoring';
 import {
   CreateAuditDto,
   CreateInviteDto,
   CreateVendorDto,
+  OverrideClassificationDto,
   PublicCertConfirmDto,
   PublicCertUploadUrlDto,
+  PublicNdaConfirmDto,
+  PublicNdaUploadUrlDto,
+  NdaTemplateUploadUrlDto,
   PublicCompanyInfoDto,
   PublicQuestionnaireSaveDto,
 } from './dto/scm.dto';
@@ -105,6 +113,7 @@ export class ScmService {
     private readonly prisma: PrismaService,
     private readonly access: ScmAccessService,
     private readonly storage: VaultStorageService,
+    private readonly vaultFiles: VaultFilesService,
     private readonly notifications: KanbanNotificationsService,
   ) {}
 
@@ -162,7 +171,10 @@ export class ScmService {
         questionnaires: { orderBy: { revisionNumber: 'desc' } },
         audits: {
           orderBy: { createdAt: 'desc' },
-          include: { auditor: { select: { firstName: true, lastName: true } } },
+          include: {
+            auditor: { select: { firstName: true, lastName: true } },
+            overriddenBy: { select: { firstName: true, lastName: true } },
+          },
         },
       },
     });
@@ -210,10 +222,14 @@ export class ScmService {
     const created = await this.prisma.vendorQuestionnaire.create({
       data: copyForward,
     });
-    // Back to pending-questionnaire state for the resubmission cycle.
+    // Back to pending-questionnaire state for the resubmission cycle. Any prior
+    // classification override no longer applies to a fresh questionnaire cycle.
     const vendor = await this.prisma.vendor.update({
       where: { id: vendorId },
-      data: { status: VendorStatus.PENDING_QUESTIONNAIRE },
+      data: {
+        status: VendorStatus.PENDING_QUESTIONNAIRE,
+        statusOverridden: false,
+      },
     });
     return this.toQuestionnaire(created, vendor);
   }
@@ -326,6 +342,19 @@ export class ScmService {
   ): Promise<VendorQuestionnaireEntity> {
     const invite = await this.getValidInvite(token, dto.password, now);
     const q = await this.assertEditableQuestionnaire(invite.questionnaireId);
+    if (q.revisionNumber === 1) {
+      const signedNda = q.signedNdaFileId
+        ? await this.prisma.vaultFile.findFirst({
+            where: { id: q.signedNdaFileId, status: 'ACTIVE' },
+            select: { id: true },
+          })
+        : null;
+      if (!signedNda) {
+        throw new BadRequestException(
+          'Upload the signed NDA before submitting the first questionnaire',
+        );
+      }
+    }
 
     const data: Prisma.VendorQuestionnaireUpdateInput = {
       status: VendorQuestionnaireStatus.SUBMITTED,
@@ -429,6 +458,109 @@ export class ScmService {
     return new VendorCertificateFileEntity(file);
   }
 
+  async ndaTemplateUploadUrl(
+    dto: NdaTemplateUploadUrlDto,
+    user: AuthenticatedUser,
+  ) {
+    this.access.assertIsSuperAdmin(user);
+    const ext = fileExtension(dto.name);
+    return this.vaultFiles.createManagedUploadUrl({
+      folderName: 'Vendor NDA',
+      name: `Phaze_Dynamics_NDA_Template${ext ? `.${ext}` : ''}`,
+      mimeType: dto.mimeType,
+      sizeBytes: dto.sizeBytes,
+      uploadedById: user.id,
+      changeNote: 'Company NDA template',
+    });
+  }
+
+  async confirmNdaTemplate(fileId: string, user: AuthenticatedUser) {
+    this.access.assertIsSuperAdmin(user);
+    await this.vaultFiles.confirmManagedUpload(
+      fileId,
+      'Company NDA template',
+    );
+    await this.prisma.companyDocumentConfig.upsert({
+      where: { id: 'DEFAULT' },
+      update: { ndaTemplateFileId: fileId },
+      create: { id: 'DEFAULT', ndaTemplateFileId: fileId },
+    });
+    return { fileId };
+  }
+
+  async publicNdaTemplateDownload(token: string, password?: string) {
+    await this.getValidInvite(token, password, new Date());
+    const config = await this.prisma.companyDocumentConfig.findUnique({
+      where: { id: 'DEFAULT' },
+      include: {
+        ndaTemplateFile: {
+          include: {
+            versions: { orderBy: { versionNumber: 'desc' }, take: 1 },
+          },
+        },
+      },
+    });
+    const version = config?.ndaTemplateFile?.versions[0];
+    if (!version || config?.ndaTemplateFile?.status !== 'ACTIVE') {
+      throw new NotFoundException('NDA template is not configured');
+    }
+    const signed = await this.storage.createDownloadUrl(version.storageKey);
+    return { downloadUrl: signed.url, expiresInSeconds: signed.expiresInSeconds };
+  }
+
+  async publicSignedNdaUploadUrl(
+    token: string,
+    dto: PublicNdaUploadUrlDto,
+  ) {
+    const invite = await this.getValidInvite(token, dto.password, new Date());
+    const q = await this.prisma.vendorQuestionnaire.findUnique({
+      where: { id: invite.questionnaireId },
+      include: { vendor: true },
+    });
+    if (!q || q.status !== VendorQuestionnaireStatus.SENT) {
+      throw new BadRequestException('Questionnaire is not editable');
+    }
+    if (q.revisionNumber !== 1) {
+      throw new BadRequestException(
+        'A signed NDA is required only for the first questionnaire revision',
+      );
+    }
+    if (q.signedNdaFileId) {
+      throw new BadRequestException('A signed NDA has already been uploaded');
+    }
+    const ext = fileExtension(dto.name);
+    const safeCompany = q.vendor.companyName
+      .replace(/[^a-zA-Z0-9._-]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    return this.vaultFiles.createManagedUploadUrl({
+      folderName: 'Vendor NDA',
+      name: `${safeCompany || 'Vendor'}_NDA${ext ? `.${ext}` : ''}`,
+      mimeType: dto.mimeType,
+      sizeBytes: dto.sizeBytes,
+      uploadedById: q.vendor.createdById,
+      changeNote: `Vendor NDA questionnaire:${q.id}`,
+    });
+  }
+
+  async publicSignedNdaConfirm(token: string, dto: PublicNdaConfirmDto) {
+    const invite = await this.getValidInvite(token, dto.password, new Date());
+    const q = await this.assertEditableQuestionnaire(invite.questionnaireId);
+    if (q.revisionNumber !== 1) {
+      throw new BadRequestException(
+        'A signed NDA is required only for the first questionnaire revision',
+      );
+    }
+    await this.vaultFiles.confirmManagedUpload(
+      dto.fileId,
+      `Vendor NDA questionnaire:${q.id}`,
+    );
+    await this.prisma.vendorQuestionnaire.update({
+      where: { id: q.id },
+      data: { signedNdaFileId: dto.fileId },
+    });
+    return { fileId: dto.fileId, uploaded: true };
+  }
+
   // ── Audits ───────────────────────────────────────────────────────────
   /**
    * Create + finalize an audit against a questionnaire revision — Internal
@@ -477,13 +609,162 @@ export class ScmService {
         },
         include: { auditor: { select: { firstName: true, lastName: true } } },
       });
-      await tx.vendor.update({ where: { id: vendorId }, data: { status } });
+      // A fresh audit's computed classification supersedes any prior override.
+      await tx.vendor.update({
+        where: { id: vendorId },
+        data: { status, statusOverridden: false },
+      });
       return a;
     });
     return this.toAudit(audit);
   }
 
+  // ── Classification override (SUPER_ADMIN) ─────────────────────────────
+  /**
+   * SuperAdmin forces an audit's classification, independent of the computed
+   * score. The computed classification is never deleted — only the override
+   * fields are written. The effective classification (override ?? computed)
+   * propagates to Vendor.status so downstream gates (e.g. Project Kickoff
+   * vendor selection) see the approved state; `statusOverridden` flags it.
+   */
+  async overrideAuditClassification(
+    vendorId: string,
+    auditId: string,
+    dto: OverrideClassificationDto,
+    user: AuthenticatedUser,
+  ): Promise<VendorAuditEntity> {
+    this.access.assertIsSuperAdmin(user);
+    const reason = dto.reason.trim();
+    if (!reason) {
+      throw new BadRequestException('An override reason is required');
+    }
+
+    await this.loadVendorAudit(vendorId, auditId);
+    const isLatest = await this.isLatestAudit(vendorId, auditId);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const a = await tx.vendorAudit.update({
+        where: { id: auditId },
+        data: {
+          overrideClassification: dto.overrideClassification,
+          overrideReason: reason,
+          overriddenById: user.id,
+          overriddenAt: new Date(),
+        },
+        include: {
+          auditor: { select: { firstName: true, lastName: true } },
+          overriddenBy: { select: { firstName: true, lastName: true } },
+        },
+      });
+      // Only the latest audit drives the master status (older audits are history).
+      if (isLatest) {
+        await tx.vendor.update({
+          where: { id: vendorId },
+          data: {
+            status: dto.overrideClassification,
+            statusOverridden: true,
+          },
+        });
+      }
+      return a;
+    });
+    return this.toAudit(updated);
+  }
+
+  /**
+   * SuperAdmin clears an override, reverting the effective classification (and,
+   * for the latest audit, Vendor.status) to the computed value from the score.
+   */
+  async clearAuditClassificationOverride(
+    vendorId: string,
+    auditId: string,
+    user: AuthenticatedUser,
+  ): Promise<VendorAuditEntity> {
+    this.access.assertIsSuperAdmin(user);
+
+    const audit = await this.loadVendorAudit(vendorId, auditId);
+    const isLatest = await this.isLatestAudit(vendorId, auditId);
+
+    // Computed classification the master status reverts to.
+    const computed = classificationToVendorStatus(
+      classify(computeTotalScore(this.auditScoreStrings(audit))),
+    );
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const a = await tx.vendorAudit.update({
+        where: { id: auditId },
+        data: {
+          overrideClassification: null,
+          overrideReason: null,
+          overriddenById: null,
+          overriddenAt: null,
+        },
+        include: {
+          auditor: { select: { firstName: true, lastName: true } },
+          overriddenBy: { select: { firstName: true, lastName: true } },
+        },
+      });
+      if (isLatest) {
+        await tx.vendor.update({
+          where: { id: vendorId },
+          data: { status: computed, statusOverridden: false },
+        });
+      }
+      return a;
+    });
+    return this.toAudit(updated);
+  }
+
   // ── internals ──────────────────────────────────────────────────────
+  /** Load an audit scoped to its vendor (404 if either is wrong). */
+  private async loadVendorAudit(vendorId: string, auditId: string) {
+    const audit = await this.prisma.vendorAudit.findFirst({
+      where: { id: auditId, vendorId },
+    });
+    if (!audit) throw new NotFoundException('Audit not found for this vendor');
+    return audit;
+  }
+
+  /** The 10 category scores of a raw audit row as strings (for computeTotalScore). */
+  private auditScoreStrings(a: {
+    manufacturingCapabilityScore: Prisma.Decimal;
+    capacityScore: Prisma.Decimal;
+    qualitySystemScore: Prisma.Decimal;
+    engineeringScore: Prisma.Decimal;
+    financialStabilityScore: Prisma.Decimal;
+    supplyChainScore: Prisma.Decimal;
+    exportReadinessScore: Prisma.Decimal;
+    sustainabilityScore: Prisma.Decimal;
+    ehsScore: Prisma.Decimal;
+    customerReferencesScore: Prisma.Decimal;
+  }) {
+    return {
+      manufacturingCapabilityScore: a.manufacturingCapabilityScore.toString(),
+      capacityScore: a.capacityScore.toString(),
+      qualitySystemScore: a.qualitySystemScore.toString(),
+      engineeringScore: a.engineeringScore.toString(),
+      financialStabilityScore: a.financialStabilityScore.toString(),
+      supplyChainScore: a.supplyChainScore.toString(),
+      exportReadinessScore: a.exportReadinessScore.toString(),
+      sustainabilityScore: a.sustainabilityScore.toString(),
+      ehsScore: a.ehsScore.toString(),
+      customerReferencesScore: a.customerReferencesScore.toString(),
+    };
+  }
+
+  /** Whether this audit is the vendor's most recent (the one driving status). */
+  private async isLatestAudit(
+    vendorId: string,
+    auditId: string,
+  ): Promise<boolean> {
+    const latest = await this.prisma.vendorAudit.findFirst({
+      where: { vendorId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    return latest?.id === auditId;
+  }
+
   /** Vault-style token validation: unknown→404, revoked/expired/bad-pw→403. */
   private async getValidInvite(
     token: string,
@@ -527,6 +808,7 @@ export class ScmService {
     contactPhone: string | null;
     website: string | null;
     status: VendorStatus;
+    statusOverridden: boolean;
     createdById: string;
     createdAt: Date;
     updatedAt: Date;
@@ -603,6 +885,8 @@ export class ScmService {
       qualityCertificateFiles: files.map(
         (f) => new VendorCertificateFileEntity(f),
       ),
+      ndaRequired: q.revisionNumber === 1,
+      signedNdaUploaded: !!q.signedNdaFileId,
       createdAt: q.createdAt.toISOString(),
       updatedAt: q.updatedAt.toISOString(),
     });
@@ -649,6 +933,11 @@ export class ScmService {
     ehsScore: Prisma.Decimal;
     customerReferencesScore: Prisma.Decimal;
     auditNotes: string | null;
+    overrideClassification?: VendorStatus | null;
+    overrideReason?: string | null;
+    overriddenById?: string | null;
+    overriddenBy?: { firstName: string; lastName: string } | null;
+    overriddenAt?: Date | null;
     createdAt: Date;
     updatedAt: Date;
   }): VendorAuditEntity {
@@ -665,7 +954,12 @@ export class ScmService {
       customerReferencesScore: a.customerReferencesScore.toString(),
     };
     const total = computeTotalScore(scores);
+    // Computed classification is ALWAYS surfaced — never deleted or hidden.
     const classification = classify(total);
+    const override = a.overrideClassification
+      ? vendorStatusToClassification(a.overrideClassification)
+      : null;
+    const effective: VendorClassification = override ?? classification;
     return new VendorAuditEntity({
       id: a.id,
       vendorId: a.vendorId,
@@ -680,6 +974,19 @@ export class ScmService {
       totalScore: total,
       classification,
       classificationLabel: CLASSIFICATION_LABEL[classification],
+      overrideClassification: override,
+      overrideClassificationLabel: override
+        ? CLASSIFICATION_LABEL[override]
+        : null,
+      overrideReason: a.overrideReason ?? null,
+      overriddenById: a.overriddenById ?? null,
+      overriddenByName: a.overriddenBy
+        ? `${a.overriddenBy.firstName} ${a.overriddenBy.lastName}`
+        : null,
+      overriddenAt: a.overriddenAt ? a.overriddenAt.toISOString() : null,
+      effectiveClassification: effective,
+      effectiveClassificationLabel: CLASSIFICATION_LABEL[effective],
+      isOverridden: override != null,
       auditNotes: a.auditNotes,
       createdAt: a.createdAt.toISOString(),
       updatedAt: a.updatedAt.toISOString(),

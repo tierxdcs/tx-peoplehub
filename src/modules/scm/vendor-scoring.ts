@@ -88,3 +88,37 @@ export function classificationToVendorStatus(
       return VendorStatus.NOT_APPROVED;
   }
 }
+
+/** The four terminal statuses that are also valid classification outcomes. */
+export const CLASSIFICATION_STATUSES: VendorStatus[] = [
+  VendorStatus.APPROVED_PREFERRED,
+  VendorStatus.APPROVED,
+  VendorStatus.CONDITIONALLY_APPROVED,
+  VendorStatus.NOT_APPROVED,
+];
+
+/** True if a VendorStatus is one of the four classification outcomes. */
+export function isClassificationStatus(
+  status: VendorStatus,
+): status is VendorStatus &
+  (
+    | 'APPROVED_PREFERRED'
+    | 'APPROVED'
+    | 'CONDITIONALLY_APPROVED'
+    | 'NOT_APPROVED'
+  ) {
+  return CLASSIFICATION_STATUSES.includes(status);
+}
+
+/**
+ * Inverse of classificationToVendorStatus — narrows a classification-valued
+ * VendorStatus back to a VendorClassification. Used to surface an override
+ * (stored as a VendorStatus) as a classification in API responses.
+ */
+export function vendorStatusToClassification(
+  status: VendorStatus,
+): VendorClassification | null {
+  return isClassificationStatus(status)
+    ? (status as VendorClassification)
+    : null;
+}

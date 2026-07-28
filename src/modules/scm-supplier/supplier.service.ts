@@ -31,11 +31,14 @@ import {
   classificationToSupplierStatus,
   CLASSIFICATION_LABEL,
   computeTotalScore,
+  supplierStatusToClassification,
+  type SupplierClassification,
 } from './supplier-scoring';
 import {
   CreateAuditDto,
   CreateInviteDto,
   CreateSupplierDto,
+  OverrideClassificationDto,
   PublicCertConfirmDto,
   PublicCertUploadUrlDto,
   PublicCompanyInfoDto,
@@ -149,7 +152,10 @@ export class SupplierService {
         questionnaires: { orderBy: { revisionNumber: 'desc' } },
         audits: {
           orderBy: { createdAt: 'desc' },
-          include: { auditor: { select: { firstName: true, lastName: true } } },
+          include: {
+            auditor: { select: { firstName: true, lastName: true } },
+            overriddenBy: { select: { firstName: true, lastName: true } },
+          },
         },
       },
     });
@@ -188,9 +194,14 @@ export class SupplierService {
       copyForward.certificateFiles = latest.certificateFiles as Prisma.InputJsonValue;
     }
     const created = await this.prisma.supplierQuestionnaire.create({ data: copyForward });
+    // Back to pending-questionnaire state for the resubmission cycle. Any prior
+    // classification override no longer applies to a fresh questionnaire cycle.
     const supplier = await this.prisma.supplier.update({
       where: { id: supplierId },
-      data: { status: SupplierStatus.PENDING_QUESTIONNAIRE },
+      data: {
+        status: SupplierStatus.PENDING_QUESTIONNAIRE,
+        statusOverridden: false,
+      },
     });
     return this.toQuestionnaire(created, supplier);
   }
@@ -420,13 +431,155 @@ export class SupplierService {
         },
         include: { auditor: { select: { firstName: true, lastName: true } } },
       });
-      await tx.supplier.update({ where: { id: supplierId }, data: { status } });
+      // A fresh audit's computed classification supersedes any prior override.
+      await tx.supplier.update({
+        where: { id: supplierId },
+        data: { status, statusOverridden: false },
+      });
       return a;
     });
     return this.toAudit(audit);
   }
 
+  // ── Classification override (SUPER_ADMIN) ─────────────────────────────
+  /**
+   * SuperAdmin forces an audit's classification, independent of the computed
+   * score. The computed classification is never deleted — only the override
+   * fields are written. The effective classification (override ?? computed)
+   * propagates to Supplier.status so downstream consumers see the approved
+   * state; `statusOverridden` flags it.
+   */
+  async overrideAuditClassification(
+    supplierId: string,
+    auditId: string,
+    dto: OverrideClassificationDto,
+    user: AuthenticatedUser,
+  ): Promise<SupplierAuditEntity> {
+    this.access.assertIsSuperAdmin(user);
+    const reason = dto.reason.trim();
+    if (!reason) {
+      throw new BadRequestException('An override reason is required');
+    }
+
+    await this.loadSupplierAudit(supplierId, auditId);
+    const isLatest = await this.isLatestAudit(supplierId, auditId);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const a = await tx.supplierAudit.update({
+        where: { id: auditId },
+        data: {
+          overrideClassification: dto.overrideClassification,
+          overrideReason: reason,
+          overriddenById: user.id,
+          overriddenAt: new Date(),
+        },
+        include: {
+          auditor: { select: { firstName: true, lastName: true } },
+          overriddenBy: { select: { firstName: true, lastName: true } },
+        },
+      });
+      // Only the latest audit drives the master status (older audits are history).
+      if (isLatest) {
+        await tx.supplier.update({
+          where: { id: supplierId },
+          data: {
+            status: dto.overrideClassification,
+            statusOverridden: true,
+          },
+        });
+      }
+      return a;
+    });
+    return this.toAudit(updated);
+  }
+
+  /**
+   * SuperAdmin clears an override, reverting the effective classification (and,
+   * for the latest audit, Supplier.status) to the computed value from the score.
+   */
+  async clearAuditClassificationOverride(
+    supplierId: string,
+    auditId: string,
+    user: AuthenticatedUser,
+  ): Promise<SupplierAuditEntity> {
+    this.access.assertIsSuperAdmin(user);
+
+    const audit = await this.loadSupplierAudit(supplierId, auditId);
+    const isLatest = await this.isLatestAudit(supplierId, auditId);
+
+    // Computed classification the master status reverts to.
+    const computed = classificationToSupplierStatus(
+      classify(computeTotalScore(this.auditScoreStrings(audit))),
+    );
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const a = await tx.supplierAudit.update({
+        where: { id: auditId },
+        data: {
+          overrideClassification: null,
+          overrideReason: null,
+          overriddenById: null,
+          overriddenAt: null,
+        },
+        include: {
+          auditor: { select: { firstName: true, lastName: true } },
+          overriddenBy: { select: { firstName: true, lastName: true } },
+        },
+      });
+      if (isLatest) {
+        await tx.supplier.update({
+          where: { id: supplierId },
+          data: { status: computed, statusOverridden: false },
+        });
+      }
+      return a;
+    });
+    return this.toAudit(updated);
+  }
+
   // ── internals ──────────────────────────────────────────────────────
+  /** Load an audit scoped to its supplier (404 if either is wrong). */
+  private async loadSupplierAudit(supplierId: string, auditId: string) {
+    const audit = await this.prisma.supplierAudit.findFirst({
+      where: { id: auditId, supplierId },
+    });
+    if (!audit) throw new NotFoundException('Audit not found for this supplier');
+    return audit;
+  }
+
+  /** The 6 category scores of a raw audit row as strings (for computeTotalScore). */
+  private auditScoreStrings(a: {
+    materialCertificationsQualityScore: Prisma.Decimal;
+    complianceScore: Prisma.Decimal;
+    commercialTermsScore: Prisma.Decimal;
+    logisticsDeliveryScore: Prisma.Decimal;
+    financialStabilityScore: Prisma.Decimal;
+    referencesScore: Prisma.Decimal;
+  }) {
+    return {
+      materialCertificationsQualityScore:
+        a.materialCertificationsQualityScore.toString(),
+      complianceScore: a.complianceScore.toString(),
+      commercialTermsScore: a.commercialTermsScore.toString(),
+      logisticsDeliveryScore: a.logisticsDeliveryScore.toString(),
+      financialStabilityScore: a.financialStabilityScore.toString(),
+      referencesScore: a.referencesScore.toString(),
+    };
+  }
+
+  /** Whether this audit is the supplier's most recent (the one driving status). */
+  private async isLatestAudit(
+    supplierId: string,
+    auditId: string,
+  ): Promise<boolean> {
+    const latest = await this.prisma.supplierAudit.findFirst({
+      where: { supplierId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    return latest?.id === auditId;
+  }
+
   private async getValidInvite(
     token: string,
     password: string | undefined,
@@ -570,6 +723,7 @@ export class SupplierService {
     contactPhone: string | null;
     website: string | null;
     status: SupplierStatus;
+    statusOverridden: boolean;
     createdById: string;
     createdAt: Date;
     updatedAt: Date;
@@ -688,6 +842,11 @@ export class SupplierService {
     financialStabilityScore: Prisma.Decimal;
     referencesScore: Prisma.Decimal;
     auditNotes: string | null;
+    overrideClassification?: SupplierStatus | null;
+    overrideReason?: string | null;
+    overriddenById?: string | null;
+    overriddenBy?: { firstName: string; lastName: string } | null;
+    overriddenAt?: Date | null;
     createdAt: Date;
     updatedAt: Date;
   }): SupplierAuditEntity {
@@ -700,7 +859,12 @@ export class SupplierService {
       referencesScore: a.referencesScore.toString(),
     };
     const total = computeTotalScore(scores);
+    // Computed classification is ALWAYS surfaced — never deleted or hidden.
     const classification = classify(total);
+    const override = a.overrideClassification
+      ? supplierStatusToClassification(a.overrideClassification)
+      : null;
+    const effective: SupplierClassification = override ?? classification;
     return new SupplierAuditEntity({
       id: a.id,
       supplierId: a.supplierId,
@@ -713,6 +877,19 @@ export class SupplierService {
       totalScore: total,
       classification,
       classificationLabel: CLASSIFICATION_LABEL[classification],
+      overrideClassification: override,
+      overrideClassificationLabel: override
+        ? CLASSIFICATION_LABEL[override]
+        : null,
+      overrideReason: a.overrideReason ?? null,
+      overriddenById: a.overriddenById ?? null,
+      overriddenByName: a.overriddenBy
+        ? `${a.overriddenBy.firstName} ${a.overriddenBy.lastName}`
+        : null,
+      overriddenAt: a.overriddenAt ? a.overriddenAt.toISOString() : null,
+      effectiveClassification: effective,
+      effectiveClassificationLabel: CLASSIFICATION_LABEL[effective],
+      isOverridden: override != null,
       auditNotes: a.auditNotes,
       createdAt: a.createdAt.toISOString(),
       updatedAt: a.updatedAt.toISOString(),

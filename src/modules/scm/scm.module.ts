@@ -5,6 +5,7 @@ import { ScmController } from './scm.controller';
 import { ScmPublicController } from './scm-public.controller';
 import { ScmService } from './scm.service';
 import { ScmAccessService } from './scm-access.service';
+import { CompanyDocumentsController } from './company-documents.controller';
 
 /**
  * Vendor Qualification (SCM): Vendor Master + self-assessment questionnaire
@@ -14,7 +15,7 @@ import { ScmAccessService } from './scm-access.service';
  */
 @Module({
   imports: [VaultModule, NotificationsModule],
-  controllers: [ScmController, ScmPublicController],
+  controllers: [ScmController, ScmPublicController, CompanyDocumentsController],
   providers: [ScmService, ScmAccessService],
 })
 export class ScmModule {}

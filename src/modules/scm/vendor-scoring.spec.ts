@@ -3,6 +3,9 @@ import {
   computeTotalScore,
   TOTAL_MAX_SCORE,
   classificationToVendorStatus,
+  vendorStatusToClassification,
+  isClassificationStatus,
+  CLASSIFICATION_STATUSES,
   AUDIT_SCORE_KEYS,
 } from './vendor-scoring';
 
@@ -54,5 +57,35 @@ describe('vendor-scoring', () => {
       'CONDITIONALLY_APPROVED',
     );
     expect(classificationToVendorStatus('NOT_APPROVED')).toBe('NOT_APPROVED');
+  });
+
+  it('recognises the four classification-valued statuses (override targets)', () => {
+    expect(CLASSIFICATION_STATUSES).toEqual([
+      'APPROVED_PREFERRED',
+      'APPROVED',
+      'CONDITIONALLY_APPROVED',
+      'NOT_APPROVED',
+    ]);
+    for (const s of CLASSIFICATION_STATUSES) {
+      expect(isClassificationStatus(s)).toBe(true);
+    }
+    // Lifecycle statuses are NOT valid classification outcomes.
+    expect(isClassificationStatus('PENDING_QUESTIONNAIRE')).toBe(false);
+    expect(isClassificationStatus('QUESTIONNAIRE_SUBMITTED')).toBe(false);
+    expect(isClassificationStatus('UNDER_AUDIT')).toBe(false);
+  });
+
+  it('narrows a classification-valued status back to a classification (override display)', () => {
+    // Round-trips against classificationToVendorStatus.
+    expect(vendorStatusToClassification('APPROVED_PREFERRED')).toBe(
+      'APPROVED_PREFERRED',
+    );
+    expect(vendorStatusToClassification('APPROVED')).toBe('APPROVED');
+    expect(vendorStatusToClassification('CONDITIONALLY_APPROVED')).toBe(
+      'CONDITIONALLY_APPROVED',
+    );
+    expect(vendorStatusToClassification('NOT_APPROVED')).toBe('NOT_APPROVED');
+    // A lifecycle status has no classification.
+    expect(vendorStatusToClassification('PENDING_QUESTIONNAIRE')).toBeNull();
   });
 });

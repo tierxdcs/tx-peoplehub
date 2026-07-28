@@ -7,10 +7,12 @@ import { ArrowLeft } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
 import {
+  clearAuditClassificationOverride,
   createInvite,
   createQuestionnaireRevision,
   getVendor,
   revokeInvite,
+  type VendorAudit,
   type VendorDetail,
   type VendorInvite,
 } from '../../../../lib/scm';
@@ -32,8 +34,10 @@ import {
 } from '../../../../components/ui/table';
 import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
+import { OverrideTag } from '../../../../components/ui/override-tag';
 import { QuestionnaireView } from '../_components/questionnaire-view';
 import { AuditForm } from '../_components/audit-form';
+import { OverrideDialog } from '../_components/override-dialog';
 
 export default function VendorDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -48,9 +52,12 @@ export default function VendorDetailPage() {
   const [invitePassword, setInvitePassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [auditing, setAuditing] = useState(false);
+  const [overriding, setOverriding] = useState<VendorAudit | null>(null);
 
   // UI hints — backend is the real gate (SCM-vertical Manager+ / auditor).
   const canManage = user?.role === 'SUPER_ADMIN' || user?.role === 'MANAGER';
+  // Classification override is SuperAdmin-only (bypasses a real risk control).
+  const canOverride = user?.role === 'SUPER_ADMIN';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,6 +141,26 @@ export default function VendorDetailPage() {
     }
   }
 
+  async function clearOverride(audit: VendorAudit) {
+    if (
+      !(await confirm({
+        title: 'Clear this override?',
+        description:
+          'Reverts the classification (and vendor status) to the value computed from the audit score.',
+        confirmLabel: 'Clear override',
+        destructive: true,
+      }))
+    )
+      return;
+    try {
+      await clearAuditClassificationOverride(id, audit.id);
+      await load();
+      toast.success('Override cleared — reverted to the computed classification.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to clear override.');
+    }
+  }
+
   function publicUrl(token: string): string {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     return `${origin}/public/vendor-questionnaire/${token}`;
@@ -171,6 +198,9 @@ export default function VendorDetailPage() {
           {vendor.companyName}
         </h1>
         <StatusBadge value={vendor.status} />
+        {vendor.statusOverridden && (
+          <OverrideTag by={vendor.audits[0]?.overriddenByName ?? undefined} />
+        )}
       </div>
 
       {/* Live flow indicator — qualification stage derived from status. */}
@@ -322,6 +352,7 @@ export default function VendorDetailPage() {
                   <TableHead>Auditor</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead>Classification</TableHead>
+                  {canOverride && <TableHead className="text-right">Override</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -334,8 +365,50 @@ export default function VendorDetailPage() {
                       {a.totalScore} / 100
                     </TableCell>
                     <TableCell>
-                      <StatusBadge value={a.classification} />
+                      {a.isOverridden ? (
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <StatusBadge value={a.effectiveClassification} />
+                            <OverrideTag by={a.overriddenByName} />
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Computed:{' '}
+                            <span className="line-through">
+                              {a.classificationLabel}
+                            </span>
+                          </div>
+                          {a.overrideReason && (
+                            <div className="text-xs text-muted-foreground">
+                              Reason: {a.overrideReason}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <StatusBadge value={a.classification} />
+                      )}
                     </TableCell>
+                    {canOverride && (
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setOverriding(a)}
+                          >
+                            {a.isOverridden ? 'Edit' : 'Override'}
+                          </Button>
+                          {a.isOverridden && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => clearOverride(a)}
+                            >
+                              Clear
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -351,6 +424,18 @@ export default function VendorDetailPage() {
           onClose={() => setAuditing(false)}
           onCreated={() => {
             setAuditing(false);
+            void load();
+          }}
+        />
+      )}
+
+      {overriding && (
+        <OverrideDialog
+          vendorId={vendor.id}
+          audit={overriding}
+          onClose={() => setOverriding(null)}
+          onSaved={() => {
+            setOverriding(null);
             void load();
           }}
         />

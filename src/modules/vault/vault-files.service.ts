@@ -52,6 +52,106 @@ export class VaultFilesService {
   ) {}
 
   /**
+   * Trusted module-to-Vault registration path for unauthenticated external
+   * workflows. The caller supplies the internal sponsor recorded as uploader;
+   * bytes still upload directly to Vault's own storage key and use the same
+   * extension/size/actual-size guardrails as an ordinary Vault upload.
+   */
+  async createManagedUploadUrl(params: {
+    folderName: string;
+    name: string;
+    mimeType: string;
+    sizeBytes: number;
+    uploadedById: string;
+    changeNote: string;
+  }) {
+    assertExtensionAllowed(params.name);
+    assertSizeWithinCap(params.sizeBytes);
+    const folder = await this.prisma.vaultFolder.findFirst({
+      where: {
+        name: params.folderName,
+        type: VaultFolderType.DEFAULT,
+        visibilityScope: 'COMPANY_WIDE',
+        status: VaultFolderStatus.ACTIVE,
+      },
+    });
+    if (!folder) {
+      throw new NotFoundException(
+        `Default Vault folder "${params.folderName}" is not configured`,
+      );
+    }
+    const fileId = randomUUID();
+    const storageKey = this.storage.buildStorageKey(fileId, 1);
+    const { url, expiresInSeconds } = await this.storage.createUploadUrl(
+      storageKey,
+      params.mimeType,
+    );
+    const created = await this.prisma.$transaction(async (tx) => {
+      const file = await tx.vaultFile.create({
+        data: {
+          id: fileId,
+          folderId: folder.id,
+          name: params.name,
+          uploadedById: params.uploadedById,
+          status: VaultFileStatus.PENDING,
+        },
+      });
+      const version = await tx.vaultFileVersion.create({
+        data: {
+          fileId,
+          versionNumber: 1,
+          mimeType: params.mimeType,
+          sizeBytes: BigInt(params.sizeBytes),
+          storageKey,
+          previewStatus: PreviewStatus.NOT_APPLICABLE,
+          changeNote: params.changeNote,
+          uploadedById: params.uploadedById,
+        },
+      });
+      await tx.vaultFile.update({
+        where: { id: fileId },
+        data: { currentVersionId: version.id },
+      });
+      return { fileId, versionId: version.id };
+    });
+    return {
+      ...created,
+      storageKey,
+      uploadUrl: url,
+      expiresInSeconds,
+    };
+  }
+
+  /** Actual-size confirmation for a managed upload; activates the Vault file. */
+  async confirmManagedUpload(fileId: string, expectedChangeNote: string) {
+    const file = await this.prisma.vaultFile.findUnique({
+      where: { id: fileId },
+    });
+    if (!file || file.status !== VaultFileStatus.PENDING) {
+      throw new NotFoundException('Pending Vault upload not found');
+    }
+    const version = await this.prisma.vaultFileVersion.findFirst({
+      where: { fileId, changeNote: expectedChangeNote },
+      orderBy: { versionNumber: 'desc' },
+    });
+    if (!version) throw new NotFoundException('Managed Vault upload not found');
+    const head = await this.storage.headObject(version.storageKey);
+    if (!head) throw new BadRequestException('Uploaded object not found');
+    assertSizeWithinCap(head.sizeBytes);
+    if (head.sizeBytes !== Number(version.sizeBytes)) {
+      throw new BadRequestException(
+        `Uploaded size (${head.sizeBytes}) does not match the declared size (${version.sizeBytes})`,
+      );
+    }
+    await this.prisma.vaultFile.update({
+      where: { id: fileId },
+      data: { status: VaultFileStatus.ACTIVE },
+    });
+    await this.preview.initializePreview(version);
+    return { fileId, sizeBytes: head.sizeBytes };
+  }
+
+  /**
    * Step 1 of upload: validate write access on the target folder, create a
    * PENDING VaultFile + its version-1 row, and return a presigned PUT URL.
    * The browser uploads bytes directly to R2; nothing streams through here.

@@ -1,9 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { SupplierAuditType } from '@prisma/client';
+import { SupplierAuditType, SupplierStatus } from '@prisma/client';
 import {
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsObject,
@@ -14,6 +15,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+import { CLASSIFICATION_STATUSES } from '../supplier-scoring';
 
 /**
  * Only companyName + contactEmail are required at creation — staff often don't
@@ -132,4 +134,26 @@ export class CreateAuditDto {
   @ApiProperty() @IsNumber() @Min(0) @Max(10) referencesScore!: number;
 
   @ApiPropertyOptional() @IsOptional() @IsString() auditNotes?: string;
+}
+
+// ── Classification override (SUPER_ADMIN) ─────────────────────────────
+/**
+ * SuperAdmin override of an audit's computed classification. The reason is
+ * mandatory (a bypassed risk control must be justified). overrideClassification
+ * accepts only the four terminal classification values.
+ */
+export class OverrideClassificationDto {
+  @ApiProperty({
+    enum: CLASSIFICATION_STATUSES,
+    description:
+      'The classification to force, regardless of the computed score.',
+  })
+  @IsEnum(SupplierStatus)
+  @IsIn(CLASSIFICATION_STATUSES)
+  overrideClassification!: SupplierStatus;
+
+  @ApiProperty({ description: 'Mandatory justification for the override.' })
+  @IsString()
+  @MinLength(1)
+  reason!: string;
 }

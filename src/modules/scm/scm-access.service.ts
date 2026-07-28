@@ -23,6 +23,19 @@ export class ScmAccessService {
     return user.role === Role.SUPER_ADMIN;
   }
 
+  /**
+   * Override/clear an audit classification — SUPER_ADMIN only. This bypasses a
+   * real risk control (it can approve a short-scoring vendor), so it stays at
+   * the highest trust level — not SCM Manager, not Internal Auditor.
+   */
+  assertIsSuperAdmin(user: AuthenticatedUser): void {
+    if (!this.isSuperAdmin(user)) {
+      throw new ForbiddenException(
+        'Only a SUPER_ADMIN may override a vendor classification',
+      );
+    }
+  }
+
   /** SCM-vertical staff at MANAGER level (Manager-or-above in the SCM vertical). */
   private async isScmManager(user: AuthenticatedUser): Promise<boolean> {
     // "Manager or above" within SCM: a MANAGER whose vertical is SCM. (ADMIN is

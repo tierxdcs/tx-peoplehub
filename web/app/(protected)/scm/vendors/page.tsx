@@ -17,6 +17,7 @@ import { Card, CardContent } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
 import { StatusBadge } from '../../../components/ui/status-badge';
+import { OverrideTag } from '../../../components/ui/override-tag';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { Skeleton } from '../../../components/ui/skeleton';
 import {
@@ -153,7 +154,10 @@ export default function VendorsPage() {
                   >
                     <TableCell className="font-medium">{s.companyName}</TableCell>
                     <TableCell>
-                      <StatusBadge value={s.status} />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <StatusBadge value={s.status} />
+                        {s.statusOverridden && <OverrideTag />}
+                      </div>
                     </TableCell>
                     <TableCell>{s.contactPersonName ?? '—'}</TableCell>
                     <TableCell>

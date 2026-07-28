@@ -1,9 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { VendorAuditType } from '@prisma/client';
+import { VendorAuditType, VendorStatus } from '@prisma/client';
 import {
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsObject,
@@ -14,6 +15,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+import { CLASSIFICATION_STATUSES } from '../vendor-scoring';
 
 // ── Vendor ─────────────────────────────────────────────────────────
 /**
@@ -205,6 +207,23 @@ export class PublicCertConfirmDto {
   label?: string;
 }
 
+export class PublicNdaUploadUrlDto extends PublicCertUploadUrlDto {}
+
+export class PublicNdaConfirmDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() password?: string;
+  @ApiProperty() @IsString() fileId!: string;
+}
+
+export class NdaTemplateUploadUrlDto {
+  @ApiProperty() @IsString() @MinLength(1) name!: string;
+  @ApiProperty() @IsString() mimeType!: string;
+  @ApiProperty() @IsInt() @Min(0) sizeBytes!: number;
+}
+
+export class NdaTemplateConfirmDto {
+  @ApiProperty() @IsString() fileId!: string;
+}
+
 // ── Audit ────────────────────────────────────────────────────────────
 export class CreateAuditDto {
   @ApiProperty({ description: 'Which questionnaire revision was audited' })
@@ -234,4 +253,26 @@ export class CreateAuditDto {
   @IsOptional()
   @IsString()
   auditNotes?: string;
+}
+
+// ── Classification override (SUPER_ADMIN) ─────────────────────────────
+/**
+ * SuperAdmin override of an audit's computed classification. The reason is
+ * mandatory (a bypassed risk control must be justified). overrideClassification
+ * accepts only the four terminal classification values.
+ */
+export class OverrideClassificationDto {
+  @ApiProperty({
+    enum: CLASSIFICATION_STATUSES,
+    description:
+      'The classification to force, regardless of the computed score.',
+  })
+  @IsEnum(VendorStatus)
+  @IsIn(CLASSIFICATION_STATUSES)
+  overrideClassification!: VendorStatus;
+
+  @ApiProperty({ description: 'Mandatory justification for the override.' })
+  @IsString()
+  @MinLength(1)
+  reason!: string;
 }

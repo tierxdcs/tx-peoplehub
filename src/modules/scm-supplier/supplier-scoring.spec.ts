@@ -3,6 +3,9 @@ import {
   computeTotalScore,
   TOTAL_MAX_SCORE,
   classificationToSupplierStatus,
+  supplierStatusToClassification,
+  isClassificationStatus,
+  CLASSIFICATION_STATUSES,
   AUDIT_SCORE_KEYS,
 } from './supplier-scoring';
 
@@ -42,5 +45,28 @@ describe('supplier-scoring', () => {
     expect(classificationToSupplierStatus('APPROVED')).toBe('APPROVED');
     expect(classificationToSupplierStatus('CONDITIONALLY_APPROVED')).toBe('CONDITIONALLY_APPROVED');
     expect(classificationToSupplierStatus('NOT_APPROVED')).toBe('NOT_APPROVED');
+  });
+
+  it('recognises the four classification-valued statuses (override targets)', () => {
+    expect(CLASSIFICATION_STATUSES).toEqual([
+      'APPROVED_PREFERRED',
+      'APPROVED',
+      'CONDITIONALLY_APPROVED',
+      'NOT_APPROVED',
+    ]);
+    for (const s of CLASSIFICATION_STATUSES) {
+      expect(isClassificationStatus(s)).toBe(true);
+    }
+    expect(isClassificationStatus('PENDING_QUESTIONNAIRE')).toBe(false);
+    expect(isClassificationStatus('QUESTIONNAIRE_SUBMITTED')).toBe(false);
+    expect(isClassificationStatus('UNDER_AUDIT')).toBe(false);
+  });
+
+  it('narrows a classification-valued status back to a classification (override display)', () => {
+    expect(supplierStatusToClassification('APPROVED_PREFERRED')).toBe('APPROVED_PREFERRED');
+    expect(supplierStatusToClassification('APPROVED')).toBe('APPROVED');
+    expect(supplierStatusToClassification('CONDITIONALLY_APPROVED')).toBe('CONDITIONALLY_APPROVED');
+    expect(supplierStatusToClassification('NOT_APPROVED')).toBe('NOT_APPROVED');
+    expect(supplierStatusToClassification('PENDING_QUESTIONNAIRE')).toBeNull();
   });
 });

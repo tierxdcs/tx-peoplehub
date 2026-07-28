@@ -7,6 +7,9 @@ import { uploadToPresignedUrl } from '../../../lib/vault-api';
 import {
   publicCertConfirm,
   publicCertUploadUrl,
+  publicNdaTemplateDownload,
+  publicSignedNdaConfirm,
+  publicSignedNdaUploadUrl,
   resolvePublicQuestionnaire,
   savePublicQuestionnaire,
   submitPublicQuestionnaire,
@@ -46,6 +49,8 @@ export default function PublicVsaqPage() {
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
+  const [signedNdaUploaded, setSignedNdaUploaded] = useState(false);
+  const [ndaUploading, setNdaUploading] = useState(false);
 
   // Password is kept in a ref so save/submit calls always use the resolved one.
   const pwRef = useRef<string | undefined>(undefined);
@@ -54,6 +59,7 @@ export default function PublicVsaqPage() {
     setQuestionnaire(q);
     setSubmitted(q.status === 'SUBMITTED');
     setCerts(q.qualityCertificateFiles ?? []);
+    setSignedNdaUploaded(q.signedNdaUploaded);
     setCompanyInfo({
       registeredAddress: q.companyInfo.registeredAddress ?? '',
       factoryAddress: q.companyInfo.factoryAddress ?? '',
@@ -122,6 +128,10 @@ export default function PublicVsaqPage() {
       setBanner('Please tick the certification checkbox in the Declaration section before submitting.');
       return;
     }
+    if (questionnaire?.ndaRequired && !signedNdaUploaded) {
+      setBanner('Please upload the signed NDA before submitting.');
+      return;
+    }
     setSaving(true);
     setBanner(null);
     const res = await submitPublicQuestionnaire(token, form, pwRef.current, companyInfo);
@@ -161,6 +171,51 @@ export default function PublicVsaqPage() {
     );
     if (confirmed.ok) setCerts((c) => [...c, confirmed.data]);
     else setBanner(confirmed.message);
+  }
+
+  async function downloadNdaTemplate() {
+    const result = await publicNdaTemplateDownload(token, pwRef.current);
+    if (result.ok) {
+      window.location.assign(result.data.downloadUrl);
+    } else {
+      setBanner(result.message);
+    }
+  }
+
+  async function uploadSignedNda(file: File) {
+    setNdaUploading(true);
+    setBanner(null);
+    const presign = await publicSignedNdaUploadUrl(
+      token,
+      {
+        name: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+      },
+      pwRef.current,
+    );
+    if (!presign.ok) {
+      setBanner(presign.message);
+      setNdaUploading(false);
+      return;
+    }
+    try {
+      await uploadToPresignedUrl(presign.data.uploadUrl, file);
+      const confirmed = await publicSignedNdaConfirm(
+        token,
+        presign.data.fileId,
+        pwRef.current,
+      );
+      if (!confirmed.ok) throw new Error(confirmed.message);
+      setSignedNdaUploaded(true);
+      setBanner('Signed NDA uploaded successfully.');
+    } catch (error) {
+      setBanner(
+        error instanceof Error ? error.message : 'Signed NDA upload failed.',
+      );
+    } finally {
+      setNdaUploading(false);
+    }
   }
 
   // ── Render states ──────────────────────────────────────────────────
@@ -241,6 +296,59 @@ export default function PublicVsaqPage() {
           {banner}
         </p>
       )}
+
+      <section
+        style={{
+          marginBottom: 20,
+          padding: 18,
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          background: '#fff',
+        }}
+      >
+        <h2 style={{ margin: '0 0 6px', color: INK, fontSize: 18 }}>
+          Non-Disclosure Agreement
+        </h2>
+        <p style={{ margin: '0 0 14px', color: '#6b7280', fontSize: 13.5 }}>
+          Download the current NDA, sign it, and upload the signed document.
+          {questionnaire.ndaRequired
+            ? ' A signed NDA is mandatory for this first questionnaire submission.'
+            : ' Your NDA was collected during the initial onboarding revision.'}
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          <button type="button" onClick={() => void downloadNdaTemplate()} style={btnPrimary}>
+            Download NDA Template
+          </button>
+          {questionnaire.ndaRequired && !signedNdaUploaded && (
+            <label
+              style={{
+                ...btnPrimary,
+                background: '#fff',
+                color: INK,
+                border: '1px solid #d1d5db',
+                cursor: ndaUploading ? 'wait' : 'pointer',
+              }}
+            >
+              {ndaUploading ? 'Uploading…' : 'Upload Signed NDA *'}
+              <input
+                type="file"
+                disabled={ndaUploading}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void uploadSignedNda(file);
+                  event.currentTarget.value = '';
+                }}
+                style={{ display: 'none' }}
+              />
+            </label>
+          )}
+          {signedNdaUploaded && (
+            <strong style={{ color: '#047857', fontSize: 13.5 }}>
+              ✓ Signed NDA filed in Vault
+            </strong>
+          )}
+        </div>
+      </section>
 
       {/* 1. Company Information — writes back to the Vendor master record. */}
       <Section n="1" title="Company Information">

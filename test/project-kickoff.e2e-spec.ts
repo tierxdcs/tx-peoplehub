@@ -39,6 +39,7 @@ describe('Project Kickoff (e2e)', () => {
   const createdCustomerIds: string[] = [];
   const createdBoardIds: string[] = [];
   const createdProductIds: string[] = [];
+  const createdVendorIds: string[] = [];
   let lineItemId: string; // a line item on the executed order (for delivery tests)
 
   let superAdminToken: string;
@@ -220,6 +221,9 @@ describe('Project Kickoff (e2e)', () => {
       where: { orderId: { in: createdOrderIds } },
     });
     await prisma.order.deleteMany({ where: { id: { in: createdOrderIds } } });
+    if (createdVendorIds.length) {
+      await prisma.vendor.deleteMany({ where: { id: { in: createdVendorIds } } });
+    }
     // Products deleted after orders (line items cascade with the order first).
     if (createdProductIds.length) {
       await prisma.product.deleteMany({ where: { id: { in: createdProductIds } } });
@@ -654,5 +658,102 @@ describe('Project Kickoff (e2e)', () => {
       .set('Authorization', `Bearer ${pmToken}`)
       .send({ deliveryType: 'NPD' })
       .expect(404);
+  });
+
+  it('a SuperAdmin classification override unblocks the vendor-selection hard-gate; clearing it re-blocks', async () => {
+    // Fresh executed order + kickoff (capture this order's own line item id,
+    // since seedOrder reassigns the shared lineItemId).
+    const orderId = await seedOrder(true);
+    const gateLineItemId = lineItemId;
+    const kickoff = (
+      await request(app.getHttpServer())
+        .post('/project-kickoffs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ orderId, meetingDate: '2026-08-07T10:00:00.000Z' })
+        .expect(201)
+    ).body.data;
+    const kid = kickoff.id;
+    createdBoardIds.push(kickoff.kanbanBoardId);
+
+    // A vendor whose audit scores below the bar → computed NOT_APPROVED.
+    const vendor = (
+      await request(app.getHttpServer())
+        .post('/vendors')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ companyName: `Gate Vendor ${Math.floor(performance.now())}`, contactEmail: 'gate@vendor.example' })
+        .expect(201)
+    ).body.data;
+    createdVendorIds.push(vendor.id);
+    const qId = (
+      await request(app.getHttpServer())
+        .get(`/vendors/${vendor.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200)
+    ).body.data.questionnaires[0].id;
+    const audit = (
+      await request(app.getHttpServer())
+        .post(`/vendors/${vendor.id}/audits`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          questionnaireId: qId,
+          auditType: 'PHYSICAL',
+          auditDate: '2026-07-20',
+          // 20+10+20+10 = 60 → NOT_APPROVED.
+          manufacturingCapabilityScore: 20,
+          capacityScore: 10,
+          qualitySystemScore: 20,
+          engineeringScore: 10,
+          financialStabilityScore: 0,
+          supplyChainScore: 0,
+          exportReadinessScore: 0,
+          sustainabilityScore: 0,
+          ehsScore: 0,
+          customerReferencesScore: 0,
+        })
+        .expect(201)
+    ).body.data;
+    expect(audit.classification).toBe('NOT_APPROVED');
+
+    // The hard-gate rejects a non-approved vendor on the delivery line item.
+    await request(app.getHttpServer())
+      .patch(`/project-kickoffs/${kid}/delivery-items/${gateLineItemId}`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ deliveryType: 'VENDOR', vendorId: vendor.id })
+      .expect(400);
+
+    // SuperAdmin overrides the classification to APPROVED (risk accepted).
+    await request(app.getHttpServer())
+      .patch(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ overrideClassification: 'APPROVED', reason: 'Strategic sole-source; risk accepted by SCM head.' })
+      .expect(200);
+
+    // The SAME selection now succeeds — the override propagated to Vendor.status.
+    const linked = (
+      await request(app.getHttpServer())
+        .patch(`/project-kickoffs/${kid}/delivery-items/${gateLineItemId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ deliveryType: 'VENDOR', vendorId: vendor.id })
+        .expect(200)
+    ).body.data;
+    expect(linked.deliveryType).toBe('VENDOR');
+    expect(linked.vendorName).toContain('Gate Vendor');
+
+    // Clearing the override reverts Vendor.status → the gate re-blocks a new selection.
+    await request(app.getHttpServer())
+      .delete(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .expect(200);
+    // Reset the line item, then re-attempt the (now-unqualified) vendor.
+    await request(app.getHttpServer())
+      .patch(`/project-kickoffs/${kid}/delivery-items/${gateLineItemId}`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ deliveryType: 'NPD' })
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch(`/project-kickoffs/${kid}/delivery-items/${gateLineItemId}`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ deliveryType: 'VENDOR', vendorId: vendor.id })
+      .expect(400);
   });
 });

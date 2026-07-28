@@ -510,6 +510,203 @@ describe('Vendor Qualification / SCM (e2e)', () => {
     expect(vendorFinal.factoryAddress).toBe('10 Factory Rd');
   });
 
+  it('SuperAdmin classification override: propagates, is revertible, shows both, and is SuperAdmin-only', async () => {
+    // Vendor with a below-bar audit (69 → NOT_APPROVED).
+    const vendor = (
+      await request(app.getHttpServer())
+        .post('/vendors')
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .send(vendorBody())
+        .expect(201)
+    ).body.data;
+    createdVendorIds.push(vendor.id);
+    const qId = (
+      await request(app.getHttpServer())
+        .get(`/vendors/${vendor.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data.questionnaires[0].id;
+    const audit = (
+      await request(app.getHttpServer())
+        .post(`/vendors/${vendor.id}/audits`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ questionnaireId: qId, auditType: 'PHYSICAL', auditDate: '2026-07-20', ...scores(69) })
+        .expect(201)
+    ).body.data;
+    expect(audit.classification).toBe('NOT_APPROVED');
+
+    // Not a SuperAdmin → 403 (SCM manager, and even the auditor, cannot override).
+    await request(app.getHttpServer())
+      .patch(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+      .set('Authorization', `Bearer ${scmManagerToken}`)
+      .send({ overrideClassification: 'APPROVED', reason: 'Risk accepted' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .patch(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+      .set('Authorization', `Bearer ${auditorToken}`)
+      .send({ overrideClassification: 'APPROVED', reason: 'Risk accepted' })
+      .expect(403);
+
+    // Reason is mandatory (empty → 400 from the DTO).
+    await request(app.getHttpServer())
+      .patch(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ overrideClassification: 'APPROVED', reason: '' })
+      .expect(400);
+
+    // A non-classification status (a lifecycle value) is not a valid target (400).
+    await request(app.getHttpServer())
+      .patch(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ overrideClassification: 'UNDER_AUDIT', reason: 'Bad target' })
+      .expect(400);
+
+    // SuperAdmin overrides NOT_APPROVED → APPROVED. Both values are surfaced.
+    const overridden = (
+      await request(app.getHttpServer())
+        .patch(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ overrideClassification: 'APPROVED', reason: 'Strategic sole-source; risk accepted by SCM head.' })
+        .expect(200)
+    ).body.data;
+    expect(overridden.classification).toBe('NOT_APPROVED'); // computed, never deleted
+    expect(overridden.overrideClassification).toBe('APPROVED');
+    expect(overridden.effectiveClassification).toBe('APPROVED');
+    expect(overridden.isOverridden).toBe(true);
+    expect(overridden.overrideReason).toContain('risk accepted');
+    expect(overridden.overriddenByName).toBeTruthy();
+    expect(overridden.overriddenAt).toBeTruthy();
+
+    // Propagates to the master status + statusOverridden flag.
+    const afterOverride = (
+      await request(app.getHttpServer())
+        .get(`/vendors/${vendor.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data;
+    expect(afterOverride.status).toBe('APPROVED');
+    expect(afterOverride.statusOverridden).toBe(true);
+
+    // The vendor now passes the Project Kickoff vendor-selector hard-gate
+    // (which requires status ∈ [APPROVED, APPROVED_PREFERRED]).
+    expect(['APPROVED', 'APPROVED_PREFERRED']).toContain(afterOverride.status);
+
+    // Editing the override (any direction — down to CONDITIONALLY_APPROVED).
+    const edited = (
+      await request(app.getHttpServer())
+        .patch(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ overrideClassification: 'CONDITIONALLY_APPROVED', reason: 'Downgraded pending re-audit.' })
+        .expect(200)
+    ).body.data;
+    expect(edited.effectiveClassification).toBe('CONDITIONALLY_APPROVED');
+    const afterEdit = (
+      await request(app.getHttpServer())
+        .get(`/vendors/${vendor.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200)
+    ).body.data;
+    expect(afterEdit.status).toBe('CONDITIONALLY_APPROVED');
+    expect(afterEdit.statusOverridden).toBe(true);
+
+    // Clearing the override reverts to the computed classification + status.
+    const cleared = (
+      await request(app.getHttpServer())
+        .delete(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200)
+    ).body.data;
+    expect(cleared.isOverridden).toBe(false);
+    expect(cleared.overrideClassification).toBeNull();
+    expect(cleared.effectiveClassification).toBe('NOT_APPROVED');
+    const afterClear = (
+      await request(app.getHttpServer())
+        .get(`/vendors/${vendor.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data;
+    expect(afterClear.status).toBe('NOT_APPROVED');
+    expect(afterClear.statusOverridden).toBe(false);
+
+    // Clearing (and overriding) is SuperAdmin-only too.
+    await request(app.getHttpServer())
+      .delete(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+      .set('Authorization', `Bearer ${scmManagerToken}`)
+      .expect(403);
+  });
+
+  it('a fresh audit supersedes a prior override (recomputes status, clears the flag)', async () => {
+    const vendor = (
+      await request(app.getHttpServer())
+        .post('/vendors')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(vendorBody())
+        .expect(201)
+    ).body.data;
+    createdVendorIds.push(vendor.id);
+    const qId = (
+      await request(app.getHttpServer())
+        .get(`/vendors/${vendor.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200)
+    ).body.data.questionnaires[0].id;
+
+    // Audit #1: 69 → NOT_APPROVED, then overridden up to APPROVED.
+    const audit1 = (
+      await request(app.getHttpServer())
+        .post(`/vendors/${vendor.id}/audits`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ questionnaireId: qId, auditType: 'PHYSICAL', auditDate: '2026-07-20', ...scores(69) })
+        .expect(201)
+    ).body.data;
+    await request(app.getHttpServer())
+      .patch(`/vendors/${vendor.id}/audits/${audit1.id}/classification-override`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ overrideClassification: 'APPROVED', reason: 'Interim approval.' })
+      .expect(200);
+
+    // A newer audit (#2: 85 → APPROVED by score) resets the flag and drives status.
+    await request(app.getHttpServer())
+      .post(`/vendors/${vendor.id}/audits`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ questionnaireId: qId, auditType: 'VIRTUAL', auditDate: '2026-07-21', ...scores(85) })
+      .expect(201);
+    const afterNewAudit = (
+      await request(app.getHttpServer())
+        .get(`/vendors/${vendor.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200)
+    ).body.data;
+    expect(afterNewAudit.status).toBe('APPROVED');
+    expect(afterNewAudit.statusOverridden).toBe(false);
+
+    // Overriding the OLDER (historical) audit does not clobber the master status.
+    const olderAudit = afterNewAudit.audits.find(
+      (a: { id: string }) => a.id === audit1.id,
+    );
+    expect(olderAudit).toBeTruthy();
+    await request(app.getHttpServer())
+      .patch(`/vendors/${vendor.id}/audits/${audit1.id}/classification-override`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ overrideClassification: 'NOT_APPROVED', reason: 'Correcting the historical record.' })
+      .expect(200);
+    const afterHistoricalOverride = (
+      await request(app.getHttpServer())
+        .get(`/vendors/${vendor.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200)
+    ).body.data;
+    // Master status still reflects the LATEST audit, not the overridden older one.
+    expect(afterHistoricalOverride.status).toBe('APPROVED');
+    expect(afterHistoricalOverride.statusOverridden).toBe(false);
+    // But the older audit row itself does carry the override.
+    const olderAfter = afterHistoricalOverride.audits.find(
+      (a: { id: string }) => a.id === audit1.id,
+    );
+    expect(olderAfter.isOverridden).toBe(true);
+    expect(olderAfter.effectiveClassification).toBe('NOT_APPROVED');
+  });
+
   function vendorBody() {
     return {
       companyName: `Acme Fab ${Math.floor(performance.now())}`,

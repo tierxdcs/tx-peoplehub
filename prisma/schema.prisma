@@ -500,10 +500,10 @@ model Employee {
   kickoffRisksOwned       KickoffRisk[]       @relation("KickoffRiskOwner")
 
   // Vendor Qualification (SCM) back-relations.
-  vendorsCreated          Vendor[]                    @relation("VendorCreator")
-  vendorInvitesCreated    VendorQuestionnaireInvite[] @relation("VendorInviteCreator")
-  vendorAuditsConducted   VendorAudit[]               @relation("VendorAuditor")
-  vendorAuditsOverridden  VendorAudit[]               @relation("VendorAuditOverrider")
+  vendorsCreated         Vendor[]                    @relation("VendorCreator")
+  vendorInvitesCreated   VendorQuestionnaireInvite[] @relation("VendorInviteCreator")
+  vendorAuditsConducted  VendorAudit[]               @relation("VendorAuditor")
+  vendorAuditsOverridden VendorAudit[]               @relation("VendorAuditOverrider")
 
   // Supplier Qualification (SCM raw-materials) back-relations.
   suppliersCreated         Supplier[]                    @relation("SupplierCreator")
@@ -1528,25 +1528,38 @@ model VaultFolderPermission {
 /// version). A file always belongs to a folder (folderId required). Deletion
 /// is whole-file soft-delete (status DELETED cascades to every version).
 model VaultFile {
-  id               String             @id @default(uuid())
-  folderId         String
-  folder           VaultFolder        @relation(fields: [folderId], references: [id], onDelete: Restrict)
-  name             String
+  id                String                 @id @default(uuid())
+  folderId          String
+  folder            VaultFolder            @relation(fields: [folderId], references: [id], onDelete: Restrict)
+  name              String
   /// The live version. Nullable only transiently: a PENDING file exists
   /// before its first version row is linked. No DB-level FK back-reference
   /// (would be a cycle with VaultFileVersion.fileId) — set in the service.
-  currentVersionId String?            @unique
-  uploadedById     String
-  uploadedBy       Employee           @relation("VaultFileUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
-  status           VaultFileStatus    @default(PENDING)
-  versions         VaultFileVersion[] @relation("VaultFileVersions")
-  designDocuments  DesignDocument[]
-  leadAttachments  LeadAttachment[]   @relation("LeadAttachmentFile")
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  currentVersionId  String?                @unique
+  uploadedById      String
+  uploadedBy        Employee               @relation("VaultFileUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+  status            VaultFileStatus        @default(PENDING)
+  versions          VaultFileVersion[]     @relation("VaultFileVersions")
+  designDocuments   DesignDocument[]
+  leadAttachments   LeadAttachment[]       @relation("LeadAttachmentFile")
+  vendorSignedNda   VendorQuestionnaire?   @relation("VendorSignedNda")
+  ndaTemplateConfig CompanyDocumentConfig? @relation("NdaTemplateFile")
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
 
   @@index([folderId, status])
   @@map("vault_files")
+}
+
+/// Singleton company-document configuration. Replacing the NDA adds a Vault
+/// version to the same configured document rather than creating loose objects.
+model CompanyDocumentConfig {
+  id                String     @id @default("DEFAULT")
+  ndaTemplateFileId String?    @unique
+  ndaTemplateFile   VaultFile? @relation("NdaTemplateFile", fields: [ndaTemplateFileId], references: [id], onDelete: Restrict)
+  updatedAt         DateTime   @updatedAt
+
+  @@map("company_document_config")
 }
 
 /// One immutable version of a file's bytes. versionNumber is sequential per
@@ -2997,6 +3010,9 @@ model VendorQuestionnaire {
   /// Uploaded quality-certificate files (R2-backed, guarded by Vault's rules).
   /// [{ storageKey, name, sizeBytes, contentType }] — metadata only.
   qualityCertificateFiles Json?
+  /// Required only on revision 1. This points to the real Vault document.
+  signedNdaFileId         String?    @unique
+  signedNdaFile           VaultFile? @relation("VendorSignedNda", fields: [signedNdaFileId], references: [id], onDelete: Restrict)
 
   invites VendorQuestionnaireInvite[]
   audits  VendorAudit[]

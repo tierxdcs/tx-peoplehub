@@ -45,6 +45,8 @@ export interface Vendor {
   contactPhone: string | null;
   website: string | null;
   status: VendorStatus;
+  /** True when `status` came from a SuperAdmin override, not the audit score. */
+  statusOverridden: boolean;
   createdById: string;
   createdAt: string;
   updatedAt: string;
@@ -116,6 +118,8 @@ export type VendorQuestionnaire = {
   submittedAt: string | null;
   companyInfo: VendorCompanyInfo;
   qualityCertificateFiles: CertificateFile[];
+  ndaRequired: boolean;
+  signedNdaUploaded: boolean;
   createdAt: string;
   updatedAt: string;
 } & Record<SectionKey, Record<string, unknown> | null>;
@@ -152,6 +156,17 @@ export interface VendorAudit {
   totalScore: number;
   classification: VendorClassification;
   classificationLabel: string;
+  /** SuperAdmin-forced classification, null = none (use computed). */
+  overrideClassification: VendorClassification | null;
+  overrideClassificationLabel: string | null;
+  overrideReason: string | null;
+  overriddenById: string | null;
+  overriddenByName: string | null;
+  overriddenAt: string | null;
+  /** override ?? computed — the classification actually in effect. */
+  effectiveClassification: VendorClassification;
+  effectiveClassificationLabel: string;
+  isOverridden: boolean;
   auditNotes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -240,6 +255,35 @@ export function createAudit(vendorId: string, input: CreateAuditInput) {
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+// ── Classification override (SUPER_ADMIN) ────────────────────────────
+export interface OverrideClassificationInput {
+  overrideClassification: VendorClassification;
+  reason: string;
+}
+
+/** Force an audit's classification, regardless of the computed score. */
+export function overrideAuditClassification(
+  vendorId: string,
+  auditId: string,
+  input: OverrideClassificationInput,
+) {
+  return apiFetch<VendorAudit>(
+    `/vendors/${vendorId}/audits/${auditId}/classification-override`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+}
+
+/** Clear an override, reverting to the computed classification. */
+export function clearAuditClassificationOverride(
+  vendorId: string,
+  auditId: string,
+) {
+  return apiFetch<VendorAudit>(
+    `/vendors/${vendorId}/audits/${auditId}/classification-override`,
+    { method: 'DELETE' },
+  );
 }
 
 // ── Scoring (mirrors backend vendor-scoring.ts) ────────────────────
@@ -440,5 +484,39 @@ export function publicCertConfirm(
   return publicPost<CertificateFile>(
     `/public/vendor-questionnaire/${encodeURIComponent(token)}/certificate-confirm`,
     { ...input, password },
+  );
+}
+
+export function publicNdaTemplateDownload(token: string, password?: string) {
+  return publicPost<{ downloadUrl: string; expiresInSeconds: number }>(
+    `/public/vendor-questionnaire/${encodeURIComponent(token)}/nda-template-download`,
+    { password },
+  );
+}
+
+export function publicSignedNdaUploadUrl(
+  token: string,
+  input: { name: string; mimeType: string; sizeBytes: number },
+  password?: string,
+) {
+  return publicPost<{
+    fileId: string;
+    storageKey: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+  }>(
+    `/public/vendor-questionnaire/${encodeURIComponent(token)}/signed-nda-upload-url`,
+    { ...input, password },
+  );
+}
+
+export function publicSignedNdaConfirm(
+  token: string,
+  fileId: string,
+  password?: string,
+) {
+  return publicPost<{ fileId: string; uploaded: boolean }>(
+    `/public/vendor-questionnaire/${encodeURIComponent(token)}/signed-nda-confirm`,
+    { fileId, password },
   );
 }

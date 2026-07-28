@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -21,6 +22,7 @@ import {
   CreateAuditDto,
   CreateInviteDto,
   CreateSupplierDto,
+  OverrideClassificationDto,
   PublicCertConfirmDto,
   PublicCertUploadUrlDto,
   PublicQuestionnaireSaveDto,
@@ -147,5 +149,35 @@ export class SupplierController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.createAudit(id, dto, user);
+  }
+
+  // ── Classification override (SUPER_ADMIN only) ─────────────────────
+  @Patch(':id/audits/:auditId/classification-override')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Override an audit classification, forcing supplier status regardless of score (SUPER_ADMIN)',
+  })
+  overrideClassification(
+    @Param('id') id: string,
+    @Param('auditId') auditId: string,
+    @Body() dto: OverrideClassificationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.overrideAuditClassification(id, auditId, dto, user);
+  }
+
+  @Delete(':id/audits/:auditId/classification-override')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Clear a classification override, reverting to the computed classification (SUPER_ADMIN)',
+  })
+  clearClassificationOverride(
+    @Param('id') id: string,
+    @Param('auditId') auditId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.clearAuditClassificationOverride(id, auditId, user);
   }
 }

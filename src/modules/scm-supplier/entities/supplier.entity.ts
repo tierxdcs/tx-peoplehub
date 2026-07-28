@@ -22,6 +22,11 @@ export class SupplierEntity {
   @ApiProperty({ nullable: true }) contactPhone!: string | null;
   @ApiProperty({ nullable: true }) website!: string | null;
   @ApiProperty({ enum: SupplierStatus }) status!: SupplierStatus;
+  @ApiProperty({
+    description:
+      'True when `status` came from a SuperAdmin override, not the audit score',
+  })
+  statusOverridden!: boolean;
   @ApiProperty() createdById!: string;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
@@ -141,9 +146,31 @@ export class SupplierAuditEntity {
   totalScore!: number;
   @ApiProperty({
     enum: ['APPROVED_PREFERRED', 'APPROVED', 'CONDITIONALLY_APPROVED', 'NOT_APPROVED'],
+    description: 'Computed from totalScore (thresholds 90/80/70) — never hidden',
   })
   classification!: SupplierClassification;
   @ApiProperty() classificationLabel!: string;
+
+  // ── SuperAdmin classification override (null = none; use computed) ──
+  @ApiProperty({
+    nullable: true,
+    enum: ['APPROVED_PREFERRED', 'APPROVED', 'CONDITIONALLY_APPROVED', 'NOT_APPROVED'],
+    description: 'SuperAdmin-forced classification, independent of the score',
+  })
+  overrideClassification!: SupplierClassification | null;
+  @ApiProperty({ nullable: true }) overrideClassificationLabel!: string | null;
+  @ApiProperty({ nullable: true }) overrideReason!: string | null;
+  @ApiProperty({ nullable: true }) overriddenById!: string | null;
+  @ApiProperty({ nullable: true }) overriddenByName!: string | null;
+  @ApiProperty({ nullable: true }) overriddenAt!: string | null;
+  @ApiProperty({
+    enum: ['APPROVED_PREFERRED', 'APPROVED', 'CONDITIONALLY_APPROVED', 'NOT_APPROVED'],
+    description: 'override ?? computed — the classification actually in effect',
+  })
+  effectiveClassification!: SupplierClassification;
+  @ApiProperty() effectiveClassificationLabel!: string;
+  @ApiProperty({ description: 'Whether an override is currently in effect' })
+  isOverridden!: boolean;
 
   @ApiProperty({ nullable: true }) auditNotes!: string | null;
   @ApiProperty() createdAt!: string;

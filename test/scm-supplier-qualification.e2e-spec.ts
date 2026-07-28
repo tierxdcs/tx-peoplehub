@@ -610,6 +610,106 @@ describe('Supplier Qualification / SCM (e2e)', () => {
     expect(supplierAfter.annualTurnover).toBe('₹5 Cr');
   });
 
+  it('SuperAdmin classification override: propagates, is revertible, shows both, and is SuperAdmin-only', async () => {
+    // Supplier with a below-bar audit (69 → NOT_APPROVED).
+    const supplier = (
+      await request(app.getHttpServer())
+        .post('/suppliers')
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .send(supplierBody())
+        .expect(201)
+    ).body.data;
+    createdSupplierIds.push(supplier.id);
+    const qId = (
+      await request(app.getHttpServer())
+        .get(`/suppliers/${supplier.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data.questionnaires[0].id;
+    const audit = (
+      await request(app.getHttpServer())
+        .post(`/suppliers/${supplier.id}/audits`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ questionnaireId: qId, auditType: 'PHYSICAL', auditDate: '2026-07-20', ...scores(69) })
+        .expect(201)
+    ).body.data;
+    expect(audit.classification).toBe('NOT_APPROVED');
+
+    // Not a SuperAdmin → 403 (SCM manager and auditor cannot override).
+    await request(app.getHttpServer())
+      .patch(`/suppliers/${supplier.id}/audits/${audit.id}/classification-override`)
+      .set('Authorization', `Bearer ${scmManagerToken}`)
+      .send({ overrideClassification: 'APPROVED', reason: 'Risk accepted' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .patch(`/suppliers/${supplier.id}/audits/${audit.id}/classification-override`)
+      .set('Authorization', `Bearer ${auditorToken}`)
+      .send({ overrideClassification: 'APPROVED', reason: 'Risk accepted' })
+      .expect(403);
+
+    // Reason mandatory (empty → 400); a lifecycle status is not a valid target (400).
+    await request(app.getHttpServer())
+      .patch(`/suppliers/${supplier.id}/audits/${audit.id}/classification-override`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ overrideClassification: 'APPROVED', reason: '' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .patch(`/suppliers/${supplier.id}/audits/${audit.id}/classification-override`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ overrideClassification: 'UNDER_AUDIT', reason: 'Bad target' })
+      .expect(400);
+
+    // SuperAdmin overrides NOT_APPROVED → APPROVED. Both values are surfaced.
+    const overridden = (
+      await request(app.getHttpServer())
+        .patch(`/suppliers/${supplier.id}/audits/${audit.id}/classification-override`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ overrideClassification: 'APPROVED', reason: 'Sole qualified source; risk accepted.' })
+        .expect(200)
+    ).body.data;
+    expect(overridden.classification).toBe('NOT_APPROVED'); // computed, never deleted
+    expect(overridden.overrideClassification).toBe('APPROVED');
+    expect(overridden.effectiveClassification).toBe('APPROVED');
+    expect(overridden.isOverridden).toBe(true);
+    expect(overridden.overriddenByName).toBeTruthy();
+    expect(overridden.overriddenAt).toBeTruthy();
+
+    // Propagates to the master status + statusOverridden flag.
+    const afterOverride = (
+      await request(app.getHttpServer())
+        .get(`/suppliers/${supplier.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data;
+    expect(afterOverride.status).toBe('APPROVED');
+    expect(afterOverride.statusOverridden).toBe(true);
+
+    // Clearing reverts to the computed classification + status.
+    const cleared = (
+      await request(app.getHttpServer())
+        .delete(`/suppliers/${supplier.id}/audits/${audit.id}/classification-override`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200)
+    ).body.data;
+    expect(cleared.isOverridden).toBe(false);
+    expect(cleared.overrideClassification).toBeNull();
+    expect(cleared.effectiveClassification).toBe('NOT_APPROVED');
+    const afterClear = (
+      await request(app.getHttpServer())
+        .get(`/suppliers/${supplier.id}`)
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .expect(200)
+    ).body.data;
+    expect(afterClear.status).toBe('NOT_APPROVED');
+    expect(afterClear.statusOverridden).toBe(false);
+
+    // Clearing is SuperAdmin-only too.
+    await request(app.getHttpServer())
+      .delete(`/suppliers/${supplier.id}/audits/${audit.id}/classification-override`)
+      .set('Authorization', `Bearer ${scmManagerToken}`)
+      .expect(403);
+  });
+
   function supplierBody() {
     return {
       companyName: `Raw Materials Co ${Math.floor(performance.now())}`,

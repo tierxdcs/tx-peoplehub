@@ -505,6 +505,7 @@ export default function RfqDetailPage() {
                     {availablePartners.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.companyName} — {humanizeEnum(p.status)}
+                        {p.statusOverridden ? ' (manually overridden)' : ''}
                         {isQualifiedStatus(p.status) ? '' : ' ⚠'}
                       </option>
                     ))}
