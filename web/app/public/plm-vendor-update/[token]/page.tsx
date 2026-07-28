@@ -2,20 +2,18 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { Check } from 'lucide-react';
 import { uploadToPresignedUrl } from '../../../lib/vault-api';
 import {
   createPlmPhotoUploadUrl,
+  PLM_PRODUCTION_STEPS,
   PlmPublicView,
   resolvePlmVendorUpdate,
   submitPlmVendorUpdate,
   submitPlmVendorComment,
 } from '../../../lib/plm-public';
 
-const stages = [
-  ['Fabrication', 'fabrication'] as const,
-  ['Surface finish', 'surfaceFinish'] as const,
-  ['Assembly', 'assembly'] as const,
-];
+const TOTAL_STEPS = PLM_PRODUCTION_STEPS.length;
 
 function relativeTime(iso: string | null) {
   if (!iso) return 'No update submitted yet';
@@ -33,11 +31,7 @@ export default function PlmVendorUpdatePage() {
   const { token } = useParams<{ token: string }>();
   const [password, setPassword] = useState('');
   const [view, setView] = useState<PlmPublicView | null>(null);
-  const [values, setValues] = useState({
-    fabrication: 0,
-    surfaceFinish: 0,
-    assembly: 0,
-  });
+  const [completedSteps, setCompletedSteps] = useState(0);
   const [notes, setNotes] = useState('');
   const [quickComment, setQuickComment] = useState('');
   const [mode, setMode] = useState<'FULL_PROGRESS' | 'COMMENT_ONLY'>('FULL_PROGRESS');
@@ -55,11 +49,14 @@ export default function PlmVendorUpdatePage() {
         (update) => update.updateType === 'FULL_PROGRESS',
       );
       if (latest) {
-        setValues({
-          fabrication: latest.fabricationPercent ?? 0,
-          surfaceFinish: latest.surfaceFinishPercent ?? 0,
-          assembly: latest.assemblyPercent ?? 0,
-        });
+        // Seed from the last reported step count so the vendor picks up where
+        // they left off. Fall back to deriving from a legacy percentage.
+        const seeded =
+          latest.completedSteps ??
+          (latest.fabricationPercent != null
+            ? Math.round((latest.fabricationPercent / 100) * TOTAL_STEPS)
+            : 0);
+        setCompletedSteps(Math.max(0, Math.min(TOTAL_STEPS, seeded)));
       }
       setMessage('');
     } else {
@@ -114,9 +111,7 @@ export default function PlmVendorUpdatePage() {
       }
       const result = await submitPlmVendorUpdate(token, {
         password: password || undefined,
-        fabricationPercent: values.fabrication,
-        surfaceFinishPercent: values.surfaceFinish,
-        assemblyPercent: values.assembly,
+        completedSteps,
         notes: notes.trim() || undefined,
         photos,
       });
@@ -208,24 +203,78 @@ export default function PlmVendorUpdatePage() {
 
             {mode === 'FULL_PROGRESS' ? (
             <form onSubmit={submit} className="space-y-5 rounded-xl border bg-white p-5 shadow-sm">
-              {stages.map(([label, key]) => (
-                <label key={key} className="block">
-                  <span className="flex justify-between text-sm font-medium">
-                    <span>{label}</span><span>{values[key]}%</span>
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Production progress</span>
+                  <span className="text-sm font-semibold text-blue-700">
+                    {completedSteps}/{TOTAL_STEPS} steps ·{' '}
+                    {Math.round((completedSteps / TOTAL_STEPS) * 100)}%
                   </span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="5"
-                    value={values[key]}
-                    onChange={(event) =>
-                      setValues((current) => ({ ...current, [key]: Number(event.target.value) }))
-                    }
-                    className="mt-2 h-11 w-full"
+                </div>
+                {/* Derived progress bar. */}
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-green-500 transition-all"
+                    style={{ width: `${(completedSteps / TOTAL_STEPS) * 100}%` }}
                   />
-                </label>
-              ))}
+                </div>
+
+                {/* Sequential routing: tap a step to mark it (and everything
+                    before it) complete; tap the last completed step to undo. */}
+                <ol className="mt-4 space-y-2">
+                  {PLM_PRODUCTION_STEPS.map((step, index) => {
+                    const done = index < completedSteps;
+                    const current = index === completedSteps;
+                    return (
+                      <li key={step}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            // Tapping the last completed step steps back one;
+                            // otherwise advance to include this step.
+                            setCompletedSteps(
+                              done && index === completedSteps - 1
+                                ? index
+                                : index + 1,
+                            )
+                          }
+                          aria-pressed={done}
+                          className={`flex min-h-11 w-full items-center gap-3 rounded-lg border px-3 text-left text-sm transition-colors ${
+                            done
+                              ? 'border-green-500 bg-green-50 text-green-900'
+                              : current
+                                ? 'border-blue-500 bg-blue-50 text-blue-900'
+                                : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          <span
+                            className={`flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
+                              done
+                                ? 'border-green-500 bg-green-500 text-white'
+                                : current
+                                  ? 'border-blue-500 text-blue-600'
+                                  : 'border-slate-300 text-slate-400'
+                            }`}
+                          >
+                            {done ? <Check className="size-4" /> : index + 1}
+                          </span>
+                          <span className="font-medium">{step}</span>
+                          {current && (
+                            <span className="ml-auto text-xs font-medium text-blue-600">
+                              In progress
+                            </span>
+                          )}
+                          {done && (
+                            <span className="ml-auto text-xs font-medium text-green-600">
+                              Done
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
 
               <label className="block text-sm font-medium">
                 Notes
@@ -306,11 +355,26 @@ export default function PlmVendorUpdatePage() {
                         {update.reporterType === 'INTERNAL_AUDITOR_VISIT' ? ' · Internal auditor visit' : ''}
                       </p>
                       {update.updateType === 'FULL_PROGRESS' && (
-                        <div className="mt-2 flex flex-wrap gap-3 text-xs">
-                          <span>Fabrication {update.fabricationPercent}%</span>
-                          <span>Surface finish {update.surfaceFinishPercent}%</span>
-                          <span>Assembly {update.assemblyPercent}%</span>
-                        </div>
+                        update.completedSteps != null ? (
+                          <div className="mt-2 text-xs text-slate-600">
+                            {PLM_PRODUCTION_STEPS[update.completedSteps - 1] ??
+                              'Not started'}
+                            {update.completedSteps > 0 &&
+                              update.completedSteps < TOTAL_STEPS &&
+                              ` → ${PLM_PRODUCTION_STEPS[update.completedSteps]}`}
+                            <span className="ml-2 font-medium text-slate-800">
+                              {update.completedSteps}/{TOTAL_STEPS} ·{' '}
+                              {update.percentComplete ?? 0}%
+                            </span>
+                          </div>
+                        ) : (
+                          // Legacy free-form update recorded before step tracking.
+                          <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                            <span>Fabrication {update.fabricationPercent}%</span>
+                            <span>Surface finish {update.surfaceFinishPercent}%</span>
+                            <span>Assembly {update.assemblyPercent}%</span>
+                          </div>
+                        )
                       )}
                       {update.notes && <p className="mt-2 text-sm">{update.notes}</p>}
                     </article>

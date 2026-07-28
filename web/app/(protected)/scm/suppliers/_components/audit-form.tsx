@@ -24,6 +24,7 @@ import { Select } from '../../../../components/ui/select';
 import { Textarea } from '../../../../components/ui/textarea';
 import { Button } from '../../../../components/ui/button';
 import { Badge } from '../../../../components/ui/badge';
+import { InfoHint } from '../../../../components/ui/info-hint';
 
 type ScoreKey = (typeof AUDIT_CATEGORIES)[number]['key'];
 
@@ -151,7 +152,12 @@ export function AuditForm({
               <tbody>
                 {AUDIT_CATEGORIES.map((c) => (
                   <tr key={c.key} className="border-b last:border-0">
-                    <td className="p-2">{c.label}</td>
+                    <td className="p-2">
+                      <span className="inline-flex items-center gap-1.5">
+                        {c.label}
+                        <InfoHint label={c.label} text={c.description} />
+                      </span>
+                    </td>
                     <td className="p-2 text-center text-muted-foreground">{c.max}</td>
                     <td className="p-2 text-center">
                       <Input

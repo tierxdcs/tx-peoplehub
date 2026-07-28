@@ -1,10 +1,32 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
+/**
+ * Fixed sheet-metal fabrication routing — mirrors PLM_PRODUCTION_STEPS on the
+ * backend. A progress update stores completedSteps = how many are done (in
+ * order); percentComplete is derived as completedSteps / PLM_PRODUCTION_STEPS.length.
+ */
+export const PLM_PRODUCTION_STEPS = [
+  'Material',
+  'Cut',
+  'Punch',
+  'Bend',
+  'Weld',
+  'Coat',
+  'Assemble',
+  'QC',
+  'Pack',
+] as const;
+
 export interface PlmPublicUpdate {
   id: string;
   updateType: 'FULL_PROGRESS' | 'COMMENT_ONLY';
   reporterType: 'VENDOR_SELF_REPORT' | 'INTERNAL_AUDITOR_VISIT';
   reporterDisplayName: string;
+  /** Count of completed routing steps (0..9); null for comment-only updates. */
+  completedSteps: number | null;
+  /** Server-derived percent from completedSteps; null for comment-only. */
+  percentComplete: number | null;
+  /** Legacy free-form percentages — present only on historical updates. */
   fabricationPercent: number | null;
   surfaceFinishPercent: number | null;
   assemblyPercent: number | null;
@@ -65,9 +87,7 @@ export const submitPlmVendorUpdate = (
   token: string,
   body: {
     password?: string;
-    fabricationPercent: number;
-    surfaceFinishPercent: number;
-    assemblyPercent: number;
+    completedSteps: number;
     notes?: string;
     photos?: Array<{ storageKey: string; fileName: string }>;
   },

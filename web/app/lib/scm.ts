@@ -245,17 +245,79 @@ export const AUDIT_CATEGORIES: {
   key: keyof CreateAuditInput;
   label: string;
   max: number;
+  /** Plain-language explanation shown behind the category's info button. */
+  description: string;
 }[] = [
-  { key: 'manufacturingCapabilityScore', label: 'Manufacturing Capability', max: 20 },
-  { key: 'capacityScore', label: 'Capacity', max: 10 },
-  { key: 'qualitySystemScore', label: 'Quality System', max: 20 },
-  { key: 'engineeringScore', label: 'Engineering', max: 10 },
-  { key: 'financialStabilityScore', label: 'Financial Stability', max: 5 },
-  { key: 'supplyChainScore', label: 'Supply Chain', max: 10 },
-  { key: 'exportReadinessScore', label: 'Export Readiness', max: 10 },
-  { key: 'sustainabilityScore', label: 'Sustainability', max: 5 },
-  { key: 'ehsScore', label: 'EHS', max: 5 },
-  { key: 'customerReferencesScore', label: 'Customer References', max: 5 },
+  {
+    key: 'manufacturingCapabilityScore',
+    label: 'Manufacturing Capability',
+    max: 20,
+    description:
+      'Machinery, tooling, processes and technical know-how to make the required parts to spec — and the maturity of those manufacturing processes.',
+  },
+  {
+    key: 'capacityScore',
+    label: 'Capacity',
+    max: 10,
+    description:
+      'Available production volume and headroom to meet our order quantities and lead times without straining other commitments.',
+  },
+  {
+    key: 'qualitySystemScore',
+    label: 'Quality System',
+    max: 20,
+    description:
+      'Maturity of the quality management system — certifications (e.g. ISO 9001), inspection, traceability, non-conformance handling and continuous improvement.',
+  },
+  {
+    key: 'engineeringScore',
+    label: 'Engineering',
+    max: 10,
+    description:
+      'Design, R&D and technical problem-solving strength — ability to support drawings, prototyping, DFM feedback and engineering changes.',
+  },
+  {
+    key: 'financialStabilityScore',
+    label: 'Financial Stability',
+    max: 5,
+    description:
+      'Financial health and solvency — turnover, profitability and creditworthiness that signal the vendor can sustain supply over the long term.',
+  },
+  {
+    key: 'supplyChainScore',
+    label: 'Supply Chain',
+    max: 10,
+    description:
+      'Robustness of the vendor’s own sourcing and logistics — sub-supplier management, raw-material availability and on-time delivery reliability.',
+  },
+  {
+    key: 'exportReadinessScore',
+    label: 'Export Readiness',
+    max: 10,
+    description:
+      'Ability to handle international trade — export documentation, compliance, packaging for transit and experience shipping to our regions.',
+  },
+  {
+    key: 'sustainabilityScore',
+    label: 'Sustainability',
+    max: 5,
+    description:
+      'Environmental and social responsibility — energy/waste practices, responsible sourcing and progress toward ESG commitments.',
+  },
+  {
+    key: 'ehsScore',
+    label: 'EHS',
+    max: 5,
+    description:
+      'Environment, Health & Safety — workplace safety record, EHS policies, statutory compliance and incident management on the shop floor.',
+  },
+  {
+    key: 'customerReferencesScore',
+    label: 'Customer References',
+    max: 5,
+    description:
+      'Track record with other customers — verifiable references, reputation and demonstrated performance on comparable supply relationships.',
+  },
 ];
 
 /** Live classification preview — identical thresholds to the backend (90/80/70). */

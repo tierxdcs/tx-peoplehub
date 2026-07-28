@@ -8,7 +8,10 @@ import { VaultAccessService } from './vault-access.service';
 describe('VaultAccessService', () => {
   let service: VaultAccessService;
   let employees: { getTeamIds: jest.Mock };
-  let prisma: { vaultInternalShare: { findUnique: jest.Mock } };
+  let prisma: {
+    vaultInternalShare: { findUnique: jest.Mock };
+    vaultFolder: { findUnique: jest.Mock };
+  };
 
   const owner: AuthenticatedUser = {
     id: 'owner-1',
@@ -56,9 +59,11 @@ describe('VaultAccessService', () => {
 
   beforeEach(async () => {
     employees = { getTeamIds: jest.fn().mockResolvedValue([]) };
-    // Default: no internal share exists (so scope/grant tests are unaffected).
+    // Default: no internal share exists (so scope/grant tests are unaffected),
+    // and no ancestor folder resolves (root-folder tests never inherit).
     prisma = {
       vaultInternalShare: { findUnique: jest.fn().mockResolvedValue(null) },
+      vaultFolder: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -302,6 +307,127 @@ describe('VaultAccessService', () => {
       // Folder write survives the VIEW-only file share (union, not override).
       expect(access.canRead).toBe(true);
       expect(access.canWrite).toBe(true);
+    });
+  });
+
+  describe('ancestor inheritance — a parent grant/share carries down to children', () => {
+    it('an EDIT internal share on the PARENT gives the child edit access', async () => {
+      // Child is PRIVATE and owned by someone else → no access on its own.
+      const child = folder({
+        id: 'child-1',
+        parentFolderId: 'parent-1',
+        visibilityScope: 'PRIVATE',
+        ownerId: 'someone-else',
+      });
+      // The parent is the shared folder; walking up finds it, then stops (root).
+      prisma.vaultFolder.findUnique.mockResolvedValue({
+        id: 'parent-1',
+        parentFolderId: null,
+        permissions: [],
+      });
+      prisma.vaultInternalShare.findUnique.mockImplementation((args: any) => {
+        const id =
+          args.where.resourceType_resourceId_sharedWithEmployeeId.resourceId;
+        // The share is on the PARENT, not the child.
+        return Promise.resolve(id === 'parent-1' ? { permission: 'EDIT' } : null);
+      });
+
+      const access = await service.computeAccess(outsider, child);
+      expect(access.canRead).toBe(true);
+      expect(access.canWrite).toBe(true); // inherited EDIT
+      expect(access.canDelete).toBe(false); // shares never grant delete
+    });
+
+    it('an explicit grant on the PARENT carries down to the child', async () => {
+      const child = folder({
+        id: 'child-1',
+        parentFolderId: 'parent-1',
+        visibilityScope: 'PRIVATE',
+        ownerId: 'someone-else',
+      });
+      prisma.vaultFolder.findUnique.mockResolvedValue({
+        id: 'parent-1',
+        parentFolderId: null,
+        permissions: [
+          {
+            granteeType: 'EMPLOYEE',
+            granteeId: 'outsider-1',
+            canRead: true,
+            canWrite: true,
+            canDelete: false,
+            canCreateSubfolder: false,
+          },
+        ],
+      });
+
+      const access = await service.computeAccess(outsider, child);
+      expect(access.canRead).toBe(true);
+      expect(access.canWrite).toBe(true);
+    });
+
+    it('inherits from a GRANDPARENT by walking the whole chain', async () => {
+      const child = folder({
+        id: 'child-1',
+        parentFolderId: 'parent-1',
+        visibilityScope: 'PRIVATE',
+        ownerId: 'someone-else',
+      });
+      // parent-1 has nothing; grandparent-1 holds the grant.
+      prisma.vaultFolder.findUnique.mockImplementation((args: any) => {
+        if (args.where.id === 'parent-1') {
+          return Promise.resolve({
+            id: 'parent-1',
+            parentFolderId: 'grandparent-1',
+            permissions: [],
+          });
+        }
+        if (args.where.id === 'grandparent-1') {
+          return Promise.resolve({
+            id: 'grandparent-1',
+            parentFolderId: null,
+            permissions: [
+              {
+                granteeType: 'EMPLOYEE',
+                granteeId: 'outsider-1',
+                canRead: true,
+                canWrite: false,
+                canDelete: false,
+                canCreateSubfolder: false,
+              },
+            ],
+          });
+        }
+        return Promise.resolve(null);
+      });
+
+      const access = await service.computeAccess(outsider, child);
+      expect(access.canRead).toBe(true);
+      expect(access.canWrite).toBe(false);
+    });
+
+    it('does NOT inherit a parent scope — a PRIVATE child stays private', async () => {
+      // Parent is COMPANY_WIDE (everyone reads) but has no explicit grant/share
+      // for the outsider. Scope must NOT inherit, so the child stays closed.
+      const child = folder({
+        id: 'child-1',
+        parentFolderId: 'parent-1',
+        visibilityScope: 'PRIVATE',
+        ownerId: 'someone-else',
+      });
+      prisma.vaultFolder.findUnique.mockResolvedValue({
+        id: 'parent-1',
+        parentFolderId: null,
+        visibilityScope: 'COMPANY_WIDE',
+        permissions: [],
+      });
+
+      const access = await service.computeAccess(outsider, child);
+      expect(access.canRead).toBe(false);
+    });
+
+    it('a root folder never triggers an ancestor lookup', async () => {
+      await service.computeAccess(outsider, folder({ parentFolderId: null }));
+      expect(prisma.vaultFolder.findUnique).not.toHaveBeenCalled();
     });
   });
 });

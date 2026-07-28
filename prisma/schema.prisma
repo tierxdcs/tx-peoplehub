@@ -2821,6 +2821,11 @@ model PlmProductionUpdate {
   internalReporter     Employee?                  @relation("PlmUpdateInternalReporter", fields: [internalReporterId], references: [id], onDelete: SetNull)
   reporterDisplayName  String
   updateType           PlmVendorUpdateType        @default(FULL_PROGRESS)
+  // Sequential fabrication routing progress: count of completed steps
+  // (0..PLM_PRODUCTION_STEPS.length). The progress bar is derived from this.
+  completedSteps       Int?
+  // Legacy free-form progress (superseded by completedSteps). Retained nullable
+  // so historical vendor updates still render; new updates leave these null.
   fabricationPercent   Int?
   surfaceFinishPercent Int?
   assemblyPercent      Int?

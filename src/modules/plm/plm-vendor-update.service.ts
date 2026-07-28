@@ -32,6 +32,7 @@ import {
 import { PlmAccessService } from './plm-access.service';
 import { KanbanNotificationsService } from '../notifications/kanban-notifications.service';
 import { deriveVendorCadence } from './plm-vendor-cadence';
+import { stepsToPercent } from './plm-production-steps';
 
 @Injectable()
 export class PlmVendorUpdateService {
@@ -286,6 +287,7 @@ export class PlmVendorUpdateService {
         mimeType: head.contentType,
       });
     }
+    const completedSteps = progressDto?.completedSteps ?? null;
     return this.prisma.$transaction(async (tx) => {
       const update = await tx.plmProductionUpdate.create({
         data: {
@@ -294,9 +296,7 @@ export class PlmVendorUpdateService {
           updateType,
           internalReporterId,
           reporterDisplayName,
-          fabricationPercent: progressDto?.fabricationPercent ?? null,
-          surfaceFinishPercent: progressDto?.surfaceFinishPercent ?? null,
-          assemblyPercent: progressDto?.assemblyPercent ?? null,
+          completedSteps,
           notes: dto.notes?.trim() || null,
           photos: { create: photos },
         },
@@ -313,9 +313,9 @@ export class PlmVendorUpdateService {
             reporterType,
             updateType,
             reporterDisplayName,
-            fabricationPercent: progressDto?.fabricationPercent ?? null,
-            surfaceFinishPercent: progressDto?.surfaceFinishPercent ?? null,
-            assemblyPercent: progressDto?.assemblyPercent ?? null,
+            completedSteps,
+            percentComplete:
+              completedSteps === null ? null : stepsToPercent(completedSteps),
           },
         },
       });
@@ -362,6 +362,11 @@ export class PlmVendorUpdateService {
     const publicUpdates = await Promise.all(
       updates.map(async (update) => ({
         ...update,
+        // Derived so the UI never recomputes the routing weighting itself.
+        percentComplete:
+          update.completedSteps === null
+            ? null
+            : stepsToPercent(update.completedSteps),
         photos: await Promise.all(
           update.photos.map(async (photo) => ({
             id: photo.id,

@@ -68,10 +68,8 @@ describe('PlmVendorUpdateService', () => {
   it('records a vendor self-report with vendor provenance and no internal actor', async () => {
     const { service, tx, notifications } = setup();
     await service.submitPublic('token', {
-      fabricationPercent: 80,
-      surfaceFinishPercent: 40,
-      assemblyPercent: 10,
-      notes: 'Fabrication nearly complete',
+      completedSteps: 5,
+      notes: 'Welding complete, moving to coating',
     });
 
     expect(tx.plmProductionUpdate.create).toHaveBeenCalledWith(
@@ -81,6 +79,7 @@ describe('PlmVendorUpdateService', () => {
           updateType: PlmVendorUpdateType.FULL_PROGRESS,
           reporterDisplayName: 'Balaji MetalTech',
           internalReporterId: null,
+          completedSteps: 5,
         }),
       }),
     );
@@ -107,9 +106,7 @@ describe('PlmVendorUpdateService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           updateType: PlmVendorUpdateType.COMMENT_ONLY,
-          fabricationPercent: null,
-          surfaceFinishPercent: null,
-          assemblyPercent: null,
+          completedSteps: null,
           notes: 'Material received; welding resumes tomorrow.',
         }),
       }),
@@ -124,9 +121,7 @@ describe('PlmVendorUpdateService', () => {
     });
     await expect(
       service.submitPublic('token', {
-        fabricationPercent: 10,
-        surfaceFinishPercent: 0,
-        assemblyPercent: 0,
+        completedSteps: 1,
         photos: [
           {
             storageKey: 'plm/tracker-1/updates/photo',
@@ -148,9 +143,7 @@ describe('PlmVendorUpdateService', () => {
       service.submitInternal(
         tracker.id,
         {
-          fabricationPercent: 10,
-          surfaceFinishPercent: 0,
-          assemblyPercent: 0,
+          completedSteps: 1,
         },
         {
           id: 'auditor-1',

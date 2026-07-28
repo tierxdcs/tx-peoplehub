@@ -290,13 +290,51 @@ export const AUDIT_CATEGORIES: {
   key: keyof CreateAuditInput;
   label: string;
   max: number;
+  /** Plain-language explanation shown behind the category's info button. */
+  description: string;
 }[] = [
-  { key: 'materialCertificationsQualityScore', label: 'Material Certifications & Quality', max: 30 },
-  { key: 'complianceScore', label: 'Compliance', max: 15 },
-  { key: 'commercialTermsScore', label: 'Commercial Terms', max: 20 },
-  { key: 'logisticsDeliveryScore', label: 'Logistics & Delivery', max: 15 },
-  { key: 'financialStabilityScore', label: 'Financial Stability', max: 10 },
-  { key: 'referencesScore', label: 'References', max: 10 },
+  {
+    key: 'materialCertificationsQualityScore',
+    label: 'Material Certifications & Quality',
+    max: 30,
+    description:
+      'Material test certificates, mill/compliance certs and overall quality of supplied material — conformance to spec, traceability and consistency across lots.',
+  },
+  {
+    key: 'complianceScore',
+    label: 'Compliance',
+    max: 15,
+    description:
+      'Adherence to statutory, regulatory and contractual requirements — licences, certifications and documentation kept valid and up to date.',
+  },
+  {
+    key: 'commercialTermsScore',
+    label: 'Commercial Terms',
+    max: 20,
+    description:
+      'Competitiveness and clarity of pricing, payment terms, warranties and overall commercial value offered.',
+  },
+  {
+    key: 'logisticsDeliveryScore',
+    label: 'Logistics & Delivery',
+    max: 15,
+    description:
+      'On-time delivery performance, packaging, dispatch reliability and ability to meet required lead times and quantities.',
+  },
+  {
+    key: 'financialStabilityScore',
+    label: 'Financial Stability',
+    max: 10,
+    description:
+      'Financial health and solvency — turnover, profitability and creditworthiness that signal the supplier can sustain supply over the long term.',
+  },
+  {
+    key: 'referencesScore',
+    label: 'References',
+    max: 10,
+    description:
+      'Track record with other customers — verifiable references, reputation and demonstrated performance on comparable supply relationships.',
+  },
 ];
 
 /** Live classification preview — identical thresholds to the backend (90/80/70). */

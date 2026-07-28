@@ -12,6 +12,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+import { PLM_PRODUCTION_STEP_COUNT } from '../plm-production-steps';
 
 export class PlmTransitionDto {
   @ApiPropertyOptional()
@@ -52,9 +53,13 @@ export class PlmUpdatePhotoDto {
 
 export class PlmProductionUpdateDto {
   @IsOptional() @IsString() password?: string;
-  @Type(() => Number) @IsInt() @Min(0) @Max(100) fabricationPercent!: number;
-  @Type(() => Number) @IsInt() @Min(0) @Max(100) surfaceFinishPercent!: number;
-  @Type(() => Number) @IsInt() @Min(0) @Max(100) assemblyPercent!: number;
+  // Sequential routing progress: number of completed fabrication steps (0..N).
+  // The reported progress percent is derived from this on the server.
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(PLM_PRODUCTION_STEP_COUNT)
+  completedSteps!: number;
   @IsOptional() @IsString() notes?: string;
   @IsOptional()
   @IsArray()

@@ -1,5 +1,22 @@
 import { apiFetch } from './api';
 
+/**
+ * Fixed sheet-metal fabrication routing reported during PRODUCTION — mirrors
+ * PLM_PRODUCTION_STEPS on the backend. A progress update's `completedSteps`
+ * counts how many are done (in order); percent = completedSteps / length.
+ */
+export const PLM_PRODUCTION_STEPS = [
+  'Material',
+  'Cut',
+  'Punch',
+  'Bend',
+  'Weld',
+  'Coat',
+  'Assemble',
+  'QC',
+  'Pack',
+] as const;
+
 export type PlmStage =
   | 'DESIGN'
   | 'DESIGN_REVIEW'
@@ -45,6 +62,9 @@ export interface PlmTracker {
     updateType: 'FULL_PROGRESS' | 'COMMENT_ONLY';
     reporterType: 'VENDOR_SELF_REPORT' | 'INTERNAL_AUDITOR_VISIT';
     reporterDisplayName: string;
+    /** Count of completed routing steps (0..9); null for comment-only / legacy. */
+    completedSteps: number | null;
+    /** Legacy free-form percentages — present only on historical updates. */
     fabricationPercent: number | null;
     surfaceFinishPercent: number | null;
     assemblyPercent: number | null;

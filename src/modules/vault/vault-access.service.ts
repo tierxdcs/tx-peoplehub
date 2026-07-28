@@ -48,6 +48,11 @@ function mergeAccess(a: VaultAccess, b: VaultAccess): VaultAccess {
   };
 }
 
+/** Already maximally permissive — no further union can add anything. */
+function isFullAccess(a: VaultAccess): boolean {
+  return a.canRead && a.canWrite && a.canDelete && a.canCreateSubfolder;
+}
+
 /** An internal share maps to read (VIEW) or read+write (EDIT); never delete/subfolder. */
 function shareAccess(permission: VaultSharePermission): VaultAccess {
   return {
@@ -65,6 +70,9 @@ function shareAccess(permission: VaultSharePermission): VaultAccess {
  *   2. explicit VaultFolderPermission grants (Phase 1)
  *   3. VaultInternalShare grants (Phase 3) — folder shares on a folder;
  *      file shares additionally on a file, ON TOP OF its folder's access.
+ *   4. inherited access from ANCESTOR folders — an explicit grant or internal
+ *      share assigned on a parent folder carries down to every descendant
+ *      (e.g. EDIT on a parent ⇒ EDIT on all child folders beneath it).
  * SUPER_ADMIN is a full override.
  *
  * TEAM scope resolves the owner's downstream hierarchy through
@@ -105,7 +113,57 @@ export class VaultAccessService {
       access,
       await this.shareAccessFor(user, VaultShareResourceType.FOLDER, folder.id),
     );
+
+    // Inherit explicit grants / internal shares assigned on any ANCESTOR
+    // folder: an EDIT (or grant) on a parent carries down to every descendant.
+    access = mergeAccess(access, await this.inheritedAccess(user, folder));
     return access;
+  }
+
+  /**
+   * Access inherited from a folder's ancestors: walk up the parentFolderId
+   * chain and union each ancestor's explicit grants AND internal shares. Only
+   * *assigned* access inherits — an ancestor's default scope does NOT, so a
+   * PRIVATE/TEAM child is never widened to a parent's whole scope; each folder
+   * still governs its own default visibility. Owner-only rights (delete /
+   * createSubfolder from scope) are not assignments and so never leak either.
+   *
+   * Short-circuits as soon as the running access is already full, so a deep
+   * tree stops walking the moment nothing more could be added.
+   */
+  private async inheritedAccess(
+    user: AuthenticatedUser,
+    folder: VaultFolder,
+  ): Promise<VaultAccess> {
+    let inherited = { ...NO_ACCESS };
+    let parentId = folder.parentFolderId;
+    // Guard against a pathological cycle in the self-relation.
+    const seen = new Set<string>([folder.id]);
+
+    while (parentId && !seen.has(parentId) && !isFullAccess(inherited)) {
+      seen.add(parentId);
+      const ancestor = await this.prisma.vaultFolder.findUnique({
+        where: { id: parentId },
+        include: { permissions: true },
+      });
+      if (!ancestor) {
+        break;
+      }
+      inherited = mergeAccess(
+        inherited,
+        this.grantAccess(user, ancestor.permissions),
+      );
+      inherited = mergeAccess(
+        inherited,
+        await this.shareAccessFor(
+          user,
+          VaultShareResourceType.FOLDER,
+          ancestor.id,
+        ),
+      );
+      parentId = ancestor.parentFolderId;
+    }
+    return inherited;
   }
 
   /**
