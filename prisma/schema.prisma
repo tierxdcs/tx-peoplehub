@@ -500,14 +500,16 @@ model Employee {
   kickoffRisksOwned       KickoffRisk[]       @relation("KickoffRiskOwner")
 
   // Vendor Qualification (SCM) back-relations.
-  vendorsCreated        Vendor[]                    @relation("VendorCreator")
-  vendorInvitesCreated  VendorQuestionnaireInvite[] @relation("VendorInviteCreator")
-  vendorAuditsConducted VendorAudit[]               @relation("VendorAuditor")
+  vendorsCreated          Vendor[]                    @relation("VendorCreator")
+  vendorInvitesCreated    VendorQuestionnaireInvite[] @relation("VendorInviteCreator")
+  vendorAuditsConducted   VendorAudit[]               @relation("VendorAuditor")
+  vendorAuditsOverridden  VendorAudit[]               @relation("VendorAuditOverrider")
 
   // Supplier Qualification (SCM raw-materials) back-relations.
-  suppliersCreated        Supplier[]                    @relation("SupplierCreator")
-  supplierInvitesCreated  SupplierQuestionnaireInvite[] @relation("SupplierInviteCreator")
-  supplierAuditsConducted SupplierAudit[]               @relation("SupplierAuditor")
+  suppliersCreated         Supplier[]                    @relation("SupplierCreator")
+  supplierInvitesCreated   SupplierQuestionnaireInvite[] @relation("SupplierInviteCreator")
+  supplierAuditsConducted  SupplierAudit[]               @relation("SupplierAuditor")
+  supplierAuditsOverridden SupplierAudit[]               @relation("SupplierAuditOverrider")
 
   // BOM / Item Master / Inventory back-relations.
   bomsCreated       Bom[]              @relation("BomCreator")
@@ -2938,6 +2940,11 @@ model Vendor {
   contactPhone             String?
   website                  String?
   status                   VendorStatus             @default(PENDING_QUESTIONNAIRE)
+  /// True when `status` came from a SuperAdmin classification override rather
+  /// than the computed audit score. Denormalized from the latest audit so
+  /// every list/picker that already reads `status` can show the indicator
+  /// without joining audits. See VendorAudit.overrideClassification.
+  statusOverridden         Boolean                  @default(false)
   createdById              String
   createdBy                Employee                 @relation("VendorCreator", fields: [createdById], references: [id], onDelete: Restrict)
   questionnaires           VendorQuestionnaire[]
@@ -3022,6 +3029,12 @@ model VendorQuestionnaireInvite {
 /// Internal audit of a specific questionnaire revision. totalScore and
 /// classification are COMPUTED on read from the 10 weighted scores (sum=100) —
 /// never stored. Finalizing sets Vendor.status to the classification.
+///
+/// A SUPER_ADMIN may OVERRIDE the computed classification (e.g. approve a
+/// short-scoring vendor whose risk is judged acceptable). The override is
+/// stored ALONGSIDE the scores — the computed classification is never deleted;
+/// both remain retrievable. When set, the override propagates to Vendor.status
+/// (the value every downstream gate reads). Clearing it reverts to computed.
 model VendorAudit {
   id              String              @id @default(uuid())
   vendorId        String
@@ -3046,6 +3059,14 @@ model VendorAudit {
   customerReferencesScore      Decimal @db.Decimal(5, 2)
 
   auditNotes String? @db.Text
+
+  // SuperAdmin classification override (null = use the computed classification).
+  // overrideClassification reuses the four terminal VendorStatus values.
+  overrideClassification VendorStatus?
+  overrideReason         String?       @db.Text
+  overriddenById         String?
+  overriddenBy           Employee?     @relation("VendorAuditOverrider", fields: [overriddenById], references: [id], onDelete: SetNull)
+  overriddenAt           DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3109,6 +3130,11 @@ model Supplier {
   contactPhone             String?
   website                  String?
   status                   SupplierStatus           @default(PENDING_QUESTIONNAIRE)
+  /// True when `status` came from a SuperAdmin classification override rather
+  /// than the computed audit score. Denormalized from the latest audit so
+  /// every list/picker that already reads `status` can show the indicator
+  /// without joining audits. See SupplierAudit.overrideClassification.
+  statusOverridden         Boolean                  @default(false)
   createdById              String
   createdBy                Employee                 @relation("SupplierCreator", fields: [createdById], references: [id], onDelete: Restrict)
   questionnaires           SupplierQuestionnaire[]
@@ -3182,6 +3208,10 @@ model SupplierQuestionnaireInvite {
 
 /// Internal audit of a questionnaire revision. Six weighted scores summing to
 /// 100; totalScore + classification computed on read (thresholds 90/80/70).
+///
+/// A SUPER_ADMIN may OVERRIDE the computed classification (mirrors VendorAudit):
+/// stored alongside the scores, the computed value is never deleted, and the
+/// override propagates to Supplier.status. Clearing reverts to computed.
 model SupplierAudit {
   id              String                @id @default(uuid())
   supplierId      String
@@ -3202,6 +3232,14 @@ model SupplierAudit {
   referencesScore                    Decimal @db.Decimal(5, 2)
 
   auditNotes String? @db.Text
+
+  // SuperAdmin classification override (null = use the computed classification).
+  // overrideClassification reuses the four terminal SupplierStatus values.
+  overrideClassification SupplierStatus?
+  overrideReason         String?         @db.Text
+  overriddenById         String?
+  overriddenBy           Employee?       @relation("SupplierAuditOverrider", fields: [overriddenById], references: [id], onDelete: SetNull)
+  overriddenAt           DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

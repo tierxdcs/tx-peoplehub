@@ -292,7 +292,13 @@ export class CustomerOrderProgressService {
                 currentStage: true,
                 flowType: true,
                 createdAt: true,
-                kickoff: { select: { meetingDate: true } },
+                kickoff: {
+                  select: { meetingDate: true, status: true },
+                },
+                events: {
+                  orderBy: { createdAt: 'asc' },
+                  select: { toStage: true, createdAt: true },
+                },
                 productionCards: {
                   where: { status: 'ACTIVE' },
                   select: { list: { select: { isDoneList: true } } },
@@ -311,11 +317,14 @@ export class CustomerOrderProgressService {
       const tracker = line.plmTracker;
       // Each line mirrors its own PLM flow (NPD = 9 stages, standard = 6).
       const stageSeq = stagesForFlow(tracker?.flowType);
+      const kickoffCompleted = tracker?.kickoff.status === 'COMPLETED';
       const delivered = signoffSubmitted || line.deliveryChallanLines.length > 0;
       const trackedIndex = tracker ? stageSeq.indexOf(tracker.currentStage) : -1;
       const currentIndex = delivered
-        ? stageSeq.length - 1
-        : Math.max(0, trackedIndex);
+        ? stageSeq.length
+        : kickoffCompleted
+          ? Math.max(1, trackedIndex + 1)
+          : 0;
       const start = tracker?.kickoff.meetingDate ?? tracker?.createdAt ?? null;
       const totalDays =
         start && promised
@@ -327,13 +336,28 @@ export class CustomerOrderProgressService {
       const toStage = (stage: PlmStage) => ({
         key: stage,
         label: PLM_STAGE_LABEL[stage],
+        changedAt:
+          tracker?.events
+            .filter((event) => event.toStage === stage)
+            .at(-1)
+            ?.createdAt.toISOString() ?? null,
       });
+      const publicStages = [
+        {
+          key: 'PROJECT_KICKOFF',
+          label: 'Project Kickoff',
+          changedAt: kickoffCompleted
+            ? tracker.kickoff.meetingDate.toISOString()
+            : null,
+        },
+        ...stageSeq.map(toStage),
+      ];
       return {
         lineId: line.id,
         productName: line.product.name,
-        currentStage: toStage(stageSeq[currentIndex]),
-        stages: stageSeq.map((stage, index) => ({
-          ...toStage(stage),
+        currentStage: publicStages[currentIndex],
+        stages: publicStages.map((stage, index) => ({
+          ...stage,
           state:
             index < currentIndex
               ? ('DONE' as const)

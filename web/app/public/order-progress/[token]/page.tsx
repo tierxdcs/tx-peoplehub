@@ -56,14 +56,31 @@ function StageTimeline({
 }: {
   stages: CustomerOrderProgress['lines'][number]['stages'];
 }) {
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const selected = stages.find((stage) => stage.key === selectedKey) ?? null;
+  const statusLabel = selected
+    ? selected.state === 'DONE'
+      ? 'Completed'
+      : selected.state === 'CURRENT'
+        ? 'Current stage'
+        : 'Upcoming'
+    : null;
+
   return (
-    <div className="overflow-x-auto pb-2">
-      <div className="flex min-w-[720px] items-start">
-        {stages.map((stage, index) => (
-          <div key={stage.key} className="flex min-w-0 flex-1 items-start">
-            <div className="flex min-w-24 flex-col items-center text-center">
+    <div>
+      <div className="overflow-x-auto pb-2">
+        <div className="flex min-w-[840px] items-start">
+          {stages.map((stage, index) => (
+            <div key={stage.key} className="flex min-w-0 flex-1 items-start">
+              <button
+                type="button"
+                onClick={() => setSelectedKey(stage.key)}
+                aria-pressed={selectedKey === stage.key}
+                aria-label={`View ${stage.label} status`}
+                className="group flex min-w-24 flex-col items-center rounded-lg px-1 pb-2 text-center outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-600"
+              >
               <div
-                className={`flex size-9 items-center justify-center rounded-full border-2 ${
+                className={`flex size-9 items-center justify-center rounded-full border-2 transition group-hover:scale-105 ${
                   stage.state === 'DONE'
                     ? 'border-emerald-600 bg-emerald-600 text-white'
                     : stage.state === 'CURRENT'
@@ -80,19 +97,58 @@ function StageTimeline({
               >
                 {stage.label}
               </span>
+              </button>
+              {index < stages.length - 1 && (
+                <div
+                  className={`mt-4 h-0.5 flex-1 ${
+                    stages[index + 1].state !== 'UPCOMING'
+                      ? 'bg-emerald-500'
+                      : 'bg-slate-200'
+                  }`}
+                />
+              )}
             </div>
-            {index < stages.length - 1 && (
-              <div
-                className={`mt-4 h-0.5 flex-1 ${
-                  stages[index + 1].state !== 'UPCOMING'
-                    ? 'bg-emerald-500'
-                    : 'bg-slate-200'
-                }`}
-              />
+          ))}
+        </div>
+      </div>
+      {selected && (
+        <div
+          className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+          role="status"
+        >
+          <div>
+            <div className="font-semibold text-slate-900">{selected.label}</div>
+            <div
+              className={
+                selected.state === 'DONE'
+                  ? 'text-emerald-700'
+                  : selected.state === 'CURRENT'
+                    ? 'text-blue-700'
+                    : 'text-slate-500'
+              }
+            >
+              {statusLabel}
+            </div>
+          </div>
+          <div className="text-right text-slate-600">
+            {selected.changedAt ? (
+              <>
+                <div className="text-xs uppercase tracking-wide text-slate-400">
+                  Status changed
+                </div>
+                <time dateTime={selected.changedAt}>
+                  {new Intl.DateTimeFormat(undefined, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  }).format(new Date(selected.changedAt))}
+                </time>
+              </>
+            ) : (
+              <span>No status change recorded yet</span>
             )}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

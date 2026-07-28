@@ -75,7 +75,20 @@ describe('CustomerOrderProgressService', () => {
                 currentStage: PlmStage.PRODUCTION,
                 flowType: 'VENDOR',
                 createdAt: new Date('2026-07-01T00:00:00Z'),
-                kickoff: { meetingDate: new Date('2026-07-01T00:00:00Z') },
+                kickoff: {
+                  meetingDate: new Date('2026-07-01T10:30:00Z'),
+                  status: 'COMPLETED',
+                },
+                events: [
+                  {
+                    toStage: PlmStage.RELEASE_TO_SCM,
+                    createdAt: new Date('2026-07-01T11:00:00Z'),
+                  },
+                  {
+                    toStage: PlmStage.PRODUCTION,
+                    createdAt: new Date('2026-07-03T09:15:00Z'),
+                  },
+                ],
                 productionCards: [
                   { list: { isDoneList: true } },
                   { list: { isDoneList: false } },
@@ -95,8 +108,9 @@ describe('CustomerOrderProgressService', () => {
 
     expect(response.lines[0].currentStage.label).toBe('Production');
     expect(response.lines[0].productionPercent).toBe(50);
-    // Standard/vendor flow mirrors the internal PLM strip exactly (6 stages).
+    // Customer portal adds Kickoff before the internal standard flow.
     expect(response.lines[0].stages.map((s) => s.label)).toEqual([
+      'Project Kickoff',
       'Release to SCM',
       'Material Planning',
       'Production',
@@ -104,6 +118,13 @@ describe('CustomerOrderProgressService', () => {
       'Dispatch',
       'Completed',
     ]);
+    expect(response.lines[0].stages[0]).toMatchObject({
+      state: 'DONE',
+      changedAt: '2026-07-01T10:30:00.000Z',
+    });
+    expect(response.lines[0].currentStage.changedAt).toBe(
+      '2026-07-03T09:15:00.000Z',
+    );
     for (const forbidden of [
       'owner',
       'employee',
@@ -147,7 +168,20 @@ describe('CustomerOrderProgressService', () => {
                 currentStage: PlmStage.DESIGN_REVIEW,
                 flowType: 'NPD',
                 createdAt: new Date('2026-07-01T00:00:00Z'),
-                kickoff: { meetingDate: new Date('2026-07-01T00:00:00Z') },
+                kickoff: {
+                  meetingDate: new Date('2026-07-01T10:30:00Z'),
+                  status: 'COMPLETED',
+                },
+                events: [
+                  {
+                    toStage: PlmStage.DESIGN,
+                    createdAt: new Date('2026-07-01T11:00:00Z'),
+                  },
+                  {
+                    toStage: PlmStage.DESIGN_REVIEW,
+                    createdAt: new Date('2026-07-02T08:00:00Z'),
+                  },
+                ],
                 productionCards: [],
               },
             },
@@ -161,6 +195,7 @@ describe('CustomerOrderProgressService', () => {
       throw new Error('Unexpected password challenge');
     }
     expect(response.lines[0].stages.map((s) => s.label)).toEqual([
+      'Project Kickoff',
       'Design',
       'Design Review',
       'Drawing Release',
@@ -171,10 +206,11 @@ describe('CustomerOrderProgressService', () => {
       'Dispatch',
       'Completed',
     ]);
-    // DESIGN_REVIEW is index 1 → CURRENT, DESIGN done, the rest upcoming.
+    // Kickoff and Design are done; DESIGN_REVIEW is current.
     expect(response.lines[0].currentStage.label).toBe('Design Review');
     expect(response.lines[0].stages[0].state).toBe('DONE');
-    expect(response.lines[0].stages[1].state).toBe('CURRENT');
-    expect(response.lines[0].stages[2].state).toBe('UPCOMING');
+    expect(response.lines[0].stages[1].state).toBe('DONE');
+    expect(response.lines[0].stages[2].state).toBe('CURRENT');
+    expect(response.lines[0].stages[3].state).toBe('UPCOMING');
   });
 });

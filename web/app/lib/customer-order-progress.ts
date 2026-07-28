@@ -4,6 +4,7 @@ export type PublicProgressStage = {
   key: string;
   label: string;
   state: 'DONE' | 'CURRENT' | 'UPCOMING';
+  changedAt: string | null;
 };
 
 export interface CustomerOrderProgress {
@@ -18,7 +19,7 @@ export interface CustomerOrderProgress {
   lines: Array<{
     lineId: string;
     productName: string;
-    currentStage: { key: string; label: string };
+    currentStage: { key: string; label: string; changedAt: string | null };
     stages: PublicProgressStage[];
     productionPercent: number;
     pace: { elapsedDays: number; totalDays: number; percent: number } | null;
