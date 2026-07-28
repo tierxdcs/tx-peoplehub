@@ -99,7 +99,9 @@ export default function BidsPage() {
         (!statusFilter || bid.status === statusFilter) &&
         (!businessUnitFilter || bid.businessUnitId === businessUnitFilter) &&
         (!q ||
-          `${bid.bidNumber} ${bid.ownerName}`.toLowerCase().includes(q)),
+          `${bid.bidNumber} ${bid.ownerName} ${bid.customerName ?? ''}`
+            .toLowerCase()
+            .includes(q)),
     );
   }, [bids, search, statusFilter, businessUnitFilter]);
 
@@ -145,7 +147,7 @@ export default function BidsPage() {
           setSearch(v);
           setPage(1);
         }}
-        searchPlaceholder="Search bid # or owner"
+        searchPlaceholder="Search bid #, owner or customer"
       >
         <Select
           aria-label="Status"
@@ -221,11 +223,16 @@ export default function BidsPage() {
                     <TableCell className="font-medium">
                       <button
                         type="button"
-                        className="hover:text-primary hover:underline"
+                        className="block text-left hover:text-primary hover:underline"
                         onClick={() => router.push(`/sales/bids/${bid.id}`)}
                       >
                         {bid.bidNumber}
                       </button>
+                      {bid.customerName && (
+                        <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                          {bid.customerName}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <StatusBadge value={bid.status} />

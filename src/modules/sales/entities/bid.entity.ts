@@ -76,6 +76,9 @@ export class BidEntity {
   @ApiProperty()
   customerId!: string;
 
+  @ApiProperty({ nullable: true, description: 'Resolved customer name (for display)' })
+  customerName!: string | null;
+
   @ApiProperty({ enum: BidStatus })
   status!: BidStatus;
 

@@ -536,6 +536,7 @@ export interface Bid {
   bidNumber: string;
   opportunityId: string;
   customerId: string;
+  customerName: string | null;
   status: BidStatus;
   validUntil: string;
   tenderReferenceNumber: string | null;

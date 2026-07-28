@@ -53,6 +53,7 @@ type BidWithLines = Bid & {
   lineItems: BidLineItemWithProduct[];
   amcCharges?: BidAmcCharge[];
   orders?: { id: string }[];
+  customer?: { name: string } | null;
   enquiryCreator?: { firstName: string; lastName: string };
   opportunity?: { owner: { firstName: string; lastName: string } };
   businessUnit?: { name: string; colorHex: string };
@@ -186,6 +187,7 @@ export class BidsService {
         include: {
           lineItems: { include: { product: true } },
           amcCharges: { orderBy: { yearNumber: 'asc' } },
+          customer: { select: { name: true } },
           enquiryCreator: { select: { firstName: true, lastName: true } },
           opportunity: {
             select: { owner: { select: { firstName: true, lastName: true } } },
@@ -213,6 +215,7 @@ export class BidsService {
         include: {
           lineItems: { include: { product: true } },
           amcCharges: { orderBy: { yearNumber: 'asc' } },
+          customer: { select: { name: true } },
           enquiryCreator: { select: { firstName: true, lastName: true } },
           opportunity: {
             select: { owner: { select: { firstName: true, lastName: true } } },
@@ -276,6 +279,7 @@ export class BidsService {
         include: {
           lineItems: { include: { product: true } },
           amcCharges: { orderBy: { yearNumber: 'asc' } },
+          customer: { select: { name: true } },
           enquiryCreator: { select: { firstName: true, lastName: true } },
           opportunity: {
             select: { owner: { select: { firstName: true, lastName: true } } },
@@ -520,6 +524,7 @@ export class BidsService {
       include: {
         lineItems: { include: { product: true } },
         amcCharges: { orderBy: { yearNumber: 'asc' } },
+        customer: { select: { name: true } },
         enquiryCreator: { select: { firstName: true, lastName: true } },
         opportunity: {
           select: { owner: { select: { firstName: true, lastName: true } } },
@@ -550,6 +555,7 @@ export class BidsService {
       bidNumber: bid.bidNumber,
       opportunityId: bid.opportunityId,
       customerId: bid.customerId,
+      customerName: bid.customer?.name ?? null,
       status: bid.status,
       validUntil: bid.validUntil,
       tenderReferenceNumber: bid.tenderReferenceNumber,
