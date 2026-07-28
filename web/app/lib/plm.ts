@@ -28,6 +28,47 @@ export type PlmStage =
   | 'DISPATCH'
   | 'COMPLETED';
 
+/**
+ * Canonical PLM stage labels — the single source of truth for how a stage is
+ * named to humans. Kept in sync with PLM_STAGE_LABEL in the backend
+ * customer-order-progress.service.ts so staff (internal PLM strip) and
+ * customers (order portal) see identical stage names.
+ */
+export const PLM_STAGE_LABEL: Record<PlmStage, string> = {
+  DESIGN: 'Design',
+  DESIGN_REVIEW: 'Design Review',
+  DRAWING_RELEASE: 'Drawing Release',
+  RELEASE_TO_SCM: 'Release to SCM',
+  MATERIAL_PLANNING: 'Material Planning',
+  PRODUCTION: 'Production',
+  QC: 'QC',
+  DISPATCH: 'Dispatch',
+  COMPLETED: 'Completed',
+};
+
+/** Stage sequence for New Product Development lines (full 9-stage flow). */
+export const NPD_STAGES: PlmStage[] = [
+  'DESIGN',
+  'DESIGN_REVIEW',
+  'DRAWING_RELEASE',
+  'RELEASE_TO_SCM',
+  'MATERIAL_PLANNING',
+  'PRODUCTION',
+  'QC',
+  'DISPATCH',
+  'COMPLETED',
+];
+
+/** Stage sequence for in-house / vendor lines (6-stage flow). */
+export const STANDARD_STAGES: PlmStage[] = [
+  'RELEASE_TO_SCM',
+  'MATERIAL_PLANNING',
+  'PRODUCTION',
+  'QC',
+  'DISPATCH',
+  'COMPLETED',
+];
+
 export interface PlmTracker {
   id: string;
   orderLineId: string;

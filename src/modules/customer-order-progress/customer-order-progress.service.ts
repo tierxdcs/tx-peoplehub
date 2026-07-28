@@ -23,26 +23,49 @@ import { CustomerDeliverySignoffDto } from './dto/customer-order-progress.dto';
 import { deriveProductionProgress } from '../plm/plm-production-progress';
 
 const DAY_MS = 86_400_000;
-const PUBLIC_STAGES = [
-  { key: 'DESIGN_ENGINEERING', label: 'Design & Engineering' },
-  { key: 'PROCUREMENT_PLANNING', label: 'Procurement & Planning' },
-  { key: 'PRODUCTION', label: 'Production' },
-  { key: 'QUALITY_CHECK', label: 'Quality Check' },
-  { key: 'DISPATCHED', label: 'Dispatched' },
-  { key: 'DELIVERED', label: 'Delivered' },
-] as const;
 
-const PUBLIC_STAGE_INDEX: Record<PlmStage, number> = {
-  DESIGN: 0,
-  DESIGN_REVIEW: 0,
-  DRAWING_RELEASE: 0,
-  RELEASE_TO_SCM: 1,
-  MATERIAL_PLANNING: 1,
-  PRODUCTION: 2,
-  QC: 3,
-  DISPATCH: 4,
-  COMPLETED: 5,
+/**
+ * Customer-facing stages mirror the internal PLM StageStrip exactly — same
+ * per-flow sequence and same labels — so staff and customers see identical
+ * stage names. Kept in sync with web/app/lib/plm.ts (PLM_STAGE_LABEL) and the
+ * NPD_STAGES / STANDARD_STAGES arrays in the PLM section.
+ */
+const PLM_STAGE_LABEL: Record<PlmStage, string> = {
+  DESIGN: 'Design',
+  DESIGN_REVIEW: 'Design Review',
+  DRAWING_RELEASE: 'Drawing Release',
+  RELEASE_TO_SCM: 'Release to SCM',
+  MATERIAL_PLANNING: 'Material Planning',
+  PRODUCTION: 'Production',
+  QC: 'QC',
+  DISPATCH: 'Dispatch',
+  COMPLETED: 'Completed',
 };
+
+const NPD_STAGES: PlmStage[] = [
+  'DESIGN',
+  'DESIGN_REVIEW',
+  'DRAWING_RELEASE',
+  'RELEASE_TO_SCM',
+  'MATERIAL_PLANNING',
+  'PRODUCTION',
+  'QC',
+  'DISPATCH',
+  'COMPLETED',
+];
+const STANDARD_STAGES: PlmStage[] = [
+  'RELEASE_TO_SCM',
+  'MATERIAL_PLANNING',
+  'PRODUCTION',
+  'QC',
+  'DISPATCH',
+  'COMPLETED',
+];
+
+/** The stage sequence a line follows, chosen by its PLM flow type. */
+function stagesForFlow(flowType: string | null | undefined): PlmStage[] {
+  return flowType === 'NPD' ? NPD_STAGES : STANDARD_STAGES;
+}
 
 /** Pure shared arithmetic: exactly the done-list based PLM production signal. */
 export function productionPercent(
@@ -267,6 +290,7 @@ export class CustomerOrderProgressService {
             plmTracker: {
               select: {
                 currentStage: true,
+                flowType: true,
                 createdAt: true,
                 kickoff: { select: { meetingDate: true } },
                 productionCards: {
@@ -285,12 +309,13 @@ export class CustomerOrderProgressService {
     const signoffSubmitted = !!order.customerSignoff;
     const lines = order.lineItems.map((line) => {
       const tracker = line.plmTracker;
+      // Each line mirrors its own PLM flow (NPD = 9 stages, standard = 6).
+      const stageSeq = stagesForFlow(tracker?.flowType);
       const delivered = signoffSubmitted || line.deliveryChallanLines.length > 0;
+      const trackedIndex = tracker ? stageSeq.indexOf(tracker.currentStage) : -1;
       const currentIndex = delivered
-        ? 5
-        : tracker
-          ? PUBLIC_STAGE_INDEX[tracker.currentStage]
-          : 1;
+        ? stageSeq.length - 1
+        : Math.max(0, trackedIndex);
       const start = tracker?.kickoff.meetingDate ?? tracker?.createdAt ?? null;
       const totalDays =
         start && promised
@@ -299,12 +324,16 @@ export class CustomerOrderProgressService {
       const elapsedDays = start
         ? Math.max(0, Math.floor((Date.now() - start.getTime()) / DAY_MS))
         : null;
+      const toStage = (stage: PlmStage) => ({
+        key: stage,
+        label: PLM_STAGE_LABEL[stage],
+      });
       return {
         lineId: line.id,
         productName: line.product.name,
-        currentStage: PUBLIC_STAGES[currentIndex],
-        stages: PUBLIC_STAGES.map((stage, index) => ({
-          ...stage,
+        currentStage: toStage(stageSeq[currentIndex]),
+        stages: stageSeq.map((stage, index) => ({
+          ...toStage(stage),
           state:
             index < currentIndex
               ? ('DONE' as const)
@@ -323,12 +352,16 @@ export class CustomerOrderProgressService {
             : null,
       };
     });
+    // A line at its final stage (COMPLETED) is treated as delivered.
     const orderDelivered =
       signoffSubmitted ||
-      (lines.length > 0 && lines.every((line) => line.currentStage.key === 'DELIVERED'));
+      (lines.length > 0 &&
+        lines.every((line) => line.currentStage.key === 'COMPLETED'));
     const canSignoff =
       !signoffSubmitted &&
-      lines.some((line) => ['DISPATCHED', 'DELIVERED'].includes(line.currentStage.key));
+      lines.some((line) =>
+        ['DISPATCH', 'COMPLETED'].includes(line.currentStage.key),
+      );
     return {
       orderNumber: order.orderNumber,
       customerName: order.customer.name,

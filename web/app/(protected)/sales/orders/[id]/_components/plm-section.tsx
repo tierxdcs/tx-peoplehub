@@ -9,8 +9,10 @@ import {
   getOrderPlm,
   getPlmTracker,
   getPlmInvites,
+  NPD_STAGES,
   PLM_PRODUCTION_STEPS,
-  PlmStage,
+  PLM_STAGE_LABEL,
+  STANDARD_STAGES,
   PlmTracker,
   PlmVendorInvite,
   plmAction,
@@ -25,9 +27,6 @@ import { StatusBadge } from '../../../../../components/ui/status-badge';
 import { useToast } from '../../../../../components/ui/toaster';
 import { useConfirm } from '../../../../../components/ui/confirm';
 
-const NPD_STAGES: PlmStage[] = ['DESIGN', 'DESIGN_REVIEW', 'DRAWING_RELEASE', 'RELEASE_TO_SCM', 'MATERIAL_PLANNING', 'PRODUCTION', 'QC', 'DISPATCH', 'COMPLETED'];
-const STANDARD_STAGES: PlmStage[] = ['RELEASE_TO_SCM', 'MATERIAL_PLANNING', 'PRODUCTION', 'QC', 'DISPATCH', 'COMPLETED'];
-
 function StageStrip({ tracker }: { tracker: PlmTracker }) {
   const stages = tracker.flowType === 'NPD' ? NPD_STAGES : STANDARD_STAGES;
   const active = stages.indexOf(tracker.currentStage);
@@ -39,7 +38,7 @@ function StageStrip({ tracker }: { tracker: PlmTracker }) {
             <span className={`flex size-8 items-center justify-center rounded-full border-2 text-xs font-semibold ${index < active ? 'border-success bg-success text-success-foreground' : index === active ? 'border-primary bg-primary/10 text-primary' : 'border-muted-foreground/25 text-muted-foreground'}`}>
               {index < active ? <Check className="size-4" /> : index + 1}
             </span>
-            <span className="mt-1 text-[11px] leading-tight text-muted-foreground">{prettyEnum(stage)}</span>
+            <span className="mt-1 text-[11px] leading-tight text-muted-foreground">{PLM_STAGE_LABEL[stage]}</span>
           </div>
           {index < stages.length - 1 && <span className={`mt-4 h-0.5 w-5 ${index < active ? 'bg-success' : 'bg-border'}`} />}
         </li>
@@ -169,7 +168,7 @@ export function PlmSection({ orderId, trackerId }: PlmSectionProps) {
                     <><Button size="sm" disabled={acting === tracker.id || tracker.designSubmittedById === user?.sub} onClick={() => void act(tracker, 'design-review/approve')}>Approve</Button><Button size="sm" variant="destructive" disabled={acting === tracker.id || tracker.designSubmittedById === user?.sub} onClick={() => { const comment = window.prompt('Rejection reason'); if (comment?.trim()) void act(tracker, 'design-review/reject', { comment }); }}>Reject</Button></>
                   )}
                   {!['DESIGN', 'DESIGN_REVIEW', 'COMPLETED'].includes(tracker.currentStage) && canOperate && (
-                    <Button size="sm" disabled={acting === tracker.id} onClick={() => void act(tracker, 'confirm-stage')}>Confirm {prettyEnum(tracker.currentStage)}</Button>
+                    <Button size="sm" disabled={acting === tracker.id} onClick={() => void act(tracker, 'confirm-stage')}>Confirm {PLM_STAGE_LABEL[tracker.currentStage]}</Button>
                   )}
                 </div>
 
