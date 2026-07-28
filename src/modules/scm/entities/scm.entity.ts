@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   VendorAuditType,
   VendorQuestionnaireStatus,
@@ -35,6 +35,11 @@ export class VendorCertificateFileEntity {
   @ApiProperty() name!: string;
   @ApiProperty({ nullable: true }) sizeBytes!: number | null;
   @ApiProperty({ nullable: true }) contentType!: string | null;
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Certification this document evidences, e.g. "ISO 9001".',
+  })
+  label?: string | null;
 
   constructor(p: Partial<VendorCertificateFileEntity>) {
     Object.assign(this, p);

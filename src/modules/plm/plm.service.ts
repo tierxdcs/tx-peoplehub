@@ -13,6 +13,7 @@ import {
   PlmTrackerStatus,
   Prisma,
 } from '@prisma/client';
+import { deriveProductionProgress } from './plm-production-progress';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../core/database/prisma.service';
 import { StockReportService } from '../bom/stock-report.service';
@@ -615,10 +616,7 @@ export class PlmService {
   private async withDerived(
     tracker: Awaited<ReturnType<PlmService['getRaw']>>,
   ) {
-    const productionTotal = tracker.productionCards.length;
-    const productionDone = tracker.productionCards.filter(
-      (card) => card.list.isDoneList,
-    ).length;
+    const production = deriveProductionProgress(tracker.productionCards);
     const latestVendorUpdateAt =
       tracker.flowType === OrderLineDeliveryType.VENDOR
         ? tracker.productionUpdates[0]?.createdAt ?? null
@@ -650,7 +648,7 @@ export class PlmService {
             line.deliveryChallan.status,
           ),
         ),
-        production: { done: productionDone, total: productionTotal },
+        production: { done: production.done, total: production.total },
         lastVendorUpdateAt: latestVendorUpdateAt,
         vendorCadence,
       },

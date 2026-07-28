@@ -134,7 +134,9 @@ export default function PublicVsaqPage() {
     }
   }
 
-  async function uploadCert(file: File) {
+  // `label` ties the document to a specific certification (e.g. "ISO 9001");
+  // omit it for the general "other documents" bucket.
+  async function uploadCert(file: File, label?: string) {
     setBanner(null);
     const presign = await publicCertUploadUrl(
       token,
@@ -154,7 +156,7 @@ export default function PublicVsaqPage() {
     }
     const confirmed = await publicCertConfirm(
       token,
-      { storageKey: presign.data.storageKey, name: file.name },
+      { storageKey: presign.data.storageKey, name: file.name, label },
       pwRef.current,
     );
     if (confirmed.ok) setCerts((c) => [...c, confirmed.data]);
@@ -334,7 +336,7 @@ export default function PublicVsaqPage() {
       <Section n="3" title="Manufacturing Capability">
         <YesNoGrid
           rows={['Laser Cutting', 'CNC Punching', 'CNC Bending', 'Robotic Welding', 'TIG Welding', 'MIG Welding', 'Spot Welding', 'Powder Coating', 'Assembly Line', 'FAT Area']}
-          value={(g('manufacturingCapability').capabilities as Record<string, string>) ?? {}}
+          value={(g('manufacturingCapability').capabilities as CapabilityValue) ?? {}}
           onChange={(v) => setField('manufacturingCapability', 'capabilities', v)}
         />
       </Section>
@@ -371,27 +373,13 @@ export default function PublicVsaqPage() {
           selected={(g('qualityManagement').certifications as string[]) ?? []}
           onChange={(v) => setField('qualityManagement', 'certifications', v)}
         />
-        <div style={{ margin: '10px 0' }}>
-          <label style={{ fontSize: 13.5, color: '#374151', marginRight: 10 }}>
-            Upload Certificates
-          </label>
-          <input
-            type="file"
-            multiple
-            onChange={(e) => {
-              const files = Array.from(e.target.files ?? []);
-              files.forEach((f) => void uploadCert(f));
-              e.target.value = '';
-            }}
-          />
-          {certs.length > 0 && (
-            <ul style={{ fontSize: 13, color: '#374151' }}>
-              {certs.map((c) => (
-                <li key={c.storageKey}>{c.name}</li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {/* Per-certification document upload: one row per ticked certification. */}
+        <CertUploads
+          certifications={(g('qualityManagement').certifications as string[]) ?? []}
+          files={certs}
+          disabled={submitted}
+          onUpload={uploadCert}
+        />
         <H3>Inspection Equipment</H3>
         <CheckGrid
           options={['CMM', 'Height Gauge', 'Surface Plate', 'Vernier', 'Micrometer', 'Salt Spray', 'Coating Thickness Gauge', 'Torque Calibration']}
@@ -737,40 +725,170 @@ function CheckGrid({
   );
 }
 
+/**
+ * Per-certification document upload. Renders one upload row for each ticked
+ * certification (label === the cert name) plus a catch-all "Other documents"
+ * row for anything not tied to a listed certification. Existing files are
+ * grouped under their label; legacy files with no label fall into "Other".
+ */
+function CertUploads({
+  certifications,
+  files,
+  disabled,
+  onUpload,
+}: {
+  certifications: string[];
+  files: CertificateFile[];
+  disabled: boolean;
+  onUpload: (file: File, label?: string) => void | Promise<void>;
+}) {
+  const forLabel = (label?: string) =>
+    files.filter((f) =>
+      label ? f.label === label : !f.label || f.label.trim() === '',
+    );
+  const rows: Array<{ key: string; title: string; label?: string }> = [
+    ...certifications.map((c) => ({ key: c, title: c, label: c })),
+    { key: '__other__', title: 'Other documents', label: undefined },
+  ];
+  return (
+    <div style={{ margin: '12px 0 4px' }}>
+      <H4>Certification documents</H4>
+      {certifications.length === 0 && (
+        <p style={{ fontSize: 12.5, color: '#6b7280', margin: '0 0 8px' }}>
+          Tick a certification above to attach its document, or use “Other
+          documents” below.
+        </p>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {rows.map((row) => {
+          const uploaded = forLabel(row.label);
+          return (
+            <div
+              key={row.key}
+              style={{
+                border: '1px solid #e5e7eb',
+                borderRadius: 5,
+                padding: '8px 10px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 13.5,
+                    color: INK,
+                    fontWeight: 600,
+                    minWidth: 140,
+                  }}
+                >
+                  {row.title}
+                </span>
+                <input
+                  type="file"
+                  multiple
+                  disabled={disabled}
+                  style={{ fontSize: 13 }}
+                  onChange={(e) => {
+                    const picked = Array.from(e.target.files ?? []);
+                    picked.forEach((f) => void onUpload(f, row.label));
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+              {uploaded.length > 0 && (
+                <ul style={{ fontSize: 13, color: '#374151', margin: '6px 0 0', paddingLeft: 18 }}>
+                  {uploaded.map((c) => (
+                    <li key={c.storageKey}>{c.name}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** One capability row's answer: whether it's available and, if so, how many. */
+type CapabilityCell = { available?: string; count?: string };
+/** Stored map tolerates the legacy flat shape (capability -> 'yes'|'no'). */
+type CapabilityValue = Record<string, CapabilityCell | string>;
+
 function YesNoGrid({
   rows,
   value,
   onChange,
 }: {
   rows: string[];
-  value: Record<string, string>;
-  onChange: (v: Record<string, string>) => void;
+  value: CapabilityValue;
+  onChange: (v: Record<string, CapabilityCell>) => void;
 }) {
+  // Normalize a cell, tolerating the older flat 'yes'/'no' string shape.
+  const cell = (r: string): CapabilityCell => {
+    const raw = value[r];
+    return typeof raw === 'string' ? { available: raw } : (raw ?? {});
+  };
+  // Rebuild the whole map in the nested shape, then apply the patch to one row.
+  const update = (r: string, patch: CapabilityCell) => {
+    const next: Record<string, CapabilityCell> = {};
+    for (const key of Object.keys(value)) {
+      const raw = value[key];
+      next[key] = typeof raw === 'string' ? { available: raw } : { ...raw };
+    }
+    next[r] = { ...cell(r), ...patch };
+    onChange(next);
+  };
+  const th: React.CSSProperties = { background: INK, color: '#fff', fontSize: 12.5, padding: '8px 10px' };
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6 }}>
       <thead>
         <tr>
-          <th style={{ background: INK, color: '#fff', fontSize: 12.5, padding: '8px 10px', textAlign: 'left' }}>Capability</th>
-          <th style={{ background: INK, color: '#fff', fontSize: 12.5, padding: '8px 10px', width: 70 }}>Yes</th>
-          <th style={{ background: INK, color: '#fff', fontSize: 12.5, padding: '8px 10px', width: 70 }}>No</th>
+          <th style={{ ...th, textAlign: 'left' }}>Capability</th>
+          <th style={{ ...th, width: 60 }}>Yes</th>
+          <th style={{ ...th, width: 60 }}>No</th>
+          <th style={{ ...th, width: 100, textAlign: 'left' }}>Count</th>
         </tr>
       </thead>
       <tbody>
-        {rows.map((r) => (
-          <tr key={r}>
-            <td style={{ padding: '6px 8px', borderBottom: '1px solid #d8dbe2', fontSize: 13.5 }}>{r}</td>
-            {['yes', 'no'].map((opt) => (
-              <td key={opt} style={{ textAlign: 'center', borderBottom: '1px solid #d8dbe2' }}>
+        {rows.map((r) => {
+          const c = cell(r);
+          const available = c.available === 'yes';
+          return (
+            <tr key={r}>
+              <td style={{ padding: '6px 8px', borderBottom: '1px solid #d8dbe2', fontSize: 13.5 }}>{r}</td>
+              {['yes', 'no'].map((opt) => (
+                <td key={opt} style={{ textAlign: 'center', borderBottom: '1px solid #d8dbe2' }}>
+                  <input
+                    type="radio"
+                    name={`ynr-${r}`}
+                    checked={c.available === opt}
+                    // Clearing availability to "no" also clears any count.
+                    onChange={() => update(r, opt === 'yes' ? { available: opt } : { available: opt, count: '' })}
+                  />
+                </td>
+              ))}
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #d8dbe2' }}>
                 <input
-                  type="radio"
-                  name={`ynr-${r}`}
-                  checked={value[r] === opt}
-                  onChange={() => onChange({ ...value, [r]: opt })}
+                  type="number"
+                  min={0}
+                  step={1}
+                  style={{ ...inputStyle, width: 84, padding: '4px 6px' }}
+                  value={c.count ?? ''}
+                  disabled={!available}
+                  placeholder={available ? 'e.g. 3' : '—'}
+                  onChange={(e) => update(r, { count: e.target.value })}
                 />
               </td>
-            ))}
-          </tr>
-        ))}
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

@@ -196,6 +196,13 @@ export class PublicCertConfirmDto {
   @ApiProperty()
   @IsString()
   name!: string;
+
+  @ApiPropertyOptional({
+    description: 'Certification this document evidences, e.g. "ISO 9001".',
+  })
+  @IsOptional()
+  @IsString()
+  label?: string;
 }
 
 // ── Audit ────────────────────────────────────────────────────────────

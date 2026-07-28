@@ -95,6 +95,8 @@ type CertFile = {
   name: string;
   sizeBytes: number | null;
   contentType: string | null;
+  /** Certification this document evidences (e.g. "ISO 9001"); null = general. */
+  label?: string | null;
 };
 
 @Injectable()
@@ -412,6 +414,7 @@ export class ScmService {
       name: dto.name,
       sizeBytes: head.sizeBytes,
       contentType: head.contentType,
+      label: dto.label?.trim() || null,
     };
     const existing = (q.qualityCertificateFiles as CertFile[] | null) ?? [];
     await this.prisma.vendorQuestionnaire.update({

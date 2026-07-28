@@ -55,6 +55,8 @@ export interface CertificateFile {
   name: string;
   sizeBytes: number | null;
   contentType: string | null;
+  /** Certification this document evidences, e.g. "ISO 9001"; null = general. */
+  label?: string | null;
 }
 
 /** The 18 VSAQ section keys — each an opaque JSON blob on the questionnaire. */
@@ -432,7 +434,7 @@ export function publicCertUploadUrl(
 
 export function publicCertConfirm(
   token: string,
-  input: { storageKey: string; name: string },
+  input: { storageKey: string; name: string; label?: string },
   password?: string,
 ) {
   return publicPost<CertificateFile>(

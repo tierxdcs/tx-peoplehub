@@ -42,6 +42,7 @@ import { ProductCell } from '../../_components/product-cell';
 import { ConfirmationSheetsSection } from './_components/confirmation-sheets-section';
 import { ProjectKickoffSection } from './_components/project-kickoff-section';
 import { PlmSection } from './_components/plm-section';
+import { CustomerProgressLinks } from './_components/customer-progress-links';
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -322,6 +323,7 @@ export default function OrderDetailPage() {
       />
 
       <PlmSection orderId={order.id} />
+      <CustomerProgressLinks orderId={order.id} />
     </PageContainer>
   );
 }

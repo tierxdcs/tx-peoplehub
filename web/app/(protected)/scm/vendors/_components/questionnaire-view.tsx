@@ -43,6 +43,17 @@ function renderValue(value: unknown): React.ReactNode {
   }
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'object') {
+    // Capability cell { available: 'yes'|'no', count?: string } → "Yes (3)".
+    const cell = value as { available?: unknown; count?: unknown };
+    if (
+      typeof cell.available === 'string' &&
+      Object.keys(value as object).every((k) => k === 'available' || k === 'count')
+    ) {
+      const yes = cell.available === 'yes';
+      const count = typeof cell.count === 'string' ? cell.count.trim() : '';
+      if (!yes) return 'No';
+      return count ? `Yes (${count})` : 'Yes';
+    }
     return (
       <div className="ml-2 space-y-0.5">
         {Object.entries(value as Record<string, unknown>).map(([k, v]) => (
@@ -124,6 +135,9 @@ export function QuestionnaireView({
           <ul className="list-inside list-disc">
             {questionnaire.qualityCertificateFiles.map((f) => (
               <li key={f.storageKey}>
+                {f.label && (
+                  <span className="font-medium">{f.label}: </span>
+                )}
                 {f.name}
                 {f.sizeBytes != null && (
                   <span className="text-muted-foreground">

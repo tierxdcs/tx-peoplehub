@@ -48,6 +48,7 @@ import { FinanceContraModule } from './modules/finance-contra/finance-contra.mod
 import { QmsModule } from './modules/qms/qms.module';
 import { DesignModule } from './modules/design/design.module';
 import { PlmModule } from './modules/plm/plm.module';
+import { CustomerOrderProgressModule } from './modules/customer-order-progress/customer-order-progress.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { PlmModule } from './modules/plm/plm.module';
     QmsModule,
     DesignModule,
     PlmModule,
+    CustomerOrderProgressModule,
     ScmPurchasingModule,
     LogisticsModule,
     RfqModule,

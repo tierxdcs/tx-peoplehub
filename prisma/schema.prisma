@@ -89,6 +89,7 @@ enum NotificationType {
   PLM_DESIGN_REVIEW_DECIDED
   PLM_STAGE_ADVANCED
   PLM_PRODUCTION_UPDATE
+  CUSTOMER_DELIVERY_SIGNOFF
 }
 
 enum LeaveAccrualType {
@@ -444,16 +445,17 @@ model Employee {
   attendanceRecords      Attendance[]
 
   // Sales ownership / authorship back-relations.
-  customersOwned          Customer[]    @relation("CustomerOwner")
-  leadsOwned              Lead[]        @relation("LeadOwner")
-  leadsOriginated         Lead[]        @relation("LeadEnquiryCreator")
-  opportunitiesOwned      Opportunity[] @relation("OpportunityOwner")
-  opportunitiesOriginated Opportunity[] @relation("OpportunityEnquiryCreator")
-  bidsCreated             Bid[]         @relation("BidCreator")
-  bidsOriginated          Bid[]         @relation("BidEnquiryCreator")
-  bidsApproved            Bid[]         @relation("BidApprover")
-  ordersOwned             Order[]       @relation("OrderOwner")
-  ordersOriginated        Order[]       @relation("OrderEnquiryCreator")
+  customersOwned               Customer[]                    @relation("CustomerOwner")
+  leadsOwned                   Lead[]                        @relation("LeadOwner")
+  leadsOriginated              Lead[]                        @relation("LeadEnquiryCreator")
+  opportunitiesOwned           Opportunity[]                 @relation("OpportunityOwner")
+  opportunitiesOriginated      Opportunity[]                 @relation("OpportunityEnquiryCreator")
+  bidsCreated                  Bid[]                         @relation("BidCreator")
+  bidsOriginated               Bid[]                         @relation("BidEnquiryCreator")
+  bidsApproved                 Bid[]                         @relation("BidApprover")
+  ordersOwned                  Order[]                       @relation("OrderOwner")
+  ordersOriginated             Order[]                       @relation("OrderEnquiryCreator")
+  customerProgressLinksCreated OrderCustomerProgressInvite[] @relation("OrderCustomerProgressInviteCreator")
 
   bidAssessmentsSubmitted BidDecisionAssessment[] @relation("BidAssessmentSubmitter")
   bidAssessmentsReviewed  BidDecisionAssessment[] @relation("BidAssessmentReviewer")
@@ -1127,51 +1129,53 @@ model BidAmcCharge {
 }
 
 model Order {
-  id                 String                   @id @default(uuid())
-  orderNumber        String                   @unique
-  bidId              String?
-  bid                Bid?                     @relation(fields: [bidId], references: [id], onDelete: SetNull)
-  customerId         String
-  customer           Customer                 @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  status             OrderStatus              @default(CONFIRMED)
+  id                      String                        @id @default(uuid())
+  orderNumber             String                        @unique
+  bidId                   String?
+  bid                     Bid?                          @relation(fields: [bidId], references: [id], onDelete: SetNull)
+  customerId              String
+  customer                Customer                      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  status                  OrderStatus                   @default(CONFIRMED)
   /// Outbound final-QC clearance for finished goods. A dispatch cannot be
   /// created until this is CLEARED (mirrors the inbound GRN→QC gate). Separate
   /// from the manual `status` workflow. Cleared by an isQcInspector/SUPER_ADMIN.
-  finalQcStatus      OrderFinalQcStatus       @default(PENDING)
-  finalQcClearedById String?
-  finalQcClearedBy   Employee?                @relation("OrderFinalQcClearedBy", fields: [finalQcClearedById], references: [id], onDelete: SetNull)
-  finalQcClearedAt   DateTime?
+  finalQcStatus           OrderFinalQcStatus            @default(PENDING)
+  finalQcClearedById      String?
+  finalQcClearedBy        Employee?                     @relation("OrderFinalQcClearedBy", fields: [finalQcClearedById], references: [id], onDelete: SetNull)
+  finalQcClearedAt        DateTime?
   /// DERIVED fulfilment progress from Delivery Challans (cumulative dispatched
   /// vs ordered across all lines). Kept separate from the manual `status`
   /// Sales workflow so that workflow is undisturbed; recomputed on each
   /// dispatch. Mirrors how PurchaseOrder receipt status derives from GRNs.
-  fulfilmentStatus   OrderFulfilmentStatus    @default(NOT_DISPATCHED)
+  fulfilmentStatus        OrderFulfilmentStatus         @default(NOT_DISPATCHED)
   /// Snapshot of the source bid's totalAmount at conversion time — the
   /// order's booked value. Frozen here rather than recomputed from line
   /// items so it survives independently of the bid (which can be edited in
   /// a later revision). Decimal, never Float.
-  totalAmount        Decimal                  @default(0) @db.Decimal(14, 2)
+  totalAmount             Decimal                       @default(0) @db.Decimal(14, 2)
   /// Reserved FK for the future Production module — not enforced yet.
-  productionRunId    String?
+  productionRunId         String?
   /// Reserved FK for the future SCM/logistics module — not enforced yet.
-  shipmentId         String?
-  ownerId            String
-  owner              Employee                 @relation("OrderOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  shipmentId              String?
+  ownerId                 String
+  owner                   Employee                      @relation("OrderOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   /// Set for sales-pipeline orders. Nullable for system-created orders that
   /// have no originating enquiry.
-  enquiryCreatorId   String?
-  enquiryCreator     Employee?                @relation("OrderEnquiryCreator", fields: [enquiryCreatorId], references: [id], onDelete: Restrict)
-  businessUnitId     String?
-  businessUnit       BusinessUnit?            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
-  lineItems          OrderLineItem[]
-  confirmationSheets OrderConfirmationSheet[]
-  projectKickoffs    ProjectKickoff[]
-  billingMilestones  BillingMilestone[]
-  salesInvoices      SalesInvoice[]
-  deliveryChallans   DeliveryChallan[]
-  plmTrackers        PlmTracker[]
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
+  enquiryCreatorId        String?
+  enquiryCreator          Employee?                     @relation("OrderEnquiryCreator", fields: [enquiryCreatorId], references: [id], onDelete: Restrict)
+  businessUnitId          String?
+  businessUnit            BusinessUnit?                 @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  lineItems               OrderLineItem[]
+  confirmationSheets      OrderConfirmationSheet[]
+  projectKickoffs         ProjectKickoff[]
+  billingMilestones       BillingMilestone[]
+  salesInvoices           SalesInvoice[]
+  deliveryChallans        DeliveryChallan[]
+  plmTrackers             PlmTracker[]
+  customerProgressInvites OrderCustomerProgressInvite[]
+  customerSignoff         OrderCustomerSignoff?
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
 
   @@index([ownerId])
   @@index([enquiryCreatorId])
@@ -1233,6 +1237,43 @@ model OrderLineItem {
   @@index([orderId])
   @@index([vendorId])
   @@map("order_line_items")
+}
+
+/// Revocable, optionally password-protected public view of an Order's
+/// customer-safe PLM progress. The raw token is intentionally opaque.
+model OrderCustomerProgressInvite {
+  id           String                @id @default(uuid())
+  orderId      String
+  order        Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  token        String                @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  passwordHash String?
+  createdById  String
+  createdBy    Employee              @relation("OrderCustomerProgressInviteCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  signoff      OrderCustomerSignoff?
+  createdAt    DateTime              @default(now())
+
+  @@index([orderId])
+  @@map("order_customer_progress_invites")
+}
+
+/// One immutable customer receipt acknowledgement per Order. This augments,
+/// and never replaces, the internal Delivery Challan/POD workflow.
+model OrderCustomerSignoff {
+  id                 String                      @id @default(uuid())
+  orderId            String                      @unique
+  order              Order                       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  inviteId           String                      @unique
+  invite             OrderCustomerProgressInvite @relation(fields: [inviteId], references: [id], onDelete: Restrict)
+  customerName       String
+  designation        String
+  receiptConfirmed   Boolean
+  comments           String?                     @db.Text
+  satisfactionRating Int?
+  submittedAt        DateTime                    @default(now())
+
+  @@map("order_customer_signoffs")
 }
 
 /// Lifecycle of an Order Confirmation Sheet. DRAFT is editable; generating the
