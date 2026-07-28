@@ -237,23 +237,27 @@ export default function CustomerOrderProgressPage() {
                           <div className="mb-2 text-center text-sm font-semibold text-slate-600">
                             Production complete
                           </div>
-                          <Doughnut
-                            data={{
-                              datasets: [
-                                {
-                                  data: [line.productionPercent, 100 - line.productionPercent],
-                                  backgroundColor: ['#2563eb', '#e2e8f0'],
-                                  borderWidth: 0,
-                                },
-                              ],
-                            }}
-                            options={{
-                              cutout: '75%',
-                              plugins: { tooltip: { enabled: false } },
-                            }}
-                          />
-                          <div className="-mt-[105px] mb-[75px] text-center text-2xl font-bold">
-                            {line.productionPercent}%
+                          <div className="relative mx-auto size-44">
+                            <Doughnut
+                              data={{
+                                datasets: [
+                                  {
+                                    data: [line.productionPercent, 100 - line.productionPercent],
+                                    backgroundColor: ['#2563eb', '#e2e8f0'],
+                                    borderWidth: 0,
+                                  },
+                                ],
+                              }}
+                              options={{
+                                responsive: true,
+                                maintainAspectRatio: true,
+                                cutout: '75%',
+                                plugins: { tooltip: { enabled: false } },
+                              }}
+                            />
+                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-2xl font-bold">
+                              {line.productionPercent}%
+                            </div>
                           </div>
                         </div>
                       )}
@@ -262,29 +266,31 @@ export default function CustomerOrderProgressPage() {
                           <div className="mb-3 text-sm font-semibold text-slate-600">
                             Project pace
                           </div>
-                          <Bar
-                            data={{
-                              labels: ['Timeline elapsed'],
-                              datasets: [
-                                {
-                                  data: [line.pace.percent],
-                                  backgroundColor:
-                                    line.pace.percent >= 90 ? '#f59e0b' : '#0f766e',
-                                  borderRadius: 8,
+                          <div className="relative h-24 w-full">
+                            <Bar
+                              data={{
+                                labels: ['Timeline elapsed'],
+                                datasets: [
+                                  {
+                                    data: [line.pace.percent],
+                                    backgroundColor:
+                                      line.pace.percent >= 90 ? '#f59e0b' : '#0f766e',
+                                    borderRadius: 8,
+                                  },
+                                ],
+                              }}
+                              options={{
+                                responsive: true,
+                                indexAxis: 'y',
+                                scales: {
+                                  x: { min: 0, max: 100, ticks: { callback: (v) => `${v}%` } },
+                                  y: { display: false },
                                 },
-                              ],
-                            }}
-                            options={{
-                              indexAxis: 'y',
-                              scales: {
-                                x: { min: 0, max: 100, ticks: { callback: (v) => `${v}%` } },
-                                y: { display: false },
-                              },
-                              plugins: { tooltip: { enabled: false } },
-                              maintainAspectRatio: false,
-                            }}
-                            height={90}
-                          />
+                                plugins: { tooltip: { enabled: false } },
+                                maintainAspectRatio: false,
+                              }}
+                            />
+                          </div>
                           <p className="mt-1 text-xs text-slate-500">
                             Day {line.pace.elapsedDays} of {line.pace.totalDays}
                           </p>
