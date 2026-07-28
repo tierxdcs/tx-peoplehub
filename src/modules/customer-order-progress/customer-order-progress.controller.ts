@@ -25,13 +25,13 @@ import { CustomerOrderProgressService } from './customer-order-progress.service'
 
 @ApiTags('customer-order-progress')
 @ApiBearerAuth()
-@UseGuards(RolesGuard)
-@Roles(Role.MANAGER, Role.EMPLOYEE, Role.SUPER_ADMIN)
 @Controller()
 export class CustomerOrderProgressController {
   constructor(private readonly service: CustomerOrderProgressService) {}
 
   @Post('orders/:orderId/customer-progress-links')
+  @UseGuards(RolesGuard)
+  @Roles(Role.MANAGER, Role.EMPLOYEE, Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Create a revocable customer order-progress link' })
   create(
     @Param('orderId') orderId: string,
@@ -42,6 +42,8 @@ export class CustomerOrderProgressController {
   }
 
   @Get('orders/:orderId/customer-progress-links')
+  @UseGuards(RolesGuard)
+  @Roles(Role.MANAGER, Role.EMPLOYEE, Role.SUPER_ADMIN)
   list(
     @Param('orderId') orderId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -50,6 +52,8 @@ export class CustomerOrderProgressController {
   }
 
   @Delete('orders/:orderId/customer-progress-links/:linkId')
+  @UseGuards(RolesGuard)
+  @Roles(Role.MANAGER, Role.EMPLOYEE, Role.SUPER_ADMIN)
   revoke(
     @Param('orderId') orderId: string,
     @Param('linkId') linkId: string,
