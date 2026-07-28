@@ -6,11 +6,14 @@ import { Factory } from 'lucide-react';
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import {
+  confirmNdaTemplateUpload,
+  createNdaTemplateUploadUrl,
   listVendors,
   VENDOR_STATUS_LABEL,
   type Vendor,
   type VendorStatus,
 } from '../../../lib/scm';
+import { uploadToPresignedUrl } from '../../../lib/vault-api';
 import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
 import { Card, CardContent } from '../../../components/ui/card';
@@ -52,6 +55,7 @@ export default function VendorsPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<VendorStatus | ''>('');
   const [creating, setCreating] = useState(false);
+  const [ndaUploading, setNdaUploading] = useState(false);
 
   // UI hint only — the button shows for SUPER_ADMIN or a MANAGER (the backend
   // enforces SCM-vertical). We can't see vertical code here, so a non-SCM
@@ -105,6 +109,40 @@ export default function VendorsPage() {
             </option>
           ))}
         </Select>
+        {user?.role === 'SUPER_ADMIN' && (
+          <label
+            className={`inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground ${
+              ndaUploading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+            }`}
+          >
+            {ndaUploading ? 'Uploading NDA…' : 'Replace NDA template'}
+            <input
+              type="file"
+              className="hidden"
+              disabled={ndaUploading}
+              onChange={async (event) => {
+                const file = event.target.files?.[0];
+                event.currentTarget.value = '';
+                if (!file) return;
+                setNdaUploading(true);
+                setError(null);
+                try {
+                  const upload = await createNdaTemplateUploadUrl(file);
+                  await uploadToPresignedUrl(upload.uploadUrl, file);
+                  await confirmNdaTemplateUpload(upload.fileId);
+                } catch (err) {
+                  setError(
+                    err instanceof ApiError
+                      ? err.message
+                      : 'Failed to replace NDA template.',
+                  );
+                } finally {
+                  setNdaUploading(false);
+                }
+              }}
+            />
+          </label>
+        )}
       </div>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}

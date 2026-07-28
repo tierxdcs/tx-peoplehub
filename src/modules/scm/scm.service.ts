@@ -76,6 +76,11 @@ type VendorCompanyInfo = {
 /** Default invite lifetime — 14 days, generous given the form's length (§5). */
 const DEFAULT_INVITE_EXPIRY_HOURS = 14 * 24;
 
+/** NDA execution is an onboarding gate, not a recurring revision requirement. */
+export function requiresSignedNda(revisionNumber: number): boolean {
+  return revisionNumber === 1;
+}
+
 /** The 18 VSAQ section keys, for copy-forward on revision + save mapping. */
 const SECTION_KEYS = [
   'businessProfile',
@@ -342,7 +347,7 @@ export class ScmService {
   ): Promise<VendorQuestionnaireEntity> {
     const invite = await this.getValidInvite(token, dto.password, now);
     const q = await this.assertEditableQuestionnaire(invite.questionnaireId);
-    if (q.revisionNumber === 1) {
+    if (requiresSignedNda(q.revisionNumber)) {
       const signedNda = q.signedNdaFileId
         ? await this.prisma.vaultFile.findFirst({
             where: { id: q.signedNdaFileId, status: 'ACTIVE' },
@@ -463,6 +468,27 @@ export class ScmService {
     user: AuthenticatedUser,
   ) {
     this.access.assertIsSuperAdmin(user);
+    const configured = await this.prisma.companyDocumentConfig.findUnique({
+      where: { id: 'DEFAULT' },
+      select: { ndaTemplateFileId: true },
+    });
+    if (configured?.ndaTemplateFileId) {
+      const version = await this.vaultFiles.createVersionUrl(
+        configured.ndaTemplateFileId,
+        {
+          mimeType: dto.mimeType,
+          sizeBytes: dto.sizeBytes,
+          changeNote: 'Replaced company NDA template',
+        },
+        user,
+      );
+      return {
+        fileId: configured.ndaTemplateFileId,
+        storageKey: version.storageKey,
+        uploadUrl: version.uploadUrl,
+        expiresInSeconds: version.expiresInSeconds,
+      };
+    }
     const ext = fileExtension(dto.name);
     return this.vaultFiles.createManagedUploadUrl({
       folderName: 'Vendor NDA',
@@ -476,10 +502,18 @@ export class ScmService {
 
   async confirmNdaTemplate(fileId: string, user: AuthenticatedUser) {
     this.access.assertIsSuperAdmin(user);
-    await this.vaultFiles.confirmManagedUpload(
-      fileId,
-      'Company NDA template',
-    );
+    const configured = await this.prisma.companyDocumentConfig.findUnique({
+      where: { id: 'DEFAULT' },
+      select: { ndaTemplateFileId: true },
+    });
+    if (configured?.ndaTemplateFileId === fileId) {
+      await this.vaultFiles.confirmVersionUpload(fileId, user);
+    } else {
+      await this.vaultFiles.confirmManagedUpload(
+        fileId,
+        'Company NDA template',
+      );
+    }
     await this.prisma.companyDocumentConfig.upsert({
       where: { id: 'DEFAULT' },
       update: { ndaTemplateFileId: fileId },
@@ -520,7 +554,7 @@ export class ScmService {
     if (!q || q.status !== VendorQuestionnaireStatus.SENT) {
       throw new BadRequestException('Questionnaire is not editable');
     }
-    if (q.revisionNumber !== 1) {
+    if (!requiresSignedNda(q.revisionNumber)) {
       throw new BadRequestException(
         'A signed NDA is required only for the first questionnaire revision',
       );
@@ -545,7 +579,7 @@ export class ScmService {
   async publicSignedNdaConfirm(token: string, dto: PublicNdaConfirmDto) {
     const invite = await this.getValidInvite(token, dto.password, new Date());
     const q = await this.assertEditableQuestionnaire(invite.questionnaireId);
-    if (q.revisionNumber !== 1) {
+    if (!requiresSignedNda(q.revisionNumber)) {
       throw new BadRequestException(
         'A signed NDA is required only for the first questionnaire revision',
       );
@@ -885,7 +919,7 @@ export class ScmService {
       qualityCertificateFiles: files.map(
         (f) => new VendorCertificateFileEntity(f),
       ),
-      ndaRequired: q.revisionNumber === 1,
+      ndaRequired: requiresSignedNda(q.revisionNumber),
       signedNdaUploaded: !!q.signedNdaFileId,
       createdAt: q.createdAt.toISOString(),
       updatedAt: q.updatedAt.toISOString(),

@@ -219,6 +219,28 @@ export function createQuestionnaireRevision(vendorId: string) {
   );
 }
 
+export function createNdaTemplateUploadUrl(file: File) {
+  return apiFetch<{
+    fileId: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+  }>('/admin/company-documents/nda-template/upload-url', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      sizeBytes: file.size,
+    }),
+  });
+}
+
+export function confirmNdaTemplateUpload(fileId: string) {
+  return apiFetch<{ fileId: string }>(
+    '/admin/company-documents/nda-template/confirm',
+    { method: 'POST', body: JSON.stringify({ fileId }) },
+  );
+}
+
 export function createInvite(
   questionnaireId: string,
   input: { expiresInHours?: number; password?: string },

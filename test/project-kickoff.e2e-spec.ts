@@ -20,7 +20,7 @@ class FakeStorage {
  * Project Kickoff e2e — the module's load-bearing behaviors (spec §8):
  *  - only a Project Manager / SUPER_ADMIN can create, and only for an Order
  *    whose latest Confirmation Sheet is EXECUTED (the reused gate)
- *  - creating a kickoff auto-provisions a working board (To Do/In Progress/Done,
+ *  - creating a kickoff auto-provisions a working board (To Do/In progress/Completed,
  *    last is a done-list) with the creator as a member — WITHOUT the PM needing
  *    Scrum Master rights
  *  - adding an action item creates a real, correctly-assigned Kanban card;
@@ -302,7 +302,7 @@ describe('Project Kickoff (e2e)', () => {
       where: { boardId: kickoff.kanbanBoardId },
       orderBy: { position: 'asc' },
     });
-    expect(lists.map((l) => l.name)).toEqual(['To Do', 'In Progress', 'Done']);
+    expect(lists.map((l) => l.name)).toEqual(['To Do', 'In progress', 'Completed']);
     expect(lists[2].isDoneList).toBe(true);
 
     const membership = await prisma.kanbanBoardMember.findFirst({
@@ -367,7 +367,7 @@ describe('Project Kickoff (e2e)', () => {
     expect(card.assigneeId).toBe(memberId);
     expect(card.title).toBe('Finalise rack layout');
 
-    // Move the card to the Done list → the action item's COMPUTED status flips
+    // Move the card to the done list → the action item's COMPUTED status flips
     // to DONE, with no separate stored status field.
     const doneList = await prisma.kanbanList.findFirstOrThrow({
       where: { boardId: kickoff.kanbanBoardId, isDoneList: true },
@@ -384,7 +384,7 @@ describe('Project Kickoff (e2e)', () => {
     ).body.data;
     const movedItem = afterMove.actionItems.find((x: { id: string }) => x.id === ai.id);
     expect(movedItem.status).toBe('DONE');
-    expect(movedItem.currentListName).toBe('Done');
+    expect(movedItem.currentListName).toBe('Completed');
 
     // Milestone + risk CRUD.
     const milestone = (
