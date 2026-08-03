@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bid, BidStatus, PaginatedResult } from '../../../lib/types';
 import { apiFetch } from '../../../lib/api';
+import { useAuth } from '../../../lib/auth-context';
 import { formatINR, prettyEnum } from '../../../lib/sales';
 import { useNumberFormat } from '../../../lib/number-format-context';
 import { PageContainer } from '../../../components/ui/page-container';
@@ -49,6 +50,7 @@ function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function BidsPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const { style: numberFormatStyle } = useNumberFormat();
   const [bids, setBids] = useState<Bid[]>([]);
   const [summaryRows, setSummaryRows] = useState<Bid[]>([]);
@@ -60,6 +62,13 @@ export default function BidsPage() {
   const { businessUnits } = useBusinessUnitOptions();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Cross-bid "awaiting product setup" count, shown to Manager/SuperAdmin.
+  const [adHocCount, setAdHocCount] = useState<{
+    lineItemCount: number;
+    bidCount: number;
+  } | null>(null);
+  const canSeeAdHocCount =
+    user?.role === 'MANAGER' || user?.role === 'SUPER_ADMIN';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,6 +100,14 @@ export default function BidsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Best-effort cross-bid count; a failure just hides the banner.
+  useEffect(() => {
+    if (!canSeeAdHocCount) return;
+    apiFetch<{ lineItemCount: number; bidCount: number }>('/bids/ad-hoc-count')
+      .then(setAdHocCount)
+      .catch(() => setAdHocCount(null));
+  }, [canSeeAdHocCount]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -127,6 +144,18 @@ export default function BidsPage() {
         title="Bids"
         description="Commercial proposal register — track drafts, approvals, customer submissions and outcomes."
       />
+
+      {canSeeAdHocCount && adHocCount && adHocCount.lineItemCount > 0 && (
+        <div className="mb-6 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
+          <span className="font-semibold">
+            {adHocCount.lineItemCount} line item
+            {adHocCount.lineItemCount === 1 ? '' : 's'} awaiting product setup
+          </span>{' '}
+          across {adHocCount.bidCount} bid
+          {adHocCount.bidCount === 1 ? '' : 's'}. Ad-hoc lines must be resolved
+          to real products before those bids can convert to orders.
+        </div>
+      )}
 
       <div className="mb-6 flex flex-wrap gap-3">
         <StatCard label="Drafts" value={summary.drafts} />

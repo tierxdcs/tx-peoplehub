@@ -1098,11 +1098,23 @@ model BidLineItem {
   id                  String   @id @default(uuid())
   bidId               String
   bid                 Bid      @relation(fields: [bidId], references: [id], onDelete: Cascade)
-  productId           String
-  product             Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  /// Nullable to support "quote loosely, commit formally": a line may be an
+  /// ad-hoc placeholder (adHocProductName/adHocDescription below) with no real
+  /// Product yet. Exactly one of productId / adHocProductName is set per line
+  /// (enforced in BidsService, not a DB constraint — mirrors the repo's
+  /// nullable-in-DB/required-in-DTO convention). Every placeholder must be
+  /// resolved to a real Product before the bid can convert to an order.
+  productId           String?
+  product             Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+  /// Ad-hoc placeholder name/description, used only while productId is null.
+  /// Cleared once the line is resolved to a real Product.
+  adHocProductName    String?
+  adHocDescription    String?
   quantity            Decimal  @db.Decimal(14, 2)
   /// Snapshot of Product.unitPrice at bid-creation time — never a live
-  /// reference, so the bid preserves exactly what was proposed.
+  /// reference, so the bid preserves exactly what was proposed. For an ad-hoc
+  /// line this is the price the rep typed; it is preserved verbatim when the
+  /// line is later resolved (the customer was quoted this figure).
   unitPrice           Decimal  @db.Decimal(14, 2)
   lineDiscountPercent Decimal? @db.Decimal(5, 2)
   lineTotal           Decimal  @db.Decimal(14, 2)

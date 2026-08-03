@@ -4,18 +4,26 @@
  * drift — the backend resolves productName/productSku onto each line item, and
  * this is the single place that formats them for display. Never show the raw
  * productId FK.
+ *
+ * A null SKU means an ad-hoc bid line that has no real Product yet — show a
+ * "pending product setup" note in place of the SKU so it reads as unresolved
+ * rather than as a product with a blank code.
  */
 export function ProductCell({
   name,
   sku,
 }: {
   name: string;
-  sku: string;
+  sku: string | null;
 }) {
   return (
     <div>
       <div className="font-medium">{name}</div>
-      <div className="text-xs text-muted-foreground">SKU: {sku}</div>
+      {sku ? (
+        <div className="text-xs text-muted-foreground">SKU: {sku}</div>
+      ) : (
+        <div className="text-xs text-warning">Ad-hoc — pending product setup</div>
+      )}
     </div>
   );
 }

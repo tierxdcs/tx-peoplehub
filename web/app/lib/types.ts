@@ -513,9 +513,16 @@ export interface Opportunity {
 export interface BidLineItem {
   id: string;
   bidId: string;
-  productId: string;
+  /** Null while the line is an unresolved ad-hoc placeholder. */
+  productId: string | null;
+  /** True when the line still needs a real Product before order conversion. */
+  isAdHoc: boolean;
+  adHocProductName: string | null;
+  adHocDescription: string | null;
+  /** Display name — the Product name, or the ad-hoc name when unresolved. */
   productName: string;
-  productSku: string;
+  /** Null for an ad-hoc line (no SKU yet). */
+  productSku: string | null;
   productDescription: string | null;
   productUnitOfMeasure: string;
   quantity: string;

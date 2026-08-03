@@ -44,6 +44,7 @@ import { SignatureDisplay } from '../../../../components/ui/signature-display';
 import { SignatureSetupInline } from '../../../../components/ui/signature-setup-inline';
 import { ProductCell } from '../../_components/product-cell';
 import { BidPrintDocument } from '../../_components/bid-print-document';
+import { AdHocResolutionCard } from '../../_components/ad-hoc-resolution';
 
 export default function BidDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -202,6 +203,11 @@ export default function BidDetailPage() {
   const isAssignedApprover = !!user && bid.approverId === user.sub;
   const canApprove =
     bid.status === 'PENDING_APPROVAL' && (isAssignedApprover || isAdmin);
+  // "Create Product Now" reuses POST /products, which is Manager/SuperAdmin-only.
+  const canCreateProduct =
+    user?.role === 'MANAGER' || user?.role === 'SUPER_ADMIN';
+  // Any unresolved ad-hoc line blocks conversion (server enforces this too).
+  const hasAdHocLines = (bid.lineItems ?? []).some((li) => li.isAdHoc);
 
   return (
     <>
@@ -305,7 +311,15 @@ export default function BidDetailPage() {
                   View Order
                 </Button>
               ) : (
-                <Button disabled={acting} onClick={convertToOrder}>
+                <Button
+                  disabled={acting || hasAdHocLines}
+                  title={
+                    hasAdHocLines
+                      ? 'Resolve all ad-hoc line items before converting'
+                      : undefined
+                  }
+                  onClick={convertToOrder}
+                >
                   Convert to Order
                 </Button>
               ))}
@@ -330,6 +344,16 @@ export default function BidDetailPage() {
           className="mb-4"
           {...bidFlow(bid.status)}
         />
+
+        {/* Formalization gate: resolve any ad-hoc lines to real products before
+            this bid can convert to an order. Hidden once converted. */}
+        {hasAdHocLines && !bid.convertedOrderId && (
+          <AdHocResolutionCard
+            bid={bid}
+            canCreateProduct={canCreateProduct}
+            onResolved={load}
+          />
+        )}
 
         {/* Metadata card: Valid until / Tender reference, two-column with icons */}
         <Card className="mb-4">
@@ -434,7 +458,14 @@ export default function BidDetailPage() {
                 {(bid.lineItems ?? []).map((li) => (
                   <TableRow key={li.id}>
                     <TableCell>
-                      <ProductCell name={li.productName} sku={li.productSku} />
+                      <div className="flex items-center gap-2">
+                        <ProductCell name={li.productName} sku={li.productSku} />
+                        {li.isAdHoc && (
+                          <span className="inline-flex items-center rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-warning">
+                            Awaiting setup
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">{li.quantity}</TableCell>
                     <TableCell className="text-right">

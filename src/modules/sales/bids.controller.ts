@@ -20,6 +20,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { CreateBidDto } from './dto/create-bid.dto';
 import { BidActionDto } from './dto/bid-action.dto';
 import { BidStatusDto } from './dto/bid-status.dto';
+import { ResolveBidLineItemDto } from './dto/resolve-bid-line-item.dto';
 import { BidsService } from './bids.service';
 import { OrdersService } from './orders.service';
 
@@ -58,6 +59,15 @@ export class BidsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.bidsService.findPendingApproval(query, user);
+  }
+
+  @Get('ad-hoc-count')
+  @ApiOperation({
+    summary:
+      'Count of ad-hoc line items awaiting product setup across open bids',
+  })
+  countAdHoc(@CurrentUser() user: AuthenticatedUser) {
+    return this.bidsService.countAdHocLineItems(user);
   }
 
   @Get(':id')
@@ -104,6 +114,19 @@ export class BidsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.bidsService.markStatus(id, dto.status, user);
+  }
+
+  @Patch(':id/line-items/:lineItemId/resolve')
+  @ApiOperation({
+    summary: 'Resolve an ad-hoc line item to a real Product before conversion',
+  })
+  resolveLineItem(
+    @Param('id') id: string,
+    @Param('lineItemId') lineItemId: string,
+    @Body() dto: ResolveBidLineItemDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bidsService.resolveLineItem(id, lineItemId, dto, user);
   }
 
   @Post(':id/convert-to-order')

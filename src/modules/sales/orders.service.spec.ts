@@ -88,6 +88,39 @@ describe('OrdersService', () => {
       );
     });
 
+    it('rejects converting a bid with an unresolved ad-hoc line item', async () => {
+      prisma.bid.findUnique.mockResolvedValue({
+        id: 'bid-1',
+        status: BidStatus.ACCEPTED,
+        createdById: 'emp-1',
+        customerId: 'cust-1',
+        totalAmount: new Prisma.Decimal(1000),
+        amcCharges: [],
+        lineItems: [
+          {
+            productId: 'prod-1',
+            quantity: new Prisma.Decimal(1),
+            unitPrice: new Prisma.Decimal(1000),
+            lineTotal: new Prisma.Decimal(1000),
+          },
+          {
+            // Unresolved ad-hoc placeholder — must block conversion.
+            productId: null,
+            quantity: new Prisma.Decimal(1),
+            unitPrice: new Prisma.Decimal(500),
+            lineTotal: new Prisma.Decimal(500),
+          },
+        ],
+      });
+      prisma.order.findFirst.mockResolvedValue(null);
+
+      await expect(service.convertFromBid('bid-1', rep)).rejects.toThrow(
+        /awaiting product setup/,
+      );
+      // No order transaction should run while a placeholder remains.
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
     it('copies line items from an ACCEPTED bid into a CONFIRMED order', async () => {
       prisma.bid.findUnique.mockResolvedValue({
         id: 'bid-1',

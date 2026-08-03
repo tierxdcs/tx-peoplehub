@@ -8,14 +8,41 @@ export class BidLineItemEntity {
   @ApiProperty()
   bidId!: string;
 
-  @ApiProperty()
-  productId!: string;
+  @ApiProperty({
+    nullable: true,
+    description: 'Real Product id, or null for an unresolved ad-hoc line',
+  })
+  productId!: string | null;
 
-  @ApiProperty({ description: 'Resolved product name (for display)' })
+  @ApiProperty({
+    description:
+      'True when this line is still an ad-hoc placeholder (no real Product yet). Such a line must be resolved before order conversion.',
+  })
+  isAdHoc!: boolean;
+
+  @ApiProperty({
+    nullable: true,
+    description: 'Ad-hoc placeholder name (set only while unresolved)',
+  })
+  adHocProductName!: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    description: 'Ad-hoc placeholder description (set only while unresolved)',
+  })
+  adHocDescription!: string | null;
+
+  @ApiProperty({
+    description:
+      'Resolved display name — the Product name, or the ad-hoc name when unresolved',
+  })
   productName!: string;
 
-  @ApiProperty({ description: 'Resolved product SKU (for display)' })
-  productSku!: string;
+  @ApiProperty({
+    nullable: true,
+    description: 'Resolved product SKU (for display); null for an ad-hoc line',
+  })
+  productSku!: string | null;
 
   @ApiProperty({
     nullable: true,

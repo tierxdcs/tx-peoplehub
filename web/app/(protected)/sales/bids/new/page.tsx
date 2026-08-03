@@ -26,6 +26,27 @@ interface LineDraft {
   productId: string;
   quantity: string;
   lineDiscountPercent: string;
+  /** True when this is an ad-hoc line typed in without a real Product yet. */
+  adHoc: boolean;
+  adHocProductName: string;
+  adHocDescription: string;
+  /** Rep-typed unit price for an ad-hoc line (real lines derive it). */
+  adHocUnitPrice: string;
+}
+
+/** Sentinel <option> value that switches a line into ad-hoc entry mode. */
+const AD_HOC_OPTION = '__ad_hoc__';
+
+function blankLine(): LineDraft {
+  return {
+    productId: '',
+    quantity: '',
+    lineDiscountPercent: '',
+    adHoc: false,
+    adHocProductName: '',
+    adHocDescription: '',
+    adHocUnitPrice: '',
+  };
 }
 
 const AMC_YEARS = [
@@ -44,8 +65,10 @@ function computeTotals(
   const priceById = new Map(products.map((p) => [p.id, Number(p.unitPrice)]));
   let subtotal = 0;
   for (const l of lines) {
-    const price = priceById.get(l.productId);
-    if (price === undefined || !l.quantity) continue;
+    const price = l.adHoc
+      ? Number(l.adHocUnitPrice)
+      : priceById.get(l.productId);
+    if (price === undefined || Number.isNaN(price) || !l.quantity) continue;
     const qty = Number(l.quantity);
     const lineDisc = l.lineDiscountPercent ? Number(l.lineDiscountPercent) : 0;
     const gross = price * qty;
@@ -81,9 +104,7 @@ export default function NewBidPage() {
     4: '',
     5: '',
   });
-  const [lines, setLines] = useState<LineDraft[]>([
-    { productId: '', quantity: '', lineDiscountPercent: '' },
-  ]);
+  const [lines, setLines] = useState<LineDraft[]>([blankLine()]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -136,10 +157,20 @@ export default function NewBidPage() {
       return;
     }
     const validLines = lines.filter(
-      (l) => l.productId && Number(l.quantity) > 0,
+      (l) =>
+        Number(l.quantity) > 0 &&
+        (l.adHoc ? !!l.adHocProductName.trim() : !!l.productId),
     );
     if (validLines.length === 0) {
       setError('Add at least one line item with a product and quantity');
+      return;
+    }
+    // Ad-hoc lines have no Product to snapshot a price from — require one.
+    const adHocMissingPrice = validLines.some(
+      (l) => l.adHoc && (l.adHocUnitPrice === '' || Number(l.adHocUnitPrice) < 0),
+    );
+    if (adHocMissingPrice) {
+      setError('Enter a unit price for each new (ad-hoc) product line');
       return;
     }
 
@@ -177,7 +208,13 @@ export default function NewBidPage() {
             amount: Number(amcAmounts[yearNumber]) || 0,
           })).filter((charge) => charge.amount > 0),
           lineItems: validLines.map((l) => ({
-            productId: l.productId,
+            ...(l.adHoc
+              ? {
+                  adHocProductName: l.adHocProductName.trim(),
+                  adHocDescription: l.adHocDescription.trim() || undefined,
+                  unitPrice: Number(l.adHocUnitPrice),
+                }
+              : { productId: l.productId }),
             quantity: Number(l.quantity),
             lineDiscountPercent: l.lineDiscountPercent
               ? Number(l.lineDiscountPercent)
@@ -317,21 +354,40 @@ export default function NewBidPage() {
           <tbody>
             {lines.map((l, i) => {
               const product = products.find((p) => p.id === l.productId);
-              const unit = product ? Number(product.unitPrice) : 0;
+              const unit = l.adHoc
+                ? Number(l.adHocUnitPrice) || 0
+                : product
+                  ? Number(product.unitPrice)
+                  : 0;
               const qty = Number(l.quantity) || 0;
               const disc = Number(l.lineDiscountPercent) || 0;
               const lineTotal = unit * qty * (1 - disc / 100);
+              const hasValue = l.adHoc ? l.adHocUnitPrice !== '' : !!product;
               return (
                 <tr key={i} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
                   <td>
                     <select
-                      value={l.productId}
-                      onChange={(e) =>
-                        updateLine(i, { productId: e.target.value })
-                      }
+                      value={l.adHoc ? AD_HOC_OPTION : l.productId}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === AD_HOC_OPTION) {
+                          updateLine(i, { adHoc: true, productId: '' });
+                        } else {
+                          updateLine(i, {
+                            adHoc: false,
+                            productId: v,
+                            adHocProductName: '',
+                            adHocDescription: '',
+                            adHocUnitPrice: '',
+                          });
+                        }
+                      }}
                       style={{ padding: 4, minWidth: 180 }}
                     >
                       <option value="">Select…</option>
+                      <option value={AD_HOC_OPTION}>
+                        ➕ Enter a new product (ad-hoc)…
+                      </option>
                       {orderProductsForOpportunity(
                         products,
                         selectedOpp?.businessUnitId,
@@ -344,11 +400,48 @@ export default function NewBidPage() {
                           </option>
                         ))}
                     </select>
+                    {l.adHoc && (
+                      <div style={{ marginTop: 6, display: 'grid', gap: 4 }}>
+                        <input
+                          placeholder="New product name"
+                          value={l.adHocProductName}
+                          onChange={(e) =>
+                            updateLine(i, { adHocProductName: e.target.value })
+                          }
+                          style={{ padding: 4, minWidth: 180 }}
+                        />
+                        <input
+                          placeholder="Description (optional)"
+                          value={l.adHocDescription}
+                          onChange={(e) =>
+                            updateLine(i, { adHocDescription: e.target.value })
+                          }
+                          style={{ padding: 4, minWidth: 180 }}
+                        />
+                        <span className="text-xs text-warning">
+                          Needs product setup before order conversion.
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td>
-                    {product
-                      ? formatINR(product.unitPrice, numberFormatStyle)
-                      : '—'}
+                    {l.adHoc ? (
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        placeholder="0.00"
+                        value={l.adHocUnitPrice}
+                        onChange={(e) =>
+                          updateLine(i, { adHocUnitPrice: e.target.value })
+                        }
+                        style={{ padding: 4, width: 100 }}
+                      />
+                    ) : product ? (
+                      formatINR(product.unitPrice, numberFormatStyle)
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td>
                     <input
@@ -374,7 +467,7 @@ export default function NewBidPage() {
                     />
                   </td>
                   <td>
-                    {product && qty
+                    {hasValue && qty
                       ? formatINR(lineTotal, numberFormatStyle)
                       : '—'}
                   </td>
@@ -402,12 +495,7 @@ export default function NewBidPage() {
           variant="outline"
           size="sm"
           className="mb-4"
-          onClick={() =>
-            setLines((ls) => [
-              ...ls,
-              { productId: '', quantity: '', lineDiscountPercent: '' },
-            ])
-          }
+          onClick={() => setLines((ls) => [...ls, blankLine()])}
         >
           + Add line
         </Button>

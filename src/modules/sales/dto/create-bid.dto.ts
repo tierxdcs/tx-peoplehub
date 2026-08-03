@@ -12,13 +12,51 @@ import {
   IsUUID,
   Max,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 
+/**
+ * A bid line is either a real Product (productId set — unit price is snapshotted
+ * server-side from Product.unitPrice) OR an ad-hoc placeholder the rep types in
+ * (adHocProductName + unitPrice set, productId omitted). Exactly one of the two
+ * modes must be used per line — enforced in BidsService.create. Ad-hoc lines
+ * must be resolved to a real Product before the bid can convert to an order.
+ */
 export class BidLineItemDto {
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description:
+      'Real Product to quote. Omit for an ad-hoc line (supply adHocProductName + unitPrice instead).',
+  })
+  @IsOptional()
   @IsUUID()
-  productId!: string;
+  productId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Ad-hoc placeholder product name — used when no Product exists yet. Mutually exclusive with productId.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  adHocProductName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Ad-hoc placeholder description/specification.',
+  })
+  @IsOptional()
+  @IsString()
+  adHocDescription?: string;
+
+  @ApiPropertyOptional({
+    example: 12500,
+    description:
+      'Unit price. Required for an ad-hoc line (there is no Product to snapshot from); ignored for a real-product line, which snapshots Product.unitPrice.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  unitPrice?: number;
 
   @ApiProperty({ example: 500 })
   @IsNumber()

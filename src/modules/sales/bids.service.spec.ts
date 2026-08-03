@@ -33,19 +33,21 @@ describe('BidsService', () => {
     prisma = {
       opportunity: { findUnique: jest.fn() },
       customer: { findUnique: jest.fn() },
-      product: { findMany: jest.fn() },
+      product: { findMany: jest.fn(), findUnique: jest.fn() },
       bid: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
         count: jest.fn(),
         update: jest.fn(),
       },
+      bidLineItem: { update: jest.fn(), findMany: jest.fn() },
       $transaction: jest.fn(),
     };
     access = {
       assertSalesAccess: jest.fn().mockResolvedValue(undefined),
       assertCanAccessOwned: jest.fn().mockResolvedValue(undefined),
       visibleOwnerIds: jest.fn().mockResolvedValue(['emp-1']),
+      isSalesStaff: jest.fn().mockResolvedValue(true),
     };
     numbering = { nextNumber: jest.fn().mockResolvedValue('BID-2026-0001') };
     approvalRouting = {
@@ -279,6 +281,328 @@ describe('BidsService', () => {
         ).resolves.toBeDefined();
       },
     );
+  });
+
+  describe('create — ad-hoc line items', () => {
+    beforeEach(() => {
+      prisma.opportunity.findUnique.mockResolvedValue({ id: 'opp-1' });
+      prisma.customer.findUnique.mockResolvedValue({
+        id: 'cust-1',
+        billingAddress: { state: 'Karnataka' },
+      });
+      prisma.product.findMany.mockResolvedValue([
+        { id: 'prod-1', unitPrice: new Prisma.Decimal(1000) },
+      ]);
+      taxConfig.findEffective.mockResolvedValue(null);
+      // Realistic echo: a line's `product` is populated only when productId is
+      // set, so the toEntity ad-hoc fallback is genuinely exercised.
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          bid: {
+            create: jest.fn().mockImplementation(({ data }: any) => ({
+              ...data,
+              id: 'bid-1',
+              status: BidStatus.DRAFT,
+              approverId: null,
+              approvedAt: null,
+              approverComments: null,
+              tenderReferenceNumber: null,
+              technicalSpecification: null,
+              attachments: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              lineItems: data.lineItems.create.map((li: any, i: number) => ({
+                ...li,
+                id: `li-${i}`,
+                bidId: 'bid-1',
+                product: li.productId
+                  ? {
+                      name: `Product ${li.productId}`,
+                      sku: `SKU-${i}`,
+                      description: 'catalog desc',
+                      unitOfMeasure: 'each',
+                    }
+                  : null,
+              })),
+              amcCharges: [],
+            })),
+          },
+        }),
+      );
+    });
+
+    it('creates an ad-hoc line using the typed unit price and stores the placeholder', async () => {
+      const result = await service.create(
+        {
+          opportunityId: 'opp-1',
+          customerId: 'cust-1',
+          validUntil: '2026-10-31',
+          lineItems: [
+            {
+              adHocProductName: 'Custom Busbar 400A',
+              adHocDescription: 'Tinned copper, 400A rating',
+              unitPrice: 2500,
+              quantity: 4,
+            },
+          ],
+        },
+        rep,
+      );
+
+      const line = result.lineItems?.[0];
+      expect(line?.isAdHoc).toBe(true);
+      expect(line?.productId).toBeNull();
+      expect(line?.productSku).toBeNull();
+      // Display fields fall back to the ad-hoc placeholder.
+      expect(line?.productName).toBe('Custom Busbar 400A');
+      expect(line?.productDescription).toBe('Tinned copper, 400A rating');
+      expect(line?.unitPrice).toBe('2500');
+      // 4 * 2500 = 10,000; no tax config → total equals subtotal.
+      expect(line?.lineTotal).toBe('10000');
+      expect(result.subtotal).toBe('10000');
+    });
+
+    it('accepts a mix of real-product and ad-hoc lines in one bid', async () => {
+      const result = await service.create(
+        {
+          opportunityId: 'opp-1',
+          customerId: 'cust-1',
+          validUntil: '2026-10-31',
+          lineItems: [
+            { productId: 'prod-1', quantity: 2 },
+            { adHocProductName: 'One-off part', unitPrice: 500, quantity: 1 },
+          ],
+        },
+        rep,
+      );
+
+      const [real, adHoc] = result.lineItems ?? [];
+      expect(real.isAdHoc).toBe(false);
+      expect(real.productId).toBe('prod-1');
+      expect(real.unitPrice).toBe('1000');
+      expect(adHoc.isAdHoc).toBe(true);
+      expect(adHoc.productName).toBe('One-off part');
+      // 2*1000 + 1*500 = 2,500
+      expect(result.subtotal).toBe('2500');
+    });
+
+    it('rejects a line that sets neither productId nor adHocProductName', async () => {
+      await expect(
+        service.create(
+          {
+            opportunityId: 'opp-1',
+            customerId: 'cust-1',
+            validUntil: '2026-10-31',
+            lineItems: [{ quantity: 1 } as any],
+          },
+          rep,
+        ),
+      ).rejects.toThrow(/exactly one of productId or adHocProductName/);
+    });
+
+    it('rejects a line that sets both productId and adHocProductName', async () => {
+      await expect(
+        service.create(
+          {
+            opportunityId: 'opp-1',
+            customerId: 'cust-1',
+            validUntil: '2026-10-31',
+            lineItems: [
+              {
+                productId: 'prod-1',
+                adHocProductName: 'Also ad-hoc',
+                unitPrice: 100,
+                quantity: 1,
+              },
+            ],
+          },
+          rep,
+        ),
+      ).rejects.toThrow(/exactly one of productId or adHocProductName/);
+    });
+
+    it('rejects an ad-hoc line with no unit price', async () => {
+      await expect(
+        service.create(
+          {
+            opportunityId: 'opp-1',
+            customerId: 'cust-1',
+            validUntil: '2026-10-31',
+            lineItems: [
+              { adHocProductName: 'Missing price', quantity: 1 },
+            ],
+          },
+          rep,
+        ),
+      ).rejects.toThrow(/requires a unitPrice/);
+    });
+  });
+
+  describe('resolveLineItem — commit an ad-hoc placeholder to a real product', () => {
+    const adHocBid = () => ({
+      id: 'bid-1',
+      bidNumber: 'BID-2026-0001',
+      opportunityId: 'opp-1',
+      customerId: 'cust-1',
+      status: BidStatus.ACCEPTED,
+      validUntil: new Date(),
+      tenderReferenceNumber: null,
+      quotationSubject: null,
+      technicalSpecification: null,
+      attachments: null,
+      subtotal: new Prisma.Decimal(1000),
+      discountPercent: new Prisma.Decimal(0),
+      discountAmount: new Prisma.Decimal(0),
+      taxType: null,
+      taxRate: null,
+      taxAmount: new Prisma.Decimal(0),
+      totalAmount: new Prisma.Decimal(1000),
+      createdById: 'emp-1',
+      enquiryCreatorId: 'emp-1',
+      businessUnitId: 'EDGE',
+      approverId: null,
+      approvedAt: null,
+      approverComments: null,
+      approverSignatureTextSnapshot: null,
+      approverSignatureFontSnapshot: null,
+      orders: [],
+      lineItems: [
+        {
+          id: 'li-0',
+          bidId: 'bid-1',
+          productId: null,
+          adHocProductName: 'Custom part',
+          adHocDescription: 'spec',
+          quantity: new Prisma.Decimal(1),
+          unitPrice: new Prisma.Decimal(1000),
+          lineDiscountPercent: null,
+          lineTotal: new Prisma.Decimal(1000),
+          product: null,
+        },
+      ],
+      amcCharges: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    it('links the product, clears the ad-hoc fields, and preserves unitPrice/lineTotal', async () => {
+      prisma.bid.findUnique.mockResolvedValue(adHocBid());
+      prisma.product.findUnique.mockResolvedValue({
+        id: 'prod-9',
+        isActive: true,
+      });
+      prisma.bidLineItem.update.mockResolvedValue({});
+
+      await service.resolveLineItem(
+        'bid-1',
+        'li-0',
+        { productId: 'prod-9' },
+        rep,
+      );
+
+      const updateArg = prisma.bidLineItem.update.mock.calls[0][0];
+      expect(updateArg.where).toEqual({ id: 'li-0' });
+      expect(updateArg.data).toEqual({
+        productId: 'prod-9',
+        adHocProductName: null,
+        adHocDescription: null,
+      });
+      // unitPrice/lineTotal are NOT part of the update — the quote is preserved.
+      expect(updateArg.data.unitPrice).toBeUndefined();
+      expect(updateArg.data.lineTotal).toBeUndefined();
+    });
+
+    it('rejects resolving once the bid has been converted to an order', async () => {
+      prisma.bid.findUnique.mockResolvedValue({
+        ...adHocBid(),
+        orders: [{ id: 'ord-1' }],
+      });
+
+      await expect(
+        service.resolveLineItem('bid-1', 'li-0', { productId: 'prod-9' }, rep),
+      ).rejects.toThrow(/already been converted/);
+      expect(prisma.bidLineItem.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects resolving a line that is already linked to a product', async () => {
+      const bid = adHocBid();
+      (bid.lineItems[0] as { productId: string | null }).productId =
+        'prod-existing';
+      prisma.bid.findUnique.mockResolvedValue(bid);
+
+      await expect(
+        service.resolveLineItem('bid-1', 'li-0', { productId: 'prod-9' }, rep),
+      ).rejects.toThrow(/already linked to a product/);
+    });
+
+    it('rejects resolving to an inactive product', async () => {
+      prisma.bid.findUnique.mockResolvedValue(adHocBid());
+      prisma.product.findUnique.mockResolvedValue({
+        id: 'prod-9',
+        isActive: false,
+      });
+
+      await expect(
+        service.resolveLineItem('bid-1', 'li-0', { productId: 'prod-9' }, rep),
+      ).rejects.toThrow(/inactive/);
+      expect(prisma.bidLineItem.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the line item does not belong to the bid', async () => {
+      prisma.bid.findUnique.mockResolvedValue(adHocBid());
+
+      await expect(
+        service.resolveLineItem(
+          'bid-1',
+          'li-missing',
+          { productId: 'prod-9' },
+          rep,
+        ),
+      ).rejects.toThrow(/Line item not found/);
+    });
+  });
+
+  describe('countAdHocLineItems — cross-bid awaiting-setup count', () => {
+    it('counts unresolved lines and the distinct bids they belong to (open statuses only)', async () => {
+      prisma.bidLineItem.findMany.mockResolvedValue([
+        { bidId: 'bid-1' },
+        { bidId: 'bid-1' },
+        { bidId: 'bid-2' },
+      ]);
+
+      const result = await service.countAdHocLineItems(rep);
+
+      expect(result).toEqual({ lineItemCount: 3, bidCount: 2 });
+      const whereArg = prisma.bidLineItem.findMany.mock.calls[0][0].where;
+      expect(whereArg.productId).toBeNull();
+      expect(whereArg.bid.status.in).toEqual(
+        expect.arrayContaining([
+          BidStatus.DRAFT,
+          BidStatus.PENDING_APPROVAL,
+          BidStatus.APPROVED,
+          BidStatus.SENT,
+          BidStatus.ACCEPTED,
+        ]),
+      );
+      // Dead-end statuses never convert, so they're excluded.
+      expect(whereArg.bid.status.in).not.toContain(BidStatus.EXPIRED);
+      expect(whereArg.bid.status.in).not.toContain(BidStatus.REJECTED);
+    });
+
+    it('returns zeros for a non-Sales caller without querying', async () => {
+      access.isSalesStaff.mockResolvedValue(false);
+      const outsider: AuthenticatedUser = {
+        id: 'x-1',
+        email: 'x@x.com',
+        role: Role.EMPLOYEE,
+        verticalId: 'v-other',
+      };
+
+      const result = await service.countAdHocLineItems(outsider);
+
+      expect(result).toEqual({ lineItemCount: 0, bidCount: 0 });
+      expect(prisma.bidLineItem.findMany).not.toHaveBeenCalled();
+    });
   });
 
   describe('submit — discount approval routing', () => {

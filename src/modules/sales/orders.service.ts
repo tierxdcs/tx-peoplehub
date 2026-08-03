@@ -92,6 +92,15 @@ export class OrdersService {
       );
     }
 
+    // Formalization gate: no order may reference an ad-hoc placeholder. Every
+    // line must have been resolved to a real Product first.
+    const unresolved = bid.lineItems.filter((li) => li.productId === null);
+    if (unresolved.length > 0) {
+      throw new BadRequestException(
+        `This bid has ${unresolved.length} line item(s) awaiting product setup — resolve them before converting to an order`,
+      );
+    }
+
     const created = await this.prisma.$transaction(async (tx) => {
       const amcTotal = (bid.amcCharges ?? []).reduce(
         (sum, charge) => sum.plus(charge.amount),
@@ -114,8 +123,9 @@ export class OrdersService {
           // Snapshot the full accepted quotation value, including flat AMC.
           totalAmount: bid.totalAmount.plus(amcTotal),
           lineItems: {
+            // productId is guaranteed non-null by the formalization gate above.
             create: bid.lineItems.map((li) => ({
-              productId: li.productId,
+              productId: li.productId!,
               quantity: li.quantity,
               unitPrice: li.unitPrice,
               lineTotal: li.lineTotal,

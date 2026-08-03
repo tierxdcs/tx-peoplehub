@@ -20,6 +20,7 @@ import {
 } from '../../common/dto/pagination.dto';
 import { CreateBidDto } from './dto/create-bid.dto';
 import { BidActionDto } from './dto/bid-action.dto';
+import { ResolveBidLineItemDto } from './dto/resolve-bid-line-item.dto';
 import {
   BidAmcChargeEntity,
   BidEntity,
@@ -42,12 +43,13 @@ const DISCOUNT_APPROVAL_THRESHOLD = new Prisma.Decimal(10);
 const COMPANY_STATE = 'Karnataka';
 
 type BidLineItemWithProduct = BidLineItem & {
+  // Null for an unresolved ad-hoc line (productId is null); populated otherwise.
   product: {
     name: string;
     sku: string;
     description: string | null;
     unitOfMeasure: string;
-  };
+  } | null;
 };
 type BidWithLines = Bid & {
   lineItems: BidLineItemWithProduct[];
@@ -104,9 +106,30 @@ export class BidsService {
       throw new BadRequestException('A bid must have at least one line item');
     }
 
-    // Snapshot each product's current unitPrice — never a live reference.
+    // Each line is either a real Product or an ad-hoc placeholder — exactly one.
+    // Validate up front so a malformed line can't slip through the price lookup.
+    for (const li of dto.lineItems) {
+      const hasProduct = !!li.productId;
+      const hasAdHoc = !!li.adHocProductName;
+      if (hasProduct === hasAdHoc) {
+        throw new BadRequestException(
+          'Each line item must set exactly one of productId or adHocProductName',
+        );
+      }
+      if (hasAdHoc && li.unitPrice === undefined) {
+        throw new BadRequestException(
+          `Ad-hoc line "${li.adHocProductName}" requires a unitPrice`,
+        );
+      }
+    }
+
+    // Snapshot each real product's current unitPrice — never a live reference.
+    // Ad-hoc lines carry the rep-typed unitPrice instead.
+    const productIds = dto.lineItems
+      .map((li) => li.productId)
+      .filter((id): id is string => !!id);
     const products = await this.prisma.product.findMany({
-      where: { id: { in: dto.lineItems.map((li) => li.productId) } },
+      where: { id: { in: productIds } },
     });
     const priceById = new Map(products.map((p) => [p.id, p.unitPrice]));
 
@@ -115,11 +138,17 @@ export class BidsService {
     const { taxType, taxRate } = await this.resolveTax(customer, asOf);
 
     const lineData = dto.lineItems.map((li) => {
-      const unitPrice = priceById.get(li.productId);
-      if (!unitPrice) {
-        throw new BadRequestException(
-          `productId ${li.productId} does not reference a product`,
-        );
+      let unitPrice: Prisma.Decimal;
+      if (li.productId) {
+        const snapshot = priceById.get(li.productId);
+        if (!snapshot) {
+          throw new BadRequestException(
+            `productId ${li.productId} does not reference a product`,
+          );
+        }
+        unitPrice = snapshot;
+      } else {
+        unitPrice = new Prisma.Decimal(li.unitPrice as number);
       }
       const quantity = new Prisma.Decimal(li.quantity);
       const lineDiscountPercent =
@@ -133,7 +162,9 @@ export class BidsService {
             .dividedBy(100)
         : gross;
       return {
-        productId: li.productId,
+        productId: li.productId ?? null,
+        adHocProductName: li.productId ? null : (li.adHocProductName ?? null),
+        adHocDescription: li.productId ? null : (li.adHocDescription ?? null),
         quantity,
         unitPrice,
         lineDiscountPercent,
@@ -457,6 +488,96 @@ export class BidsService {
     return this.toEntity(updated);
   }
 
+  /**
+   * Resolve an ad-hoc placeholder line to a real Product ("commit formally").
+   * One-way: sets productId and clears the ad-hoc fields, but preserves the
+   * snapshotted unitPrice/lineTotal (the customer was quoted that figure).
+   * Blocked once the bid has been converted (an order already references these
+   * lines). The chosen Product must exist and be active. Requires ownership —
+   * the same guard as any other write to the bid.
+   */
+  async resolveLineItem(
+    bidId: string,
+    lineItemId: string,
+    dto: ResolveBidLineItemDto,
+    user: AuthenticatedUser,
+  ): Promise<BidEntity> {
+    await this.access.assertSalesAccess(user);
+    const bid = await this.findRawOrThrow(bidId);
+    await this.access.assertCanAccessOwned(user, bid.createdById);
+
+    if (bid.orders && bid.orders.length > 0) {
+      throw new BadRequestException(
+        'This bid has already been converted to an order and can no longer be edited',
+      );
+    }
+
+    const line = bid.lineItems.find((li) => li.id === lineItemId);
+    if (!line) {
+      throw new NotFoundException('Line item not found on this bid');
+    }
+    if (line.productId !== null) {
+      throw new BadRequestException(
+        'This line item is already linked to a product',
+      );
+    }
+
+    const product = await this.prisma.product.findUnique({
+      where: { id: dto.productId },
+      select: { id: true, isActive: true },
+    });
+    if (!product) {
+      throw new NotFoundException('productId does not reference a product');
+    }
+    if (!product.isActive) {
+      throw new BadRequestException(
+        'That product is inactive and cannot be used',
+      );
+    }
+
+    await this.prisma.bidLineItem.update({
+      where: { id: lineItemId },
+      data: {
+        productId: dto.productId,
+        adHocProductName: null,
+        adHocDescription: null,
+      },
+    });
+    // Re-read the whole bid so the returned entity reflects the resolved line.
+    return this.toEntity(await this.findRawOrThrow(bidId));
+  }
+
+  /**
+   * Cross-bid visibility: how many ad-hoc line items are still awaiting product
+   * setup, and across how many bids. Scoped to bids that could still convert
+   * (EXPIRED/REJECTED bids are dead ends and never become orders). Non-Sales
+   * callers get zeros rather than an error so the list header can call it for
+   * any role.
+   */
+  async countAdHocLineItems(
+    user: AuthenticatedUser,
+  ): Promise<{ lineItemCount: number; bidCount: number }> {
+    if (!isSuperAdmin(user) && !(await this.access.isSalesStaff(user))) {
+      return { lineItemCount: 0, bidCount: 0 };
+    }
+    const openStatuses: BidStatus[] = [
+      BidStatus.DRAFT,
+      BidStatus.PENDING_APPROVAL,
+      BidStatus.APPROVED,
+      BidStatus.SENT,
+      BidStatus.ACCEPTED,
+    ];
+    const unresolved = await this.prisma.bidLineItem.findMany({
+      where: {
+        productId: null,
+        bid: { status: { in: openStatuses } },
+      },
+      select: { bidId: true },
+    });
+    const bidIds = new Set(unresolved.map((li) => li.bidId));
+    return { lineItemCount: unresolved.length, bidCount: bidIds.size };
+  }
+
   // ---- internal helpers ----
 
   /**
@@ -594,10 +715,17 @@ export class BidsService {
             id: li.id,
             bidId: li.bidId,
             productId: li.productId,
-            productName: li.product.name,
-            productSku: li.product.sku,
-            productDescription: li.product.description ?? null,
-            productUnitOfMeasure: li.product.unitOfMeasure,
+            isAdHoc: li.productId === null,
+            adHocProductName: li.adHocProductName ?? null,
+            adHocDescription: li.adHocDescription ?? null,
+            // Display fields fall back to the ad-hoc placeholder when the line
+            // has no real Product yet, so the detail page and the Techno-
+            // Commercial Proposal render identically either way.
+            productName: li.product?.name ?? li.adHocProductName ?? '',
+            productSku: li.product?.sku ?? null,
+            productDescription:
+              li.product?.description ?? li.adHocDescription ?? null,
+            productUnitOfMeasure: li.product?.unitOfMeasure ?? 'each',
             quantity: li.quantity.toString(),
             unitPrice: li.unitPrice.toString(),
             lineDiscountPercent: li.lineDiscountPercent?.toString() ?? null,
