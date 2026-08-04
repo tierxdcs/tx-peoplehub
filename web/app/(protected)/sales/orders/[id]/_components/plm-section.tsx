@@ -173,7 +173,18 @@ export function PlmSection({ orderId, trackerId }: PlmSectionProps) {
                 </div>
 
                 {tracker.flowType === 'VENDOR' && canOperate && (
-                  <VendorInvites tracker={tracker} rows={invites[tracker.id]} onLoad={loadInvites} onCreated={loadInvites} />
+                  tracker.vendor ? (
+                    <VendorInvites tracker={tracker} rows={invites[tracker.id]} onLoad={loadInvites} onCreated={loadInvites} />
+                  ) : (
+                    <section className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning-foreground">
+                      <h4 className="text-sm font-semibold">Vendor update links</h4>
+                      <p className="mt-1 text-xs">
+                        No vendor is linked to this tracker yet. Assign an approved Vendor Master
+                        record to this order line in Project Kickoff — once saved, the vendor is
+                        attached automatically and you can create update links here.
+                      </p>
+                    </section>
+                  )
                 )}
 
                 {tracker.flowType === 'VENDOR' && tracker.currentStage === 'PRODUCTION' && canAudit && (

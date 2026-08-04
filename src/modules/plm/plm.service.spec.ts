@@ -115,6 +115,72 @@ describe('PlmService', () => {
     );
   });
 
+  it('backfills the vendor link onto an existing VENDOR tracker when the line resolves to a vendor', async () => {
+    const { service, prisma } = setup();
+    prisma.projectKickoff.findUnique.mockResolvedValue({
+      id: 'kickoff-1',
+      orderId: 'order-1',
+      kanbanBoardId: 'board-1',
+      status: 'COMPLETED',
+      order: {
+        ownerId: 'order-owner',
+        lineItems: [
+          {
+            id: 'vendor-line',
+            deliveryType: 'VENDOR',
+            vendorId: 'vendor-7',
+            vendorName: null,
+          },
+        ],
+      },
+    });
+    prisma.plmTracker.upsert.mockResolvedValue({
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-02-01'),
+    });
+
+    await service.provisionForKickoff('kickoff-1');
+
+    expect(prisma.plmTracker.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { orderLineId: 'vendor-line' },
+        update: { vendorId: 'vendor-7' },
+        create: expect.objectContaining({ vendorId: 'vendor-7' }),
+      }),
+    );
+  });
+
+  it('never overwrites an existing vendor link with null when the line has no vendor', async () => {
+    const { service, prisma } = setup();
+    prisma.projectKickoff.findUnique.mockResolvedValue({
+      id: 'kickoff-1',
+      orderId: 'order-1',
+      kanbanBoardId: 'board-1',
+      status: 'COMPLETED',
+      order: {
+        ownerId: 'order-owner',
+        lineItems: [
+          {
+            id: 'vendor-line',
+            deliveryType: 'VENDOR',
+            vendorId: null,
+            vendorName: null,
+          },
+        ],
+      },
+    });
+    prisma.plmTracker.upsert.mockResolvedValue({
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-02-01'),
+    });
+
+    await service.provisionForKickoff('kickoff-1');
+
+    expect(prisma.plmTracker.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: {} }),
+    );
+  });
+
   it('blocks self-approval of Design Review even for a Production Head', async () => {
     const { service } = setup();
     await expect(

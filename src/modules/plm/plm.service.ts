@@ -67,7 +67,11 @@ export class PlmService {
           : null;
       const result = await this.prisma.plmTracker.upsert({
         where: { orderLineId: line.id },
-        update: {},
+        // Backfill the vendor link onto an existing tracker: a line often gets
+        // its approved Vendor Master assigned in Kickoff *after* the tracker is
+        // provisioned, and vendor update links require it. Only mirror when the
+        // line resolves to a vendor so we never wipe an existing link to null.
+        update: vendor?.id ? { vendorId: vendor.id } : {},
         create: {
           orderLineId: line.id,
           orderId: kickoff.orderId,
