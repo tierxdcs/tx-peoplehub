@@ -141,6 +141,7 @@ export interface PlmDashboardItem {
   trackerId: string;
   orderId: string;
   orderNumber: string;
+  customerName: string | null;
   productName: string;
   productSku: string;
   flowType: 'NPD' | 'IN_HOUSE' | 'VENDOR';

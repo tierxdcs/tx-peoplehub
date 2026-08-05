@@ -197,6 +197,7 @@ export class PlmService {
           trackerId: tracker.id,
           orderId: tracker.orderId,
           orderNumber: tracker.order.orderNumber,
+          customerName: tracker.order.customer?.name ?? null,
           productName: tracker.orderLine.product.name,
           productSku: tracker.orderLine.product.sku,
           flowType: tracker.flowType,
@@ -566,7 +567,14 @@ export class PlmService {
     return {
       owner: { select: { id: true, firstName: true, lastName: true } },
       vendor: { select: { id: true, companyName: true } },
-      order: { select: { id: true, orderNumber: true, ownerId: true } },
+      order: {
+        select: {
+          id: true,
+          orderNumber: true,
+          ownerId: true,
+          customer: { select: { name: true } },
+        },
+      },
       kickoff: {
         select: {
           supplyInScope: true,

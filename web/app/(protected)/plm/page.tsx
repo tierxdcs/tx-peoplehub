@@ -95,7 +95,7 @@ function LifecycleRow({ item }: { item: PlmDashboardItem }) {
               <span className="font-medium">{item.productName}</span>
               <span className="text-xs text-muted-foreground">{item.productSku}</span>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">{prettyEnum(item.flowType)} · Owner: {item.ownerName} · {item.ageDays} day{item.ageDays === 1 ? '' : 's'} in stage</p>
+            <p className="mt-1 text-sm text-muted-foreground">{prettyEnum(item.flowType)} · Owner: {item.ownerName}{item.customerName ? ` · Customer: ${item.customerName}` : ''} · {item.ageDays} day{item.ageDays === 1 ? '' : 's'} in stage</p>
             {item.blocker && <p className="mt-2 flex items-center gap-1.5 text-sm text-destructive"><AlertTriangle className="size-4" />{item.blocker}</p>}
           </div>
           <div className="flex flex-wrap items-center gap-2 md:justify-end">
