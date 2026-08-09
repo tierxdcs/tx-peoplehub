@@ -75,7 +75,9 @@ export class InventoryService {
     const rows = await this.prisma.stockBalance.findMany({
       where,
       include: {
-        item: { select: { itemCode: true, name: true, baseUnitOfMeasure: true } },
+        item: {
+          select: { itemCode: true, name: true, baseUnitOfMeasure: true },
+        },
         storeLocation: { select: { name: true } },
       },
       orderBy: [{ item: { itemCode: 'asc' } }],
@@ -97,7 +99,9 @@ export class InventoryService {
     const rows = await this.prisma.stockBalance.findMany({
       where: { itemId },
       include: {
-        item: { select: { itemCode: true, name: true, baseUnitOfMeasure: true } },
+        item: {
+          select: { itemCode: true, name: true, baseUnitOfMeasure: true },
+        },
         storeLocation: { select: { name: true } },
       },
       orderBy: { storeLocation: { code: 'asc' } },
@@ -118,7 +122,10 @@ export class InventoryService {
     await this.access.assertCanManageInventory(user);
 
     const [item, store] = await Promise.all([
-      this.prisma.item.findUnique({ where: { id: dto.itemId }, select: { id: true } }),
+      this.prisma.item.findUnique({
+        where: { id: dto.itemId },
+        select: { id: true },
+      }),
       this.prisma.storeLocation.findUnique({
         where: { id: dto.storeLocationId },
         select: { id: true },
@@ -172,8 +179,10 @@ export class InventoryService {
       }
 
       const updateData: Prisma.StockBalanceUpdateInput = {};
-      if (bucket === StockBucket.ON_HAND) updateData.onHandQuantity = nextOnHand;
-      if (bucket === StockBucket.BLOCKED) updateData.blockedQuantity = nextBlocked;
+      if (bucket === StockBucket.ON_HAND)
+        updateData.onHandQuantity = nextOnHand;
+      if (bucket === StockBucket.BLOCKED)
+        updateData.blockedQuantity = nextBlocked;
       if (dto.expectedReceiptQuantity !== undefined) {
         updateData.expectedReceiptQuantity = new Prisma.Decimal(
           dto.expectedReceiptQuantity,
@@ -204,7 +213,9 @@ export class InventoryService {
     const fresh = await this.prisma.stockBalance.findFirstOrThrow({
       where: { itemId: dto.itemId, storeLocationId: dto.storeLocationId },
       include: {
-        item: { select: { itemCode: true, name: true, baseUnitOfMeasure: true } },
+        item: {
+          select: { itemCode: true, name: true, baseUnitOfMeasure: true },
+        },
         storeLocation: { select: { name: true } },
       },
     });
@@ -318,7 +329,11 @@ export class InventoryService {
           data: {
             quantity: nextQty,
             ...(nextQty.lessThanOrEqualTo(0)
-              ? { isActive: false, cancelledById: actorId, cancelledAt: new Date() }
+              ? {
+                  isActive: false,
+                  cancelledById: actorId,
+                  cancelledAt: new Date(),
+                }
               : {}),
           },
         });

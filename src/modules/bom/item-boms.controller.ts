@@ -35,19 +35,29 @@ export class ItemBomsController {
   constructor(private readonly service: BomService) {}
 
   @Get('boms')
-  @ApiOperation({ summary: 'All BOM revisions for an item, newest first (R&D)' })
-  listBoms(@Param('itemId') itemId: string, @CurrentUser() user: AuthenticatedUser) {
+  @ApiOperation({
+    summary: 'All BOM revisions for an item, newest first (R&D)',
+  })
+  listBoms(
+    @Param('itemId') itemId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.listForItem(itemId, user);
   }
 
   @Get('suppliers')
   @ApiOperation({ summary: 'Supplier links for an item (R&D or Store)' })
-  listSuppliers(@Param('itemId') itemId: string, @CurrentUser() user: AuthenticatedUser) {
+  listSuppliers(
+    @Param('itemId') itemId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.listItemSuppliers(itemId, user);
   }
 
   @Post('suppliers')
-  @ApiOperation({ summary: 'Link a qualified supplier to an item (R&D Head/SA)' })
+  @ApiOperation({
+    summary: 'Link a qualified supplier to an item (R&D Head/SA)',
+  })
   linkSupplier(
     @Param('itemId') itemId: string,
     @Body() dto: LinkSupplierDto,

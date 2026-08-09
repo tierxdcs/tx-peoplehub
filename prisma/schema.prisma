@@ -318,19 +318,19 @@ enum VaultSharePermission {
 /// Business vertical (Sales, HR, Production, ...). A table, not an enum, so
 /// new verticals can be added by the business without a code deploy.
 model Vertical {
-  id           String        @id @default(uuid())
-  name         String        @unique
-  code         String        @unique
-  isActive     Boolean       @default(true)
-  ownerId      String?
-  owner        Employee?     @relation("VerticalOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  employees    Employee[]
-  vaultFolders VaultFolder[]
-  kanbanCards  KanbanCard[]
+  id                    String                 @id @default(uuid())
+  name                  String                 @unique
+  code                  String                 @unique
+  isActive              Boolean                @default(true)
+  ownerId               String?
+  owner                 Employee?              @relation("VerticalOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  employees             Employee[]
+  vaultFolders          VaultFolder[]
+  kanbanCards           KanbanCard[]
   provisioningItemTypes ProvisioningItemType[] @relation("ProvisioningApproverVertical")
   candidateRequisitions CandidateRequisition[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
   @@index([ownerId])
   @@map("verticals")
@@ -481,21 +481,21 @@ model Employee {
   statutoryInfo EmployeeStatutoryInfo?
   bankDetails   EmployeeBankDetails?
 
-  salaryStructures        SalaryStructure[] @relation("SalaryStructureOwner")
-  salaryStructuresEntered SalaryStructure[] @relation("SalaryStructureEnteredBy")
-  offerLetter             OfferLetter?      @relation("OfferLetterEmployee")
-  offerLettersCreated     OfferLetter[]     @relation("OfferLetterCreator")
-  offerLettersToApprove   OfferLetter[]     @relation("OfferLetterApprover")
-  provisioningRequests          ProvisioningRequest[] @relation("ProvisioningEmployee")
-  provisioningRequestsApproved ProvisioningRequest[] @relation("ProvisioningApprovedBy")
-  provisioningRequestsFulfilled ProvisioningRequest[] @relation("ProvisioningFulfilledBy")
-  provisioningRequestsCompleted ProvisioningRequest[] @relation("ProvisioningCompletedBy")
-  candidateRequisitionsRequested CandidateRequisition[] @relation("CandidateRequisitionRequester")
-  candidateRequisitionsVerticalApproved CandidateRequisition[] @relation("CandidateRequisitionVerticalApprover")
+  salaryStructures                        SalaryStructure[]      @relation("SalaryStructureOwner")
+  salaryStructuresEntered                 SalaryStructure[]      @relation("SalaryStructureEnteredBy")
+  offerLetter                             OfferLetter?           @relation("OfferLetterEmployee")
+  offerLettersCreated                     OfferLetter[]          @relation("OfferLetterCreator")
+  offerLettersToApprove                   OfferLetter[]          @relation("OfferLetterApprover")
+  provisioningRequests                    ProvisioningRequest[]  @relation("ProvisioningEmployee")
+  provisioningRequestsApproved            ProvisioningRequest[]  @relation("ProvisioningApprovedBy")
+  provisioningRequestsFulfilled           ProvisioningRequest[]  @relation("ProvisioningFulfilledBy")
+  provisioningRequestsCompleted           ProvisioningRequest[]  @relation("ProvisioningCompletedBy")
+  candidateRequisitionsRequested          CandidateRequisition[] @relation("CandidateRequisitionRequester")
+  candidateRequisitionsVerticalApproved   CandidateRequisition[] @relation("CandidateRequisitionVerticalApprover")
   candidateRequisitionsSuperAdminApproved CandidateRequisition[] @relation("CandidateRequisitionSuperAdminApprover")
-  candidateRequisitionsRejected CandidateRequisition[] @relation("CandidateRequisitionRejector")
-  payrollRunsInitiated    PayrollRun[]
-  payslips                Payslip[]
+  candidateRequisitionsRejected           CandidateRequisition[] @relation("CandidateRequisitionRejector")
+  payrollRunsInitiated                    PayrollRun[]
+  payslips                                Payslip[]
 
   leaveBalances          LeaveBalance[]
   leaveRequestsSubmitted LeaveRequest[] @relation("LeaveRequester")
@@ -552,6 +552,7 @@ model Employee {
 
   // Project Kickoff back-relations.
   projectKickoffsCreated  ProjectKickoff[]    @relation("KickoffCreator")
+  resourcePlansGenerated  ProjectResourcePlan[] @relation("ResourcePlanGeneratedBy")
   kickoffAttendances      KickoffAttendee[]   @relation("KickoffAttendeeEmployee")
   kickoffMilestonesOwned  KickoffMilestone[]  @relation("KickoffMilestoneOwner")
   kickoffActionItemsOwned KickoffActionItem[] @relation("KickoffActionItemOwner")
@@ -653,15 +654,15 @@ model Employee {
 /// Human-authored offer content only. Employee, reporting and compensation
 /// values are deliberately resolved live whenever the document is generated.
 model OfferLetter {
-  id                  String            @id @default(uuid())
-  employeeId          String            @unique
-  employee            Employee          @relation("OfferLetterEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
-  candidateRequisitionId String?         @unique
-  candidateRequisition CandidateRequisition? @relation(fields: [candidateRequisitionId], references: [id], onDelete: Restrict)
-  referenceNumber     String            @unique
-  keyResponsibilities String            @db.Text
-  kpis                String            @db.Text
-  status              OfferLetterStatus @default(DRAFT)
+  id                     String                @id @default(uuid())
+  employeeId             String                @unique
+  employee               Employee              @relation("OfferLetterEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  candidateRequisitionId String?               @unique
+  candidateRequisition   CandidateRequisition? @relation(fields: [candidateRequisitionId], references: [id], onDelete: Restrict)
+  referenceNumber        String                @unique
+  keyResponsibilities    String                @db.Text
+  kpis                   String                @db.Text
+  status                 OfferLetterStatus     @default(DRAFT)
   /// Frozen at Submit-for-Approval time: the fully-rendered document payload
   /// (employee position/reporting fields + the computed CTC/Annexure A
   /// breakdown) exactly as it stood when submitted. This — not a re-fetched
@@ -670,18 +671,18 @@ model OfferLetter {
   /// the decision. Null while DRAFT (never yet submitted). Cleared back to null
   /// on any edit-invalidation. Same snapshot-at-decision principle as Bid line
   /// items, e-signatures, and the OCS lock.
-  snapshotData        Json?
-  approverId          String?
-  approver            Employee?         @relation("OfferLetterApprover", fields: [approverId], references: [id], onDelete: SetNull)
-  submittedAt         DateTime?
-  decidedAt           DateTime?
+  snapshotData           Json?
+  approverId             String?
+  approver               Employee?             @relation("OfferLetterApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  submittedAt            DateTime?
+  decidedAt              DateTime?
   /// Reviewer comment. Optional on approve; the service REQUIRES a non-empty
   /// value on reject (mirrors every other rejection gate in the system).
-  approverComments    String?           @db.Text
-  createdById         String
-  createdBy           Employee          @relation("OfferLetterCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  approverComments       String?               @db.Text
+  createdById            String
+  createdBy              Employee              @relation("OfferLetterCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
 
   @@index([createdById])
   @@index([status, approverId])
@@ -689,36 +690,36 @@ model OfferLetter {
 }
 
 model CandidateRequisition {
-  id                       String                     @id @default(uuid())
-  requisitionNumber        String                     @unique
-  requestedById            String
-  requestedBy              Employee                   @relation("CandidateRequisitionRequester", fields: [requestedById], references: [id], onDelete: Restrict)
-  verticalId               String
-  vertical                 Vertical                   @relation(fields: [verticalId], references: [id], onDelete: Restrict)
-  positionTitle            String
-  employmentType           EmploymentType
-  justification            String                     @db.Text
+  id                     String                     @id @default(uuid())
+  requisitionNumber      String                     @unique
+  requestedById          String
+  requestedBy            Employee                   @relation("CandidateRequisitionRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  verticalId             String
+  vertical               Vertical                   @relation(fields: [verticalId], references: [id], onDelete: Restrict)
+  positionTitle          String
+  employmentType         EmploymentType
+  justification          String                     @db.Text
   /// Annual CTC hiring budget (INR). Nullable in DB so the column can be added
   /// to existing rows, but REQUIRED in the create DTO for every new requisition
   /// (cf. Product.businessUnitId — the repo enforces such invariants in the DTO/
   /// service, not with DB constraints).
-  budgetAnnualCtc          Decimal?                   @db.Decimal(14, 2)
-  targetJoiningDate        DateTime?                  @db.Date
-  status                   CandidateRequisitionStatus @default(PENDING_VERTICAL_APPROVAL)
-  verticalApprovedById     String?
-  verticalApprovedBy       Employee?                  @relation("CandidateRequisitionVerticalApprover", fields: [verticalApprovedById], references: [id], onDelete: SetNull)
-  verticalApprovedAt       DateTime?
-  superAdminApprovedById   String?
-  superAdminApprovedBy     Employee?                  @relation("CandidateRequisitionSuperAdminApprover", fields: [superAdminApprovedById], references: [id], onDelete: SetNull)
-  superAdminApprovedAt     DateTime?
-  rejectedById             String?
-  rejectedBy               Employee?                  @relation("CandidateRequisitionRejector", fields: [rejectedById], references: [id], onDelete: SetNull)
-  rejectedAt               DateTime?
-  rejectionComment         String?                    @db.Text
-  consumedAt               DateTime?
-  offerLetter              OfferLetter?
-  createdAt                DateTime                   @default(now())
-  updatedAt                DateTime                   @updatedAt
+  budgetAnnualCtc        Decimal?                   @db.Decimal(14, 2)
+  targetJoiningDate      DateTime?                  @db.Date
+  status                 CandidateRequisitionStatus @default(PENDING_VERTICAL_APPROVAL)
+  verticalApprovedById   String?
+  verticalApprovedBy     Employee?                  @relation("CandidateRequisitionVerticalApprover", fields: [verticalApprovedById], references: [id], onDelete: SetNull)
+  verticalApprovedAt     DateTime?
+  superAdminApprovedById String?
+  superAdminApprovedBy   Employee?                  @relation("CandidateRequisitionSuperAdminApprover", fields: [superAdminApprovedById], references: [id], onDelete: SetNull)
+  superAdminApprovedAt   DateTime?
+  rejectedById           String?
+  rejectedBy             Employee?                  @relation("CandidateRequisitionRejector", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedAt             DateTime?
+  rejectionComment       String?                    @db.Text
+  consumedAt             DateTime?
+  offerLetter            OfferLetter?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
 
   @@index([requestedById, status])
   @@index([verticalId, status])
@@ -729,16 +730,16 @@ model CandidateRequisition {
 /// Admin-managed onboarding checklist definition. Deactivation affects only
 /// future hires; existing requests retain their item type and audit history.
 model ProvisioningItemType {
-  id                      String                      @id @default(uuid())
-  name                    String                      @unique
-  requiresScmFulfillment  Boolean                     @default(true)
-  approverType            ProvisioningApproverType
-  approverVerticalId      String?
-  approverVertical        Vertical?                   @relation("ProvisioningApproverVertical", fields: [approverVerticalId], references: [id], onDelete: Restrict)
-  isActive                Boolean                     @default(true)
-  requests                ProvisioningRequest[]
-  createdAt               DateTime                    @default(now())
-  updatedAt               DateTime                    @updatedAt
+  id                     String                   @id @default(uuid())
+  name                   String                   @unique
+  requiresScmFulfillment Boolean                  @default(true)
+  approverType           ProvisioningApproverType
+  approverVerticalId     String?
+  approverVertical       Vertical?                @relation("ProvisioningApproverVertical", fields: [approverVerticalId], references: [id], onDelete: Restrict)
+  isActive               Boolean                  @default(true)
+  requests               ProvisioningRequest[]
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
 
   @@index([isActive])
   @@index([approverVerticalId])
@@ -746,24 +747,24 @@ model ProvisioningItemType {
 }
 
 model ProvisioningRequest {
-  id              String                    @id @default(uuid())
-  employeeId      String
-  employee        Employee                  @relation("ProvisioningEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
-  itemTypeId      String
-  itemType        ProvisioningItemType      @relation(fields: [itemTypeId], references: [id], onDelete: Restrict)
-  status          ProvisioningRequestStatus @default(PENDING_APPROVAL)
-  approvedById    String?
-  approvedBy      Employee?                 @relation("ProvisioningApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
-  approvedAt      DateTime?
-  rejectionComment String?                  @db.Text
-  fulfilledById  String?
-  fulfilledBy    Employee?                 @relation("ProvisioningFulfilledBy", fields: [fulfilledById], references: [id], onDelete: SetNull)
-  fulfilledAt    DateTime?
-  completedById  String?
-  completedBy    Employee?                 @relation("ProvisioningCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
-  completedAt    DateTime?
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
+  id               String                    @id @default(uuid())
+  employeeId       String
+  employee         Employee                  @relation("ProvisioningEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  itemTypeId       String
+  itemType         ProvisioningItemType      @relation(fields: [itemTypeId], references: [id], onDelete: Restrict)
+  status           ProvisioningRequestStatus @default(PENDING_APPROVAL)
+  approvedById     String?
+  approvedBy       Employee?                 @relation("ProvisioningApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt       DateTime?
+  rejectionComment String?                   @db.Text
+  fulfilledById    String?
+  fulfilledBy      Employee?                 @relation("ProvisioningFulfilledBy", fields: [fulfilledById], references: [id], onDelete: SetNull)
+  fulfilledAt      DateTime?
+  completedById    String?
+  completedBy      Employee?                 @relation("ProvisioningCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  completedAt      DateTime?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
 
   @@unique([employeeId, itemTypeId])
   @@index([status])
@@ -1128,6 +1129,8 @@ model Product {
   /// not yet confirmed by a human — drives the "Auto-selected" indicator and
   /// the still-auto-assigned review filter. Cleared once a user sets/saves it.
   autoAssignedBusinessUnit Boolean            @default(false)
+  /// Optional true-margin target. Informational pricing guidance only.
+  targetMarginPercent      Decimal?           @db.Decimal(5, 2)
   bidLineItems             BidLineItem[]
   orderLineItems           OrderLineItem[]
   salesInvoiceLines        SalesInvoiceLine[]
@@ -1372,6 +1375,7 @@ model Order {
   plmTrackers             PlmTracker[]
   customerProgressInvites OrderCustomerProgressInvite[]
   customerSignoff         OrderCustomerSignoff?
+  resourcePlans           ProjectResourcePlan[]
   createdAt               DateTime                      @default(now())
   updatedAt               DateTime                      @updatedAt
 
@@ -2851,6 +2855,7 @@ model ProjectKickoff {
   actionItems       KickoffActionItem[]
   risks             KickoffRisk[]
   stockReport       KickoffStockReport?
+  resourcePlan      ProjectResourcePlan?
   stockReservations StockReservation[]  @relation("KickoffReservations")
   materialIndents   MaterialIndent[]
   rfqs              Rfq[]
@@ -3288,15 +3293,15 @@ model VendorQuestionnaireInvite {
 /// both remain retrievable. When set, the override propagates to Vendor.status
 /// (the value every downstream gate reads). Clearing it reverts to computed.
 model VendorAudit {
-  id              String              @id @default(uuid())
+  id              String                @id @default(uuid())
   vendorId        String
-  vendor          Vendor              @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  vendor          Vendor                @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   questionnaireId String
-  questionnaire   VendorQuestionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Restrict)
+  questionnaire   VendorQuestionnaire   @relation(fields: [questionnaireId], references: [id], onDelete: Restrict)
   auditType       VendorAuditType
   auditDate       DateTime
   auditorId       String
-  auditor         Employee            @relation("VendorAuditor", fields: [auditorId], references: [id], onDelete: Restrict)
+  auditor         Employee              @relation("VendorAuditor", fields: [auditorId], references: [id], onDelete: Restrict)
   /// Snapshot selected by the auditor. Historical audits remain truthful when a later audit changes the vendor master value.
   coreCompetency  VendorCoreCompetency?
 
@@ -3570,6 +3575,8 @@ model Item {
   defaultWastagePercent Decimal? @db.Decimal(5, 2)
   drawingSpecReference  String?
   standardLeadTimeDays  Int?
+  /// Fallback cost used only until an accepted GRN provides a procurement cost.
+  manualStandardCost    Decimal? @db.Decimal(14, 2)
 
   boms                 Bom[]                  @relation("ItemBoms")
   bomLines             BomLine[]
@@ -3585,6 +3592,7 @@ model Item {
   materialIssueNotes   MaterialIssueNote[]
   deliveryChallanLines DeliveryChallanLine[]
   rfqLines             RfqLine[]
+  resourcePlanLines    ProjectResourcePlanLine[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3649,6 +3657,10 @@ model Bom {
   /// Bid): the approver's typed-signature text + font at the moment of approval.
   approverSignatureTextSnapshot String?
   approverSignatureFontSnapshot SignatureFont?
+
+  /// Immutable cost roll-up captured when this revision is released.
+  rolledUpCostSnapshot Decimal?  @db.Decimal(18, 2)
+  costSnapshotAt       DateTime?
 
   lines             BomLine[]
   events            BomEvent[]
@@ -3862,6 +3874,63 @@ model KickoffBomSnapshotLine {
 
   @@index([selectionId])
   @@map("kickoff_bom_snapshot_lines")
+}
+
+/// SCM Resource Planning Sheet — one per completed-kickoff project. Generated
+/// by exploding the project's full BOM tree (reusing the same multi-level
+/// explosion + cycle detection as the stock-availability report), aggregating
+/// required quantities by leaf-level item across every order line, and
+/// snapshotting each item's benchmark cost at generation time. SCM then enters
+/// the actually-negotiated price per item; benchmark/negotiated line + project
+/// totals and variance are computed on READ from the stored per-unit values,
+/// never persisted (so they can't drift from the source numbers).
+model ProjectResourcePlan {
+  id               String         @id @default(uuid())
+  projectKickoffId String         @unique
+  projectKickoff   ProjectKickoff @relation(fields: [projectKickoffId], references: [id], onDelete: Cascade)
+  /// Denormalized from the kickoff's order for cross-project rollup convenience.
+  orderId          String
+  order            Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  generatedAt      DateTime       @default(now())
+  generatedById    String
+  generatedBy      Employee       @relation("ResourcePlanGeneratedBy", fields: [generatedById], references: [id], onDelete: Restrict)
+
+  lines ProjectResourcePlanLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@map("project_resource_plans")
+}
+
+/// One leaf-level required item on a resource plan. requiredQuantity/UoM come
+/// from the BOM explosion (aggregated across the whole project);
+/// benchmarkCostPerUnit is snapshotted from the item's cost at generation time
+/// (stable, not live); negotiatedPricePerUnit is editable by SCM. Unique per
+/// (plan, item) so regeneration can match existing lines by item and preserve
+/// already-entered negotiated prices.
+model ProjectResourcePlanLine {
+  id                    String              @id @default(uuid())
+  resourcePlanId        String
+  resourcePlan          ProjectResourcePlan @relation(fields: [resourcePlanId], references: [id], onDelete: Cascade)
+  itemId                String
+  item                  Item                @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  itemCode              String
+  itemName              String
+  requiredQuantity      Decimal             @db.Decimal(14, 4)
+  unitOfMeasure         String
+  benchmarkCostPerUnit  Decimal             @db.Decimal(14, 2)
+  negotiatedPricePerUnit Decimal?           @db.Decimal(14, 2)
+  notes                 String?             @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([resourcePlanId, itemId])
+  @@index([resourcePlanId])
+  @@index([itemId])
+  @@map("project_resource_plan_lines")
 }
 
 // ── Finance & Accounts foundation ───────────────────────────────────────

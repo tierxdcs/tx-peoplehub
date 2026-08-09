@@ -77,13 +77,17 @@ export class BomController {
   }
 
   @Post(':id/approve')
-  @ApiOperation({ summary: 'Approve + release a submitted BOM (R&D Head, not creator)' })
+  @ApiOperation({
+    summary: 'Approve + release a submitted BOM (R&D Head, not creator)',
+  })
   approve(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.approve(id, user);
   }
 
   @Post(':id/reject')
-  @ApiOperation({ summary: 'Reject a submitted BOM with a comment (R&D Head, not creator)' })
+  @ApiOperation({
+    summary: 'Reject a submitted BOM with a comment (R&D Head, not creator)',
+  })
   reject(
     @Param('id') id: string,
     @Body() dto: RejectBomDto,
@@ -93,7 +97,9 @@ export class BomController {
   }
 
   @Post(':id/new-revision')
-  @ApiOperation({ summary: 'Create a new draft revision from this BOM (R&D vertical)' })
+  @ApiOperation({
+    summary: 'Create a new draft revision from this BOM (R&D vertical)',
+  })
   newRevision(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.newRevision(id, user);
   }

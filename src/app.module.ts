@@ -54,6 +54,7 @@ import { ProvisioningModule } from './modules/provisioning/provisioning.module';
 import { MilestoneTemplateModule } from './modules/milestone-template/milestone-template.module';
 import { CandidateRequisitionsModule } from './modules/candidate-requisitions/candidate-requisitions.module';
 import { ReferenceRatesModule } from './modules/reference-rates/reference-rates.module';
+import { ScmResourcePlanModule } from './modules/scm-resource-plan/scm-resource-plan.module';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { ReferenceRatesModule } from './modules/reference-rates/reference-rates.
     ProjectKickoffModule,
     ScmModule,
     ScmSupplierModule,
+    ScmResourcePlanModule,
     BomModule,
     FinanceModule,
     FinanceArModule,

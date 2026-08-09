@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  Max,
   MinLength,
 } from 'class-validator';
 
@@ -19,7 +20,9 @@ export class CreateProductDto {
   @MinLength(1)
   name!: string;
 
-  @ApiProperty({ description: 'Business unit this product belongs to (required)' })
+  @ApiProperty({
+    description: 'Business unit this product belongs to (required)',
+  })
   @IsString()
   @MinLength(1)
   businessUnitId!: string;
@@ -68,4 +71,13 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   itemId?: string;
+
+  @ApiPropertyOptional({
+    description: 'True margin percentage (CEO/Finance only)',
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(99.99)
+  targetMarginPercent?: number;
 }

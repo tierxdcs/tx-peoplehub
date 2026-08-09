@@ -10,7 +10,10 @@ const D = (n: number | string) => new Prisma.Decimal(n);
 
 /** Build a getReleasedBom lookup from a map of itemId -> lines. */
 function lookup(
-  boms: Record<string, { rev?: number; lines: Array<[string, number, number?]> }>,
+  boms: Record<
+    string,
+    { rev?: number; lines: Array<[string, number, number?]> }
+  >,
 ): (itemId: string) => ExplodableBom | null {
   return (itemId: string) => {
     const b = boms[itemId];
@@ -60,7 +63,12 @@ describe('explodeBom — multi-level explosion', () => {
   it('keeps distinct leaves separate (caller aggregates); multiple children explode independently', () => {
     // FG -> [2 SUB, 5 RAW_A]; SUB -> [3 RAW_B]. Leaves: RAW_A(5), RAW_B(6).
     const get = lookup({
-      FG: { lines: [['SUB', 2], ['RAW_A', 5]] },
+      FG: {
+        lines: [
+          ['SUB', 2],
+          ['RAW_A', 5],
+        ],
+      },
       SUB: { lines: [['RAW_B', 3]] },
     });
     const leaves = explodeBom('FG', get);
@@ -74,7 +82,10 @@ describe('explodeBom — multi-level explosion', () => {
     const get = lookup({ FG: { lines: [['RAW', 7]] } });
     const leaves = explodeBom('FG', get);
     expect(leaves).toEqual([
-      expect.objectContaining({ itemId: 'RAW', quantityPerTopUnit: expect.anything() }),
+      expect.objectContaining({
+        itemId: 'RAW',
+        quantityPerTopUnit: expect.anything(),
+      }),
     ]);
     expect(leaves[0].quantityPerTopUnit.toString()).toBe('7');
   });

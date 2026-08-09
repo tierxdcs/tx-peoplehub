@@ -31,6 +31,8 @@ import {
   TableRow,
 } from '../../../components/ui/table';
 import { ItemDialog } from './_components/item-dialog';
+import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 
 const TYPES: ItemType[] = [
   'RAW_MATERIAL',
@@ -47,6 +49,7 @@ const TYPES: ItemType[] = [
  */
 export default function ItemMasterPage() {
   const { user } = useAuth();
+  const { style: numberFormatStyle } = useNumberFormat();
   const toast = useToast();
   const confirm = useConfirm();
   const [items, setItems] = useState<Item[]>([]);
@@ -90,6 +93,9 @@ export default function ItemMasterPage() {
       );
     });
   }, [items, search, typeFilter]);
+  const canSeeCost = items.some((item) =>
+    Object.prototype.hasOwnProperty.call(item, 'currentCost'),
+  );
 
   async function onDeactivate(item: Item) {
     if (
@@ -156,6 +162,7 @@ export default function ItemMasterPage() {
                 <TableHead>Type</TableHead>
                 <TableHead>UoM</TableHead>
                 <TableHead>Wastage %</TableHead>
+                {canSeeCost && <TableHead>Current Cost</TableHead>}
                 <TableHead>Status</TableHead>
                 {canManage && <TableHead>Actions</TableHead>}
               </TableRow>
@@ -164,7 +171,7 @@ export default function ItemMasterPage() {
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: canManage ? 7 : 6 }).map((__, j) => (
+                    {Array.from({ length: (canManage ? 7 : 6) + (canSeeCost ? 1 : 0) }).map((__, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-4 w-20" />
                       </TableCell>
@@ -173,7 +180,7 @@ export default function ItemMasterPage() {
                 ))
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={canManage ? 7 : 6} className="p-0">
+                  <TableCell colSpan={(canManage ? 7 : 6) + (canSeeCost ? 1 : 0)} className="p-0">
                     <EmptyState
                       icon={Boxes}
                       title="No items"
@@ -193,6 +200,18 @@ export default function ItemMasterPage() {
                     <TableCell>{ITEM_TYPE_LABEL[i.itemType]}</TableCell>
                     <TableCell>{i.baseUnitOfMeasure}</TableCell>
                     <TableCell>{i.defaultWastagePercent ?? '—'}</TableCell>
+                    {canSeeCost && (
+                      <TableCell>
+                        {formatINR(i.currentCost, numberFormatStyle)}
+                        {i.costSource && (
+                          <span className="block text-xs text-muted-foreground">
+                            {i.costSource === 'LATEST_ACCEPTED_GRN'
+                              ? 'Latest accepted GRN'
+                              : 'Manual fallback'}
+                          </span>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <Badge variant={i.isActive ? 'success' : 'muted'}>
                         {i.isActive ? 'Active' : 'Inactive'}

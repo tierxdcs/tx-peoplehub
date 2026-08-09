@@ -53,6 +53,17 @@ export class ProductEntity {
   })
   autoAssignedBusinessUnit!: boolean;
 
+  @ApiProperty({ nullable: true, required: false })
+  targetMarginPercent?: string | null;
+  @ApiProperty({ nullable: true, required: false })
+  rolledUpCostSnapshot?: string | null;
+  @ApiProperty({ nullable: true, required: false })
+  costSnapshotAt?: Date | null;
+  @ApiProperty({ nullable: true, required: false })
+  suggestedUnitPrice?: string | null;
+  @ApiProperty({ nullable: true, required: false })
+  actualMarginPercent?: string | null;
+
   @ApiProperty()
   createdAt!: Date;
 

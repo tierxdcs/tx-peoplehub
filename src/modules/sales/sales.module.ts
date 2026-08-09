@@ -24,6 +24,7 @@ import { BidAssessmentsController } from './bid-assessments.controller';
 import { BidAssessmentsService } from './bid-assessments.service';
 import { ConfirmationSheetsController } from './confirmation-sheets.controller';
 import { ConfirmationSheetsService } from './confirmation-sheets.service';
+import { FinanceModule } from '../finance/finance.module';
 
 /**
  * Sales pipeline: Customer/Product master data → Lead → Opportunity →
@@ -32,7 +33,7 @@ import { ConfirmationSheetsService } from './confirmation-sheets.service';
  * SalesAccessService's manager scoping.
  */
 @Module({
-  imports: [EmployeesModule, VaultModule],
+  imports: [EmployeesModule, VaultModule, FinanceModule],
   controllers: [
     CustomersController,
     ProductsController,

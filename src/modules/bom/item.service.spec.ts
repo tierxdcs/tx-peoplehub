@@ -1,26 +1,40 @@
 import { BadRequestException } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { ITEM_CODE_PREFIX, ItemService } from './item.service';
 
 describe('ItemService — itemCode generation', () => {
-  const user = { id: 'rd-head-1', email: 'head@example.com', role: Role.EMPLOYEE, verticalId: 'rnd' };
+  const user = {
+    id: 'rd-head-1',
+    email: 'head@example.com',
+    role: Role.EMPLOYEE,
+    verticalId: 'rnd',
+  };
 
   let access: any;
   let numbering: any;
   let prisma: any;
   let service: ItemService;
+  let costs: any;
 
   beforeEach(() => {
-    access = { assertCanManageItems: jest.fn().mockResolvedValue(undefined) };
+    access = {
+      assertCanManageItems: jest.fn().mockResolvedValue(undefined),
+      assertCanReadItems: jest.fn().mockResolvedValue(undefined),
+    };
     numbering = {
       nextContinuousNumber: jest.fn(),
       peekNextContinuousNumber: jest.fn(),
     };
     prisma = {
-      item: { create: jest.fn() },
+      item: { create: jest.fn(), findMany: jest.fn() },
       $transaction: jest.fn((cb: any) => cb({ item: prisma.item })),
     };
-    service = new ItemService(prisma, access, numbering);
+    costs = {
+      canViewCost: jest.fn().mockResolvedValue(false),
+      assertCanManageCost: jest.fn().mockResolvedValue(undefined),
+      currentCost: jest.fn(),
+    };
+    service = new ItemService(prisma, access, numbering, costs);
   });
 
   describe('ITEM_CODE_PREFIX', () => {
@@ -56,7 +70,11 @@ describe('ItemService — itemCode generation', () => {
       });
 
       const result = await service.create(
-        { name: 'Bracket', itemType: 'COMPONENT' as any, baseUnitOfMeasure: 'pcs' },
+        {
+          name: 'Bracket',
+          itemType: 'COMPONENT' as any,
+          baseUnitOfMeasure: 'pcs',
+        },
         user,
       );
 
@@ -66,7 +84,9 @@ describe('ItemService — itemCode generation', () => {
         expect.anything(),
       );
       expect(prisma.item.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ itemCode: 'CM-00456' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ itemCode: 'CM-00456' }),
+        }),
       );
       expect(result.itemCode).toBe('CM-00456');
     });
@@ -87,7 +107,11 @@ describe('ItemService — itemCode generation', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      const dto = { name: 'Steel sheet', itemType: 'RAW_MATERIAL' as any, baseUnitOfMeasure: 'kg' };
+      const dto = {
+        name: 'Steel sheet',
+        itemType: 'RAW_MATERIAL' as any,
+        baseUnitOfMeasure: 'kg',
+      };
       // @ts-expect-error itemCode is not a valid CreateItemDto field
       dto.itemCode = 'SNEAKY-001';
 
@@ -99,9 +123,15 @@ describe('ItemService — itemCode generation', () => {
   describe('previewNextItemCode', () => {
     it('previews using the type-specific prefix without generating a real code', async () => {
       numbering.peekNextContinuousNumber.mockResolvedValue('FG-00012');
-      const preview = await service.previewNextItemCode('FINISHED_GOOD' as any, user);
+      const preview = await service.previewNextItemCode(
+        'FINISHED_GOOD' as any,
+        user,
+      );
       expect(preview).toBe('FG-00012');
-      expect(numbering.peekNextContinuousNumber).toHaveBeenCalledWith('FG', 'item_finished_good');
+      expect(numbering.peekNextContinuousNumber).toHaveBeenCalledWith(
+        'FG',
+        'item_finished_good',
+      );
       expect(numbering.nextContinuousNumber).not.toHaveBeenCalled();
     });
 
@@ -113,21 +143,66 @@ describe('ItemService — itemCode generation', () => {
     });
   });
 
+  describe('cost confidentiality', () => {
+    it('omits every cost field from an unauthorized Item API entity', async () => {
+      prisma.item.findMany.mockResolvedValue([
+        {
+          id: 'item-1',
+          itemCode: 'RM-00001',
+          name: 'Steel sheet',
+          description: null,
+          itemType: 'RAW_MATERIAL',
+          baseUnitOfMeasure: 'kg',
+          isActive: true,
+          defaultWastagePercent: null,
+          drawingSpecReference: null,
+          standardLeadTimeDays: null,
+          manualStandardCost: new Prisma.Decimal(100),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+
+      const [result] = await service.list(user);
+
+      expect(result).not.toHaveProperty('manualStandardCost');
+      expect(result).not.toHaveProperty('currentCost');
+      expect(result).not.toHaveProperty('costSource');
+      expect(costs.currentCost).not.toHaveBeenCalled();
+    });
+  });
+
   describe('independent sequences per type', () => {
     it('uses a distinct sequence entity key for each itemType, so one type creating does not affect another', async () => {
       const seenEntities: string[] = [];
-      numbering.nextContinuousNumber.mockImplementation((_prefix: string, entity: string) => {
-        seenEntities.push(entity);
-        return Promise.resolve(`X-${seenEntities.length}`);
-      });
-      prisma.item.create.mockImplementation(({ data }: any) => Promise.resolve({
-        id: 'x', description: null, isActive: true, defaultWastagePercent: null,
-        drawingSpecReference: null, standardLeadTimeDays: null,
-        createdAt: new Date(), updatedAt: new Date(), ...data,
-      }));
+      numbering.nextContinuousNumber.mockImplementation(
+        (_prefix: string, entity: string) => {
+          seenEntities.push(entity);
+          return Promise.resolve(`X-${seenEntities.length}`);
+        },
+      );
+      prisma.item.create.mockImplementation(({ data }: any) =>
+        Promise.resolve({
+          id: 'x',
+          description: null,
+          isActive: true,
+          defaultWastagePercent: null,
+          drawingSpecReference: null,
+          standardLeadTimeDays: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ...data,
+        }),
+      );
 
-      await service.create({ name: 'A', itemType: 'RAW_MATERIAL' as any, baseUnitOfMeasure: 'kg' }, user);
-      await service.create({ name: 'B', itemType: 'COMPONENT' as any, baseUnitOfMeasure: 'pcs' }, user);
+      await service.create(
+        { name: 'A', itemType: 'RAW_MATERIAL' as any, baseUnitOfMeasure: 'kg' },
+        user,
+      );
+      await service.create(
+        { name: 'B', itemType: 'COMPONENT' as any, baseUnitOfMeasure: 'pcs' },
+        user,
+      );
 
       expect(seenEntities).toEqual(['item_raw_material', 'item_component']);
       expect(new Set(seenEntities).size).toBe(2);

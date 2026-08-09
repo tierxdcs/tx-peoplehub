@@ -11,6 +11,8 @@ import { BomController } from './bom.controller';
 import { ItemBomsController } from './item-boms.controller';
 import { InventoryController } from './inventory.controller';
 import { KickoffStockController } from './kickoff-stock.controller';
+import { FinanceModule } from '../finance/finance.module';
+import { ItemCostService } from './item-cost.service';
 
 /**
  * Bill of Materials + Item Master + Inventory + kickoff stock-availability.
@@ -20,7 +22,7 @@ import { KickoffStockController } from './kickoff-stock.controller';
  * codes reuse the same sales_sequences-backed mechanism as Bids/Orders/POs).
  */
 @Module({
-  imports: [NotificationsModule, SalesModule],
+  imports: [NotificationsModule, SalesModule, FinanceModule],
   controllers: [
     ItemController,
     BomController,
@@ -34,9 +36,16 @@ import { KickoffStockController } from './kickoff-stock.controller';
     BomService,
     InventoryService,
     StockReportService,
+    ItemCostService,
   ],
   // Exported so the Purchasing/Stores module (Material Issue) can reuse the
-  // single reservation-aware STOCK_OUT implementation and access rules.
-  exports: [InventoryService, BomAccessService, StockReportService],
+  // single reservation-aware STOCK_OUT implementation and access rules, and so
+  // SCM Resource Planning can reuse leaf costing + the amended cost-view gate.
+  exports: [
+    InventoryService,
+    BomAccessService,
+    StockReportService,
+    ItemCostService,
+  ],
 })
 export class BomModule {}

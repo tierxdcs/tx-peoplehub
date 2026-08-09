@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  Max,
   MinLength,
   ValidateIf,
 } from 'class-validator';
@@ -64,4 +65,11 @@ export class UpdateProductDto {
   @ValidateIf((_o, v) => v !== null)
   @IsString()
   itemId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(99.99)
+  targetMarginPercent?: number | null;
 }

@@ -8,8 +8,9 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { SalesNumberingService } from '../sales/common/sales-numbering.service';
 import { BomAccessService } from './bom-access.service';
-import { CreateItemDto, UpdateItemDto } from './dto/bom.dto';
+import { CreateItemDto, UpdateItemCostDto, UpdateItemDto } from './dto/bom.dto';
 import { ItemEntity } from './entities/bom.entity';
+import { ItemCostService } from './item-cost.service';
 
 type ItemRow = Prisma.ItemGetPayload<Record<string, never>>;
 
@@ -50,13 +51,15 @@ export class ItemService {
     private readonly prisma: PrismaService,
     private readonly access: BomAccessService,
     private readonly numbering: SalesNumberingService,
+    private readonly costs: ItemCostService,
   ) {}
 
   async list(
     user: AuthenticatedUser,
     opts: { search?: string; activeOnly?: boolean } = {},
   ): Promise<ItemEntity[]> {
-    await this.access.assertCanReadItems(user);
+    const canViewCost = await this.costs.canViewCost(user);
+    if (!canViewCost) await this.access.assertCanReadItems(user);
     const where: Prisma.ItemWhereInput = {};
     if (opts.activeOnly) where.isActive = true;
     if (opts.search) {
@@ -69,14 +72,15 @@ export class ItemService {
       where,
       orderBy: { itemCode: 'asc' },
     });
-    return rows.map((r) => this.toEntity(r));
+    return Promise.all(rows.map((r) => this.toEntity(r, canViewCost)));
   }
 
   async get(id: string, user: AuthenticatedUser): Promise<ItemEntity> {
-    await this.access.assertCanReadItems(user);
+    const canViewCost = await this.costs.canViewCost(user);
+    if (!canViewCost) await this.access.assertCanReadItems(user);
     const row = await this.prisma.item.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('Item not found');
-    return this.toEntity(row);
+    return this.toEntity(row, canViewCost);
   }
 
   /**
@@ -86,7 +90,10 @@ export class ItemService {
    * is allocated atomically inside create()'s transaction regardless of what
    * was previewed.
    */
-  async previewNextItemCode(itemType: ItemType, user: AuthenticatedUser): Promise<string> {
+  async previewNextItemCode(
+    itemType: ItemType,
+    user: AuthenticatedUser,
+  ): Promise<string> {
     await this.access.assertCanManageItems(user);
     if (!ITEM_CODE_PREFIX[itemType]) {
       throw new BadRequestException('itemType must be a valid ItemType');
@@ -97,8 +104,14 @@ export class ItemService {
     );
   }
 
-  async create(dto: CreateItemDto, user: AuthenticatedUser): Promise<ItemEntity> {
+  async create(
+    dto: CreateItemDto,
+    user: AuthenticatedUser,
+  ): Promise<ItemEntity> {
     await this.access.assertCanManageItems(user);
+    if (dto.manualStandardCost !== undefined) {
+      await this.costs.assertCanManageCost(user);
+    }
     const row = await this.prisma.$transaction(async (tx) => {
       const itemCode = await this.numbering.nextContinuousNumber(
         ITEM_CODE_PREFIX[dto.itemType],
@@ -119,10 +132,14 @@ export class ItemService {
               : null,
           drawingSpecReference: dto.drawingSpecReference ?? null,
           standardLeadTimeDays: dto.standardLeadTimeDays ?? null,
+          manualStandardCost:
+            dto.manualStandardCost != null
+              ? new Prisma.Decimal(dto.manualStandardCost)
+              : null,
         },
       });
     });
-    return this.toEntity(row);
+    return this.toEntity(row, await this.costs.canViewCost(user));
   }
 
   async update(
@@ -138,7 +155,8 @@ export class ItemService {
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.description !== undefined) data.description = dto.description;
     if (dto.itemType !== undefined) data.itemType = dto.itemType;
-    if (dto.baseUnitOfMeasure !== undefined) data.baseUnitOfMeasure = dto.baseUnitOfMeasure;
+    if (dto.baseUnitOfMeasure !== undefined)
+      data.baseUnitOfMeasure = dto.baseUnitOfMeasure;
     if (dto.isActive !== undefined) data.isActive = dto.isActive;
     if (dto.defaultWastagePercent !== undefined) {
       data.defaultWastagePercent =
@@ -155,7 +173,27 @@ export class ItemService {
 
     // If deactivating, that's always allowed; there is no hard-delete path.
     const row = await this.prisma.item.update({ where: { id }, data });
-    return this.toEntity(row);
+    return this.toEntity(row, await this.costs.canViewCost(user));
+  }
+
+  async updateCost(
+    id: string,
+    dto: UpdateItemCostDto,
+    user: AuthenticatedUser,
+  ): Promise<ItemEntity> {
+    await this.costs.assertCanManageCost(user);
+    const existing = await this.prisma.item.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Item not found');
+    const row = await this.prisma.item.update({
+      where: { id },
+      data: {
+        manualStandardCost:
+          dto.manualStandardCost == null
+            ? null
+            : new Prisma.Decimal(dto.manualStandardCost),
+      },
+    });
+    return this.toEntity(row, true);
   }
 
   /**
@@ -174,10 +212,21 @@ export class ItemService {
       where: { id },
       data: { isActive: false },
     });
-    return this.toEntity(row);
+    return this.toEntity(row, await this.costs.canViewCost(user));
   }
 
-  private toEntity(r: ItemRow): ItemEntity {
+  private async toEntity(
+    r: ItemRow,
+    includeCost: boolean,
+  ): Promise<ItemEntity> {
+    const current = includeCost ? await this.costs.currentCost(r.id) : null;
+    const releasedBom = includeCost
+      ? await this.prisma.bom.findFirst({
+          where: { itemId: r.id, status: 'RELEASED' },
+          orderBy: { revisionNumber: 'desc' },
+          select: { rolledUpCostSnapshot: true },
+        })
+      : null;
     return new ItemEntity({
       id: r.id,
       itemCode: r.itemCode,
@@ -191,6 +240,15 @@ export class ItemService {
         : null,
       drawingSpecReference: r.drawingSpecReference,
       standardLeadTimeDays: r.standardLeadTimeDays,
+      ...(includeCost
+        ? {
+            manualStandardCost: r.manualStandardCost?.toString() ?? null,
+            currentCost: current?.amount?.toString() ?? null,
+            costSource: current?.source ?? null,
+            releasedBomCostSnapshot:
+              releasedBom?.rolledUpCostSnapshot?.toString() ?? null,
+          }
+        : {}),
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
     });

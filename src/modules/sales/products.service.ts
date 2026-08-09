@@ -1,9 +1,10 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Product } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import {
@@ -14,6 +15,8 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductEntity } from './entities/product.entity';
 import { SalesAccessService } from './common/sales-access.service';
+import { FinanceAccessService } from '../finance/finance-access.service';
+import { actualMarginPercent, suggestedSellingPrice } from './product-margin';
 
 /**
  * Product catalog is shared master data (not owner-scoped): any Sales-vertical
@@ -23,6 +26,16 @@ import { SalesAccessService } from './common/sales-access.service';
 /** Shared include so every ProductEntity carries its BU name for list display. */
 const PRODUCT_INCLUDE = {
   businessUnit: { select: { name: true, colorHex: true } },
+  item: {
+    select: {
+      boms: {
+        where: { status: 'RELEASED' as const },
+        orderBy: { revisionNumber: 'desc' as const },
+        take: 1,
+        select: { rolledUpCostSnapshot: true, costSnapshotAt: true },
+      },
+    },
+  },
 } as const;
 
 @Injectable()
@@ -30,6 +43,7 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: SalesAccessService,
+    private readonly financeAccess: FinanceAccessService,
   ) {}
 
   async create(
@@ -37,6 +51,14 @@ export class ProductsService {
     user: AuthenticatedUser,
   ): Promise<ProductEntity> {
     await this.access.assertSalesAccess(user);
+    if (
+      dto.targetMarginPercent !== undefined &&
+      user.role !== Role.SUPER_ADMIN
+    ) {
+      throw new ForbiddenException(
+        'Only CEO/SuperAdmin or Finance may set target margin',
+      );
+    }
     const existing = await this.prisma.product.findUnique({
       where: { sku: dto.sku },
     });
@@ -59,17 +81,22 @@ export class ProductsService {
         itemId: dto.itemId ?? null,
         businessUnitId: dto.businessUnitId,
         autoAssignedBusinessUnit: dto.autoAssignedBusinessUnit ?? false,
+        targetMarginPercent:
+          dto.targetMarginPercent != null
+            ? new Prisma.Decimal(dto.targetMarginPercent)
+            : null,
       },
       include: PRODUCT_INCLUDE,
     });
-    return this.toEntity(created);
+    return this.toEntity(created, user.role === Role.SUPER_ADMIN);
   }
 
   async findAll(
     query: PaginationQueryDto,
     user: AuthenticatedUser,
   ): Promise<PaginatedResult<ProductEntity>> {
-    await this.access.assertSalesAccess(user);
+    const showCost = await this.canViewCost(user);
+    if (!showCost) await this.access.assertSalesAccess(user);
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({
         skip: query.skip,
@@ -80,7 +107,7 @@ export class ProductsService {
       this.prisma.product.count(),
     ]);
     return {
-      items: items.map((p) => this.toEntity(p)),
+      items: items.map((p) => this.toEntity(p, showCost)),
       total,
       page: query.page,
       limit: query.limit,
@@ -88,8 +115,9 @@ export class ProductsService {
   }
 
   async findOne(id: string, user: AuthenticatedUser): Promise<ProductEntity> {
-    await this.access.assertSalesAccess(user);
-    return this.toEntity(await this.findRawOrThrow(id));
+    const showCost = await this.canViewCost(user);
+    if (!showCost) await this.access.assertSalesAccess(user);
+    return this.toEntity(await this.findRawOrThrow(id), showCost);
   }
 
   async update(
@@ -97,7 +125,25 @@ export class ProductsService {
     dto: UpdateProductDto,
     user: AuthenticatedUser,
   ): Promise<ProductEntity> {
-    await this.access.assertSalesAccess(user);
+    const showCost = await this.canViewCost(user);
+    const isSalesManager =
+      user.role === Role.SUPER_ADMIN ||
+      (user.role === Role.MANAGER && (await this.access.isSalesStaff(user)));
+    if (!isSalesManager) {
+      const keys = Object.keys(dto).filter(
+        (key) => dto[key as keyof UpdateProductDto] !== undefined,
+      );
+      if (!showCost || keys.some((key) => key !== 'targetMarginPercent')) {
+        throw new ForbiddenException(
+          'Only Sales Managers may edit product data; Finance may update target margin only',
+        );
+      }
+    }
+    if (dto.targetMarginPercent !== undefined && !showCost) {
+      throw new ForbiddenException(
+        'Only CEO/SuperAdmin or Finance may set target margin',
+      );
+    }
     await this.findRawOrThrow(id);
     if (dto.itemId) await this.assertItemExists(dto.itemId);
     // A businessUnitId in the payload is a deliberate manual choice: validate it
@@ -126,15 +172,23 @@ export class ProductsService {
               autoAssignedBusinessUnit: false,
             }
           : {}),
+        ...(dto.targetMarginPercent !== undefined
+          ? {
+              targetMarginPercent:
+                dto.targetMarginPercent === null
+                  ? null
+                  : new Prisma.Decimal(dto.targetMarginPercent),
+            }
+          : {}),
       },
       include: PRODUCT_INCLUDE,
     });
-    return this.toEntity(updated);
+    return this.toEntity(updated, showCost);
   }
 
   private async findRawOrThrow(
     id: string,
-  ): Promise<Product & { businessUnit: { name: string; colorHex: string } | null }> {
+  ): Promise<Prisma.ProductGetPayload<{ include: typeof PRODUCT_INCLUDE }>> {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: PRODUCT_INCLUDE,
@@ -176,10 +230,13 @@ export class ProductsService {
   }
 
   private toEntity(
-    product: Product & {
-      businessUnit?: { name: string; colorHex: string } | null;
-    },
+    product: Prisma.ProductGetPayload<{ include: typeof PRODUCT_INCLUDE }>,
+    includeCost = false,
   ): ProductEntity {
+    const snapshot = product.item?.boms[0]?.rolledUpCostSnapshot ?? null;
+    const target = product.targetMarginPercent;
+    const suggested = suggestedSellingPrice(snapshot, target);
+    const actualMargin = actualMarginPercent(snapshot, product.unitPrice);
     return new ProductEntity({
       id: product.id,
       sku: product.sku,
@@ -194,8 +251,22 @@ export class ProductsService {
       businessUnitName: product.businessUnit?.name ?? null,
       businessUnitColorHex: product.businessUnit?.colorHex ?? null,
       autoAssignedBusinessUnit: product.autoAssignedBusinessUnit,
+      ...(includeCost
+        ? {
+            targetMarginPercent: target?.toString() ?? null,
+            rolledUpCostSnapshot: snapshot?.toString() ?? null,
+            costSnapshotAt: product.item?.boms[0]?.costSnapshotAt ?? null,
+            suggestedUnitPrice: suggested?.toString() ?? null,
+            actualMarginPercent: actualMargin?.toString() ?? null,
+          }
+        : {}),
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
     });
+  }
+
+  private async canViewCost(user: AuthenticatedUser): Promise<boolean> {
+    if (user.role === Role.SUPER_ADMIN) return true;
+    return (await this.financeAccess.accessFor(user)).isFinanceUser;
   }
 }

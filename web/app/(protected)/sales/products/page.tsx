@@ -63,6 +63,9 @@ export default function ProductsPage() {
       }),
     [products, search, buFilter, autoOnly],
   );
+  const canSeeCost = products.some(
+    (product) => product.rolledUpCostSnapshot !== undefined,
+  );
 
   return (
     <div>
@@ -139,6 +142,9 @@ export default function ProductsPage() {
                 <th>Name</th>
                 <th>Business Unit</th>
                 <th>Unit Price</th>
+                {canSeeCost && <th>Released BOM Cost</th>}
+                {canSeeCost && <th>Target Margin</th>}
+                {canSeeCost && <th>Actual Margin</th>}
                 <th>UoM</th>
                 <th>Active</th>
                 {canEdit && <th></th>}
@@ -168,6 +174,27 @@ export default function ProductsPage() {
                     )}
                   </td>
                   <td>{formatINR(p.unitPrice, numberFormatStyle)}</td>
+                  {canSeeCost && (
+                    <td>
+                      {p.rolledUpCostSnapshot == null
+                        ? '—'
+                        : formatINR(p.rolledUpCostSnapshot, numberFormatStyle)}
+                    </td>
+                  )}
+                  {canSeeCost && (
+                    <td>
+                      {p.targetMarginPercent == null
+                        ? '—'
+                        : `${Number(p.targetMarginPercent).toFixed(2)}%`}
+                    </td>
+                  )}
+                  {canSeeCost && (
+                    <td>
+                      {p.actualMarginPercent == null
+                        ? '—'
+                        : `${Number(p.actualMarginPercent).toFixed(2)}%`}
+                    </td>
+                  )}
                   <td>{p.unitOfMeasure}</td>
                   <td>{p.isActive ? 'Yes' : 'No'}</td>
                   {canEdit && (
@@ -186,7 +213,7 @@ export default function ProductsPage() {
               {filtered.length === 0 && (
                 <tr>
                   <td
-                    colSpan={canEdit ? 7 : 6}
+                    colSpan={(canEdit ? 7 : 6) + (canSeeCost ? 3 : 0)}
                     style={{ padding: 12, color: 'hsl(var(--muted-foreground))' }}
                   >
                     No products.

@@ -62,7 +62,7 @@ export class ProductsController {
   }
 
   @Patch(':id')
-  @Roles(Role.MANAGER, Role.SUPER_ADMIN)
+  @Roles(Role.MANAGER, Role.EMPLOYEE, Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Update a product (Manager and above)' })
   update(
     @Param('id') id: string,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { Product } from '../../../lib/types';
 import { listItems, type Item } from '../../../lib/scm-item-master';
@@ -9,6 +9,9 @@ import { inferBusinessUnitCode } from '../../../lib/business-unit-rules';
 import { Button } from '../../../components/ui/button';
 import { BusinessUnitHelp } from '../../../components/ui/business-unit-help';
 import { ItemPicker } from '../../../components/ui/item-picker';
+import { useAuth } from '../../../lib/auth-context';
+import { formatINR } from '../../../lib/sales';
+import { useNumberFormat } from '../../../lib/number-format-context';
 
 const fieldStyle: React.CSSProperties = {
   width: '100%',
@@ -38,6 +41,8 @@ export function ProductForm({
   onSaved: (product: Product) => void;
 }) {
   const isEdit = product !== null;
+  const { user } = useAuth();
+  const { style: numberFormatStyle } = useNumberFormat();
   const [sku, setSku] = useState(product?.sku ?? '');
   const [name, setName] = useState(product?.name ?? initialName ?? '');
   const [description, setDescription] = useState(
@@ -50,6 +55,10 @@ export function ProductForm({
   const [hsnCode, setHsnCode] = useState(product?.hsnCode ?? '');
   const [isActive, setIsActive] = useState(product?.isActive ?? true);
   const [itemId, setItemId] = useState(product?.itemId ?? '');
+  const [targetMarginPercent, setTargetMarginPercent] = useState(
+    product?.targetMarginPercent ?? '',
+  );
+  const priceManuallyEdited = useRef(isEdit);
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -69,6 +78,40 @@ export function ProductForm({
     // On edit, an existing non-auto value is already a settled (manual) choice.
     isEdit && !!product?.businessUnitId && !product?.autoAssignedBusinessUnit,
   );
+
+  const selectedItem = items.find((item) => item.id === itemId);
+  const canSeeCost =
+    user?.role === 'SUPER_ADMIN' ||
+    product?.rolledUpCostSnapshot !== undefined ||
+    selectedItem?.releasedBomCostSnapshot !== undefined;
+  const releasedCost = useMemo(() => {
+    const raw =
+      isEdit && product?.itemId === itemId
+        ? product.rolledUpCostSnapshot
+        : selectedItem?.releasedBomCostSnapshot;
+    if (raw == null || raw === '') return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [isEdit, itemId, product, selectedItem]);
+  const targetMargin = Number(targetMarginPercent);
+  const suggestedPrice =
+    releasedCost != null &&
+    targetMarginPercent !== '' &&
+    Number.isFinite(targetMargin) &&
+    targetMargin >= 0 &&
+    targetMargin < 100
+      ? releasedCost / (1 - targetMargin / 100)
+      : null;
+  const numericPrice = Number(unitPrice);
+  const actualMargin =
+    releasedCost != null && Number.isFinite(numericPrice) && numericPrice > 0
+      ? ((numericPrice - releasedCost) / numericPrice) * 100
+      : null;
+
+  useEffect(() => {
+    if (suggestedPrice == null || priceManuallyEdited.current) return;
+    setUnitPrice(suggestedPrice.toFixed(2));
+  }, [suggestedPrice]);
 
   // Item Master items for the "manufactured item" link (active only). Best-
   // effort — a fetch failure just leaves the picker empty (link stays optional).
@@ -128,6 +171,14 @@ export function ProductForm({
             isActive,
             // '' → null (unlink); an id → link. Always sent so edits can clear it.
             itemId: itemId || null,
+            ...(canSeeCost
+              ? {
+                  targetMarginPercent:
+                    targetMarginPercent === ''
+                      ? null
+                      : Number(targetMarginPercent),
+                }
+              : {}),
             // Only send the BU when it changed to a manual value; sending it
             // clears the auto flag server-side. If it's still an unconfirmed
             // auto value, leave it (and its flag) as-is.
@@ -146,6 +197,9 @@ export function ProductForm({
             hsnCode: hsnCode || undefined,
             isActive,
             itemId: itemId || undefined,
+            ...(canSeeCost && targetMarginPercent !== ''
+              ? { targetMarginPercent: Number(targetMarginPercent) }
+              : {}),
             businessUnitId,
             // Persist whether this was still an unconfirmed auto-pick at save.
             autoAssignedBusinessUnit: autoAssigned && !buManuallyTouched,
@@ -251,7 +305,10 @@ export function ProductForm({
             min={0}
             step="0.01"
             value={unitPrice}
-            onChange={(e) => setUnitPrice(e.target.value)}
+            onChange={(e) => {
+              priceManuallyEdited.current = true;
+              setUnitPrice(e.target.value);
+            }}
             required
             style={fieldStyle}
           />
@@ -284,7 +341,10 @@ export function ProductForm({
           <ItemPicker
             items={items}
             value={itemId}
-            onValueChange={setItemId}
+            onValueChange={(value) => {
+              priceManuallyEdited.current = false;
+              setItemId(value);
+            }}
             placeholder="— Not linked —"
           />
           <p className="mt-1 text-xs text-muted-foreground">
@@ -292,6 +352,60 @@ export function ProductForm({
             its BOM and the project-kickoff stock-availability report.
           </p>
         </div>
+        {canSeeCost && (
+          <div className="mb-3 rounded-md border border-border bg-muted/30 p-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Released BOM cost
+                </p>
+                <p className="font-medium">
+                  {releasedCost == null
+                    ? 'Not available'
+                    : formatINR(releasedCost, numberFormatStyle)}
+                </p>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">
+                  Target margin %
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={99.99}
+                  step="0.01"
+                  value={targetMarginPercent}
+                  onChange={(e) => {
+                    priceManuallyEdited.current = false;
+                    setTargetMarginPercent(e.target.value);
+                  }}
+                  style={fieldStyle}
+                />
+              </div>
+            </div>
+            <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Suggested selling price
+                </p>
+                <p className="font-medium">
+                  {suggestedPrice == null
+                    ? '—'
+                    : formatINR(suggestedPrice, numberFormatStyle)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Actual margin</p>
+                <p className="font-medium">
+                  {actualMargin == null ? '—' : `${actualMargin.toFixed(2)}%`}
+                </p>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Suggested price is informational. The unit price remains editable.
+            </p>
+          </div>
+        )}
         <div style={{ marginBottom: 12 }}>
           <label>
             <input

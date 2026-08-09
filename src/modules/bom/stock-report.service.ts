@@ -106,8 +106,9 @@ export class StockReportService {
 
         // Explode to leaves (may throw on cycle — released trees are gated at
         // release, but guard here too so a bad graph can't crash the report).
-        const leaves = explodeBom(topItemId, (itemId) =>
-          releasedByItem.get(itemId) ?? null,
+        const leaves = explodeBom(
+          topItemId,
+          (itemId) => releasedByItem.get(itemId) ?? null,
         );
 
         const selection = await tx.kickoffBomSelection.create({
@@ -218,7 +219,9 @@ export class StockReportService {
       where: { id: { in: [...ids] } },
       select: { id: true, itemCode: true, name: true },
     });
-    return new Map(items.map((i) => [i.id, { itemCode: i.itemCode, name: i.name }]));
+    return new Map(
+      items.map((i) => [i.id, { itemCode: i.itemCode, name: i.name }]),
+    );
   }
 
   /** read() but guarantees a non-null report (used right after generate). */
@@ -309,10 +312,16 @@ export class StockReportService {
           existing.orderedProductQuantity =
             existing.orderedProductQuantity.plus(orderedQty);
           existing.baseRequirement = round(existing.baseRequirement.plus(base));
-          existing.wastageQuantity = round(existing.wastageQuantity.plus(wastage));
-          existing.grossRequirement = round(existing.grossRequirement.plus(gross));
+          existing.wastageQuantity = round(
+            existing.wastageQuantity.plus(wastage),
+          );
+          existing.grossRequirement = round(
+            existing.grossRequirement.plus(gross),
+          );
           existing.wastagePercent = line.wastagePercent;
-          existing.revisions.add(`${sel.productSku} Rev ${sel.bomRevisionNumber}`);
+          existing.revisions.add(
+            `${sel.productSku} Rev ${sel.bomRevisionNumber}`,
+          );
         } else {
           byItem.set(key, {
             itemId: line.itemId,
@@ -324,7 +333,9 @@ export class StockReportService {
             wastageQuantity: wastage,
             grossRequirement: gross,
             wastagePercent: line.wastagePercent,
-            revisions: new Set([`${sel.productSku} Rev ${sel.bomRevisionNumber}`]),
+            revisions: new Set([
+              `${sel.productSku} Rev ${sel.bomRevisionNumber}`,
+            ]),
           });
         }
       }
@@ -333,7 +344,9 @@ export class StockReportService {
     // Live stock + this-kickoff reservations per item.
     const itemIds = [...byItem.keys()];
     const balances = itemIds.length
-      ? await this.prisma.stockBalance.findMany({ where: { itemId: { in: itemIds } } })
+      ? await this.prisma.stockBalance.findMany({
+          where: { itemId: { in: itemIds } },
+        })
       : [];
     const balByItem = new Map<string, typeof balances>();
     for (const b of balances) {
@@ -342,13 +355,19 @@ export class StockReportService {
       balByItem.set(b.itemId, arr);
     }
     const kickoffReservations = await this.prisma.stockReservation.findMany({
-      where: { kickoffId, isActive: true, itemId: { in: itemIds.length ? itemIds : ['—'] } },
+      where: {
+        kickoffId,
+        isActive: true,
+        itemId: { in: itemIds.length ? itemIds : ['—'] },
+      },
     });
     const reservedForKickoffByItem = new Map<string, Prisma.Decimal>();
     for (const r of kickoffReservations) {
       reservedForKickoffByItem.set(
         r.itemId,
-        (reservedForKickoffByItem.get(r.itemId) ?? new Prisma.Decimal(0)).plus(r.quantity),
+        (reservedForKickoffByItem.get(r.itemId) ?? new Prisma.Decimal(0)).plus(
+          r.quantity,
+        ),
       );
     }
 
@@ -385,7 +404,8 @@ export class StockReportService {
         gross,
         effectiveAvailable,
         expectedReceiptQuantity: expectedReceiptQty,
-        expectedInTime: !!earliestExpectedDate &&
+        expectedInTime:
+          !!earliestExpectedDate &&
           this.expectedBeforeRequired(earliestExpectedDate),
       });
 
@@ -487,7 +507,10 @@ export class StockReportService {
         where: { id: kickoffId },
         select: { id: true },
       }),
-      this.prisma.item.findUnique({ where: { id: dto.itemId }, select: { id: true } }),
+      this.prisma.item.findUnique({
+        where: { id: dto.itemId },
+        select: { id: true },
+      }),
       this.prisma.storeLocation.findUnique({
         where: { id: dto.storeLocationId },
         select: { id: true },
@@ -496,7 +519,8 @@ export class StockReportService {
     if (!kickoff) throw new NotFoundException('Project kickoff not found');
     if (!item) throw new NotFoundException('Item not found');
     if (!store) throw new NotFoundException('Store location not found');
-    if (dto.quantity <= 0) throw new BadRequestException('Reservation quantity must be positive');
+    if (dto.quantity <= 0)
+      throw new BadRequestException('Reservation quantity must be positive');
 
     const qty = new Prisma.Decimal(dto.quantity);
 
@@ -550,9 +574,7 @@ export class StockReportService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map((r) =>
-      this.mapReservation(r as ReservationRow),
-    );
+    return rows.map((r) => this.mapReservation(r as ReservationRow));
   }
 
   async cancelReservation(
@@ -580,7 +602,9 @@ export class StockReportService {
         },
       });
       if (balance) {
-        const nextReserved = balance.reservedQuantity.minus(reservation.quantity);
+        const nextReserved = balance.reservedQuantity.minus(
+          reservation.quantity,
+        );
         await tx.stockBalance.update({
           where: { id: balance.id },
           data: {

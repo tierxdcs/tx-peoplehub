@@ -15,11 +15,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import {
-  BomLineSource,
-  ItemType,
-  StockBucket,
-} from '@prisma/client';
+import { BomLineSource, ItemType, StockBucket } from '@prisma/client';
 
 // ── Item Master ──────────────────────────────────────────────────────
 // itemCode is server-generated from itemType (RM-/CM-/SA-/FG-/CN- + 5-digit
@@ -37,16 +33,37 @@ export class CreateItemDto {
   @Min(0)
   @Max(100)
   defaultWastagePercent?: number;
-  @ApiPropertyOptional() @IsOptional() @IsString() drawingSpecReference?: string;
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) standardLeadTimeDays?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  drawingSpecReference?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  standardLeadTimeDays?: number;
+  @ApiPropertyOptional({
+    description: 'Fallback cost until an accepted GRN exists',
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  manualStandardCost?: number;
 }
 
 /** All fields optional; itemCode is immutable (not editable) once created. */
 export class UpdateItemDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MinLength(1) name?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
-  @ApiPropertyOptional({ enum: ItemType }) @IsOptional() @IsEnum(ItemType) itemType?: ItemType;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MinLength(1) baseUnitOfMeasure?: string;
+  @ApiPropertyOptional({ enum: ItemType })
+  @IsOptional()
+  @IsEnum(ItemType)
+  itemType?: ItemType;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  baseUnitOfMeasure?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
   @ApiPropertyOptional()
   @IsOptional()
@@ -54,8 +71,23 @@ export class UpdateItemDto {
   @Min(0)
   @Max(100)
   defaultWastagePercent?: number;
-  @ApiPropertyOptional() @IsOptional() @IsString() drawingSpecReference?: string;
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) standardLeadTimeDays?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  drawingSpecReference?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  standardLeadTimeDays?: number;
+}
+
+export class UpdateItemCostDto {
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  manualStandardCost?: number | null;
 }
 
 // ── BOM ──────────────────────────────────────────────────────────────
@@ -77,7 +109,10 @@ export class BomLineInputDto {
   @IsEnum(BomLineSource)
   makeBuy?: BomLineSource;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() drawingSpecReference?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  drawingSpecReference?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) sequence?: number;
 }
 
@@ -130,7 +165,10 @@ export class StockAdjustmentDto {
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
   expectedReceiptQuantity?: number;
-  @ApiPropertyOptional() @IsOptional() @IsDateString() expectedReceiptDate?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  expectedReceiptDate?: string;
 }
 
 // ── Reservations ─────────────────────────────────────────────────────

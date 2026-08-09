@@ -33,6 +33,8 @@ import {
   ExplodableBom,
   explodeBom,
 } from './bom-explosion';
+import { rollUpExplodedCost } from './bom-cost';
+import { ItemCostService } from './item-cost.service';
 
 /** Supplier statuses that qualify a supplier link for the release hard-gate. */
 const QUALIFIED_SUPPLIER_STATUSES: SupplierStatus[] = [
@@ -58,7 +60,9 @@ const BOM_INCLUDE_WITH_EVENTS = {
   },
 } satisfies Prisma.BomInclude;
 
-type BomWithRelations = Prisma.BomGetPayload<{ include: typeof BOM_INCLUDE }> & {
+type BomWithRelations = Prisma.BomGetPayload<{
+  include: typeof BOM_INCLUDE;
+}> & {
   events?: Prisma.BomEventGetPayload<{
     include: { actor: { select: { firstName: true; lastName: true } } };
   }>[];
@@ -77,6 +81,7 @@ export class BomService {
     private readonly prisma: PrismaService,
     private readonly access: BomAccessService,
     private readonly notifications: KanbanNotificationsService,
+    private readonly itemCosts: ItemCostService,
   ) {}
 
   // ── Reads ────────────────────────────────────────────────────────────
@@ -96,7 +101,10 @@ export class BomService {
     return rows.map((r) => this.toEntity(r));
   }
 
-  async listForItem(itemId: string, user: AuthenticatedUser): Promise<BomEntity[]> {
+  async listForItem(
+    itemId: string,
+    user: AuthenticatedUser,
+  ): Promise<BomEntity[]> {
     await this.access.assertCanBrowseBoms(user);
     const rows = await this.prisma.bom.findMany({
       where: { itemId },
@@ -191,9 +199,12 @@ export class BomService {
     await this.prisma.$transaction(async (tx) => {
       const data: Prisma.BomUpdateInput = {};
       if (dto.effectiveDate !== undefined) {
-        data.effectiveDate = dto.effectiveDate ? new Date(dto.effectiveDate) : null;
+        data.effectiveDate = dto.effectiveDate
+          ? new Date(dto.effectiveDate)
+          : null;
       }
-      if (dto.revisionNotes !== undefined) data.revisionNotes = dto.revisionNotes;
+      if (dto.revisionNotes !== undefined)
+        data.revisionNotes = dto.revisionNotes;
       // A rejected BOM being edited returns to DRAFT until resubmitted.
       if (bom.status === BomStatus.REJECTED) data.status = BomStatus.DRAFT;
 
@@ -288,6 +299,10 @@ export class BomService {
     // material remains possible via Item Suppliers, just never required to
     // release a BOM.)
     await this.assertNoReleaseCycle(bom.itemId, id);
+    const rolledUpCostSnapshot = await this.calculateReleaseCost(
+      bom.itemId,
+      id,
+    );
 
     const signer = await this.prisma.employee.findUnique({
       where: { id: user.id },
@@ -323,6 +338,8 @@ export class BomService {
           approverSignatureTextSnapshot: signer?.signatureText ?? null,
           approverSignatureFontSnapshot: signer?.signatureFont ?? null,
           effectiveDate: bom.effectiveDate ?? new Date(),
+          rolledUpCostSnapshot,
+          costSnapshotAt: new Date(),
         },
       });
       await tx.bomEvent.create({
@@ -469,7 +486,9 @@ export class BomService {
       select: { id: true, isActive: true },
     });
     if (found.length !== unique.length) {
-      throw new BadRequestException('One or more BOM lines reference an unknown item');
+      throw new BadRequestException(
+        'One or more BOM lines reference an unknown item',
+      );
     }
     const inactive = found.filter((f) => !f.isActive);
     if (inactive.length > 0) {
@@ -546,6 +565,57 @@ export class BomService {
     }
   }
 
+  /** Uses the canonical explosion algorithm; only leaf costing is added here. */
+  private async calculateReleaseCost(
+    topItemId: string,
+    pendingBomId: string,
+  ): Promise<Prisma.Decimal> {
+    const rows = await this.prisma.bom.findMany({
+      where: { OR: [{ status: BomStatus.RELEASED }, { id: pendingBomId }] },
+      select: {
+        id: true,
+        itemId: true,
+        revisionNumber: true,
+        lines: {
+          select: {
+            itemId: true,
+            quantityPerUnit: true,
+            wastagePercent: true,
+            unitOfMeasure: true,
+          },
+        },
+      },
+    });
+    const byItem = new Map<string, ExplodableBom>();
+    for (const row of rows) {
+      if (row.id !== pendingBomId && byItem.has(row.itemId)) continue;
+      byItem.set(row.itemId, {
+        itemId: row.itemId,
+        revisionNumber: row.revisionNumber,
+        lines: row.lines,
+      });
+    }
+    const leaves = explodeBom(
+      topItemId,
+      (itemId) => byItem.get(itemId) ?? null,
+    );
+    const costs = new Map<string, Prisma.Decimal>();
+    for (const leaf of leaves) {
+      const cost = await this.itemCosts.currentCost(leaf.itemId);
+      if (!cost.amount) {
+        const item = await this.prisma.item.findUnique({
+          where: { id: leaf.itemId },
+          select: { itemCode: true, name: true },
+        });
+        throw new BadRequestException(
+          `Cannot release: ${item?.itemCode ?? leaf.itemId} ${item?.name ?? ''} has no accepted-GRN cost or manual standard cost`,
+        );
+      }
+      costs.set(leaf.itemId, cost.amount);
+    }
+    return rollUpExplodedCost(leaves, costs);
+  }
+
   // ── Item ↔ Supplier links (powers the hard-gate) ─────────────────────
   async listItemSuppliers(
     itemId: string,
@@ -568,7 +638,10 @@ export class BomService {
     // Managing supplier links is item technical data — same gate as items.
     await this.access.assertCanManageItems(user);
     const [item, supplier] = await Promise.all([
-      this.prisma.item.findUnique({ where: { id: itemId }, select: { id: true } }),
+      this.prisma.item.findUnique({
+        where: { id: itemId },
+        select: { id: true },
+      }),
       this.prisma.supplier.findUnique({
         where: { id: dto.supplierId },
         select: { id: true },
@@ -582,7 +655,9 @@ export class BomService {
       select: { id: true },
     });
     if (existing) {
-      throw new BadRequestException('This supplier is already linked to the item');
+      throw new BadRequestException(
+        'This supplier is already linked to the item',
+      );
     }
     const created = await this.prisma.itemSupplier.create({
       data: {

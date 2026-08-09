@@ -7,10 +7,12 @@ import {
   ITEM_TYPE_LABEL,
   previewNextItemCode,
   updateItem,
+  updateItemCost,
   type CreateItemInput,
   type Item,
   type ItemType,
 } from '../../../../lib/scm-item-master';
+import { useAuth } from '../../../../lib/auth-context';
 import {
   linkItemSupplier,
   listItemSuppliers,
@@ -53,6 +55,7 @@ export function ItemDialog({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
   const isEdit = !!item;
   const [form, setForm] = useState({
     name: item?.name ?? '',
@@ -63,6 +66,7 @@ export function ItemDialog({
     drawingSpecReference: item?.drawingSpecReference ?? '',
     standardLeadTimeDays:
       item?.standardLeadTimeDays != null ? String(item.standardLeadTimeDays) : '',
+    manualStandardCost: item?.manualStandardCost ?? '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +121,14 @@ export function ItemDialog({
           drawingSpecReference: form.drawingSpecReference || undefined,
           standardLeadTimeDays: lead,
         });
+        if (user?.role === 'SUPER_ADMIN') {
+          await updateItemCost(
+            item.id,
+            form.manualStandardCost.trim() === ''
+              ? null
+              : Number(form.manualStandardCost),
+          );
+        }
         toast.success('Item updated.');
       } else {
         const payload: CreateItemInput = {
@@ -127,6 +139,9 @@ export function ItemDialog({
           defaultWastagePercent: wastage,
           drawingSpecReference: form.drawingSpecReference || undefined,
           standardLeadTimeDays: lead,
+          ...(user?.role === 'SUPER_ADMIN' && form.manualStandardCost.trim() !== ''
+            ? { manualStandardCost: Number(form.manualStandardCost) }
+            : {}),
         };
         await createItem(payload);
         toast.success('Item created.');
@@ -178,6 +193,22 @@ export function ItemDialog({
           <Field label="Default wastage %" htmlFor="i-wastage">
             <Input id="i-wastage" type="number" min={0} max={100} step="0.01" value={form.defaultWastagePercent} onChange={(e) => set('defaultWastagePercent', e.target.value)} />
           </Field>
+          {user?.role === 'SUPER_ADMIN' && (
+            <Field
+              label="Manual standard cost (INR)"
+              htmlFor="i-cost"
+              hint="Fallback only; the latest accepted GRN price takes precedence"
+            >
+              <Input
+                id="i-cost"
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.manualStandardCost}
+                onChange={(e) => set('manualStandardCost', e.target.value)}
+              />
+            </Field>
+          )}
           <Field label="Standard lead time (days)" htmlFor="i-lead">
             <Input id="i-lead" type="number" min={0} value={form.standardLeadTimeDays} onChange={(e) => set('standardLeadTimeDays', e.target.value)} />
           </Field>

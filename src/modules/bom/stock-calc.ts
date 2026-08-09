@@ -12,10 +12,7 @@ export function round(d: Prisma.Decimal): Prisma.Decimal {
 }
 
 export type AvailabilityStatus =
-  | 'AVAILABLE'
-  | 'EXPECTED_BEFORE_REQUIRED_DATE'
-  | 'SHORTAGE'
-  | 'UNKNOWN';
+  'AVAILABLE' | 'EXPECTED_BEFORE_REQUIRED_DATE' | 'SHORTAGE' | 'UNKNOWN';
 
 /** baseRequirement = quantityPerUnit * orderedQuantity. */
 export function baseRequirement(
@@ -55,7 +52,11 @@ export function classifyAvailability(input: {
   effectiveAvailable: Prisma.Decimal;
   expectedReceiptQuantity: Prisma.Decimal;
   expectedInTime: boolean;
-}): { status: AvailabilityStatus; shortage: Prisma.Decimal; surplus: Prisma.Decimal } {
+}): {
+  status: AvailabilityStatus;
+  shortage: Prisma.Decimal;
+  surplus: Prisma.Decimal;
+} {
   const zero = new Prisma.Decimal(0);
   if (!input.hasStockRecord) {
     return { status: 'UNKNOWN', shortage: input.gross, surplus: zero };
@@ -72,7 +73,11 @@ export function classifyAvailability(input: {
     input.expectedReceiptQuantity.greaterThanOrEqualTo(deficit) &&
     input.expectedInTime
   ) {
-    return { status: 'EXPECTED_BEFORE_REQUIRED_DATE', shortage: deficit, surplus: zero };
+    return {
+      status: 'EXPECTED_BEFORE_REQUIRED_DATE',
+      shortage: deficit,
+      surplus: zero,
+    };
   }
   return { status: 'SHORTAGE', shortage: deficit, surplus: zero };
 }

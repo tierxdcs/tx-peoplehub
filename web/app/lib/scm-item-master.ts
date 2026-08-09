@@ -30,6 +30,10 @@ export interface Item {
   defaultWastagePercent: string | null;
   drawingSpecReference: string | null;
   standardLeadTimeDays: number | null;
+  manualStandardCost?: string | null;
+  currentCost?: string | null;
+  costSource?: 'LATEST_ACCEPTED_GRN' | 'MANUAL_STANDARD' | null;
+  releasedBomCostSnapshot?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,6 +48,7 @@ export interface CreateItemInput {
   defaultWastagePercent?: number;
   drawingSpecReference?: string;
   standardLeadTimeDays?: number;
+  manualStandardCost?: number;
 }
 
 export type UpdateItemInput = Partial<CreateItemInput>;
@@ -72,6 +77,13 @@ export function createItem(input: CreateItemInput) {
 
 export function updateItem(id: string, input: UpdateItemInput) {
   return apiFetch<Item>(`/items/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export function updateItemCost(id: string, manualStandardCost: number | null) {
+  return apiFetch<Item>(`/items/${id}/cost`, {
+    method: 'PATCH',
+    body: JSON.stringify({ manualStandardCost }),
+  });
 }
 
 export function deactivateItem(id: string) {

@@ -475,6 +475,11 @@ export interface Product {
   businessUnitColorHex: string | null;
   /** True while the BU was auto-selected by inference and not yet confirmed. */
   autoAssignedBusinessUnit: boolean;
+  targetMarginPercent?: string | null;
+  rolledUpCostSnapshot?: string | null;
+  costSnapshotAt?: string | null;
+  suggestedUnitPrice?: string | null;
+  actualMarginPercent?: string | null;
   createdAt: string;
   updatedAt: string;
 }

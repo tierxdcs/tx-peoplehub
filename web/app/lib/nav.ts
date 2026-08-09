@@ -186,7 +186,9 @@ export function sharedNav(access: Access): NavGroup[] {
   // SCM-vertical staff and SUPER_ADMIN (procurement is their function). Backend
   // reads remain company-wide, but the nav group is not surfaced to other
   // verticals (Sales/Finance/HR/R&D/Production). PO create is further gated to
-  // SCM Manager+/SA and self-guarded in the page.
+  // SCM Manager+/SA and self-guarded in the page. Item Master is surfaced here
+  // so SCM can consult the benchmark cost for Resource Planning (backend grants
+  // SCM cost VIEW, not edit); create/edit there is still R&D-Head-gated.
   if (access.isScmStaff || flags(access.user).isSuperAdmin) {
     groups.push({
       heading: 'SCM',
@@ -195,6 +197,8 @@ export function sharedNav(access: Access): NavGroup[] {
         { label: 'Suppliers', href: '/scm/suppliers' },
         { label: 'RFQs', href: '/scm/rfqs' },
         { label: 'Purchase Orders', href: '/stores/purchase-orders' },
+        { label: 'Item Master', href: '/scm/items' },
+        { label: 'Resource Planning', href: '/scm/resource-plans' },
         { label: 'Employee Provisioning', href: '/scm/provisioning' },
       ],
     });

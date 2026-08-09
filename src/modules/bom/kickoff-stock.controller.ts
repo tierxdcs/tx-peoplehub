@@ -42,14 +42,19 @@ export class KickoffStockController {
   }
 
   @Get('stock-availability')
-  @ApiOperation({ summary: 'Get the stock-availability report (null if not generated)' })
+  @ApiOperation({
+    summary: 'Get the stock-availability report (null if not generated)',
+  })
   get(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.read(id, user);
   }
 
   @Get('reservations')
   @ApiOperation({ summary: 'List reservations for this kickoff' })
-  listReservations(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  listReservations(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.listReservations(id, user);
   }
 

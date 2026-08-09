@@ -20,6 +20,13 @@ export class ItemEntity {
   @ApiProperty({ nullable: true }) defaultWastagePercent!: string | null;
   @ApiProperty({ nullable: true }) drawingSpecReference!: string | null;
   @ApiProperty({ nullable: true }) standardLeadTimeDays!: number | null;
+  @ApiProperty({ nullable: true, required: false }) manualStandardCost?:
+    string | null;
+  @ApiProperty({ nullable: true, required: false }) currentCost?: string | null;
+  @ApiProperty({ nullable: true, required: false })
+  costSource?: 'LATEST_ACCEPTED_GRN' | 'MANUAL_STANDARD' | null;
+  @ApiProperty({ nullable: true, required: false })
+  releasedBomCostSnapshot?: string | null;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
 
@@ -66,7 +73,16 @@ export class BomEntity {
   @ApiProperty() itemId!: string;
   @ApiProperty({ nullable: true }) itemCode!: string | null;
   @ApiProperty({ nullable: true }) itemName!: string | null;
-  @ApiProperty({ enum: ['RAW_MATERIAL', 'COMPONENT', 'SUBASSEMBLY', 'FINISHED_GOOD', 'CONSUMABLE'], nullable: true })
+  @ApiProperty({
+    enum: [
+      'RAW_MATERIAL',
+      'COMPONENT',
+      'SUBASSEMBLY',
+      'FINISHED_GOOD',
+      'CONSUMABLE',
+    ],
+    nullable: true,
+  })
   itemType!: ItemType | null;
   @ApiProperty() revisionNumber!: number;
   @ApiProperty({ enum: BomStatus }) status!: BomStatus;
@@ -82,9 +98,14 @@ export class BomEntity {
   @ApiProperty({ nullable: true }) rejectedById!: string | null;
   @ApiProperty({ nullable: true }) rejectedAt!: string | null;
   @ApiProperty({ nullable: true }) rejectionComment!: string | null;
-  @ApiProperty({ nullable: true }) approverSignatureTextSnapshot!: string | null;
+  @ApiProperty({ nullable: true }) approverSignatureTextSnapshot!:
+    string | null;
   @ApiProperty({ enum: SignatureFont, nullable: true })
   approverSignatureFontSnapshot!: SignatureFont | null;
+  @ApiProperty({ nullable: true, required: false }) rolledUpCostSnapshot?:
+    string | null;
+  @ApiProperty({ nullable: true, required: false }) costSnapshotAt?:
+    string | null;
   @ApiProperty({ type: [BomLineEntity] }) lines!: BomLineEntity[];
   @ApiProperty({ type: [BomEventEntity], required: false })
   events?: BomEventEntity[];
@@ -171,9 +192,22 @@ export class ItemSupplierEntity {
   @ApiProperty() itemId!: string;
   @ApiProperty() supplierId!: string;
   @ApiProperty() supplierName!: string;
-  @ApiProperty({ enum: ['PENDING_QUESTIONNAIRE', 'QUESTIONNAIRE_SUBMITTED', 'UNDER_AUDIT', 'APPROVED_PREFERRED', 'APPROVED', 'CONDITIONALLY_APPROVED', 'NOT_APPROVED'] })
+  @ApiProperty({
+    enum: [
+      'PENDING_QUESTIONNAIRE',
+      'QUESTIONNAIRE_SUBMITTED',
+      'UNDER_AUDIT',
+      'APPROVED_PREFERRED',
+      'APPROVED',
+      'CONDITIONALLY_APPROVED',
+      'NOT_APPROVED',
+    ],
+  })
   supplierStatus!: SupplierStatus;
-  @ApiProperty({ description: 'Whether this supplier link currently qualifies the item (APPROVED / APPROVED_PREFERRED)' })
+  @ApiProperty({
+    description:
+      'Whether this supplier link currently qualifies the item (APPROVED / APPROVED_PREFERRED)',
+  })
   isQualified!: boolean;
   @ApiProperty({ nullable: true }) supplierPartNumber!: string | null;
   @ApiProperty() createdById!: string;

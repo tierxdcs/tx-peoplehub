@@ -1,10 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export type AvailabilityStatus =
-  | 'AVAILABLE'
-  | 'EXPECTED_BEFORE_REQUIRED_DATE'
-  | 'SHORTAGE'
-  | 'UNKNOWN';
+  'AVAILABLE' | 'EXPECTED_BEFORE_REQUIRED_DATE' | 'SHORTAGE' | 'UNKNOWN';
 
 /** One aggregated required item row in the stock-availability report. */
 export class StockAvailabilityRowEntity {
@@ -33,7 +30,9 @@ export class StockAvailabilityRowEntity {
   reservedForThisKickoff!: string;
   @ApiProperty({ nullable: true }) expectedReceiptQuantity!: string | null;
   @ApiProperty({ nullable: true }) expectedReceiptDate!: string | null;
-  @ApiProperty({ description: 'gross - (available + reservedForThisKickoff), if positive' })
+  @ApiProperty({
+    description: 'gross - (available + reservedForThisKickoff), if positive',
+  })
   shortageQuantity!: string;
   @ApiProperty({ description: 'surplus if effective available exceeds gross' })
   surplusQuantity!: string;

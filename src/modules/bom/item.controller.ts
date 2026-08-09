@@ -18,7 +18,7 @@ import {
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ItemService } from './item.service';
-import { CreateItemDto, UpdateItemDto } from './dto/bom.dto';
+import { CreateItemDto, UpdateItemCostDto, UpdateItemDto } from './dto/bom.dto';
 
 /**
  * Item Master (§2). Read is broad (R&D + Store); create/update is R&D Head only
@@ -48,7 +48,10 @@ export class ItemController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create an item (R&D Head/SA) — itemCode is server-generated from itemType' })
+  @ApiOperation({
+    summary:
+      'Create an item (R&D Head/SA) — itemCode is server-generated from itemType',
+  })
   create(@Body() dto: CreateItemDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.create(dto, user);
   }
@@ -56,7 +59,8 @@ export class ItemController {
   // Static route BEFORE @Get(':id') so 'next-code' isn't read as an id.
   @Get('next-code')
   @ApiOperation({
-    summary: 'Preview the itemCode a create would currently receive for this type (does not consume a sequence value)',
+    summary:
+      'Preview the itemCode a create would currently receive for this type (does not consume a sequence value)',
   })
   previewNextCode(
     @Query('itemType') itemType: ItemType,
@@ -69,6 +73,16 @@ export class ItemController {
   @ApiOperation({ summary: 'Get one item (R&D or Store)' })
   get(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.get(id, user);
+  }
+
+  @Patch(':id/cost')
+  @ApiOperation({ summary: 'Update manual standard cost (CEO/Finance only)' })
+  updateCost(
+    @Param('id') id: string,
+    @Body() dto: UpdateItemCostDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updateCost(id, dto, user);
   }
 
   @Patch(':id')

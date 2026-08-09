@@ -57,7 +57,8 @@ export class BomAccessService {
   /** Read access to items — R&D staff, Store staff, or SUPER_ADMIN. */
   async assertCanReadItems(user: AuthenticatedUser): Promise<void> {
     if (this.isSuperAdmin(user)) return;
-    if ((await this.isRndStaff(user)) || (await this.isStoreStaff(user))) return;
+    if ((await this.isRndStaff(user)) || (await this.isStoreStaff(user)))
+      return;
     throw new ForbiddenException(
       'Only R&D or Store users may view the Item Master',
     );
@@ -79,7 +80,8 @@ export class BomAccessService {
    */
   async assertCanReadBoms(user: AuthenticatedUser): Promise<void> {
     if (this.isSuperAdmin(user)) return;
-    if ((await this.isRndStaff(user)) || (await this.isStoreStaff(user))) return;
+    if ((await this.isRndStaff(user)) || (await this.isStoreStaff(user)))
+      return;
     throw new ForbiddenException('Only R&D or Store users may view BOMs');
   }
 
@@ -116,7 +118,8 @@ export class BomAccessService {
   /** Read inventory — R&D staff, Store staff, or SUPER_ADMIN. */
   async assertCanReadInventory(user: AuthenticatedUser): Promise<void> {
     if (this.isSuperAdmin(user)) return;
-    if ((await this.isStoreStaff(user)) || (await this.isRndStaff(user))) return;
+    if ((await this.isStoreStaff(user)) || (await this.isRndStaff(user)))
+      return;
     throw new ForbiddenException('Only Store or R&D users may view inventory');
   }
 

@@ -135,6 +135,12 @@ export function explodeBom(
   };
 
   const one = new Prisma.Decimal(1);
-  walk(topItemId, one, one, [], [`${getReleasedBom(topItemId)?.revisionNumber ?? 0}`]);
+  walk(
+    topItemId,
+    one,
+    one,
+    [],
+    [`${getReleasedBom(topItemId)?.revisionNumber ?? 0}`],
+  );
   return leaves;
 }
