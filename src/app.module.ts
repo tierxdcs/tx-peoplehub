@@ -55,6 +55,7 @@ import { MilestoneTemplateModule } from './modules/milestone-template/milestone-
 import { CandidateRequisitionsModule } from './modules/candidate-requisitions/candidate-requisitions.module';
 import { ReferenceRatesModule } from './modules/reference-rates/reference-rates.module';
 import { ScmResourcePlanModule } from './modules/scm-resource-plan/scm-resource-plan.module';
+import { LearningModule } from './modules/learning/learning.module';
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { ScmResourcePlanModule } from './modules/scm-resource-plan/scm-resource-
     ScmModule,
     ScmSupplierModule,
     ScmResourcePlanModule,
+    LearningModule,
     BomModule,
     FinanceModule,
     FinanceArModule,

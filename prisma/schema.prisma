@@ -329,6 +329,7 @@ model Vertical {
   kanbanCards           KanbanCard[]
   provisioningItemTypes ProvisioningItemType[] @relation("ProvisioningApproverVertical")
   candidateRequisitions CandidateRequisition[]
+  learningCourses       LearningCourse[]
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
@@ -496,6 +497,9 @@ model Employee {
   candidateRequisitionsRejected           CandidateRequisition[] @relation("CandidateRequisitionRejector")
   payrollRunsInitiated                    PayrollRun[]
   payslips                                Payslip[]
+  learningCoursesCreated                  LearningCourse[]   @relation("LearningCourseCreator")
+  learningCoursesUpdated                  LearningCourse[]   @relation("LearningCourseUpdater")
+  learningProgress                        LearningProgress[]
 
   leaveBalances          LeaveBalance[]
   leaveRequestsSubmitted LeaveRequest[] @relation("LeaveRequester")
@@ -649,6 +653,51 @@ model Employee {
   @@index([reportingManagerId])
   @@index([accessStatus])
   @@map("employees")
+}
+
+enum LearningCourseStatus {
+  DRAFT
+  PUBLISHED
+}
+
+/// Lightweight internal learning content. Operational process steps remain in
+/// process-flows.ts; this stores only the richer authored lesson experience.
+model LearningCourse {
+  id          String               @id @default(uuid())
+  title       String
+  summary     String
+  verticalId  String
+  vertical    Vertical             @relation(fields: [verticalId], references: [id], onDelete: Restrict)
+  status      LearningCourseStatus @default(DRAFT)
+  version     Int                  @default(1)
+  content     Json
+  createdById String
+  createdBy   Employee             @relation("LearningCourseCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedById String
+  updatedBy   Employee             @relation("LearningCourseUpdater", fields: [updatedById], references: [id], onDelete: Restrict)
+  progress    LearningProgress[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([verticalId, status])
+  @@map("learning_courses")
+}
+
+model LearningProgress {
+  id                  String         @id @default(uuid())
+  courseId            String
+  course              LearningCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  employeeId          String
+  employee            Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  courseVersion       Int            @default(1)
+  completedLessonKeys String[]       @default([])
+  scorePercent        Decimal?       @db.Decimal(5, 2)
+  completedAt         DateTime?
+  updatedAt           DateTime       @updatedAt
+
+  @@unique([courseId, employeeId])
+  @@index([employeeId, completedAt])
+  @@map("learning_progress")
 }
 
 /// Human-authored offer content only. Employee, reporting and compensation

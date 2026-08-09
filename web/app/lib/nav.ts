@@ -112,6 +112,7 @@ export function sharedNav(access: Access): NavGroup[] {
     heading: 'Home',
     items: [
       { label: 'Dashboard', href: '/dashboard' },
+      { label: 'Learning Centre', href: '/learning' },
       { label: 'Help & SOP', href: '/help' },
     ],
   });
@@ -132,10 +133,11 @@ export function sharedNav(access: Access): NavGroup[] {
     { label: 'Candidate Requisitions', href: '/hr/candidate-requisitions' },
     { label: 'Provisioning Approvals', href: '/hr/provisioning-approvals' },
   ];
-  if (access.offerLetterApprovalsPending) approvalItems.push({
-    label: 'Offer Letter Approvals',
-    href: '/hr/offer-letters/pending-approval',
-  });
+  if (access.offerLetterApprovalsPending)
+    approvalItems.push({
+      label: 'Offer Letter Approvals',
+      href: '/hr/offer-letters/pending-approval',
+    });
   groups.push({ heading: 'Approvals', items: approvalItems });
 
   // "My Team" (roster, leave approvals, team attendance) is no longer a sidebar

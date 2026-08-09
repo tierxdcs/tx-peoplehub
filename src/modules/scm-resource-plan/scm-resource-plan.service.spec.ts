@@ -207,7 +207,7 @@ describe('ScmResourcePlanService', () => {
     expect(a.itemCode).toBe('RM-00001');
   });
 
-  it('regeneration preserves entered negotiated prices + original benchmark, only refreshing qty', async () => {
+  it('regeneration preserves entered negotiated prices/notes but refreshes benchmark + qty', async () => {
     prisma.projectKickoff.findUnique.mockResolvedValue({
       ...kickoffCompleted,
       resourcePlan: {
@@ -235,15 +235,18 @@ describe('ScmResourcePlanService', () => {
 
     await service.generate('ko1', asUser(Role.MANAGER, 'scm'));
 
-    // item-a is an UPDATE (not create) that never touches benchmark/negotiated.
+    // item-a is an UPDATE (not create): qty + benchmark refresh from the latest
+    // item cost (50, up from the old 40 snapshot), but negotiated price + notes
+    // are never touched.
     const updates = prisma.projectResourcePlanLine.update.mock.calls.map(
       (c: any[]) => c[0],
     );
     const aUpdate = updates.find((u: any) => u.where.id === 'line-a');
     expect(aUpdate).toBeTruthy();
     expect(aUpdate.data.requiredQuantity.toString()).toBe('20');
-    expect(aUpdate.data).not.toHaveProperty('benchmarkCostPerUnit');
+    expect(aUpdate.data.benchmarkCostPerUnit.toString()).toBe('50');
     expect(aUpdate.data).not.toHaveProperty('negotiatedPricePerUnit');
+    expect(aUpdate.data).not.toHaveProperty('notes');
 
     // item-b is newly required → created with fresh snapshot.
     const created = prisma.projectResourcePlanLine.create.mock.calls.map(

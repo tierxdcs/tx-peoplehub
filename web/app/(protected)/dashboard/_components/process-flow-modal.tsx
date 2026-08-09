@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Workflow, ShieldCheck } from 'lucide-react';
 import {
   Dialog,
@@ -64,11 +65,19 @@ export function ProcessFlowModal({ flow }: { flow: VerticalFlow }) {
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 text-sm text-muted-foreground">{step.detail}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {step.detail}
+                </p>
               </div>
             </li>
           ))}
         </ol>
+        <Link
+          className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 sm:w-auto"
+          href={`/help#${flow.codes[0]}`}
+        >
+          View full SOP
+        </Link>
       </DialogContent>
     </Dialog>
   );

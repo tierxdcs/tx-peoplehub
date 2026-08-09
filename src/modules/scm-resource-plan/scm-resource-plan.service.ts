@@ -52,10 +52,12 @@ export class ScmResourcePlanService {
   // ── Generate / Regenerate (§2) ───────────────────────────────────────
   /**
    * Generate the plan for a completed kickoff, or regenerate an existing one.
-   * Regeneration PRESERVES already-entered negotiated prices (and the original
-   * benchmark snapshot) for items that still exist, refreshes their required
-   * quantity, adds lines for newly-required items (fresh benchmark snapshot),
-   * and removes lines for items no longer required.
+   * Regeneration PRESERVES already-entered negotiated prices + notes for items
+   * that still exist, but REFRESHES their benchmark cost from the latest item
+   * cost and re-computes required quantities — the benchmark is the current
+   * standard cost, so a regenerate resyncs it (an item costed after the first
+   * generate would otherwise stay stuck at its old/₹0 snapshot). It adds lines
+   * for newly-required items and removes lines for items no longer required.
    */
   async generate(
     kickoffId: string,
@@ -177,13 +179,16 @@ export class ScmResourcePlanService {
         const meta = itemMeta.get(agg.itemId);
         const prior = existingLineByItem.get(agg.itemId);
         if (prior) {
-          // Item still required: refresh quantity + code/name only. Preserve the
-          // ORIGINAL benchmark snapshot, negotiated price, and notes.
+          // Item still required: refresh quantity, benchmark cost, and
+          // code/name. Preserve the entered negotiated price + notes (the SCM
+          // user's work) but re-sync the benchmark to the current item cost.
           await tx.projectResourcePlanLine.update({
             where: { id: prior.id },
             data: {
               requiredQuantity: agg.requiredQuantity,
               unitOfMeasure: agg.unitOfMeasure,
+              benchmarkCostPerUnit:
+                benchmarkByItem.get(agg.itemId) ?? new Prisma.Decimal(0),
               itemCode: meta?.itemCode ?? agg.itemId,
               itemName: meta?.name ?? 'Unknown item',
             },

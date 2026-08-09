@@ -104,6 +104,7 @@ describe('sidebarNav — the reported bug', () => {
         heading: 'Home',
         items: [
           { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Learning Centre', href: '/learning' },
           { label: 'Help & SOP', href: '/help' },
         ],
       });
@@ -355,7 +356,10 @@ describe('sidebarNav — the reported bug', () => {
 
   it('the designated Accounts Head does not see the Projects group either', () => {
     const a = { ...access('EMPLOYEE'), isAccountsHead: true };
-    const shown = labels(a, activeModule('/finance/daybook', availableModules(a)));
+    const shown = labels(
+      a,
+      activeModule('/finance/daybook', availableModules(a)),
+    );
     expect(shown).not.toContain('Project Kickoff');
     expect(shown).not.toContain('Product Lifecycle');
   });

@@ -22,6 +22,7 @@ import {
   FileText,
   FolderOpen,
   Gauge,
+  GraduationCap,
   IndianRupee,
   LayoutDashboard,
   ListChecks,
@@ -59,6 +60,7 @@ const COLLAPSE_KEY = 'sidebar:collapsedGroups';
 function iconForHref(href: string): LucideIcon {
   if (href === '/dashboard') return LayoutDashboard;
   if (href === '/help') return BookOpen;
+  if (href === '/learning') return GraduationCap;
   if (href === '/vault' || href.includes('/documents')) return FolderOpen;
   if (href === '/kanban') return Columns3;
   if (href.includes('/sprints')) return CalendarRange;
