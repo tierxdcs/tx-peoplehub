@@ -2,12 +2,14 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { CreateVerticalDto } from './dto/create-vertical.dto';
 import { UpdateVerticalOwnerDto } from './dto/update-vertical-owner.dto';
+import { UpdateVerticalDto } from './dto/update-vertical.dto';
 import { VerticalEntity } from './entities/vertical.entity';
 
 @Injectable()
@@ -71,6 +73,79 @@ export class VerticalsService {
       include: { owner: { select: this.ownerSelect } },
     });
     return new VerticalEntity(vertical);
+  }
+
+  async update(id: string, dto: UpdateVerticalDto): Promise<VerticalEntity> {
+    const existing = await this.prisma.vertical.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Vertical not found');
+
+    const name = dto.name?.trim();
+    const code = dto.code?.trim().toUpperCase();
+    if (name || code) {
+      const duplicate = await this.prisma.vertical.findFirst({
+        where: {
+          id: { not: id },
+          OR: [...(name ? [{ name }] : []), ...(code ? [{ code }] : [])],
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        throw new ConflictException('Vertical name or code already in use');
+      }
+    }
+
+    const vertical = await this.prisma.vertical.update({
+      where: { id },
+      data: {
+        ...(name ? { name } : {}),
+        ...(code ? { code } : {}),
+        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+      },
+      include: { owner: { select: this.ownerSelect } },
+    });
+    return new VerticalEntity(vertical);
+  }
+
+  async remove(id: string): Promise<void> {
+    const vertical = await this.prisma.vertical.findUnique({
+      where: { id },
+      select: { id: true, name: true },
+    });
+    if (!vertical) throw new NotFoundException('Vertical not found');
+
+    const [
+      employees,
+      vaultFolders,
+      vaultPermissions,
+      kanbanCards,
+      provisioningTypes,
+      requisitions,
+    ] = await this.prisma.$transaction([
+      this.prisma.employee.count({ where: { verticalId: id } }),
+      this.prisma.vaultFolder.count({ where: { scopeVerticalId: id } }),
+      this.prisma.vaultFolderPermission.count({
+        where: { granteeType: 'VERTICAL', granteeId: id },
+      }),
+      this.prisma.kanbanCard.count({ where: { verticalId: id } }),
+      this.prisma.provisioningItemType.count({
+        where: { approverVerticalId: id },
+      }),
+      this.prisma.candidateRequisition.count({ where: { verticalId: id } }),
+    ]);
+    const references =
+      employees +
+      vaultFolders +
+      vaultPermissions +
+      kanbanCards +
+      provisioningTypes +
+      requisitions;
+    if (references > 0) {
+      throw new ConflictException(
+        `Cannot delete ${vertical.name}: it is still used by ${references} record${references === 1 ? '' : 's'}. Deactivate it instead, or reassign those records first.`,
+      );
+    }
+
+    await this.prisma.vertical.delete({ where: { id } });
   }
 
   private readonly ownerSelect = {

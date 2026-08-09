@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Building2, Plus } from 'lucide-react';
+import { Building2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { useAuth } from '../../../lib/auth-context';
+import { useConfirm } from '../../../components/ui/confirm';
 import { ApiError, apiFetch } from '../../../lib/api';
 import { Employee, PaginatedResult, Vertical } from '../../../lib/types';
 import { PageContainer } from '../../../components/ui/page-container';
@@ -30,6 +32,9 @@ import {
 const EMPLOYEE_PAGE_SIZE = 100;
 
 export default function VerticalsPage() {
+  const { user } = useAuth();
+  const confirm = useConfirm();
+  const canManage = user?.role === 'SUPER_ADMIN';
   const [verticals, setVerticals] = useState<Vertical[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [name, setName] = useState('');
@@ -39,6 +44,10 @@ export default function VerticalsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [savingOwnerId, setSavingOwnerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editCode, setEditCode] = useState('');
+  const [editActive, setEditActive] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,6 +136,56 @@ export default function VerticalsPage() {
     }
   }
 
+  function startEdit(vertical: Vertical) {
+    setEditingId(vertical.id);
+    setEditName(vertical.name);
+    setEditCode(vertical.code);
+    setEditActive(vertical.isActive);
+  }
+
+  async function saveEdit(verticalId: string) {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await apiFetch(`/verticals/${verticalId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: editName.trim(),
+          code: editCode.trim().toUpperCase(),
+          isActive: editActive,
+        }),
+      });
+      setEditingId(null);
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'Failed to edit vertical',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function removeVertical(vertical: Vertical) {
+    const approved = await confirm({
+      title: `Delete ${vertical.name}?`,
+      description:
+        'This permanently deletes the vertical. Deletion is blocked while employees or business records still use it.',
+      confirmLabel: 'Delete vertical',
+      destructive: true,
+    });
+    if (!approved) return;
+    setError(null);
+    try {
+      await apiFetch(`/verticals/${vertical.id}`, { method: 'DELETE' });
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'Failed to delete vertical',
+      );
+    }
+  }
+
   const employeeOptions = [...employees].sort((a, b) =>
     `${a.firstName} ${a.lastName}`.localeCompare(
       `${b.firstName} ${b.lastName}`,
@@ -151,23 +210,28 @@ export default function VerticalsPage() {
                 <TableHead>Code</TableHead>
                 <TableHead>Owner</TableHead>
                 <TableHead>Status</TableHead>
+                {canManage && (
+                  <TableHead className="text-right">Actions</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 Array.from({ length: 6 }).map((_, row) => (
                   <TableRow key={row}>
-                    {Array.from({ length: 4 }).map((__, column) => (
-                      <TableCell key={column}>
-                        <Skeleton className="h-4 w-28" />
-                      </TableCell>
-                    ))}
+                    {Array.from({ length: canManage ? 5 : 4 }).map(
+                      (__, column) => (
+                        <TableCell key={column}>
+                          <Skeleton className="h-4 w-28" />
+                        </TableCell>
+                      ),
+                    )}
                   </TableRow>
                 ))
               ) : verticals.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={canManage ? 5 : 4}
                     className="py-12 text-center text-muted-foreground"
                   >
                     <Building2 className="mx-auto mb-3 size-8 opacity-50" />
@@ -178,16 +242,32 @@ export default function VerticalsPage() {
                 verticals.map((vertical) => (
                   <TableRow key={vertical.id}>
                     <TableCell className="font-medium">
-                      {vertical.name}
+                      {editingId === vertical.id ? (
+                        <Input
+                          value={editName}
+                          onChange={(event) => setEditName(event.target.value)}
+                        />
+                      ) : (
+                        vertical.name
+                      )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{vertical.code}</Badge>
+                      {editingId === vertical.id ? (
+                        <Input
+                          value={editCode}
+                          onChange={(event) =>
+                            setEditCode(event.target.value.toUpperCase())
+                          }
+                        />
+                      ) : (
+                        <Badge variant="secondary">{vertical.code}</Badge>
+                      )}
                     </TableCell>
                     <TableCell className="min-w-[260px]">
                       <Select
                         aria-label={`Owner for ${vertical.name}`}
                         value={vertical.ownerId ?? ''}
-                        disabled={savingOwnerId === vertical.id}
+                        disabled={!canManage || savingOwnerId === vertical.id}
                         onChange={(event) =>
                           void assignOwner(vertical.id, event.target.value)
                         }
@@ -204,12 +284,71 @@ export default function VerticalsPage() {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={vertical.isActive ? 'success' : 'secondary'}
-                      >
-                        {vertical.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
+                      {editingId === vertical.id ? (
+                        <Select
+                          value={editActive ? 'ACTIVE' : 'INACTIVE'}
+                          onChange={(event) =>
+                            setEditActive(event.target.value === 'ACTIVE')
+                          }
+                        >
+                          <option value="ACTIVE">Active</option>
+                          <option value="INACTIVE">Inactive</option>
+                        </Select>
+                      ) : (
+                        <Badge
+                          variant={vertical.isActive ? 'success' : 'secondary'}
+                        >
+                          {vertical.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      )}
                     </TableCell>
+                    {canManage && (
+                      <TableCell className="text-right">
+                        {editingId === vertical.id ? (
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => void saveEdit(vertical.id)}
+                              disabled={
+                                submitting ||
+                                !editName.trim() ||
+                                !editCode.trim()
+                              }
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              aria-label="Cancel edit"
+                              onClick={() => setEditingId(null)}
+                            >
+                              <X className="size-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              aria-label={`Edit ${vertical.name}`}
+                              onClick={() => startEdit(vertical)}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              aria-label={`Delete ${vertical.name}`}
+                              className="text-destructive"
+                              onClick={() => void removeVertical(vertical)}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -218,51 +357,55 @@ export default function VerticalsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Create vertical</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            onSubmit={handleSubmit}
-            className="grid gap-4 md:grid-cols-[1fr_1fr_1.4fr_auto] md:items-end"
-          >
-            <Field label="Name" required>
-              <Input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="e.g. Customer Success"
-                required
-              />
-            </Field>
-            <Field label="Code" required>
-              <Input
-                value={code}
-                onChange={(event) => setCode(event.target.value.toUpperCase())}
-                placeholder="e.g. CS"
-                required
-              />
-            </Field>
-            <Field label="Owner">
-              <Select
-                value={ownerId}
-                onChange={(event) => setOwnerId(event.target.value)}
-              >
-                <option value="">Assign later</option>
-                {employeeOptions.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.firstName} {employee.lastName} ·{' '}
-                    {employee.employeeId}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Button type="submit" disabled={submitting}>
-              <Plus /> {submitting ? 'Creating…' : 'Create vertical'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      {canManage && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Create vertical</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form
+              onSubmit={handleSubmit}
+              className="grid gap-4 md:grid-cols-[1fr_1fr_1.4fr_auto] md:items-end"
+            >
+              <Field label="Name" required>
+                <Input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="e.g. Customer Success"
+                  required
+                />
+              </Field>
+              <Field label="Code" required>
+                <Input
+                  value={code}
+                  onChange={(event) =>
+                    setCode(event.target.value.toUpperCase())
+                  }
+                  placeholder="e.g. CS"
+                  required
+                />
+              </Field>
+              <Field label="Owner">
+                <Select
+                  value={ownerId}
+                  onChange={(event) => setOwnerId(event.target.value)}
+                >
+                  <option value="">Assign later</option>
+                  {employeeOptions.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.firstName} {employee.lastName} ·{' '}
+                      {employee.employeeId}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Button type="submit" disabled={submitting}>
+                <Plus /> {submitting ? 'Creating…' : 'Create vertical'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
     </PageContainer>
   );
 }

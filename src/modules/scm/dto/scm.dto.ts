@@ -86,6 +86,18 @@ export class CreateVendorDto {
   website?: string;
 }
 
+/**
+ * Edit the vendor master's core competency independently of an audit. Core
+ * competency is normally captured when an audit is created, but staff need to
+ * set/correct it directly (e.g. for a vendor not yet audited, or when the
+ * classification was decided by override). SCM Manager+/SA only.
+ */
+export class UpdateVendorCoreCompetencyDto {
+  @ApiProperty({ enum: VendorCoreCompetency })
+  @IsEnum(VendorCoreCompetency)
+  coreCompetency!: VendorCoreCompetency;
+}
+
 // ── Invite ───────────────────────────────────────────────────────────
 export class CreateInviteDto {
   @ApiPropertyOptional({

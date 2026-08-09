@@ -268,6 +268,23 @@ export function removeMilestone(kickoffId: string, milestoneId: string) {
   );
 }
 
+/**
+ * A standard-milestone suggestion for the kickoff's Add-milestone dropdown —
+ * the deduplicated union of active templates across the order lines' delivery
+ * types. `flowTypes` records which flow types contributed the name.
+ */
+export interface KickoffMilestoneTemplate {
+  name: string;
+  flowTypes: DeliveryType[];
+}
+
+/** Standard-milestone suggestions tailored to this kickoff's delivery types. */
+export function listKickoffMilestoneTemplates(kickoffId: string) {
+  return apiFetch<KickoffMilestoneTemplate[]>(
+    `/project-kickoffs/${kickoffId}/milestone-templates`,
+  );
+}
+
 // ── Action items ─────────────────────────────────────────────────────
 export interface CreateActionItemInput {
   description: string;

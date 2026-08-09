@@ -40,11 +40,21 @@ function PageHeader() {
               style={{ height: 46, width: 'auto', objectFit: 'contain' }}
             />
           ) : (
-            <span style={{ fontSize: 22, fontWeight: 800 }}>{COMPANY.name}</span>
+            <span style={{ fontSize: 22, fontWeight: 800 }}>
+              {COMPANY.name}
+            </span>
           )}
         </div>
         <div style={{ textAlign: 'right', fontSize: 11, color: MUTED }}>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: NAVY }}>
+          <div
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: NAVY,
+            }}
+          >
             Project Kickoff
           </div>
           <div style={{ marginTop: 3 }}>{COMPANY.contactEmail}</div>
@@ -52,7 +62,15 @@ function PageHeader() {
         </div>
       </div>
       <div style={{ borderTop: `2px solid ${NAVY}`, position: 'relative' }}>
-        <div style={{ position: 'absolute', top: -2, left: 0, width: '14%', borderTop: `2px solid ${ACCENT}` }} />
+        <div
+          style={{
+            position: 'absolute',
+            top: -2,
+            left: 0,
+            width: '14%',
+            borderTop: `2px solid ${ACCENT}`,
+          }}
+        />
       </div>
     </div>
   );
@@ -61,8 +79,22 @@ function PageHeader() {
 function PageFooter() {
   return (
     <div style={{ paddingTop: 8 }}>
-      <div style={{ borderTop: `2px solid ${NAVY}`, position: 'relative', marginBottom: 8 }}>
-        <div style={{ position: 'absolute', top: -2, right: 0, width: '18%', borderTop: `2px solid ${ACCENT}` }} />
+      <div
+        style={{
+          borderTop: `2px solid ${NAVY}`,
+          position: 'relative',
+          marginBottom: 8,
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: -2,
+            right: 0,
+            width: '18%',
+            borderTop: `2px solid ${ACCENT}`,
+          }}
+        />
       </div>
       <div style={{ fontSize: 8, color: MUTED, textAlign: 'center' }}>
         {COMPANY.confidentialityLine}
@@ -85,7 +117,14 @@ function Kicker({ children }: { children: React.ReactNode }) {
         margin: '18px 0 8px',
       }}
     >
-      <span style={{ width: 8, height: 8, background: ACCENT, display: 'inline-block' }} />
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          background: ACCENT,
+          display: 'inline-block',
+        }}
+      />
       {children}
     </div>
   );
@@ -136,7 +175,14 @@ export function KickoffPrintDocument({ kickoff }: { kickoff: ProjectKickoff }) {
         <tbody>
           <tr>
             <td style={{ padding: '18px 0 0' }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: NAVY, marginBottom: 4 }}>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: NAVY,
+                  marginBottom: 4,
+                }}
+              >
                 {kickoff.projectName}
               </div>
               <div style={{ fontSize: 11, color: MUTED, marginBottom: 6 }}>
@@ -148,17 +194,37 @@ export function KickoffPrintDocument({ kickoff }: { kickoff: ProjectKickoff }) {
               <table style={{ fontSize: 11, borderCollapse: 'collapse' }}>
                 <tbody>
                   <tr>
-                    <td style={{ color: MUTED, paddingRight: 16 }}>Meeting date</td>
-                    <td style={{ fontWeight: 600 }}>{fmtDate(kickoff.meetingDate)}</td>
+                    <td style={{ color: MUTED, paddingRight: 16 }}>
+                      Meeting date
+                    </td>
+                    <td style={{ fontWeight: 600 }}>
+                      {fmtDate(kickoff.meetingDate)}
+                    </td>
                   </tr>
                   <tr>
-                    <td style={{ color: MUTED, paddingRight: 16, paddingTop: 3 }}>Mode</td>
-                    <td style={{ paddingTop: 3 }}>{MEETING_MODE_LABEL[kickoff.meetingMode]}</td>
+                    <td
+                      style={{ color: MUTED, paddingRight: 16, paddingTop: 3 }}
+                    >
+                      Mode
+                    </td>
+                    <td style={{ paddingTop: 3 }}>
+                      {MEETING_MODE_LABEL[kickoff.meetingMode]}
+                    </td>
                   </tr>
                   {kickoff.meetingLocation && (
                     <tr>
-                      <td style={{ color: MUTED, paddingRight: 16, paddingTop: 3 }}>Location</td>
-                      <td style={{ paddingTop: 3 }}>{kickoff.meetingLocation}</td>
+                      <td
+                        style={{
+                          color: MUTED,
+                          paddingRight: 16,
+                          paddingTop: 3,
+                        }}
+                      >
+                        Location
+                      </td>
+                      <td style={{ paddingTop: 3 }}>
+                        {kickoff.meetingLocation}
+                      </td>
                     </tr>
                   )}
                 </tbody>
@@ -167,7 +233,9 @@ export function KickoffPrintDocument({ kickoff }: { kickoff: ProjectKickoff }) {
               {/* Attendees */}
               <Kicker>Attendees</Kicker>
               {attendees.length === 0 ? (
-                <p style={{ fontSize: 10.5, color: MUTED }}>No attendees recorded.</p>
+                <p style={{ fontSize: 10.5, color: MUTED }}>
+                  No attendees recorded.
+                </p>
               ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
@@ -182,7 +250,7 @@ export function KickoffPrintDocument({ kickoff }: { kickoff: ProjectKickoff }) {
                     {attendees.map((a) => (
                       <tr key={a.id} className="print-avoid-break">
                         <td style={td}>{a.name ?? '—'}</td>
-                        <td style={td}>{a.isInternal ? COMPANY.name : a.externalOrganization ?? '—'}</td>
+                        <td style={td}>{a.externalOrganization ?? '—'}</td>
                         <td style={td}>{a.designation ?? '—'}</td>
                         <td style={td}>{a.department ?? '—'}</td>
                       </tr>
@@ -254,7 +322,9 @@ export function KickoffPrintDocument({ kickoff }: { kickoff: ProjectKickoff }) {
               {/* Risk register */}
               <Kicker>Risk Register</Kicker>
               {risks.length === 0 ? (
-                <p style={{ fontSize: 10.5, color: MUTED }}>No risks recorded.</p>
+                <p style={{ fontSize: 10.5, color: MUTED }}>
+                  No risks recorded.
+                </p>
               ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>

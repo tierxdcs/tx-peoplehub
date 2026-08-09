@@ -240,6 +240,20 @@ export function createVendor(input: CreateVendorInput) {
   });
 }
 
+/**
+ * Set/correct the vendor master's core competency, independently of an audit.
+ * SCM Manager+/SA (backend enforces). Returns the updated vendor.
+ */
+export function updateVendorCoreCompetency(
+  vendorId: string,
+  coreCompetency: VendorCoreCompetency,
+) {
+  return apiFetch<Vendor>(`/vendors/${vendorId}/core-competency`, {
+    method: 'PATCH',
+    body: JSON.stringify({ coreCompetency }),
+  });
+}
+
 export function createQuestionnaireRevision(vendorId: string) {
   return apiFetch<VendorQuestionnaire>(
     `/vendors/${vendorId}/questionnaires`,

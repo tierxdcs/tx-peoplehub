@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { AlertTriangle, ArrowLeft, LayoutGrid, Plus, Rocket, Trash2, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  LayoutGrid,
+  Plus,
+  Rocket,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { useIsProjectManager } from '../../../lib/use-is-project-manager';
@@ -14,6 +22,7 @@ import {
   addRisk,
   DELIVERY_TYPE_LABEL,
   getKickoff,
+  listKickoffMilestoneTemplates,
   MEETING_MODE_LABEL,
   removeActionItem,
   removeAttendee,
@@ -26,6 +35,7 @@ import {
   type DeliveryType,
   type KickoffDeliveryItem,
   type KickoffMeetingMode,
+  type KickoffMilestoneTemplate,
   type MilestoneStatus,
   type ProjectKickoff,
   type RiskLevel,
@@ -34,7 +44,12 @@ import {
 import { listMembers, type KanbanBoardMember } from '../../../lib/kanban';
 import type { EmployeeSearchResult } from '../../../lib/types';
 import { PageContainer } from '../../../components/ui/page-container';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
@@ -110,7 +125,10 @@ export default function KickoffDetailPage() {
           setMembers([]);
         }
       } catch (err) {
-        if (err instanceof ApiError && (err.statusCode === 403 || err.statusCode === 404)) {
+        if (
+          err instanceof ApiError &&
+          (err.statusCode === 403 || err.statusCode === 404)
+        ) {
           setForbidden(true);
         } else {
           setError('Failed to load kickoff.');
@@ -161,7 +179,10 @@ export default function KickoffDetailPage() {
           description="Only the creator, internal attendees, or the CEO can view this record."
         />
         <div className="mt-4 flex justify-center">
-          <Button variant="outline" onClick={() => router.push('/project-kickoff')}>
+          <Button
+            variant="outline"
+            onClick={() => router.push('/project-kickoff')}
+          >
             Back to kickoffs
           </Button>
         </div>
@@ -208,7 +229,9 @@ export default function KickoffDetailPage() {
       const updated = await updateKickoff(kickoff.id, { status: next });
       setKickoff((prev) => (prev ? { ...prev, status: updated.status } : prev));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update status.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to update status.',
+      );
     }
   }
 
@@ -257,12 +280,16 @@ export default function KickoffDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             {canManageStatus && (
               <Button variant="outline" onClick={toggleCompleted}>
-                {kickoff.status === 'COMPLETED' ? 'Mark as Draft' : 'Mark Completed'}
+                {kickoff.status === 'COMPLETED'
+                  ? 'Mark as Draft'
+                  : 'Mark Completed'}
               </Button>
             )}
             <Button
               variant="outline"
-              onClick={() => router.push(`/kanban/boards/${kickoff.kanbanBoardId}`)}
+              onClick={() =>
+                router.push(`/kanban/boards/${kickoff.kanbanBoardId}`)
+              }
             >
               <LayoutGrid className="size-4" /> View Project Board
             </Button>
@@ -280,7 +307,8 @@ export default function KickoffDetailPage() {
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
             <div className="flex-1">
               <p className="font-medium">
-                This kickoff&apos;s meeting date has passed — mark it as completed?
+                This kickoff&apos;s meeting date has passed — mark it as
+                completed?
               </p>
             </div>
             {canManageStatus && (
@@ -311,25 +339,53 @@ export default function KickoffDetailPage() {
         />
 
         <SignedConfirmationSheetCard kickoffId={kickoff.id} />
-        <OverviewSection kickoff={kickoff} canManage={canManage} onSaved={(k) => setKickoff(k)} />
-        <VendorCadenceSection kickoff={kickoff} canManage={canManage} onSaved={setKickoff} />
-        <DeliveryClassificationSection kickoff={kickoff} canManage={canManage} onChanged={refresh} />
-        <AttendeesSection kickoff={kickoff} canManage={canManage} onChanged={refresh} />
-        <MilestonesSection kickoff={kickoff} canManage={canManage} onChanged={refresh} />
+        <OverviewSection
+          kickoff={kickoff}
+          canManage={canManage}
+          onSaved={(k) => setKickoff(k)}
+        />
+        <VendorCadenceSection
+          kickoff={kickoff}
+          canManage={canManage}
+          onSaved={setKickoff}
+        />
+        <DeliveryClassificationSection
+          kickoff={kickoff}
+          canManage={canManage}
+          onChanged={refresh}
+        />
+        <AttendeesSection
+          kickoff={kickoff}
+          canManage={canManage}
+          onChanged={refresh}
+        />
+        <MilestonesSection
+          kickoff={kickoff}
+          canManage={canManage}
+          onChanged={refresh}
+        />
         <ActionItemsSection
           kickoff={kickoff}
           members={members}
           canManage={canManage}
           onChanged={refresh}
         />
-        <RisksSection kickoff={kickoff} canManage={canManage} onChanged={refresh} />
+        <RisksSection
+          kickoff={kickoff}
+          canManage={canManage}
+          onChanged={refresh}
+        />
         <StockAvailabilitySection
           kickoffId={kickoff.id}
           supplyInScope={kickoff.supplyInScope}
           canManage={canManage}
           onSupplyInScopeChanged={(updated) => setKickoff(updated)}
         />
-        <MinutesSection kickoff={kickoff} canManage={canManage} onSaved={(k) => setKickoff(k)} />
+        <MinutesSection
+          kickoff={kickoff}
+          canManage={canManage}
+          onSaved={(k) => setKickoff(k)}
+        />
       </PageContainer>
     </>
   );
@@ -378,7 +434,9 @@ function VendorCadenceSection({
                 min={1}
                 disabled={!canManage}
                 value={days}
-                onChange={(event) => setDays(Math.max(1, Number(event.target.value) || 1))}
+                onChange={(event) =>
+                  setDays(Math.max(1, Number(event.target.value) || 1))
+                }
               />
               <span className="text-muted-foreground">day(s)</span>
             </div>
@@ -393,7 +451,8 @@ function VendorCadenceSection({
           )}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Applies to every Vendor-flow tracker. Full updates and quick comments both reset the clock.
+          Applies to every Vendor-flow tracker. Full updates and quick comments
+          both reset the clock.
         </p>
       </CardContent>
     </Card>
@@ -477,7 +536,10 @@ function AttendeesSection({
   async function addInternal(e: EmployeeSearchResult) {
     setBusy(true);
     try {
-      await addAttendee(kickoff.id, { employeeId: e.id, designation: undefined });
+      await addAttendee(kickoff.id, {
+        employeeId: e.id,
+        designation: undefined,
+      });
       setMode('none');
       onChanged();
     } catch (err) {
@@ -530,10 +592,18 @@ function AttendeesSection({
         <CardTitle>Attendees</CardTitle>
         {canManage && (
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setMode('internal')}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setMode('internal')}
+            >
               <Plus className="size-4" /> Internal
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setMode('external')}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setMode('external')}
+            >
               <Plus className="size-4" /> External
             </Button>
           </div>
@@ -573,7 +643,11 @@ function AttendeesSection({
               onChange={(e) => setExt({ ...ext, designation: e.target.value })}
             />
             <div className="sm:col-span-3">
-              <Button size="sm" onClick={addExternal} disabled={busy || !ext.externalName.trim()}>
+              <Button
+                size="sm"
+                onClick={addExternal}
+                disabled={busy || !ext.externalName.trim()}
+              >
                 Add attendee
               </Button>
             </div>
@@ -593,7 +667,10 @@ function AttendeesSection({
           <TableBody>
             {attendees.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell
+                  colSpan={5}
+                  className="text-center text-muted-foreground"
+                >
                   No attendees yet.
                 </TableCell>
               </TableRow>
@@ -608,7 +685,7 @@ function AttendeesSection({
                       </span>
                     )}
                   </TableCell>
-                  <TableCell>{a.isInternal ? '—' : a.externalOrganization ?? '—'}</TableCell>
+                  <TableCell>{a.externalOrganization ?? '—'}</TableCell>
                   <TableCell>{a.designation ?? '—'}</TableCell>
                   <TableCell>{a.department ?? '—'}</TableCell>
                   <TableCell className="text-right">
@@ -641,6 +718,9 @@ const MILESTONE_STATUSES: MilestoneStatus[] = [
   'DELAYED',
 ];
 
+// Sentinel for the "Other (custom)" dropdown option — reveals a free-text input.
+const MILESTONE_OTHER = '__other__';
+
 function MilestonesSection({
   kickoff,
   canManage,
@@ -653,19 +733,47 @@ function MilestonesSection({
   const toast = useToast();
   const confirm = useConfirm();
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ name: '', targetDate: '' });
+  // `choice` holds the selected template name, MILESTONE_OTHER, or '' (none).
+  // `customName` is the free-text value used only when choice === MILESTONE_OTHER.
+  const [form, setForm] = useState({
+    choice: '',
+    customName: '',
+    targetDate: '',
+  });
   const [busy, setBusy] = useState(false);
+  const [templates, setTemplates] = useState<KickoffMilestoneTemplate[]>([]);
   const milestones = kickoff.milestones ?? [];
 
+  // Standard-milestone suggestions for this kickoff (union of active templates
+  // across the order lines' delivery types). Fetched once; the dropdown falls
+  // back to free-text-only when there are none (e.g. no classified lines yet).
+  useEffect(() => {
+    if (!canManage) return;
+    let cancelled = false;
+    listKickoffMilestoneTemplates(kickoff.id)
+      .then((t) => {
+        if (!cancelled) setTemplates(t);
+      })
+      .catch(() => {
+        /* non-fatal — the free-text path still works */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [kickoff.id, canManage]);
+
+  const effectiveName =
+    form.choice === MILESTONE_OTHER ? form.customName.trim() : form.choice;
+
   async function add() {
-    if (!form.name.trim() || !form.targetDate) return;
+    if (!effectiveName || !form.targetDate) return;
     setBusy(true);
     try {
       await addMilestone(kickoff.id, {
-        name: form.name.trim(),
+        name: effectiveName,
         targetDate: form.targetDate,
       });
-      setForm({ name: '', targetDate: '' });
+      setForm({ choice: '', customName: '', targetDate: '' });
       setAdding(false);
       onChanged();
     } catch (err) {
@@ -706,7 +814,11 @@ function MilestonesSection({
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Milestones</CardTitle>
         {canManage && (
-          <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setAdding((v) => !v)}
+          >
             <Plus className="size-4" /> Add
           </Button>
         )}
@@ -714,19 +826,60 @@ function MilestonesSection({
       <CardContent className="pt-0">
         {canManage && adding && (
           <div className="mb-3 flex flex-wrap items-end gap-2 rounded-md border p-3">
-            <Input
-              placeholder="Milestone name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="max-w-xs"
-            />
+            {templates.length > 0 ? (
+              <Select
+                aria-label="Milestone"
+                value={form.choice}
+                onChange={(e) =>
+                  setForm({ ...form, choice: e.target.value, customName: '' })
+                }
+                className="w-64"
+              >
+                <option value="">Select a milestone…</option>
+                {templates.map((t) => (
+                  <option key={t.name} value={t.name}>
+                    {t.name}
+                  </option>
+                ))}
+                <option value={MILESTONE_OTHER}>Other (custom)…</option>
+              </Select>
+            ) : (
+              // No templates apply (e.g. no classified lines) — free text only.
+              <Input
+                placeholder="Milestone name"
+                value={form.customName}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    choice: MILESTONE_OTHER,
+                    customName: e.target.value,
+                  })
+                }
+                className="max-w-xs"
+              />
+            )}
+            {templates.length > 0 && form.choice === MILESTONE_OTHER && (
+              <Input
+                placeholder="Custom milestone name"
+                value={form.customName}
+                onChange={(e) =>
+                  setForm({ ...form, customName: e.target.value })
+                }
+                className="max-w-xs"
+                autoFocus
+              />
+            )}
             <Input
               type="date"
               value={form.targetDate}
               onChange={(e) => setForm({ ...form, targetDate: e.target.value })}
               className="w-44"
             />
-            <Button size="sm" onClick={add} disabled={busy || !form.name.trim() || !form.targetDate}>
+            <Button
+              size="sm"
+              onClick={add}
+              disabled={busy || !effectiveName || !form.targetDate}
+            >
               Add
             </Button>
           </div>
@@ -744,7 +897,10 @@ function MilestonesSection({
           <TableBody>
             {milestones.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell
+                  colSpan={5}
+                  className="text-center text-muted-foreground"
+                >
                   No milestones yet.
                 </TableCell>
               </TableRow>
@@ -757,7 +913,9 @@ function MilestonesSection({
                   <TableCell>
                     <Select
                       value={m.status}
-                      onChange={(e) => setStatus(m.id, e.target.value as MilestoneStatus)}
+                      onChange={(e) =>
+                        setStatus(m.id, e.target.value as MilestoneStatus)
+                      }
                       className="h-8 w-40"
                       disabled={!canManage}
                     >
@@ -806,7 +964,11 @@ function ActionItemsSection({
   const toast = useToast();
   const confirm = useConfirm();
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ description: '', ownerId: '', dueDate: '' });
+  const [form, setForm] = useState({
+    description: '',
+    ownerId: '',
+    dueDate: '',
+  });
   const [busy, setBusy] = useState(false);
   const items = kickoff.actionItems ?? [];
 
@@ -852,7 +1014,11 @@ function ActionItemsSection({
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Action Items</CardTitle>
         {canManage && (
-          <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setAdding((v) => !v)}
+          >
             <Plus className="size-4" /> Add
           </Button>
         )}
@@ -863,7 +1029,9 @@ function ActionItemsSection({
             <Input
               placeholder="Description"
               value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
               className="min-w-[240px] flex-1"
             />
             <Select
@@ -884,7 +1052,11 @@ function ActionItemsSection({
               onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
               className="w-44"
             />
-            <Button size="sm" onClick={add} disabled={busy || !form.description.trim() || !form.ownerId}>
+            <Button
+              size="sm"
+              onClick={add}
+              disabled={busy || !form.description.trim() || !form.ownerId}
+            >
               Add
             </Button>
           </div>
@@ -902,7 +1074,10 @@ function ActionItemsSection({
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell
+                  colSpan={5}
+                  className="text-center text-muted-foreground"
+                >
                   No action items yet.
                 </TableCell>
               </TableRow>
@@ -913,7 +1088,9 @@ function ActionItemsSection({
                     {i.kanbanCardId ? (
                       <button
                         type="button"
-                        onClick={() => router.push(`/kanban/cards/${i.kanbanCardId}`)}
+                        onClick={() =>
+                          router.push(`/kanban/cards/${i.kanbanCardId}`)
+                        }
                         className="text-left text-primary underline-offset-4 hover:underline"
                       >
                         {i.description}
@@ -984,7 +1161,12 @@ function RisksSection({
         impact: form.impact,
         mitigationPlan: form.mitigationPlan.trim() || undefined,
       });
-      setForm({ description: '', likelihood: 'MEDIUM', impact: 'MEDIUM', mitigationPlan: '' });
+      setForm({
+        description: '',
+        likelihood: 'MEDIUM',
+        impact: 'MEDIUM',
+        mitigationPlan: '',
+      });
       setAdding(false);
       onChanged();
     } catch (err) {
@@ -1025,7 +1207,11 @@ function RisksSection({
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Risk Register</CardTitle>
         {canManage && (
-          <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setAdding((v) => !v)}
+          >
             <Plus className="size-4" /> Add
           </Button>
         )}
@@ -1036,14 +1222,18 @@ function RisksSection({
             <Input
               placeholder="Risk description"
               value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
               className="sm:col-span-2"
             />
             <label className="flex items-center gap-2 text-sm">
               Likelihood
               <Select
                 value={form.likelihood}
-                onChange={(e) => setForm({ ...form, likelihood: e.target.value as RiskLevel })}
+                onChange={(e) =>
+                  setForm({ ...form, likelihood: e.target.value as RiskLevel })
+                }
                 className="h-8"
               >
                 {RISK_LEVELS.map((l) => (
@@ -1057,7 +1247,9 @@ function RisksSection({
               Impact
               <Select
                 value={form.impact}
-                onChange={(e) => setForm({ ...form, impact: e.target.value as RiskLevel })}
+                onChange={(e) =>
+                  setForm({ ...form, impact: e.target.value as RiskLevel })
+                }
                 className="h-8"
               >
                 {RISK_LEVELS.map((l) => (
@@ -1070,11 +1262,17 @@ function RisksSection({
             <Input
               placeholder="Mitigation plan"
               value={form.mitigationPlan}
-              onChange={(e) => setForm({ ...form, mitigationPlan: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, mitigationPlan: e.target.value })
+              }
               className="sm:col-span-2"
             />
             <div className="sm:col-span-2">
-              <Button size="sm" onClick={add} disabled={busy || !form.description.trim()}>
+              <Button
+                size="sm"
+                onClick={add}
+                disabled={busy || !form.description.trim()}
+              >
                 Add risk
               </Button>
             </div>
@@ -1095,7 +1293,10 @@ function RisksSection({
           <TableBody>
             {risks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell
+                  colSpan={7}
+                  className="text-center text-muted-foreground"
+                >
                   No risks recorded.
                 </TableCell>
               </TableRow>
@@ -1114,7 +1315,9 @@ function RisksSection({
                   <TableCell>
                     <Select
                       value={r.status}
-                      onChange={(e) => setStatus(r.id, e.target.value as RiskStatus)}
+                      onChange={(e) =>
+                        setStatus(r.id, e.target.value as RiskStatus)
+                      }
                       className="h-8 w-32"
                       disabled={!canManage}
                     >
@@ -1212,8 +1415,12 @@ function DeliveryRow({
   const toast = useToast();
   // Local editable buffers for the vendor fields (committed on blur).
   const [vendorName, setVendorName] = useState(item.vendorName ?? '');
-  const [vendorContact, setVendorContact] = useState(item.vendorContactInfo ?? '');
-  const [vendorLead, setVendorLead] = useState(item.vendorExpectedLeadTime ?? '');
+  const [vendorContact, setVendorContact] = useState(
+    item.vendorContactInfo ?? '',
+  );
+  const [vendorLead, setVendorLead] = useState(
+    item.vendorExpectedLeadTime ?? '',
+  );
   const [nudge, setNudge] = useState<KickoffDeliveryItem | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -1264,7 +1471,9 @@ function DeliveryRow({
       <TableRow>
         <TableCell>
           <div className="font-medium">{item.productName}</div>
-          <div className="text-xs text-muted-foreground">SKU: {item.productSku}</div>
+          <div className="text-xs text-muted-foreground">
+            SKU: {item.productSku}
+          </div>
         </TableCell>
         <TableCell className="text-right align-top">{item.quantity}</TableCell>
         <TableCell className="align-top">
@@ -1319,7 +1528,9 @@ function DeliveryRow({
                 onChange={(e) => setVendorLead(e.target.value)}
                 onBlur={() => {
                   if (vendorLead !== (item.vendorExpectedLeadTime ?? ''))
-                    void saveVendorField({ vendorExpectedLeadTime: vendorLead });
+                    void saveVendorField({
+                      vendorExpectedLeadTime: vendorLead,
+                    });
                 }}
                 placeholder="Expected lead time (e.g. 6–8 weeks)"
                 className="h-8"
@@ -1374,14 +1585,18 @@ function VendorRiskNudge({
     setBusy(true);
     try {
       await addRisk(kickoffId, {
-        description: description.trim() || `Vendor-sourced delivery risk for ${productName}`,
+        description:
+          description.trim() ||
+          `Vendor-sourced delivery risk for ${productName}`,
         likelihood: 'MEDIUM',
         impact: 'MEDIUM',
       });
       toast.success('Risk added to the register.');
       onAdded();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to add risk.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to add risk.',
+      );
       setBusy(false);
     }
   }
@@ -1432,7 +1647,9 @@ function MinutesSection({
   async function save() {
     setSaving(true);
     try {
-      const updated = await updateKickoff(kickoff.id, { minutesNotes: text || null });
+      const updated = await updateKickoff(kickoff.id, {
+        minutesNotes: text || null,
+      });
       onSaved(updated);
       toast.success('Notes saved.');
     } catch (err) {

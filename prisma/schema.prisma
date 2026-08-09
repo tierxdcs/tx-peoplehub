@@ -2900,6 +2900,29 @@ model KickoffMilestone {
   @@map("kickoff_milestones")
 }
 
+/// Admin-managed standard-milestone catalogue, keyed by delivery flow type
+/// (reuses OrderLineDeliveryType). Drives the milestone dropdown at kickoff:
+/// the union of templates for every distinct delivery type on the kickoff's
+/// order lines, deduplicated by name. Deactivation (isActive=false) hides a
+/// template from the dropdown without affecting milestones already created —
+/// milestones store a free-text `name`, never a link to this row, so existing
+/// (pre-feature, free-text) milestones are unaffected. `name` is unique only
+/// WITHIN a flow type: e.g. "Material Ready" legitimately appears in NPD,
+/// IN_HOUSE and VENDOR lists.
+model MilestoneTemplate {
+  id           String                @id @default(uuid())
+  flowType     OrderLineDeliveryType
+  name         String
+  displayOrder Int                   @default(0)
+  isActive     Boolean               @default(true)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@unique([flowType, name])
+  @@index([flowType, isActive])
+  @@map("milestone_templates")
+}
+
 /// An actionable task. Mirrored 1:1 to a Kanban card; the item's DISPLAYED
 /// status is derived from that card's list at read time (no stored status).
 model KickoffActionItem {

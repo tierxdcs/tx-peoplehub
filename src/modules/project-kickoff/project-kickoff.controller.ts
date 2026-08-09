@@ -138,6 +138,18 @@ export class ProjectKickoffController {
   }
 
   // ── Milestones ─────────────────────────────────────────────────────
+  @Get(':id/milestone-templates')
+  @ApiOperation({
+    summary:
+      "Standard-milestone suggestions for this kickoff (union of active templates across the order lines' delivery types, deduplicated)",
+  })
+  milestoneTemplates(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.milestoneTemplates(id, user);
+  }
+
   @Post(':id/milestones')
   @ApiOperation({ summary: 'Add a milestone' })
   addMilestone(

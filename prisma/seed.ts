@@ -3,6 +3,7 @@ import {
   AccountType,
   BidAssessmentQuestionType,
   LeaveAccrualType,
+  OrderLineDeliveryType,
   PrismaClient,
   Role,
   NormalBalance,
@@ -530,6 +531,63 @@ export async function seed(prisma: PrismaClient): Promise<void> {
       },
       create: { ...item, isActive: true },
     });
+  }
+
+  // Milestone templates — standard checkpoints per delivery flow type, driving
+  // the kickoff milestone dropdown. `name` is unique within a flow type, so the
+  // same milestone intentionally recurs across NPD / IN_HOUSE / VENDOR.
+  const milestoneTemplates: Array<{
+    flowType: OrderLineDeliveryType;
+    names: string[];
+  }> = [
+    {
+      flowType: OrderLineDeliveryType.NPD,
+      names: [
+        'Design Concept Finalisation',
+        'Design Review Sign-off',
+        'Drawing Finalisation',
+        'Prototype/Sample Approval',
+        'Material Ready',
+        'Production Start',
+        'Packing Standard Finalised',
+        'Label & Branding',
+        'QC Sign-off',
+        'Logistics & Delivery',
+      ],
+    },
+    {
+      flowType: OrderLineDeliveryType.IN_HOUSE,
+      names: [
+        'Material Ready',
+        'Production Start',
+        'Packing Standard Finalised',
+        'Label & Branding',
+        'QC Sign-off',
+        'Logistics & Delivery',
+      ],
+    },
+    {
+      flowType: OrderLineDeliveryType.VENDOR,
+      names: [
+        'Material Ready (Vendor Confirmed)',
+        'Production Start (Vendor)',
+        'Packing Standard Finalised',
+        'Label & Branding',
+        'QC Sign-off',
+        'Logistics & Delivery',
+      ],
+    },
+  ];
+  for (const { flowType, names } of milestoneTemplates) {
+    for (let i = 0; i < names.length; i += 1) {
+      const name = names[i];
+      const displayOrder = i + 1;
+      await prisma.milestoneTemplate.upsert({
+        where: { flowType_name: { flowType, name } },
+        update: { displayOrder },
+        create: { flowType, name, displayOrder, isActive: true },
+      });
+    }
   }
 
   for (const bu of BUSINESS_UNITS) {

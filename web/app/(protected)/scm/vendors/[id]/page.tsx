@@ -39,6 +39,7 @@ import { OverrideTag } from '../../../../components/ui/override-tag';
 import { QuestionnaireView } from '../_components/questionnaire-view';
 import { AuditForm } from '../_components/audit-form';
 import { OverrideDialog } from '../_components/override-dialog';
+import { CoreCompetencyDialog } from '../_components/core-competency-dialog';
 
 export default function VendorDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -54,6 +55,7 @@ export default function VendorDetailPage() {
   const [busy, setBusy] = useState(false);
   const [auditing, setAuditing] = useState(false);
   const [overriding, setOverriding] = useState<VendorAudit | null>(null);
+  const [editingCoreCompetency, setEditingCoreCompetency] = useState(false);
 
   // UI hints — backend is the real gate (SCM-vertical Manager+ / auditor).
   const canManage = user?.role === 'SUPER_ADMIN' || user?.role === 'MANAGER';
@@ -219,10 +221,28 @@ export default function VendorDetailPage() {
         <CardContent className="grid gap-x-8 gap-y-2 pt-0 text-sm sm:grid-cols-2">
           <Info label="Registered address" value={vendor.registeredAddress ?? '—'} />
           <Info label="Factory address" value={vendor.factoryAddress ?? '—'} />
-          <Info
-            label="Core competency"
-            value={vendor.coreCompetency ? VENDOR_CORE_COMPETENCY_LABEL[vendor.coreCompetency] : 'Not audited'}
-          />
+          <div>
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Core competency
+            </span>
+            <div className="flex items-center gap-2">
+              <span>
+                {vendor.coreCompetency
+                  ? VENDOR_CORE_COMPETENCY_LABEL[vendor.coreCompetency]
+                  : 'Not set'}
+              </span>
+              {canManage && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setEditingCoreCompetency(true)}
+                >
+                  Edit
+                </Button>
+              )}
+            </div>
+          </div>
           <Info label="Year established" value={vendor.yearEstablished ?? '—'} />
           <Info label="Employees" value={vendor.numberOfEmployees ?? '—'} />
           <Info label="Annual turnover" value={vendor.annualTurnover ?? '—'} />
@@ -443,6 +463,18 @@ export default function VendorDetailPage() {
           onClose={() => setOverriding(null)}
           onSaved={() => {
             setOverriding(null);
+            void load();
+          }}
+        />
+      )}
+
+      {editingCoreCompetency && (
+        <CoreCompetencyDialog
+          vendorId={vendor.id}
+          current={vendor.coreCompetency}
+          onClose={() => setEditingCoreCompetency(false)}
+          onSaved={() => {
+            setEditingCoreCompetency(false);
             void load();
           }}
         />

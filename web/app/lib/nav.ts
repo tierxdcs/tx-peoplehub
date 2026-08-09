@@ -396,6 +396,7 @@ export function hrNav(access: Access): NavGroup[] {
           label: 'Bid Assessment Questions',
           href: '/admin/bid-assessment-questions',
         },
+        { label: 'Milestone Templates', href: '/admin/milestone-templates' },
       ],
     });
   }

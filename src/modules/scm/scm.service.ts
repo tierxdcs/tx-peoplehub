@@ -47,6 +47,7 @@ import {
   NdaTemplateUploadUrlDto,
   PublicCompanyInfoDto,
   PublicQuestionnaireSaveDto,
+  UpdateVendorCoreCompetencyDto,
 } from './dto/scm.dto';
 import {
   VendorAuditEntity,
@@ -153,6 +154,32 @@ export class ScmService {
       return created;
     });
     return this.toVendor(vendor);
+  }
+
+  /**
+   * Set/correct the vendor master's core competency independently of an audit.
+   * SCM Manager+/SA. Core competency is normally captured on the audit, but it
+   * is a vendor-level attribute (used for sourcing) and staff need to maintain
+   * it directly — e.g. before any audit exists, or when it was mis-recorded.
+   * This touches only the Vendor master; it never alters audit records or the
+   * qualification status.
+   */
+  async updateVendorCoreCompetency(
+    id: string,
+    dto: UpdateVendorCoreCompetencyDto,
+    user: AuthenticatedUser,
+  ): Promise<VendorEntity> {
+    await this.access.assertCanManageVendors(user);
+    const exists = await this.prisma.vendor.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!exists) throw new NotFoundException('Vendor not found');
+    const updated = await this.prisma.vendor.update({
+      where: { id },
+      data: { coreCompetency: dto.coreCompetency },
+    });
+    return this.toVendor(updated);
   }
 
   /** Company-wide read — any authenticated employee. */

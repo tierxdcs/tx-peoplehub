@@ -52,6 +52,23 @@ export class KickoffAttendeeEntity {
   }
 }
 
+/**
+ * A standard-milestone suggestion for the kickoff's milestone dropdown. The
+ * union of active MilestoneTemplates across every distinct delivery type on the
+ * kickoff's order lines, deduplicated by name (a milestone like "QC Sign-off"
+ * appears in several flows), ordered for display. `flowTypes` lists which flow
+ * types contributed the name — informational only.
+ */
+export class KickoffMilestoneTemplateEntity {
+  @ApiProperty() name!: string;
+  @ApiProperty({ enum: OrderLineDeliveryType, isArray: true })
+  flowTypes!: OrderLineDeliveryType[];
+
+  constructor(p: Partial<KickoffMilestoneTemplateEntity>) {
+    Object.assign(this, p);
+  }
+}
+
 export class KickoffMilestoneEntity {
   @ApiProperty() id!: string;
   @ApiProperty() kickoffId!: string;

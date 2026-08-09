@@ -23,6 +23,7 @@ import {
   CreateInviteDto,
   CreateVendorDto,
   OverrideClassificationDto,
+  UpdateVendorCoreCompetencyDto,
 } from './dto/scm.dto';
 
 /**
@@ -60,6 +61,18 @@ export class ScmController {
   @ApiOperation({ summary: 'One vendor with questionnaires + audits (company-wide read)' })
   getVendor(@Param('id') id: string) {
     return this.service.getVendor(id);
+  }
+
+  @Patch(':id/core-competency')
+  @ApiOperation({
+    summary: "Set/correct the vendor's core competency (SCM Manager+/SA)",
+  })
+  updateCoreCompetency(
+    @Param('id') id: string,
+    @Body() dto: UpdateVendorCoreCompetencyDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updateVendorCoreCompetency(id, dto, user);
   }
 
   // ── Questionnaire revisions ────────────────────────────────────────

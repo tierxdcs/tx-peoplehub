@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -17,6 +18,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CreateVerticalDto } from './dto/create-vertical.dto';
 import { UpdateVerticalOwnerDto } from './dto/update-vertical-owner.dto';
+import { UpdateVerticalDto } from './dto/update-vertical.dto';
 import { VerticalsService } from './verticals.service';
 
 @ApiTags('verticals')
@@ -38,6 +40,20 @@ export class VerticalsController {
   @ApiOperation({ summary: 'Assign the employee responsible for a vertical' })
   updateOwner(@Param('id') id: string, @Body() dto: UpdateVerticalOwnerDto) {
     return this.verticalsService.updateOwner(id, dto);
+  }
+
+  @Patch(':id')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Edit a business vertical (CEO/SuperAdmin only)' })
+  update(@Param('id') id: string, @Body() dto: UpdateVerticalDto) {
+    return this.verticalsService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Delete an unused vertical (CEO/SuperAdmin only)' })
+  remove(@Param('id') id: string) {
+    return this.verticalsService.remove(id);
   }
 
   @Get('me')

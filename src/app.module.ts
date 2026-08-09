@@ -51,6 +51,7 @@ import { PlmModule } from './modules/plm/plm.module';
 import { CustomerOrderProgressModule } from './modules/customer-order-progress/customer-order-progress.module';
 import { OfferLettersModule } from './modules/offer-letters/offer-letters.module';
 import { ProvisioningModule } from './modules/provisioning/provisioning.module';
+import { MilestoneTemplateModule } from './modules/milestone-template/milestone-template.module';
 import { CandidateRequisitionsModule } from './modules/candidate-requisitions/candidate-requisitions.module';
 import { ReferenceRatesModule } from './modules/reference-rates/reference-rates.module';
 
@@ -94,6 +95,7 @@ import { ReferenceRatesModule } from './modules/reference-rates/reference-rates.
     CustomerOrderProgressModule,
     OfferLettersModule,
     ProvisioningModule,
+    MilestoneTemplateModule,
     CandidateRequisitionsModule,
     ReferenceRatesModule,
     ScmPurchasingModule,

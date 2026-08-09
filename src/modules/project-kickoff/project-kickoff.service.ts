@@ -3,7 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { KanbanCardStatus, Prisma } from '@prisma/client';
+import {
+  KanbanCardStatus,
+  OrderLineDeliveryType,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ConfirmationSheetsService } from '../sales/confirmation-sheets.service';
@@ -28,6 +32,7 @@ import {
   KickoffConfirmationSheetEntity,
   KickoffDeliveryItemEntity,
   KickoffMilestoneEntity,
+  KickoffMilestoneTemplateEntity,
   KickoffRiskEntity,
   ProjectKickoffEntity,
 } from './entities/project-kickoff.entity';
@@ -511,7 +516,16 @@ export class ProjectKickoffService {
         designation: dto.designation ?? null,
         department: dto.department ?? null,
       },
-      include: { employee: { select: { firstName: true, lastName: true } } },
+      include: {
+        employee: {
+          select: {
+            firstName: true,
+            lastName: true,
+            designation: true,
+            vertical: { select: { name: true } },
+          },
+        },
+      },
     });
 
     // An internal attendee also joins the project board (idempotent), so they
@@ -556,6 +570,59 @@ export class ProjectKickoffService {
       include: { owner: { select: { firstName: true, lastName: true } } },
     });
     return this.toMilestone(m);
+  }
+
+  /**
+   * Standard-milestone suggestions for this kickoff's Add-milestone dropdown:
+   * the union of active MilestoneTemplates across every distinct delivery type
+   * present on the kickoff's order lines, deduplicated by name and ordered.
+   * Read access is enough — this only reveals the catalogue, not project data.
+   * Lines with no delivery type yet contribute nothing; a kickoff with no
+   * classified lines simply returns an empty list (UI falls back to free-text).
+   */
+  async milestoneTemplates(
+    kickoffId: string,
+    user: AuthenticatedUser,
+  ): Promise<KickoffMilestoneTemplateEntity[]> {
+    await this.access.assertCanAccess(user, kickoffId);
+    const kickoff = await this.prisma.projectKickoff.findUnique({
+      where: { id: kickoffId },
+      select: {
+        order: { select: { lineItems: { select: { deliveryType: true } } } },
+      },
+    });
+    if (!kickoff) throw new NotFoundException('Kickoff not found');
+
+    const flowTypes = [
+      ...new Set(
+        kickoff.order.lineItems
+          .map((li) => li.deliveryType)
+          .filter((t): t is OrderLineDeliveryType => t !== null),
+      ),
+    ];
+    if (flowTypes.length === 0) return [];
+
+    const templates = await this.prisma.milestoneTemplate.findMany({
+      where: { isActive: true, flowType: { in: flowTypes } },
+      orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+    });
+
+    // Deduplicate by name, keeping first-seen order (templates come pre-sorted
+    // by displayOrder), and record which flow types contributed each name.
+    const byName = new Map<string, KickoffMilestoneTemplateEntity>();
+    for (const t of templates) {
+      const existing = byName.get(t.name);
+      if (existing) existing.flowTypes.push(t.flowType);
+      else
+        byName.set(
+          t.name,
+          new KickoffMilestoneTemplateEntity({
+            name: t.name,
+            flowTypes: [t.flowType],
+          }),
+        );
+    }
+    return [...byName.values()];
   }
 
   async updateMilestone(
@@ -873,7 +940,16 @@ export class ProjectKickoffService {
     return {
       attendees: {
         orderBy: { createdAt: 'asc' as const },
-        include: { employee: { select: { firstName: true, lastName: true } } },
+        include: {
+          employee: {
+            select: {
+              firstName: true,
+              lastName: true,
+              designation: true,
+              vertical: { select: { name: true } },
+            },
+          },
+        },
       },
       milestones: {
         orderBy: { targetDate: 'asc' as const },
@@ -977,9 +1053,17 @@ export class ProjectKickoffService {
       kickoffId: a.kickoffId,
       employeeId: a.employeeId,
       name: isInternal ? fullName(a.employee) : a.externalName,
-      externalOrganization: a.externalOrganization,
-      designation: a.designation,
-      department: a.department,
+      // Internal attendee details remain live: correcting an employee's
+      // designation or vertical in the HR roster immediately updates every
+      // kickoff that references that employee. External attendee details are
+      // still the snapshots entered on the kickoff itself.
+      externalOrganization: isInternal ? 'Internal' : a.externalOrganization,
+      designation: isInternal
+        ? (a.employee?.designation ?? null)
+        : a.designation,
+      department: isInternal
+        ? (a.employee?.vertical?.name ?? null)
+        : a.department,
       isInternal,
     });
   }
@@ -1045,7 +1129,16 @@ export class ProjectKickoffService {
 
 // ── Prisma row shapes (with the includes above) ─────────────────────
 type AttendeeRow = Prisma.KickoffAttendeeGetPayload<{
-  include: { employee: { select: { firstName: true; lastName: true } } };
+  include: {
+    employee: {
+      select: {
+        firstName: true;
+        lastName: true;
+        designation: true;
+        vertical: { select: { name: true } };
+      };
+    };
+  };
 }>;
 type MilestoneRow = Prisma.KickoffMilestoneGetPayload<{
   include: { owner: { select: { firstName: true; lastName: true } } };
@@ -1070,7 +1163,16 @@ type DeliveryItemRow = Prisma.OrderLineItemGetPayload<{
 type KickoffRow = Prisma.ProjectKickoffGetPayload<{
   include: {
     attendees: {
-      include: { employee: { select: { firstName: true; lastName: true } } };
+      include: {
+        employee: {
+          select: {
+            firstName: true;
+            lastName: true;
+            designation: true;
+            vertical: { select: { name: true } };
+          };
+        };
+      };
     };
     milestones: {
       include: { owner: { select: { firstName: true; lastName: true } } };
