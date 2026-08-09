@@ -71,6 +71,37 @@ export class EmployeesService {
     private readonly provisioning: ProvisioningService,
   ) {}
 
+  /**
+   * Allocate the next human-readable employee code, e.g. `PHB26-001`.
+   *
+   * The code is `PHB` + 2-digit calendar year + a 3-digit sequence that
+   * RESETS each year — the first hire of a new year restarts at 001. A plain
+   * Postgres sequence can't reset per year, so (like every other year-scoped
+   * number in the app — BID-2026-0001, ORD-2026-0001) this is backed by the
+   * `sales_sequences` counter table keyed by (entity, year). The single
+   * atomic `INSERT … ON CONFLICT DO UPDATE … RETURNING` takes a row-level lock
+   * that serializes concurrent callers, so no two employees ever collide.
+   *
+   * Always called inside the enclosing create transaction (pass `tx`) so a
+   * rolled-back create doesn't burn a number.
+   */
+  private async nextEmployeeCode(
+    tx: PrismaTransactionClient,
+    year: number,
+  ): Promise<string> {
+    const rows = await tx.$queryRaw<Array<{ lastValue: number }>>`
+      INSERT INTO sales_sequences ("entity", "year", "lastValue", "updatedAt")
+      VALUES ('employee', ${year}, 1, now())
+      ON CONFLICT ("entity", "year")
+      DO UPDATE SET "lastValue" = sales_sequences."lastValue" + 1,
+                    "updatedAt" = now()
+      RETURNING "lastValue"
+    `;
+    const seq = rows[0].lastValue;
+    const yy = (year % 100).toString().padStart(2, '0');
+    return `PHB${yy}-${seq.toString().padStart(3, '0')}`;
+  }
+
   async create(
     dto: CreateEmployeeDto,
     currentUser: AuthenticatedUser,
@@ -92,10 +123,10 @@ export class EmployeesService {
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     const employee = await this.prisma.$transaction(async (tx) => {
-      const [{ nextval }] = await tx.$queryRaw<
-        [{ nextval: bigint }]
-      >`SELECT nextval('employee_id_seq')`;
-      const employeeId = `EMP-${nextval.toString().padStart(4, '0')}`;
+      const employeeId = await this.nextEmployeeCode(
+        tx,
+        new Date().getFullYear(),
+      );
 
       return tx.employee.create({
         data: {
@@ -513,10 +544,10 @@ export class EmployeesService {
       : null;
 
     const employee = await this.prisma.$transaction(async (tx) => {
-      const [{ nextval }] = await tx.$queryRaw<
-        [{ nextval: bigint }]
-      >`SELECT nextval('employee_id_seq')`;
-      const employeeId = `EMP-${nextval.toString().padStart(4, '0')}`;
+      const employeeId = await this.nextEmployeeCode(
+        tx,
+        new Date().getFullYear(),
+      );
       const officialEmail = dto.officialEmail
         ? await this.validateRequestedOfficialEmail(tx, dto.officialEmail)
         : await this.generateOfficialEmail(tx, dto.firstName, dto.lastName);

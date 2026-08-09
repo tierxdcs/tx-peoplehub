@@ -389,11 +389,22 @@ const BID_ASSESSMENT_QUESTIONS: Array<{
   },
 ];
 
+// Employee codes are `PHB` + 2-digit year + a 3-digit sequence that resets each
+// year (PHB26-001). Backed by the same year-scoped `sales_sequences` counter the
+// runtime allocator uses, so seed and app share one sequence per year.
 async function nextEmployeeId(client: PrismaClient): Promise<string> {
-  const [{ nextval }] = await client.$queryRaw<
-    [{ nextval: bigint }]
-  >`SELECT nextval('employee_id_seq')`;
-  return `EMP-${nextval.toString().padStart(4, '0')}`;
+  const year = new Date().getFullYear();
+  const rows = await client.$queryRaw<Array<{ lastValue: number }>>`
+    INSERT INTO sales_sequences ("entity", "year", "lastValue", "updatedAt")
+    VALUES ('employee', ${year}, 1, now())
+    ON CONFLICT ("entity", "year")
+    DO UPDATE SET "lastValue" = sales_sequences."lastValue" + 1,
+                  "updatedAt" = now()
+    RETURNING "lastValue"
+  `;
+  const seq = rows[0].lastValue;
+  const yy = (year % 100).toString().padStart(2, '0');
+  return `PHB${yy}-${seq.toString().padStart(3, '0')}`;
 }
 
 /**

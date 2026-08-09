@@ -246,7 +246,7 @@ describe('EmployeesService', () => {
       prisma.vertical.findUnique.mockResolvedValue(vertical);
       prisma.$transaction.mockImplementation(async (cb: any) =>
         cb({
-          $queryRaw: jest.fn().mockResolvedValue([{ nextval: BigInt(2) }]),
+          $queryRaw: jest.fn().mockResolvedValue([{ lastValue: 2 }]),
           employee: { create: jest.fn().mockResolvedValue(employee) },
         }),
       );
@@ -286,7 +286,7 @@ describe('EmployeesService', () => {
       prisma.employee.findUnique.mockResolvedValueOnce(null);
       prisma.$transaction.mockImplementation(async (cb: any) =>
         cb({
-          $queryRaw: jest.fn().mockResolvedValue([{ nextval: BigInt(1) }]),
+          $queryRaw: jest.fn().mockResolvedValue([{ lastValue: 1 }]),
           employee: {
             create: jest
               .fn()
@@ -582,7 +582,7 @@ describe('EmployeesService', () => {
     function mockHrTransaction(createdEmployee: any) {
       prisma.$transaction.mockImplementation(async (cb: any) =>
         cb({
-          $queryRaw: jest.fn().mockResolvedValue([{ nextval: BigInt(3) }]),
+          $queryRaw: jest.fn().mockResolvedValue([{ lastValue: 3 }]),
           employee: {
             create: jest.fn().mockResolvedValue(createdEmployee),
             findUnique: jest.fn().mockResolvedValue(null), // official-email collision check: no collision
@@ -622,7 +622,7 @@ describe('EmployeesService', () => {
       let capturedEmployee: any;
       prisma.$transaction.mockImplementation(async (cb: any) =>
         cb({
-          $queryRaw: jest.fn().mockResolvedValue([{ nextval: BigInt(5) }]),
+          $queryRaw: jest.fn().mockResolvedValue([{ lastValue: 5 }]),
           employee: {
             findUnique: jest.fn().mockResolvedValue(null),
             create: jest.fn((args: any) => {
@@ -670,7 +670,7 @@ describe('EmployeesService', () => {
       let capturedBank: any;
       prisma.$transaction.mockImplementation(async (cb: any) =>
         cb({
-          $queryRaw: jest.fn().mockResolvedValue([{ nextval: BigInt(4) }]),
+          $queryRaw: jest.fn().mockResolvedValue([{ lastValue: 4 }]),
           employee: {
             create: jest.fn().mockResolvedValue(created),
             findUnique: jest.fn().mockResolvedValue(null),
@@ -707,7 +707,7 @@ describe('EmployeesService', () => {
       let capturedSalary: any;
       prisma.$transaction.mockImplementation(async (cb: any) =>
         cb({
-          $queryRaw: jest.fn().mockResolvedValue([{ nextval: BigInt(5) }]),
+          $queryRaw: jest.fn().mockResolvedValue([{ lastValue: 5 }]),
           employee: {
             create: jest.fn().mockResolvedValue(created),
             findUnique: jest.fn().mockResolvedValue(null),
@@ -752,7 +752,7 @@ describe('EmployeesService', () => {
       let capturedSalary: any;
       prisma.$transaction.mockImplementation(async (cb: any) =>
         cb({
-          $queryRaw: jest.fn().mockResolvedValue([{ nextval: BigInt(6) }]),
+          $queryRaw: jest.fn().mockResolvedValue([{ lastValue: 6 }]),
           employee: {
             create: jest.fn().mockResolvedValue(created),
             findUnique: jest.fn().mockResolvedValue(null),
