@@ -15,6 +15,8 @@ export interface PendingCounts {
   bidAssessmentApprovals: number;
   hrPendingAccess: number;
   confirmationSheetsPending: number;
+  offerLetterApprovals: number;
+  provisioningApprovals: number;
 }
 
 /**

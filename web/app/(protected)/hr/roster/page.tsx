@@ -53,6 +53,7 @@ export default function RosterPage() {
   const [accessStatusFilter, setAccessStatusFilter] = useState<
     AccessStatus | ''
   >('');
+  const [territoryFilter, setTerritoryFilter] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,13 +93,15 @@ export default function RosterPage() {
   // The status shown (and filtered on): an offboarded employee (status
   // INACTIVE) reads INACTIVE regardless of accessStatus, since login requires
   // BOTH to be ACTIVE. Keeps the badge and the filter in lockstep.
-  const effectiveStatus = (e: EmployeeRoster | EmployeeRosterAdmin): AccessStatus =>
-    e.status === 'INACTIVE' ? 'INACTIVE' : e.accessStatus;
+  const effectiveStatus = (
+    e: EmployeeRoster | EmployeeRosterAdmin,
+  ): AccessStatus => (e.status === 'INACTIVE' ? 'INACTIVE' : e.accessStatus);
 
   const filtered = items.filter((e) => {
     if (verticalFilter && e.verticalId !== verticalFilter) return false;
     if (accessStatusFilter && effectiveStatus(e) !== accessStatusFilter)
       return false;
+    if (territoryFilter && e.territory !== territoryFilter) return false;
     if (search) {
       const haystack = `${e.firstName} ${e.lastName}`.toLowerCase();
       if (!haystack.includes(search.toLowerCase())) return false;
@@ -106,7 +109,10 @@ export default function RosterPage() {
     return true;
   });
 
-  const colCount = isAdmin ? 9 : 7;
+  const territories = Array.from(
+    new Set(items.map((employee) => employee.territory).filter(Boolean)),
+  ).sort() as string[];
+  const colCount = isAdmin ? 10 : 8;
 
   return (
     <PageContainer>
@@ -132,6 +138,18 @@ export default function RosterPage() {
             {verticals.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
+              </option>
+            ))}
+          </Select>
+          <Select
+            value={territoryFilter}
+            onChange={(e) => setTerritoryFilter(e.target.value)}
+            className="max-w-[200px]"
+          >
+            <option value="">All territories</option>
+            {territories.map((territory) => (
+              <option key={territory} value={territory}>
+                {territory}
               </option>
             ))}
           </Select>
@@ -163,6 +181,7 @@ export default function RosterPage() {
                 <TableHead>Designation</TableHead>
                 <TableHead>Employment Type</TableHead>
                 <TableHead>Work Location</TableHead>
+                <TableHead>Territory</TableHead>
                 <TableHead>Access Status</TableHead>
                 {isAdmin && <TableHead>Sensitive Info</TableHead>}
                 {isAdmin && <TableHead />}
@@ -207,6 +226,7 @@ export default function RosterPage() {
                       <TableCell>{e.designation ?? '—'}</TableCell>
                       <TableCell>{e.employmentType ?? '—'}</TableCell>
                       <TableCell>{e.workLocation ?? '—'}</TableCell>
+                      <TableCell>{e.territory ?? '—'}</TableCell>
                       <TableCell>
                         {/* Effective status — see effectiveStatus(): offboarded
                             employees read INACTIVE regardless of accessStatus.

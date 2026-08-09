@@ -1,9 +1,35 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, KeyRound, UserCheck } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { Employee, PaginatedResult, Vertical } from '../../../lib/types';
+import { roleLabel } from '../../../lib/status';
+import { PageContainer } from '../../../components/ui/page-container';
+import { PageHeader } from '../../../components/ui/page-header';
+import { Card, CardContent } from '../../../components/ui/card';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
+import { Select } from '../../../components/ui/select';
+import { Field } from '../../../components/ui/field';
+import { Skeleton } from '../../../components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../components/ui/dialog';
 
 // MANAGER / EMPLOYEE are grantable by any admin; ADMIN is added only for a
 // SUPER_ADMIN caller (mirrors the backend assertMayAssignRole rule — the API
@@ -12,12 +38,6 @@ const NON_PRIVILEGED_ROLES: Array<'MANAGER' | 'EMPLOYEE'> = [
   'MANAGER',
   'EMPLOYEE',
 ];
-
-const fieldStyle: React.CSSProperties = {
-  width: '100%',
-  padding: 8,
-  boxSizing: 'border-box',
-};
 
 export default function PendingAccessPage() {
   const [items, setItems] = useState<Employee[]>([]);
@@ -63,46 +83,77 @@ export default function PendingAccessPage() {
     verticals.find((v) => v.id === id)?.name ?? '—';
 
   return (
-    <div>
-      <h1>Pending Access</h1>
+    <PageContainer>
+      <PageHeader
+        title="Pending Access"
+        description="Review onboarded employees and grant their ERP role, reporting line and initial login access."
+      />
 
-      {error && <p className="text-destructive">{error}</p>}
-      {loading ? (
-        <p>Loading…</p>
-      ) : items.length === 0 ? (
-        <p>No employees awaiting access.</p>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
-              <th>Employee ID</th>
-              <th>Name</th>
-              <th>Vertical</th>
-              <th>Designation</th>
-              <th>Date onboarded</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((e) => (
-              <tr key={e.id} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
-                <td>{e.employeeId}</td>
-                <td>
-                  {e.firstName} {e.lastName}
-                </td>
-                <td>{verticalName(e.verticalId)}</td>
-                <td>{e.designation ?? '—'}</td>
-                <td>{new Date(e.createdAt).toLocaleDateString()}</td>
-                <td>
-                  <button onClick={() => setGrantTarget(e)}>
-                    Grant Access
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Employee ID</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Vertical</TableHead>
+                <TableHead>Designation</TableHead>
+                <TableHead>Date onboarded</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                Array.from({ length: 3 }).map((_, row) => (
+                  <TableRow key={row}>
+                    {Array.from({ length: 6 }).map((__, column) => (
+                      <TableCell key={column}>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : items.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={6}
+                    className="py-12 text-center text-muted-foreground"
+                  >
+                    <UserCheck className="mx-auto mb-3 size-8 opacity-50" />
+                    No employees are awaiting access.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                items.map((employee) => (
+                  <TableRow key={employee.id}>
+                    <TableCell className="font-medium">
+                      {employee.employeeId}
+                    </TableCell>
+                    <TableCell>
+                      {employee.firstName} {employee.lastName}
+                    </TableCell>
+                    <TableCell>{verticalName(employee.verticalId)}</TableCell>
+                    <TableCell>{employee.designation ?? '—'}</TableCell>
+                    <TableCell>
+                      {new Date(employee.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        onClick={() => setGrantTarget(employee)}
+                      >
+                        <KeyRound /> Grant Access
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       {grantTarget && (
         <GrantAccessForm
@@ -119,31 +170,28 @@ export default function PendingAccessPage() {
       )}
 
       {granted && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          onClick={() => setGranted(null)}
-        >
-          <div
-            style={{ background: 'hsl(var(--card))', padding: 24, borderRadius: 6 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2>Access granted</h2>
-            <p>
+        <Dialog open onOpenChange={(open) => !open && setGranted(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <div className="mb-2 flex size-10 items-center justify-center rounded-full bg-success/15 text-success">
+                <CheckCircle2 />
+              </div>
+              <DialogTitle>Access granted</DialogTitle>
+              <DialogDescription>
+                The employee can now sign in to the ERP.
+              </DialogDescription>
+            </DialogHeader>
+            <p className="text-sm">
               {granted.firstName} {granted.lastName} can now log in using{' '}
               <strong>{granted.email}</strong>.
             </p>
-            <button onClick={() => setGranted(null)}>Close</button>
-          </div>
-        </div>
+            <DialogFooter>
+              <Button onClick={() => setGranted(null)}>Done</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
-    </div>
+    </PageContainer>
   );
 }
 
@@ -221,117 +269,99 @@ function GrantAccessForm({
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-      onClick={onClose}
-    >
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          background: 'hsl(var(--card))',
-          padding: 24,
-          borderRadius: 6,
-          width: 400,
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2>
-          Grant access — {employee.firstName} {employee.lastName}
-        </h2>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>
+            Grant access — {employee.firstName} {employee.lastName}
+          </DialogTitle>
+          <DialogDescription>
+            Assign the employee&apos;s ERP permissions and reporting manager.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Field label="Role" required>
+            <Select
+              value={role}
+              onChange={(e) =>
+                setRole(e.target.value as 'ADMIN' | 'MANAGER' | 'EMPLOYEE')
+              }
+            >
+              {assignableRoles.map((r) => (
+                <option key={r} value={r}>
+                  {r === 'ADMIN'
+                    ? 'Admin'
+                    : r === 'MANAGER'
+                      ? 'Manager'
+                      : 'Employee'}
+                </option>
+              ))}
+            </Select>
+          </Field>
 
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Role</label>
-          <select
-            value={role}
-            onChange={(e) =>
-              setRole(e.target.value as 'ADMIN' | 'MANAGER' | 'EMPLOYEE')
-            }
-            style={fieldStyle}
-          >
-            {assignableRoles.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
+          <Field label="Vertical" required>
+            <Select
+              value={verticalId}
+              onChange={(e) => setVerticalId(e.target.value)}
+              required
+            >
+              <option value="">Select a vertical…</option>
+              {verticals.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
 
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Vertical
-          </label>
-          <select
-            value={verticalId}
-            onChange={(e) => setVerticalId(e.target.value)}
+          <Field label="Reporting manager" required>
+            <Input
+              placeholder="Filter by name or email"
+              value={managerSearch}
+              onChange={(e) => setManagerSearch(e.target.value)}
+              className="mb-2"
+            />
+            <Select
+              value={managerId}
+              onChange={(e) => setManagerId(e.target.value)}
+              required
+            >
+              <option value="">Select a manager…</option>
+              {managerOptions.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.firstName} {m.lastName} ({m.employeeId}, {roleLabel(m.role)})
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field
+            label="Initial password"
             required
-            style={fieldStyle}
+            hint="Minimum 8 characters. Share it with the employee securely."
           >
-            <option value="">Select a vertical…</option>
-            {verticals.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        </div>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={8}
+              autoComplete="new-password"
+            />
+          </Field>
 
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Reporting manager
-          </label>
-          <input
-            placeholder="Filter by name or email"
-            value={managerSearch}
-            onChange={(e) => setManagerSearch(e.target.value)}
-            style={{ ...fieldStyle, marginBottom: 6 }}
-          />
-          <select
-            value={managerId}
-            onChange={(e) => setManagerId(e.target.value)}
-            required
-            style={fieldStyle}
-          >
-            <option value="">Select a manager…</option>
-            {managerOptions.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.firstName} {m.lastName} ({m.employeeId}, {m.role})
-              </option>
-            ))}
-          </select>
-        </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Initial password
-          </label>
-          <input
-            type="text"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-            style={fieldStyle}
-          />
-        </div>
-
-        {error && <p className="text-destructive">{error}</p>}
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="submit" disabled={submitting} style={{ padding: 8 }}>
-            {submitting ? 'Granting…' : 'Grant Access'}
-          </button>
-          <button type="button" onClick={onClose} style={{ padding: 8 }}>
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Granting…' : 'Grant Access'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -7,6 +7,7 @@ import { Employee, PaginatedResult, Vertical } from '../../../lib/types';
 import { useConfirm } from '../../../components/ui/confirm';
 import { useToast } from '../../../components/ui/toaster';
 import { useAuth } from '../../../lib/auth-context';
+import { roleLabel } from '../../../lib/status';
 
 /** Inline designation pill on the roster (Sales Head / Project Manager). */
 const rosterBadgeStyle: React.CSSProperties = {
@@ -218,7 +219,7 @@ export default function EmployeesListPage() {
                   </td>
                   <td>{e.email}</td>
                   <td>{verticalName(e.verticalId)}</td>
-                  <td>{e.role}</td>
+                  <td>{roleLabel(e.role)}</td>
                   <td>{e.status}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 8 }}>

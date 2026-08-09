@@ -73,6 +73,74 @@ describe('SalaryStructuresService', () => {
       expect(prisma.salaryStructure.create).toHaveBeenCalled();
       expect(result.id).toBe('new-row');
     });
+
+    it('persists variablePay and surfaces it on the entity (annual indirect component)', async () => {
+      prisma.employee.findUnique.mockResolvedValue({ id: 'emp-1' });
+      prisma.salaryStructure.create.mockResolvedValue({
+        id: 'new-row',
+        employeeId: 'emp-1',
+        effectiveFrom: new Date('2026-06-01'),
+        basic: new Prisma.Decimal(50000),
+        hra: new Prisma.Decimal(10000),
+        specialAllowance: new Prisma.Decimal(8000),
+        otherAllowances: null,
+        variablePay: new Prisma.Decimal(60000),
+        ctcAnnual: new Prisma.Decimal(876000),
+      });
+
+      const result = await service.create(
+        {
+          employeeId: 'emp-1',
+          effectiveFrom: '2026-06-01',
+          basic: 50000,
+          hra: 10000,
+          specialAllowance: 8000,
+          variablePay: 60000,
+          ctcAnnual: 876000,
+        },
+        'admin-1',
+      );
+
+      expect(prisma.salaryStructure.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ variablePay: 60000 }),
+        }),
+      );
+      expect(result.variablePay).toBe('60000');
+    });
+
+    it('stores variablePay as null when omitted', async () => {
+      prisma.employee.findUnique.mockResolvedValue({ id: 'emp-1' });
+      prisma.salaryStructure.create.mockResolvedValue({
+        id: 'new-row',
+        employeeId: 'emp-1',
+        effectiveFrom: new Date('2026-06-01'),
+        basic: new Prisma.Decimal(50000),
+        hra: new Prisma.Decimal(10000),
+        specialAllowance: new Prisma.Decimal(0),
+        otherAllowances: null,
+        variablePay: null,
+        ctcAnnual: new Prisma.Decimal(720000),
+      });
+
+      const result = await service.create(
+        {
+          employeeId: 'emp-1',
+          effectiveFrom: '2026-06-01',
+          basic: 50000,
+          hra: 10000,
+          ctcAnnual: 720000,
+        },
+        'admin-1',
+      );
+
+      expect(prisma.salaryStructure.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ variablePay: null }),
+        }),
+      );
+      expect(result.variablePay).toBeNull();
+    });
   });
 
   describe('getCurrent', () => {

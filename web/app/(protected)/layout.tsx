@@ -100,6 +100,9 @@ export default function ProtectedLayout({
     isQmsHead,
     isDesignUser,
     isDesignHead,
+    // Surface the Offer Letter Approvals inbox to whoever currently has letters
+    // routed to them (vertical owner / Super Admin fallback) — self-cleaning.
+    offerLetterApprovalsPending: (counts?.offerLetterApprovals ?? 0) > 0,
     payslipsEnabled,
   };
 
@@ -123,6 +126,8 @@ export default function ProtectedLayout({
           counts.bidAssessmentApprovals,
         '/sales/confirmation-sheets/pending-approval':
           counts.confirmationSheetsPending,
+        '/hr/offer-letters/pending-approval': counts.offerLetterApprovals,
+        '/hr/provisioning-approvals': counts.provisioningApprovals,
       }
     : {};
 

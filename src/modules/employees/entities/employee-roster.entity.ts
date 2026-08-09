@@ -35,6 +35,9 @@ export class EmployeeRosterEntity {
   workLocation!: string | null;
 
   @ApiProperty({ nullable: true })
+  territory!: string | null;
+
+  @ApiProperty({ nullable: true })
   mobile!: string | null;
 
   @ApiProperty({ enum: EmployeeStatus })

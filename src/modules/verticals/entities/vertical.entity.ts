@@ -13,6 +13,17 @@ export class VerticalEntity {
   @ApiProperty()
   isActive!: boolean;
 
+  @ApiProperty({ nullable: true })
+  ownerId!: string | null;
+
+  @ApiProperty({ nullable: true })
+  owner!: {
+    id: string;
+    employeeId: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+
   @ApiProperty()
   createdAt!: Date;
 

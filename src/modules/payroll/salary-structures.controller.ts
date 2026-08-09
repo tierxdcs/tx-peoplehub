@@ -10,6 +10,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { HrManagerOrAdminGuard } from '../../common/guards/hr-manager-or-admin.guard';
 import { CreateSalaryStructureDto } from './dto/create-salary-structure.dto';
 import { SalaryStructuresService } from './salary-structures.service';
+import { PayrollComputationService } from './payroll-computation.service';
 
 /**
  * Route order: /:employeeId/current and /:employeeId/history are
@@ -27,6 +28,7 @@ import { SalaryStructuresService } from './salary-structures.service';
 export class SalaryStructuresController {
   constructor(
     private readonly salaryStructuresService: SalaryStructuresService,
+    private readonly payrollComputation: PayrollComputationService,
   ) {}
 
   @Post()
@@ -55,5 +57,14 @@ export class SalaryStructuresController {
   })
   getHistory(@Param('employeeId') employeeId: string) {
     return this.salaryStructuresService.getHistory(employeeId);
+  }
+
+  @Get(':employeeId/ctc-breakdown')
+  @ApiOperation({
+    summary:
+      "Fully-derived CTC breakdown for the employee's current structure — statutory rows (PF/ESI/PT) computed from StatutoryConfig, nothing stored",
+  })
+  getCtcBreakdown(@Param('employeeId') employeeId: string) {
+    return this.payrollComputation.computeCtcBreakdown(employeeId);
   }
 }

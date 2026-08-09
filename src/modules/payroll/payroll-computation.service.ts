@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   Employee,
   LeaveRequestStatus,
@@ -11,6 +15,10 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { endOfMonth } from '../../common/utils/date.util';
 import { SalaryStructuresService } from './salary-structures.service';
 import { StatutoryConfigService } from './statutory-config.service';
+import {
+  CtcBreakdownEntity,
+  CtcBreakdownRow,
+} from './entities/ctc-breakdown.entity';
 
 export interface RequiredConfigs {
   pf: StatutoryConfig;
@@ -206,6 +214,200 @@ export class PayrollComputationService {
       netPay,
       statutoryConfigSnapshot: this.buildSnapshot(employee, configs),
     };
+  }
+
+  /**
+   * The fully-derived CTC breakdown (offer-letter view) for an employee's
+   * CURRENT salary structure. Reuses the exact PF/ESI/PT rate logic the
+   * payroll engine uses, so the two can never disagree. Reads only — nothing
+   * is stored. TDS is intentionally not computed (surfaced as a note); Net
+   * Take Home is therefore "before TDS", matching the offer-letter format.
+   *
+   * Unlike a payroll run, a missing StatutoryConfig here is NOT fatal: the
+   * dependent rows show "—" and their names are collected into `warnings`,
+   * so HR can still see the earning-side breakdown before rates are set up.
+   */
+  async computeCtcBreakdown(
+    employeeId: string,
+    asOf: Date = new Date(),
+  ): Promise<CtcBreakdownEntity> {
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+    });
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    // Current structure (latest effectiveFrom <= asOf). Throws if none — an
+    // employee with no salary on file has no breakdown to show.
+    const structure = await this.salaryStructures.getCurrentOrThrow(
+      employeeId,
+      asOf,
+    );
+
+    const basic = structure.basic;
+    const hra = structure.hra;
+    const specialAllowance = structure.specialAllowance;
+    const otherAllowances = structure.otherAllowances ?? new Prisma.Decimal(0);
+    const variablePayAnnual = structure.variablePay ?? new Prisma.Decimal(0);
+    const grossMonthly = basic
+      .plus(hra)
+      .plus(specialAllowance)
+      .plus(otherAllowances);
+
+    const warnings: string[] = [];
+
+    // Load the statutory rows this breakdown needs. Each is optional here —
+    // a null means "not configured yet", handled per-row below.
+    const [pfConfig, esiConfig, ptConfig] = await Promise.all([
+      this.statutoryConfig.findEffective(StatutoryConfigType.PF, asOf),
+      this.statutoryConfig.findEffective(StatutoryConfigType.ESI, asOf),
+      employee.workLocation
+        ? this.statutoryConfig.findEffective(
+            StatutoryConfigType.PROFESSIONAL_TAX,
+            asOf,
+            employee.workLocation,
+          )
+        : Promise.resolve(null),
+    ]);
+
+    const pf = pfConfig ? this.calculatePf(basic, pfConfig) : null;
+    if (!pfConfig) warnings.push('PF');
+
+    const esi = esiConfig ? this.calculateEsi(grossMonthly, esiConfig) : null;
+    if (!esiConfig) warnings.push('ESI');
+
+    let professionalTax: Prisma.Decimal | null = null;
+    if (!employee.workLocation) {
+      warnings.push('Professional Tax (no work location on file)');
+    } else if (!ptConfig) {
+      warnings.push(`Professional Tax (${employee.workLocation})`);
+    } else {
+      professionalTax = this.calculateProfessionalTax(
+        grossMonthly,
+        employee.workLocation,
+        new Map([[employee.workLocation, ptConfig]]),
+      );
+    }
+
+    // Direct Components — the typed earning components + gross sub-total.
+    const directComponents: CtcBreakdownRow[] = [
+      this.monthlyRow('Basic Salary', basic),
+      this.monthlyRow('House Rent Allowance (HRA)', hra),
+      this.monthlyRow('Special Allowance', specialAllowance),
+    ];
+    if (otherAllowances.gt(0)) {
+      directComponents.push(this.monthlyRow('Other Allowances', otherAllowances));
+    }
+    directComponents.push(
+      this.monthlyRow('Sub Total – Gross Salary', grossMonthly, true),
+    );
+
+    // Deductions from Employee Side. Salary Before Taxes = gross − (PF + ESI
+    // + PT); TDS is shown as a note only, so Net Take Home is "before TDS".
+    const employeePf = pf?.employee ?? null;
+    const employeeEsi = esi?.employee ?? null;
+    const salaryBeforeTaxesMonthly = grossMonthly
+      .minus(employeePf ?? 0)
+      .minus(employeeEsi ?? 0)
+      .minus(professionalTax ?? 0);
+
+    const employeeDeductions: CtcBreakdownRow[] = [
+      this.monthlyRow('Gross Salary', grossMonthly),
+      this.monthlyRowOrDash('Employee PF', employeePf),
+      this.monthlyRowOrDash('Employee ESI', employeeEsi),
+      this.monthlyRowOrDash('Professional Tax (PT)', professionalTax),
+      this.monthlyRow('Salary Before Taxes', salaryBeforeTaxesMonthly, true),
+      {
+        label: 'TDS (As Applicable)',
+        perMonth: null,
+        perAnnum: null,
+        note: 'As per Income Tax Act',
+      },
+      {
+        ...this.monthlyRow('Net Take Home Salary', salaryBeforeTaxesMonthly, true),
+        note: 'Before TDS',
+      },
+    ];
+
+    // Other Indirect Benefits — employer-side contributions + variable pay.
+    const employerPf = pf?.employer ?? null;
+    const employerEsi = esi?.employer ?? null;
+    const indirectMonthlyTotal = (employerPf ?? new Prisma.Decimal(0)).plus(
+      employerEsi ?? 0,
+    );
+    // variablePay is stored ANNUAL; show its monthly as annual/12.
+    const variablePayMonthly = variablePayAnnual.dividedBy(12);
+
+    const indirectBenefits: CtcBreakdownRow[] = [
+      this.monthlyRowOrDash('Employer Contribution to PF', employerPf),
+      this.monthlyRowOrDash('Employer ESI', employerEsi),
+      variablePayAnnual.gt(0)
+        ? {
+            label: 'Variable Pay',
+            perMonth: this.money(variablePayMonthly),
+            perAnnum: this.money(variablePayAnnual),
+          }
+        : this.monthlyRowOrDash('Variable Pay', null),
+      {
+        label: 'Sub Total – Indirect Benefits',
+        perMonth: this.money(indirectMonthlyTotal),
+        perAnnum: this.money(indirectMonthlyTotal.times(12).plus(variablePayAnnual)),
+        emphasize: true,
+      },
+    ];
+
+    // Grand Total (CTC) = gross + employer contributions (monthly ×12) +
+    // annual variable pay. This is the TRUE computed CTC — it may differ from
+    // the manually-entered SalaryStructure.ctcAnnual, which is a reference
+    // figure only.
+    const ctcMonthly = grossMonthly.plus(indirectMonthlyTotal);
+    const ctcAnnual = ctcMonthly.times(12).plus(variablePayAnnual);
+    const grandTotal: CtcBreakdownRow = {
+      label: 'Total Cost to Company (CTC)',
+      perMonth: this.money(ctcMonthly),
+      perAnnum: this.money(ctcAnnual),
+      emphasize: true,
+    };
+
+    return new CtcBreakdownEntity({
+      employeeId,
+      effectiveFrom: structure.effectiveFrom,
+      directComponents,
+      employeeDeductions,
+      indirectBenefits,
+      grandTotal,
+      warnings,
+    });
+  }
+
+  private money(value: Prisma.Decimal): string {
+    return value.toDecimalPlaces(2).toString();
+  }
+
+  /** A row with the same monthly value shown per-month and ×12 per-annum. */
+  private monthlyRow(
+    label: string,
+    monthly: Prisma.Decimal,
+    emphasize = false,
+  ): CtcBreakdownRow {
+    return {
+      label,
+      perMonth: this.money(monthly),
+      perAnnum: this.money(monthly.times(12)),
+      emphasize,
+    };
+  }
+
+  /** Same as monthlyRow, but a null amount renders as "—" (not configured). */
+  private monthlyRowOrDash(
+    label: string,
+    monthly: Prisma.Decimal | null,
+  ): CtcBreakdownRow {
+    if (monthly === null) {
+      return { label, perMonth: null, perAnnum: null };
+    }
+    return this.monthlyRow(label, monthly);
   }
 
   /** Sum of numberOfDays across approved UL requests overlapping the period. */

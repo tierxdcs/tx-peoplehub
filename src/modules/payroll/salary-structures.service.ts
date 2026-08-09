@@ -32,6 +32,7 @@ export class SalaryStructuresService {
         hra: dto.hra,
         specialAllowance: dto.specialAllowance ?? 0,
         otherAllowances: dto.otherAllowances ?? null,
+        variablePay: dto.variablePay ?? null,
         ctcAnnual: dto.ctcAnnual,
         createdById,
       },
@@ -90,6 +91,7 @@ export class SalaryStructuresService {
       hra: structure.hra.toString(),
       specialAllowance: structure.specialAllowance.toString(),
       otherAllowances: structure.otherAllowances?.toString() ?? null,
+      variablePay: structure.variablePay?.toString() ?? null,
       ctcAnnual: structure.ctcAnnual.toString(),
     });
   }

@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MinLength,
+} from 'class-validator';
 
 export class CreateVerticalDto {
   @ApiProperty({ example: 'Sales' })
@@ -16,4 +22,11 @@ export class CreateVerticalDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Employee responsible for this vertical',
+  })
+  @IsOptional()
+  @IsUUID()
+  ownerId?: string;
 }

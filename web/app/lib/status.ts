@@ -158,3 +158,14 @@ export function humanizeEnum(value: string): string {
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
 }
+
+/**
+ * Human label for a Role enum. The SUPER_ADMIN role is presented to users as
+ * "CEO" (the internal enum value is unchanged); every other role falls back to
+ * the generic enum humanizer. Use this anywhere a role is rendered.
+ */
+export function roleLabel(role: string | null | undefined): string {
+  if (!role) return '';
+  if (role === 'SUPER_ADMIN') return 'CEO';
+  return humanizeEnum(role);
+}

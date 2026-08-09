@@ -15,15 +15,36 @@ import {
 } from 'class-validator';
 
 export class OnboardCompensationDto {
-  @ApiProperty({ example: 50000 })
+  @ApiProperty({ example: 50000, description: 'Monthly basic salary' })
   @IsNumber()
   @Min(0)
   basicSalary!: number;
 
-  @ApiProperty({ example: 10000 })
+  @ApiProperty({ example: 10000, description: 'Monthly HRA' })
   @IsNumber()
   @Min(0)
   hra!: number;
+
+  @ApiPropertyOptional({
+    example: 8000,
+    default: 0,
+    description: 'Monthly special allowance',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  specialAllowance?: number;
+
+  @ApiPropertyOptional({
+    example: 60000,
+    default: 0,
+    description:
+      'Annual variable/performance pay — an indirect CTC component, not a monthly earning',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  variablePay?: number;
 
   @ApiProperty({ example: '2026-07-05' })
   @IsDateString()
@@ -72,6 +93,15 @@ export class OnboardEmployeeDto {
   @IsString()
   lastName!: string;
 
+  @ApiPropertyOptional({
+    example: 'jane.doe@phaze-dynamics.com',
+    description:
+      'Optional HR override. When omitted, firstname.lastname@phaze-dynamics.com is generated with a collision-safe suffix.',
+  })
+  @IsOptional()
+  @IsEmail()
+  officialEmail?: string;
+
   @ApiProperty({ example: '1995-05-20' })
   @IsDateString()
   dateOfBirth!: string;
@@ -104,6 +134,11 @@ export class OnboardEmployeeDto {
   @IsString()
   workLocation!: string;
 
+  @ApiPropertyOptional({ example: 'South India' })
+  @IsOptional()
+  @IsString()
+  territory?: string;
+
   @ApiProperty({
     description:
       'Any existing vertical — HR onboarding is a cross-vertical exception',
@@ -122,6 +157,14 @@ export class OnboardEmployeeDto {
   @ApiProperty({ example: '+91 9876500000' })
   @IsString()
   emergencyContactPhone!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'R2 object key of an already-uploaded employee photo (from /employees/photo-upload-url)',
+  })
+  @IsOptional()
+  @IsString()
+  photoStorageKey?: string;
 
   @ApiProperty({ type: OnboardCompensationDto })
   @ValidateNested()

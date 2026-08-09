@@ -29,6 +29,10 @@ import { GrantAccessDto } from './dto/grant-access.dto';
 import { UpdateSignatureDto } from './dto/update-signature.dto';
 import { RosterQueryDto } from './dto/roster-query.dto';
 import { EmployeeSearchQueryDto } from './dto/employee-search-query.dto';
+import {
+  EmployeePhotoUploadUrlDto,
+  SetEmployeePhotoDto,
+} from './dto/employee-photo.dto';
 import { EmployeesService } from './employees.service';
 
 /**
@@ -106,6 +110,19 @@ export class EmployeesController {
     return this.employeesService.updateOwnSignature(user.id, dto);
   }
 
+  // Static route — declared before @Get(':id')/@Patch(':id'). Mints a presigned
+  // R2 PUT URL for an employee photo (image-only, size-capped). Available to the
+  // same roles that onboard/edit employees; the returned storageKey is then
+  // sent to /onboard or PATCH :id/photo.
+  @Post('photo-upload-url')
+  @Roles(Role.MANAGER, Role.EMPLOYEE, Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Get a presigned URL to upload an employee photo directly to R2',
+  })
+  createPhotoUploadUrl(@Body() dto: EmployeePhotoUploadUrlDto) {
+    return this.employeesService.createPhotoUploadUrl(dto);
+  }
+
   @Post()
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Create an employee' })
@@ -146,6 +163,35 @@ export class EmployeesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.employeesService.update(id, dto, user);
+  }
+
+  // Photo read: signed download URL, gated by the same rule as GET :id (self /
+  // admin / HR manager / own reporting manager) — enforced in the service.
+  @Get(':id/photo-url')
+  @ApiOperation({
+    summary:
+      'Get a short-lived signed URL for an employee photo (self or admin)',
+  })
+  getPhotoUrl(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.employeesService.getPhotoUrl(id, user);
+  }
+
+  // Set/replace + remove photo: same authority as employee edit (ADMIN/
+  // SUPER_ADMIN or an HR-vertical MANAGER).
+  @Patch(':id/photo')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+  @UseGuards(HrManagerOrAdminGuard)
+  @ApiOperation({ summary: 'Set or replace an employee photo' })
+  setPhoto(@Param('id') id: string, @Body() dto: SetEmployeePhotoDto) {
+    return this.employeesService.setPhoto(id, dto);
+  }
+
+  @Delete(':id/photo')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+  @UseGuards(HrManagerOrAdminGuard)
+  @ApiOperation({ summary: 'Remove an employee photo' })
+  removePhoto(@Param('id') id: string) {
+    return this.employeesService.removePhoto(id);
   }
 
   @Patch(':id/deactivate')

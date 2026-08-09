@@ -1,0 +1,170 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { FileCheck } from 'lucide-react';
+import { apiFetch, ApiError } from '../../../../lib/api';
+import { dateOnlyStr } from '../../../../lib/date';
+import { PageContainer } from '../../../../components/ui/page-container';
+import { PageHeader } from '../../../../components/ui/page-header';
+import { Card, CardContent } from '../../../../components/ui/card';
+import { Button } from '../../../../components/ui/button';
+import { Skeleton } from '../../../../components/ui/skeleton';
+import { EmptyState } from '../../../../components/ui/empty-state';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../../components/ui/table';
+
+/**
+ * A pending offer letter as returned by the list endpoint (raw record + a
+ * selected employee). The approver reviews and decides on the detail page.
+ */
+type PendingOfferLetter = {
+  id: string;
+  referenceNumber: string;
+  submittedAt: string | null;
+  employee: {
+    id: string;
+    employeeId: string;
+    firstName: string;
+    lastName: string;
+    designation: string | null;
+  };
+};
+
+/**
+ * Offer letters awaiting the current user's vertical-owner approval (Super
+ * Admins see every pending letter, including owner-less fallbacks). A
+ * discovery surface — clicking a row opens the review page where the frozen
+ * document is shown and approved or rejected.
+ */
+export default function OfferLetterApprovalQueuePage() {
+  const router = useRouter();
+  const [letters, setLetters] = useState<PendingOfferLetter[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setForbidden(false);
+    setError(null);
+    try {
+      const res = await apiFetch<PendingOfferLetter[]>(
+        '/offer-letters/pending-approval',
+      );
+      setLetters(res);
+    } catch (err) {
+      if (err instanceof ApiError && err.statusCode === 403) {
+        setForbidden(true);
+      } else {
+        setError('Failed to load the offer letter approval queue');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (forbidden) {
+    return (
+      <PageContainer>
+        <PageHeader title="Offer Letter Approvals" />
+        <Card>
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            This queue is visible only to vertical owners and the CEO.
+          </CardContent>
+        </Card>
+      </PageContainer>
+    );
+  }
+
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Offer Letter Approvals"
+        description="Offer letters awaiting your approval as the new hire’s vertical owner. Open one to review and decide."
+      />
+
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <Skeleton className="h-40 w-full" />
+          ) : error ? (
+            <p className="text-sm text-destructive">{error}</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Reference #</TableHead>
+                  <TableHead>Candidate</TableHead>
+                  <TableHead>Position</TableHead>
+                  <TableHead>Submitted</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {letters.map((l) => (
+                  <TableRow
+                    key={l.id}
+                    className="cursor-pointer"
+                    onClick={() =>
+                      router.push(`/hr/offer-letters/pending-approval/${l.id}`)
+                    }
+                  >
+                    <TableCell className="font-medium">
+                      {l.referenceNumber}
+                    </TableCell>
+                    <TableCell>
+                      {l.employee.firstName} {l.employee.lastName}
+                      <span className="ml-1 text-muted-foreground">
+                        · {l.employee.employeeId}
+                      </span>
+                    </TableCell>
+                    <TableCell>{l.employee.designation ?? '—'}</TableCell>
+                    <TableCell>
+                      {l.submittedAt ? dateOnlyStr(l.submittedAt) : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(
+                            `/hr/offer-letters/pending-approval/${l.id}`,
+                          );
+                        }}
+                      >
+                        Review →
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {letters.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="p-0">
+                      <EmptyState
+                        icon={FileCheck}
+                        tone="positive"
+                        title="No offer letters awaiting your approval."
+                      />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </PageContainer>
+  );
+}

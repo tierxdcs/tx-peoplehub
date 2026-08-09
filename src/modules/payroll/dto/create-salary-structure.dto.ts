@@ -38,6 +38,16 @@ export class CreateSalaryStructureDto {
   @Min(0)
   otherAllowances?: number;
 
+  @ApiPropertyOptional({
+    example: 60000,
+    description:
+      'Annual variable/performance pay — indirect CTC component, not a monthly earning',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  variablePay?: number;
+
   @ApiProperty({
     example: 780000,
     description: 'Annual CTC — stored for reference, not derived automatically',

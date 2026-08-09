@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users } from 'lucide-react';
 import { useAuth, roleHome } from '../../lib/auth-context';
+import { roleLabel } from '../../lib/status';
 import { apiFetch } from '../../lib/api';
 import { Employee } from '../../lib/types';
 import { PageContainer } from '../../components/ui/page-container';
@@ -108,7 +109,7 @@ export function TeamSection({ embedded = false }: { embedded?: boolean }) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="muted">{e.role ?? '—'}</Badge>
+                      <Badge variant="muted">{e.role ? roleLabel(e.role) : '—'}</Badge>
                     </TableCell>
                   </TableRow>
                 ))

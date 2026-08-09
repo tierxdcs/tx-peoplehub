@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Employee, EmploymentType, Vertical } from '../../../../lib/types';
 import { Role } from '../../../../lib/jwt';
+import { roleLabel } from '../../../../lib/status';
 import { Card, CardContent } from '../../../../components/ui/card';
 import { Input } from '../../../../components/ui/input';
 import { Select } from '../../../../components/ui/select';
@@ -23,6 +24,7 @@ export interface EmployeeFormValues {
   designation?: string;
   employmentType?: EmploymentType;
   workLocation?: string;
+  territory?: string;
 }
 
 const EMPLOYMENT_TYPES: { value: EmploymentType; label: string }[] = [
@@ -31,6 +33,9 @@ const EMPLOYMENT_TYPES: { value: EmploymentType; label: string }[] = [
   { value: 'INTERN', label: 'Intern' },
   { value: 'PART_TIME', label: 'Part-time' },
 ];
+
+/** Company work locations — constrained to the actual units (matches onboarding). */
+const WORK_LOCATIONS = ['Unit 1 - Peenya', 'Unit 2 - Dabaspet', 'Hybrid'];
 
 interface EmployeeFormProps {
   mode: 'create' | 'edit';
@@ -76,7 +81,9 @@ export function EmployeeForm({
   // Assignable role options: MANAGER / EMPLOYEE for everyone; ADMIN only when
   // the SIGNED-IN user is a super admin (mirrors the backend grant rule).
   const assignableRoles: Array<'ADMIN' | 'MANAGER' | 'EMPLOYEE'> =
-    callerIsSuperAdmin ? ['ADMIN', ...NON_PRIVILEGED_ROLES] : [...NON_PRIVILEGED_ROLES];
+    callerIsSuperAdmin
+      ? ['ADMIN', ...NON_PRIVILEGED_ROLES]
+      : [...NON_PRIVILEGED_ROLES];
   // "Protect admins": a non-super-admin editing an already-privileged account
   // (ADMIN/SUPER_ADMIN) cannot change its role at all — lock the field so it
   // can't be demoted or tampered with. The backend enforces this too.
@@ -91,6 +98,7 @@ export function EmployeeForm({
     initial?.employmentType ?? '',
   );
   const [workLocation, setWorkLocation] = useState(initial?.workLocation ?? '');
+  const [territory, setTerritory] = useState(initial?.territory ?? '');
   const [managerSearch, setManagerSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -138,6 +146,7 @@ export function EmployeeForm({
         ...(designation.trim() ? { designation: designation.trim() } : {}),
         ...(employmentType ? { employmentType } : {}),
         ...(workLocation.trim() ? { workLocation: workLocation.trim() } : {}),
+        territory: territory.trim(),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
@@ -152,15 +161,28 @@ export function EmployeeForm({
         <CardContent className="space-y-4 p-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="First name" required>
-              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+              <Input
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                required
+              />
             </Field>
             <Field label="Last name" required>
-              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+              <Input
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                required
+              />
             </Field>
           </div>
 
           <Field label="Email" required>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </Field>
 
           {mode === 'create' && (
@@ -183,15 +205,19 @@ export function EmployeeForm({
                 // account (Admin/Super Admin), whose role only a super admin
                 // may change. Shown read-only so its current role is visible.
                 <Select value={role} disabled>
-                  <option value={role}>{role}</option>
+                  <option value={role}>{roleLabel(role)}</option>
                 </Select>
               ) : (
                 <Select
                   value={role}
-                  onChange={(e) => setRole(e.target.value as Role & typeof role)}
+                  onChange={(e) =>
+                    setRole(e.target.value as Role & typeof role)
+                  }
                 >
                   {assignableRoles.map((r) => (
-                    <option key={r} value={r}>{r}</option>
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
                   ))}
                 </Select>
               )}
@@ -205,7 +231,9 @@ export function EmployeeForm({
                 >
                   <option value="">Select a vertical…</option>
                   {verticals.map((v) => (
-                    <option key={v.id} value={v.id}>{v.name}</option>
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
                   ))}
                 </Select>
               </Field>
@@ -228,7 +256,7 @@ export function EmployeeForm({
                 <option value="">Select a manager…</option>
                 {managerOptions.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.firstName} {m.lastName} ({m.employeeId}, {m.role})
+                    {m.firstName} {m.lastName} ({m.employeeId}, {roleLabel(m.role)})
                   </option>
                 ))}
               </Select>
@@ -246,25 +274,49 @@ export function EmployeeForm({
             <Field label="Employment type">
               <Select
                 value={employmentType}
-                onChange={(e) => setEmploymentType(e.target.value as EmploymentType | '')}
+                onChange={(e) =>
+                  setEmploymentType(e.target.value as EmploymentType | '')
+                }
               >
                 <option value="">Not set</option>
                 {EMPLOYMENT_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
                 ))}
               </Select>
             </Field>
           </div>
 
-          <Field label="Work location">
-            <Input
-              value={workLocation}
-              onChange={(e) => setWorkLocation(e.target.value)}
-              placeholder="e.g. Bengaluru"
-            />
-          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Work location">
+              <Select
+                value={workLocation}
+                onChange={(e) => setWorkLocation(e.target.value)}
+              >
+                <option value="">Not set</option>
+                {WORK_LOCATIONS.map((w) => (
+                  <option key={w} value={w}>
+                    {w}
+                  </option>
+                ))}
+                {workLocation && !WORK_LOCATIONS.includes(workLocation) && (
+                  <option value={workLocation}>{workLocation}</option>
+                )}
+              </Select>
+            </Field>
+            <Field label="Territory">
+              <Input
+                value={territory}
+                onChange={(e) => setTerritory(e.target.value)}
+                placeholder="e.g. South India"
+              />
+            </Field>
+          </div>
 
-          {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+          {error && (
+            <p className="text-sm font-medium text-destructive">{error}</p>
+          )}
 
           <div className="flex justify-end border-t pt-4">
             <Button type="submit" disabled={submitting}>

@@ -211,7 +211,7 @@ export class ReportingService {
   }
   async grantAuditor(d: AuditorGrantDto, u: AuthenticatedUser) {
     if (u.role !== Role.SUPER_ADMIN)
-      throw new ForbiddenException('Only Super Admin can grant auditor access');
+      throw new ForbiddenException('Only the CEO can grant auditor access');
     const e = await this.prisma.employee.findUnique({
       where: { id: d.employeeId },
     });
@@ -236,7 +236,7 @@ export class ReportingService {
   }
   async auditors(u: AuthenticatedUser) {
     if (u.role !== Role.SUPER_ADMIN)
-      throw new ForbiddenException('Only Super Admin can view auditor grants');
+      throw new ForbiddenException('Only the CEO can view auditor grants');
     const grants = await this.prisma.financeAuditorGrant.findMany({
       orderBy: { grantedAt: 'desc' },
     });
@@ -250,7 +250,7 @@ export class ReportingService {
   async revokeAuditor(employeeId: string, u: AuthenticatedUser) {
     if (u.role !== Role.SUPER_ADMIN)
       throw new ForbiddenException(
-        'Only Super Admin can revoke auditor access',
+        'Only the CEO can revoke auditor access',
       );
     return this.prisma.financeAuditorGrant.update({
       where: { employeeId },

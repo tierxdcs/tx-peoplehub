@@ -35,6 +35,196 @@ const INK = '#1e2340';
 type SectionState = Record<string, unknown>;
 type FormState = Partial<Record<SectionKey, SectionState>>;
 
+// ── Field definitions ────────────────────────────────────────────────
+// Single source of truth for every questionnaire field, shared by the render
+// and the submit-time validator so the two can never drift. Every field listed
+// here is mandatory; the vendor cannot submit until all are complete.
+const COMPANY_FIELDS: [keyof PublicCompanyInfo, string][] = [
+  ['registeredAddress', 'Registered Address'],
+  ['factoryAddress', 'Factory Address'],
+  ['yearEstablished', 'Year Established'],
+  ['numberOfEmployees', 'Number of Employees'],
+  ['annualTurnover', 'Annual Turnover'],
+  ['msmeUdyamCertificate', 'MSME / UDYAM Certificate'],
+  ['contactPersonName', 'Contact Person Name'],
+  ['contactPersonDesignation', 'Contact Person Designation'],
+  ['contactPhone', 'Contact Phone'],
+  ['website', 'Website'],
+];
+const EXPORT_FIELDS: [string, string][] = [
+  ['exportCountries', 'Countries Served'],
+  ['exportPercent', 'Annual Export %'],
+  ['exportYears', 'Years of Export Experience'],
+];
+const MFG_CAPABILITY_ROWS = [
+  'Laser Cutting', 'CNC Punching', 'CNC Bending', 'Robotic Welding', 'TIG Welding',
+  'MIG Welding', 'Spot Welding', 'Powder Coating', 'Assembly Line', 'FAT Area',
+];
+const EQUIPMENT_COLUMNS = ['Machine Name', 'Manufacturer', 'Model', 'Capacity', 'Year Installed'];
+const PRODUCTION_FIELDS: [string, string][] = [
+  ['maxMonthly', 'Maximum Monthly Production'],
+  ['utilization', 'Current Utilization'],
+  ['additionalCapacity', 'Additional Capacity Available'],
+  ['leadTime', 'Lead Time'],
+];
+const ENGINEERING_FIELDS: [string, string][] = [['teamSize', 'Engineering Team Size']];
+const SUPPLY_CHAIN_FIELDS: [string, string][] = [
+  ['rawMaterialSuppliers', 'Raw Material Suppliers'],
+  ['approvedVendorList', 'Approved Vendor List'],
+  ['safetyStock', 'Safety Stock'],
+  ['erpUsed', 'ERP Used'],
+  ['inventoryControl', 'Inventory Control Method'],
+];
+const LOGISTICS_FIELDS: [string, string][] = [
+  ['packagingMethod', 'Packaging Method'],
+  ['exportPackaging', 'Export Packaging'],
+  ['ispm15', 'ISPM-15'],
+  ['shippingPorts', 'Shipping Ports'],
+  ['freightExperience', 'International Freight Experience'],
+];
+const SUSTAINABILITY_FIELDS: [string, string][] = [
+  ['iso14001', 'ISO 14001'],
+  ['wasteDisposal', 'Waste Disposal'],
+  ['energyManagement', 'Energy Management'],
+  ['waterRecycling', 'Water Recycling'],
+  ['rohs', 'RoHS Compliance'],
+  ['reach', 'REACH Compliance'],
+];
+const INFOSEC_FIELDS: [string, string][] = [
+  ['iso27001', 'ISO 27001'],
+  ['ndaPolicy', 'NDA Policy'],
+  ['drawingControl', 'Drawing Control'],
+  ['cyberSecurity', 'Cyber Security'],
+  ['visitorControl', 'Visitor Control'],
+];
+const CONTINUITY_FIELDS: [string, string][] = [
+  ['disasterRecovery', 'Disaster Recovery Plan'],
+  ['alternateLocation', 'Alternate Manufacturing Location'],
+  ['generatorBackup', 'Generator Backup'],
+  ['fireProtection', 'Fire Protection'],
+  ['insurance', 'Insurance Coverage'],
+];
+const EHS_FIELDS: [string, string][] = [
+  ['ppe', 'PPE Compliance'],
+  ['incidentReporting', 'Incident Reporting'],
+  ['firstAid', 'First Aid'],
+  ['emergencyResponse', 'Emergency Response'],
+  ['hazmat', 'Hazardous Material Handling'],
+];
+const FINANCIAL_FIELDS: [string, string][] = [
+  ['annualRevenue', 'Annual Revenue'],
+  ['netWorth', 'Net Worth'],
+  ['banker', 'Banker'],
+  ['creditRating', 'Credit Rating'],
+  ['yearsInBusiness', 'Years in Business'],
+];
+const SUPPORT_FIELDS: [string, string][] = [
+  ['accountManager', 'Dedicated Account Manager'],
+  ['responseTime', 'Response Time'],
+  ['complaintHandling', 'Complaint Handling'],
+  ['correctiveAction', 'Corrective Action Process'],
+  ['eightD', '8D Methodology'],
+];
+const COMPLIANCE_FIELDS: [string, string][] = [
+  ['conflictMinerals', 'Conflict Minerals'],
+  ['antiBribery', 'Anti-Bribery Policy'],
+  ['labourLaw', 'Labour Law Compliance'],
+  ['childLabour', 'Child Labour Declaration'],
+  ['humanRights', 'Human Rights Policy'],
+  ['modernSlavery', 'Modern Slavery Policy'],
+];
+const REFERENCE_FIELDS: [string, string][] = [
+  ['company', 'Company Name'],
+  ['contact', 'Contact Person'],
+  ['phoneEmail', 'Phone / Email'],
+  ['relationship', 'Relationship / Products Supplied'],
+];
+const DECLARATION_FIELDS: [string, string][] = [
+  ['signatoryName', 'Authorized Signatory Name'],
+  ['designation', 'Designation'],
+  ['date', 'Date'],
+];
+
+/** A missing required field: a human message plus the section anchor to jump to. */
+type FieldError = { anchor: string; message: string };
+
+/**
+ * Validates that EVERY questionnaire field is filled. Pure (reads only its
+ * arguments) so it can't drift from render-time state. Returns one entry per
+ * missing field, in document order — the first entry is what we scroll to.
+ */
+function collectQuestionnaireErrors(
+  form: FormState,
+  companyInfo: PublicCompanyInfo,
+  signedNdaUploaded: boolean,
+  ndaRequired: boolean,
+): FieldError[] {
+  const errors: FieldError[] = [];
+  const add = (anchor: string, message: string) => errors.push({ anchor, message });
+  const t = (v: unknown) => typeof v === 'string' && v.trim().length > 0;
+  const sec = (s: SectionKey) => (form[s] ?? {}) as SectionState;
+  const arr = (v: unknown) => (Array.isArray(v) ? (v as unknown[]) : []);
+  const fields = (anchor: string, prefix: string, state: SectionState, defs: [string, string][]) =>
+    defs.forEach(([k, label]) => { if (!t(state[k])) add(anchor, `${prefix} — ${label}`); });
+
+  if (ndaRequired && !signedNdaUploaded) add('sec-nda', 'Non-Disclosure Agreement — upload the signed NDA');
+
+  COMPANY_FIELDS.forEach(([k, label]) => { if (!t(companyInfo[k])) add('sec-1', `Company Information — ${label}`); });
+
+  const bp = sec('businessProfile');
+  if (arr(bp.companyType).length === 0) add('sec-2', 'Business Profile — Company Type');
+  if (arr(bp.manufacturingArea).length === 0) add('sec-2', 'Business Profile — Manufacturing Area');
+  if (!arr(bp.majorCustomers).some(t)) add('sec-2', 'Business Profile — Major Customers');
+  fields('sec-2', 'Business Profile', bp, EXPORT_FIELDS);
+
+  const caps = (sec('manufacturingCapability').capabilities as CapabilityValue) ?? {};
+  MFG_CAPABILITY_ROWS.forEach((row) => {
+    const raw = caps[row];
+    const cell: CapabilityCell = typeof raw === 'string' ? { available: raw } : (raw ?? {});
+    if (cell.available !== 'yes' && cell.available !== 'no') add('sec-3', `Manufacturing Capability — ${row} (Yes/No)`);
+    else if (cell.available === 'yes' && !t(cell.count)) add('sec-3', `Manufacturing Capability — ${row} quantity`);
+  });
+
+  const machines = arr(sec('equipmentDetails').machines) as string[][];
+  const hasCompleteRow = machines.some((r) => EQUIPMENT_COLUMNS.every((_, i) => t(r?.[i])));
+  if (!hasCompleteRow) add('sec-4', 'Equipment Details — complete at least one machine row');
+
+  fields('sec-5', 'Production Capacity', sec('productionCapacity'), PRODUCTION_FIELDS);
+
+  const qm = sec('qualityManagement');
+  if (arr(qm.certifications).length === 0) add('sec-6', 'Quality Management — Certifications');
+  if (arr(qm.inspectionEquipment).length === 0) add('sec-6', 'Quality Management — Inspection Equipment');
+
+  const eng = sec('engineeringCapability');
+  if (arr(eng.designSoftware).length === 0) add('sec-7', 'Engineering Capability — Design Software');
+  fields('sec-7', 'Engineering Capability', eng, ENGINEERING_FIELDS);
+
+  fields('sec-8', 'Supply Chain', sec('supplyChain'), SUPPLY_CHAIN_FIELDS);
+
+  if (arr(sec('traceability').traceable).length === 0) add('sec-9', 'Traceability — select at least one');
+
+  fields('sec-10', 'Logistics', sec('logistics'), LOGISTICS_FIELDS);
+  fields('sec-11', 'Sustainability', sec('sustainability'), SUSTAINABILITY_FIELDS);
+  fields('sec-12', 'Information Security', sec('informationSecurity'), INFOSEC_FIELDS);
+  fields('sec-13', 'Business Continuity', sec('businessContinuity'), CONTINUITY_FIELDS);
+  fields('sec-14', 'EHS', sec('ehs'), EHS_FIELDS);
+  fields('sec-15', 'Financial Information', sec('financialInformation'), FINANCIAL_FIELDS);
+  fields('sec-16', 'Customer Support', sec('customerSupport'), SUPPORT_FIELDS);
+  fields('sec-17', 'Compliance', sec('compliance'), COMPLIANCE_FIELDS);
+
+  const refs = sec('references') as Record<string, Record<string, string>>;
+  [0, 1, 2].forEach((i) => {
+    const ref = refs[`ref${i}`] ?? {};
+    REFERENCE_FIELDS.forEach(([k, label]) => { if (!t(ref[k])) add('sec-18', `Reference ${i + 1} — ${label}`); });
+  });
+
+  const decl = sec('declaration');
+  if (!decl.certified) add('sec-19', 'Declaration — tick the certification checkbox');
+  fields('sec-19', 'Declaration', decl, DECLARATION_FIELDS);
+
+  return errors;
+}
+
 export default function PublicVsaqPage() {
   const { token } = useParams<{ token: string }>();
 
@@ -123,13 +313,28 @@ export default function PublicVsaqPage() {
   }
 
   async function submit() {
-    const declared = (form.declaration ?? {}) as SectionState;
-    if (!declared.certified) {
-      setBanner('Please tick the certification checkbox in the Declaration section before submitting.');
-      return;
-    }
-    if (questionnaire?.ndaRequired && !signedNdaUploaded) {
-      setBanner('Please upload the signed NDA before submitting.');
+    // Every field is mandatory — block submission until the whole questionnaire
+    // is complete, then point the vendor at exactly what is still missing.
+    const missing = collectQuestionnaireErrors(
+      form,
+      companyInfo,
+      signedNdaUploaded,
+      !!questionnaire?.ndaRequired,
+    );
+    if (missing.length > 0) {
+      const shown = missing.slice(0, 8).map((e) => `• ${e.message}`);
+      const extra = missing.length - shown.length;
+      setBanner(
+        `Please complete all required fields before submitting — ${missing.length} still need attention:\n` +
+          shown.join('\n') +
+          (extra > 0 ? `\n• …and ${extra} more` : ''),
+      );
+      // Jump to the first section that needs attention.
+      if (typeof document !== 'undefined') {
+        document
+          .getElementById(missing[0].anchor)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
       return;
     }
     setSaving(true);
@@ -285,25 +490,29 @@ export default function PublicVsaqPage() {
   return (
     <Shell>
       <p style={{ margin: '0 0 20px', padding: '12px 16px', background: '#f8f8f9', borderLeft: `4px solid ${ACCENT}`, fontSize: 14, color: '#374151' }}>
-        Please complete all sections that are relevant to your business. If a
-        section or question does not apply, leave it blank. Use <strong>Save
+        <strong>All fields are required.</strong> Please complete every section
+        below — the questionnaire cannot be submitted until it is filled in
+        full. If something does not apply to your business, enter{' '}
+        <em>“N/A”</em> rather than leaving it blank. Use <strong>Save
         Progress</strong> at any time — you can close this page and resume later
         via the same link.
       </p>
 
       {banner && (
-        <p style={{ margin: '0 0 16px', padding: '10px 14px', background: '#fff7ec', border: '1px solid #f1d9b0', borderRadius: 4, fontSize: 13.5, color: '#92400e' }}>
+        <p style={{ margin: '0 0 16px', padding: '10px 14px', background: '#fff7ec', border: '1px solid #f1d9b0', borderRadius: 4, fontSize: 13.5, color: '#92400e', whiteSpace: 'pre-line' }}>
           {banner}
         </p>
       )}
 
       <section
+        id="sec-nda"
         style={{
           marginBottom: 20,
           padding: 18,
           border: '1px solid #e5e7eb',
           borderRadius: 8,
           background: '#fff',
+          scrollMarginTop: 16,
         }}
       >
         <h2 style={{ margin: '0 0 6px', color: INK, fontSize: 18 }}>
@@ -790,7 +999,7 @@ const btnSecondary: React.CSSProperties = {
 
 function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
-    <section style={{ marginTop: 30 }}>
+    <section id={`sec-${n}`} style={{ marginTop: 30, scrollMarginTop: 16 }}>
       <h2 style={{ fontSize: 16, margin: '0 0 14px', paddingBottom: 8, borderBottom: `2px solid ${INK}`, color: INK }}>
         <span style={{ color: ACCENT, fontWeight: 700, marginRight: 6 }}>{n}</span>
         {title}
@@ -800,7 +1009,20 @@ function Section({ n, title, children }: { n: string; title: string; children: R
   );
 }
 function H3({ children }: { children: React.ReactNode }) {
-  return <h3 style={{ fontSize: 13.5, margin: '16px 0 8px', color: INK }}>{children}</h3>;
+  return (
+    <h3 style={{ fontSize: 13.5, margin: '16px 0 8px', color: INK }}>
+      {children}
+      <Req />
+    </h3>
+  );
+}
+/** The "* required" marker — every questionnaire field is mandatory. */
+function Req() {
+  return (
+    <span style={{ color: ACCENT, marginLeft: 3 }} aria-hidden title="Required">
+      *
+    </span>
+  );
 }
 function H4({ children }: { children: React.ReactNode }) {
   return <h4 style={{ fontSize: 13, margin: '0 0 8px', color: '#6b7280' }}>{children}</h4>;
@@ -1090,7 +1312,10 @@ function DynamicList({
 function FieldRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '5px 0', borderBottom: '1px solid #d8dbe2' }}>
-      <span style={{ width: '40%', fontSize: 13.5, color: '#374151' }}>{label}</span>
+      <span style={{ width: '40%', fontSize: 13.5, color: '#374151' }}>
+        {label}
+        <Req />
+      </span>
       <input style={inputStyle} value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   );

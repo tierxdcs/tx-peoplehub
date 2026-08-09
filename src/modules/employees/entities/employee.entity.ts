@@ -45,6 +45,9 @@ export class EmployeeEntity {
   @ApiProperty({ nullable: true, description: 'Work location / office' })
   workLocation!: string | null;
 
+  @ApiProperty({ nullable: true })
+  territory!: string | null;
+
   @ApiProperty({ enum: EmployeeStatus })
   status!: EmployeeStatus;
 
@@ -109,6 +112,13 @@ export class EmployeeEntity {
 
   @ApiProperty({ nullable: true })
   officialEmail!: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    description:
+      'R2 object key of the employee photo; fetch a signed URL via GET /employees/:id/photo-url',
+  })
+  photoStorageKey!: string | null;
 
   @ApiProperty({ nullable: true, description: 'Internal e-signature text' })
   signatureText!: string | null;

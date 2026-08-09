@@ -3,9 +3,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { IndianRupee } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
-import { Employee, PaginatedResult, SalaryStructure } from '../../../lib/types';
+import {
+  CtcBreakdown,
+  CtcBreakdownRow,
+  Employee,
+  PaginatedResult,
+  SalaryStructure,
+} from '../../../lib/types';
 import { formatINR } from '../../../lib/sales';
-import { useNumberFormat } from '../../../lib/number-format-context';
+import {
+  NumberFormatStyle,
+  useNumberFormat,
+} from '../../../lib/number-format-context';
 import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
 import { Card, CardContent } from '../../../components/ui/card';
@@ -42,6 +51,7 @@ export default function SalaryStructuresPage() {
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   useEffect(() => {
     apiFetch<PaginatedResult<Employee>>('/employees?page=1&limit=100').then(
@@ -144,9 +154,20 @@ export default function SalaryStructuresPage() {
             <CardContent className="p-6">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold">Current structure</h2>
-                <Button size="sm" onClick={() => setShowForm(true)}>
-                  Update structure
-                </Button>
+                <div className="flex items-center gap-2">
+                  {current && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowBreakdown(true)}
+                    >
+                      View CTC breakdown
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={() => setShowForm(true)}>
+                    Update structure
+                  </Button>
+                </div>
               </div>
               {current ? (
                 <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
@@ -155,6 +176,7 @@ export default function SalaryStructuresPage() {
                   <StatItem label="HRA" value={formatINR(current.hra, numberFormatStyle)} />
                   <StatItem label="Special allowance" value={formatINR(current.specialAllowance, numberFormatStyle)} />
                   <StatItem label="Other allowances" value={current.otherAllowances ? formatINR(current.otherAllowances, numberFormatStyle) : '—'} />
+                  <StatItem label="Variable pay (annual)" value={current.variablePay ? formatINR(current.variablePay, numberFormatStyle) : '—'} />
                   <StatItem label="Annual CTC" value={formatINR(current.ctcAnnual, numberFormatStyle)} emphasize />
                 </dl>
               ) : (
@@ -183,6 +205,7 @@ export default function SalaryStructuresPage() {
                       <TableHead className="text-right">HRA</TableHead>
                       <TableHead className="text-right">Special</TableHead>
                       <TableHead className="text-right">Other</TableHead>
+                      <TableHead className="text-right">Variable</TableHead>
                       <TableHead className="text-right">Annual CTC</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -194,6 +217,7 @@ export default function SalaryStructuresPage() {
                         <TableCell className="text-right">{formatINR(h.hra, numberFormatStyle)}</TableCell>
                         <TableCell className="text-right">{formatINR(h.specialAllowance, numberFormatStyle)}</TableCell>
                         <TableCell className="text-right">{h.otherAllowances ? formatINR(h.otherAllowances, numberFormatStyle) : '—'}</TableCell>
+                        <TableCell className="text-right">{h.variablePay ? formatINR(h.variablePay, numberFormatStyle) : '—'}</TableCell>
                         <TableCell className="text-right font-medium">{formatINR(h.ctcAnnual, numberFormatStyle)}</TableCell>
                       </TableRow>
                     ))}
@@ -214,6 +238,14 @@ export default function SalaryStructuresPage() {
             setShowForm(false);
             loadFor(employeeId);
           }}
+        />
+      )}
+
+      {showBreakdown && selectedEmployee && (
+        <CtcBreakdownDialog
+          employeeName={`${selectedEmployee.firstName} ${selectedEmployee.lastName}`}
+          employeeId={employeeId}
+          onClose={() => setShowBreakdown(false)}
         />
       )}
     </PageContainer>
@@ -241,6 +273,183 @@ function StatItem({
   );
 }
 
+function CtcBreakdownDialog({
+  employeeName,
+  employeeId,
+  onClose,
+}: {
+  employeeName: string;
+  employeeId: string;
+  onClose: () => void;
+}) {
+  const { style: numberFormatStyle } = useNumberFormat();
+  const [data, setData] = useState<CtcBreakdown | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(null);
+    apiFetch<CtcBreakdown>(`/salary-structures/${employeeId}/ctc-breakdown`)
+      .then((res) => {
+        if (active) setData(res);
+      })
+      .catch((err) => {
+        if (active) {
+          setError(
+            err instanceof ApiError ? err.message : 'Failed to load breakdown',
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [employeeId]);
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>CTC breakdown — {employeeName}</DialogTitle>
+          <DialogDescription>
+            Fully derived from the current salary structure. Statutory rows
+            (PF/ESI/PT and employer contributions) are computed the same way
+            payroll computes them — nothing here is stored. TDS is not computed;
+            Net Take Home is shown before TDS.
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="space-y-3 py-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-40 w-full" />
+          </div>
+        ) : error ? (
+          <p className="py-4 text-sm text-destructive">{error}</p>
+        ) : data ? (
+          <div className="space-y-6">
+            {data.warnings.length > 0 && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+                <p className="font-medium">
+                  Some statutory rates aren&apos;t configured yet
+                </p>
+                <p className="mt-1">
+                  These rows show &ldquo;—&rdquo; and are excluded from the CTC
+                  until set up in Statutory Config: {data.warnings.join(', ')}.
+                </p>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Effective from {data.effectiveFrom.slice(0, 10)}
+            </p>
+
+            <BreakdownSection
+              title="Direct Components"
+              rows={data.directComponents}
+              numberFormatStyle={numberFormatStyle}
+            />
+            <BreakdownSection
+              title="Deductions from Employee Side"
+              rows={data.employeeDeductions}
+              numberFormatStyle={numberFormatStyle}
+            />
+            <BreakdownSection
+              title="Other Indirect Benefits"
+              rows={data.indirectBenefits}
+              numberFormatStyle={numberFormatStyle}
+            />
+            <BreakdownSection
+              title="Grand Total CTC"
+              rows={[data.grandTotal]}
+              numberFormatStyle={numberFormatStyle}
+            />
+          </div>
+        ) : null}
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BreakdownSection({
+  title,
+  rows,
+  numberFormatStyle,
+}: {
+  title: string;
+  rows: CtcBreakdownRow[];
+  numberFormatStyle: NumberFormatStyle;
+}) {
+  return (
+    <div>
+      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h3>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Component</TableHead>
+            <TableHead className="text-right">Per Month</TableHead>
+            <TableHead className="text-right">Per Annum</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row, i) => (
+            <TableRow key={`${row.label}-${i}`}>
+              <TableCell className={row.emphasize ? 'font-semibold' : undefined}>
+                {row.label}
+              </TableCell>
+              {row.note ? (
+                <TableCell
+                  colSpan={2}
+                  className="text-right text-muted-foreground"
+                >
+                  {row.note}
+                </TableCell>
+              ) : (
+                <>
+                  <TableCell
+                    className={
+                      row.emphasize
+                        ? 'text-right font-semibold'
+                        : 'text-right'
+                    }
+                  >
+                    {row.perMonth
+                      ? formatINR(row.perMonth, numberFormatStyle)
+                      : '—'}
+                  </TableCell>
+                  <TableCell
+                    className={
+                      row.emphasize
+                        ? 'text-right font-semibold'
+                        : 'text-right'
+                    }
+                  >
+                    {row.perAnnum
+                      ? formatINR(row.perAnnum, numberFormatStyle)
+                      : '—'}
+                  </TableCell>
+                </>
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 function UpdateStructureForm({
   employeeName,
   employeeId,
@@ -257,6 +466,7 @@ function UpdateStructureForm({
   const [hra, setHra] = useState('');
   const [specialAllowance, setSpecialAllowance] = useState('');
   const [otherAllowances, setOtherAllowances] = useState('');
+  const [variablePay, setVariablePay] = useState('');
   const [ctcAnnual, setCtcAnnual] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -279,6 +489,7 @@ function UpdateStructureForm({
           hra: Number(hra),
           specialAllowance: specialAllowance ? Number(specialAllowance) : 0,
           otherAllowances: otherAllowances ? Number(otherAllowances) : undefined,
+          variablePay: variablePay ? Number(variablePay) : undefined,
           ctcAnnual: Number(ctcAnnual),
         }),
       });
@@ -318,6 +529,9 @@ function UpdateStructureForm({
             </Field>
             <Field label="Other allowances">
               <Input type="number" min={0} value={otherAllowances} onChange={(e) => setOtherAllowances(e.target.value)} />
+            </Field>
+            <Field label="Variable pay" hint="Per year (indirect component)">
+              <Input type="number" min={0} value={variablePay} onChange={(e) => setVariablePay(e.target.value)} />
             </Field>
           </div>
           <Field label="Annual CTC" required>

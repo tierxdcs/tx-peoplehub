@@ -27,6 +27,9 @@ export class SalaryStructureEntity {
   @ApiProperty({ nullable: true })
   otherAllowances!: string | null;
 
+  @ApiProperty({ nullable: true })
+  variablePay!: string | null;
+
   @ApiProperty()
   ctcAnnual!: string;
 

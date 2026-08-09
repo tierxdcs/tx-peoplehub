@@ -13,7 +13,7 @@ import {
 import { BRAND } from '../../lib/theme';
 import type { DecodedAccessToken } from '../../lib/jwt';
 import type { ModuleKey } from '../../lib/nav';
-import { humanizeEnum } from '../../lib/status';
+import { roleLabel } from '../../lib/status';
 import { useAuth } from '../../lib/auth-context';
 import { Avatar } from '../ui/avatar';
 import { cn } from '../../lib/utils';
@@ -124,7 +124,7 @@ export function AppTopBar({
             <span className="hidden text-left leading-tight lg:inline">
               <span className="block font-medium">{user.email}</span>
               <span className="block text-xs text-muted-foreground">
-                {user.role ? humanizeEnum(user.role) : ''}
+                {roleLabel(user.role)}
               </span>
             </span>
             <ChevronDown className="hidden h-4 w-4 text-muted-foreground sm:block" />

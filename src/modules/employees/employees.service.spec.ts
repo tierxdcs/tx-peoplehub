@@ -8,8 +8,10 @@ import {
 import { AccessStatus, EmployeeStatus, Role } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { EncryptionService } from '../../core/crypto/encryption.service';
+import { VaultStorageService } from '../vault/vault-storage.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { EmployeesService } from './employees.service';
+import { ProvisioningService } from '../provisioning/provisioning.service';
 
 /**
  * Unit test for EmployeesService with a mocked PrismaService. Demonstrates
@@ -18,6 +20,7 @@ import { EmployeesService } from './employees.service';
 describe('EmployeesService', () => {
   let service: EmployeesService;
   let prisma: any;
+  let storage: any;
 
   const vertical = { id: 'v1', code: 'SALES' };
   const hrVertical = { id: 'v-hr', code: 'HR' };
@@ -91,6 +94,10 @@ describe('EmployeesService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmployeesService,
+        {
+          provide: ProvisioningService,
+          useValue: { createForEmployee: jest.fn().mockResolvedValue(undefined) },
+        },
         { provide: PrismaService, useValue: prisma },
         {
           provide: EncryptionService,
@@ -99,10 +106,126 @@ describe('EmployeesService', () => {
             decrypt: jest.fn((v: string) => v.replace(/^enc:/, '')),
           },
         },
+        {
+          provide: VaultStorageService,
+          useValue: {
+            createUploadUrl: jest.fn().mockResolvedValue({
+              url: 'https://r2/put',
+              expiresInSeconds: 900,
+            }),
+            createDownloadUrl: jest.fn().mockResolvedValue({
+              url: 'https://r2/get',
+              expiresInSeconds: 900,
+            }),
+            headObject: jest.fn().mockResolvedValue({
+              sizeBytes: 1024,
+              contentType: 'image/jpeg',
+            }),
+            deleteObject: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
     service = module.get(EmployeesService);
+    storage = module.get(VaultStorageService);
+  });
+
+  describe('photo upload', () => {
+    it('createPhotoUploadUrl mints an employees/photos key for an image', async () => {
+      const res = await service.createPhotoUploadUrl({
+        name: 'jane.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 2048,
+      });
+      expect(res.storageKey.startsWith('employees/photos/')).toBe(true);
+      expect(res.uploadUrl).toBe('https://r2/put');
+      expect(storage.createUploadUrl).toHaveBeenCalledWith(
+        res.storageKey,
+        'image/jpeg',
+      );
+    });
+
+    it('createPhotoUploadUrl rejects a non-image mime type', async () => {
+      await expect(
+        service.createPhotoUploadUrl({
+          name: 'resume.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 2048,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(storage.createUploadUrl).not.toHaveBeenCalled();
+    });
+
+    it('setPhoto verifies the object, persists the key, and deletes the previous photo', async () => {
+      prisma.employee.findUnique.mockResolvedValue({
+        ...employee,
+        photoStorageKey: 'employees/photos/old',
+      });
+      prisma.employee.update.mockResolvedValue({
+        ...employee,
+        photoStorageKey: 'employees/photos/new',
+      });
+
+      const result = await service.setPhoto(employee.id, {
+        storageKey: 'employees/photos/new',
+      });
+
+      expect(storage.headObject).toHaveBeenCalledWith('employees/photos/new');
+      expect(prisma.employee.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: employee.id },
+          data: { photoStorageKey: 'employees/photos/new' },
+        }),
+      );
+      expect(storage.deleteObject).toHaveBeenCalledWith('employees/photos/old');
+      expect(result.photoStorageKey).toBe('employees/photos/new');
+    });
+
+    it('setPhoto rejects a storage key outside the employees/photos prefix', async () => {
+      prisma.employee.findUnique.mockResolvedValue({
+        ...employee,
+        photoStorageKey: null,
+      });
+      await expect(
+        service.setPhoto(employee.id, { storageKey: 'plm/tracker/x' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.employee.update).not.toHaveBeenCalled();
+    });
+
+    it('setPhoto rejects when the object was never uploaded', async () => {
+      prisma.employee.findUnique.mockResolvedValue({
+        ...employee,
+        photoStorageKey: null,
+      });
+      storage.headObject.mockResolvedValueOnce(null);
+      await expect(
+        service.setPhoto(employee.id, { storageKey: 'employees/photos/ghost' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.employee.update).not.toHaveBeenCalled();
+    });
+
+    it('getPhotoUrl returns a signed URL for an admin viewing a photo', async () => {
+      prisma.employee.findUnique.mockResolvedValue({
+        ...employee,
+        photoStorageKey: 'employees/photos/x',
+      });
+      const res = await service.getPhotoUrl(employee.id, adminUser);
+      expect(res.url).toBe('https://r2/get');
+      expect(storage.createDownloadUrl).toHaveBeenCalledWith(
+        'employees/photos/x',
+      );
+    });
+
+    it('getPhotoUrl returns null when the employee has no photo', async () => {
+      prisma.employee.findUnique.mockResolvedValue({
+        ...employee,
+        photoStorageKey: null,
+      });
+      const res = await service.getPhotoUrl(employee.id, adminUser);
+      expect(res.url).toBeNull();
+      expect(storage.createDownloadUrl).not.toHaveBeenCalled();
+    });
   });
 
   describe('create', () => {
@@ -283,7 +406,10 @@ describe('EmployeesService', () => {
         .mockResolvedValueOnce(employee) // findRawOrThrow
         .mockResolvedValueOnce(manager); // manager active-check
       prisma.vertical.findUnique.mockResolvedValue(vertical);
-      prisma.employee.update.mockResolvedValue({ ...employee, role: Role.ADMIN });
+      prisma.employee.update.mockResolvedValue({
+        ...employee,
+        role: Role.ADMIN,
+      });
 
       const result = await service.update(
         employee.id,
@@ -479,8 +605,8 @@ describe('EmployeesService', () => {
         role: null,
         passwordHash: null,
         accessStatus: AccessStatus.PENDING_ACCESS,
-        officialEmail: 'john.doe@vertixdcs.com',
-        email: 'john.doe@vertixdcs.com',
+        officialEmail: 'john.doe@phaze-dynamics.com',
+        email: 'john.doe@phaze-dynamics.com',
       };
       mockHrTransaction(created);
 
@@ -488,6 +614,43 @@ describe('EmployeesService', () => {
 
       expect(result.id).toBe('new-emp');
       expect(prisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('uses a normalized HR-supplied official email when provided', async () => {
+      prisma.vertical.findUnique.mockResolvedValueOnce(hrVertical);
+      prisma.vertical.findUnique.mockResolvedValueOnce(salesVertical);
+      let capturedEmployee: any;
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          $queryRaw: jest.fn().mockResolvedValue([{ nextval: BigInt(5) }]),
+          employee: {
+            findUnique: jest.fn().mockResolvedValue(null),
+            create: jest.fn((args: any) => {
+              capturedEmployee = args.data;
+              return Promise.resolve({
+                ...employee,
+                ...args.data,
+                id: 'new-emp-3',
+              });
+            }),
+          },
+          salaryStructure: { create: jest.fn().mockResolvedValue({}) },
+          employeeStatutoryInfo: { create: jest.fn().mockResolvedValue({}) },
+          employeeBankDetails: { create: jest.fn().mockResolvedValue({}) },
+          vaultFolder: { create: jest.fn().mockResolvedValue({}) },
+        }),
+      );
+
+      await service.onboard(
+        {
+          ...onboardDto,
+          officialEmail: ' John.D@Phaze-Dynamics.com ',
+        },
+        hrStaffUser,
+      );
+
+      expect(capturedEmployee.officialEmail).toBe('john.d@phaze-dynamics.com');
+      expect(capturedEmployee.email).toBe('john.d@phaze-dynamics.com');
     });
 
     it('rejects a non-HR-vertical MANAGER/EMPLOYEE from onboarding', async () => {
@@ -535,6 +698,84 @@ describe('EmployeesService', () => {
       expect(capturedStatutory.pfAccountNumber).toBe('enc:PF1234567890');
       expect(capturedBank.bankAccountNumber).toBe('enc:000123456789');
     });
+
+    it('computes ctcAnnual from monthly earnings × 12 plus annual variable pay', async () => {
+      prisma.vertical.findUnique.mockResolvedValueOnce(hrVertical);
+      prisma.vertical.findUnique.mockResolvedValueOnce(salesVertical);
+      const created = { ...employee, id: 'new-emp-3' };
+
+      let capturedSalary: any;
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          $queryRaw: jest.fn().mockResolvedValue([{ nextval: BigInt(5) }]),
+          employee: {
+            create: jest.fn().mockResolvedValue(created),
+            findUnique: jest.fn().mockResolvedValue(null),
+          },
+          salaryStructure: {
+            create: jest.fn((args: any) => {
+              capturedSalary = args.data;
+              return Promise.resolve({});
+            }),
+          },
+          employeeStatutoryInfo: { create: jest.fn().mockResolvedValue({}) },
+          employeeBankDetails: { create: jest.fn().mockResolvedValue({}) },
+          vaultFolder: { create: jest.fn().mockResolvedValue({}) },
+        }),
+      );
+
+      await service.onboard(
+        {
+          ...onboardDto,
+          compensation: {
+            basicSalary: 50000,
+            hra: 10000,
+            specialAllowance: 8000,
+            variablePay: 60000,
+            effectiveDate: '2026-07-05',
+          },
+        },
+        hrStaffUser,
+      );
+
+      expect(capturedSalary.specialAllowance).toBe(8000);
+      expect(capturedSalary.variablePay).toBe(60000);
+      // (50000 + 10000 + 8000) * 12 + 60000 = 816000 + 60000 = 876000
+      expect(capturedSalary.ctcAnnual).toBe(876000);
+    });
+
+    it('defaults special/variable to 0 and stores variablePay null when compensation omits them', async () => {
+      prisma.vertical.findUnique.mockResolvedValueOnce(hrVertical);
+      prisma.vertical.findUnique.mockResolvedValueOnce(salesVertical);
+      const created = { ...employee, id: 'new-emp-4' };
+
+      let capturedSalary: any;
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          $queryRaw: jest.fn().mockResolvedValue([{ nextval: BigInt(6) }]),
+          employee: {
+            create: jest.fn().mockResolvedValue(created),
+            findUnique: jest.fn().mockResolvedValue(null),
+          },
+          salaryStructure: {
+            create: jest.fn((args: any) => {
+              capturedSalary = args.data;
+              return Promise.resolve({});
+            }),
+          },
+          employeeStatutoryInfo: { create: jest.fn().mockResolvedValue({}) },
+          employeeBankDetails: { create: jest.fn().mockResolvedValue({}) },
+          vaultFolder: { create: jest.fn().mockResolvedValue({}) },
+        }),
+      );
+
+      await service.onboard(onboardDto, hrStaffUser);
+
+      expect(capturedSalary.specialAllowance).toBe(0);
+      expect(capturedSalary.variablePay).toBeNull();
+      // (50000 + 10000 + 0) * 12 + 0 = 720000
+      expect(capturedSalary.ctcAnnual).toBe(720000);
+    });
   });
 
   describe('grantAccess', () => {
@@ -544,10 +785,11 @@ describe('EmployeesService', () => {
       role: null,
       passwordHash: null,
       accessStatus: AccessStatus.PENDING_ACCESS,
-      officialEmail: 'john.doe@vertixdcs.com',
+      officialEmail: 'john.doe@phaze-dynamics.com',
     };
 
     it('assigns role, sets password, activates login, and promotes officialEmail to email', async () => {
+      prisma.$transaction.mockImplementationOnce((callback: any) => callback(prisma));
       prisma.employee.findUnique.mockResolvedValueOnce(pendingEmployee); // findRawOrThrow
       prisma.vertical.findUnique.mockResolvedValue(vertical);
       prisma.employee.findUnique.mockResolvedValueOnce(manager); // manager active-check

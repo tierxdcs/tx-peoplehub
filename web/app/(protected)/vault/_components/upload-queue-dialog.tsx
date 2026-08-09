@@ -15,6 +15,7 @@ import {
 } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
 import { Progress } from '../../../components/ui/progress';
+import { useToast } from '../../../components/ui/toaster';
 import { formatBytes } from '../_lib/vault-format';
 
 /** One row in the upload queue. */
@@ -59,6 +60,7 @@ export function UploadQueueDialog({
    *  parent can refresh its file list. */
   onUploaded: () => void;
 }) {
+  const toast = useToast();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [running, setRunning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -91,7 +93,9 @@ export function UploadQueueDialog({
     setItems((prev) => prev.filter((it) => it.id !== id));
   }
 
-  async function uploadOne(item: QueueItem): Promise<void> {
+  /** Uploads one row; resolves true on success, false on failure (never throws
+   *  — a rejection fails ONLY this row and is reflected in its status). */
+  async function uploadOne(item: QueueItem): Promise<boolean> {
     const { file } = item;
     try {
       patch(item.id, { status: 'uploading', progress: 0, error: undefined });
@@ -118,11 +122,13 @@ export function UploadQueueDialog({
       });
       patch(item.id, { status: 'done' });
       anyUploaded.current = true;
+      return true;
     } catch (err) {
       patch(item.id, {
         status: 'failed',
         error: err instanceof ApiError ? err.message : 'Upload failed',
       });
+      return false;
     }
   }
 
@@ -132,10 +138,13 @@ export function UploadQueueDialog({
     // Snapshot the pending queue; a simple worker pool bounds concurrency.
     const queue = itemsRef.current.filter((it) => it.status === 'pending');
     let cursor = 0;
+    // Tally outcomes synchronously as each row settles — reliable regardless of
+    // when React flushes the status updates into the rendered rows.
+    let succeeded = 0;
     async function worker() {
       while (cursor < queue.length) {
         const item = queue[cursor++];
-        await uploadOne(item);
+        if (await uploadOne(item)) succeeded += 1;
       }
     }
     const workers = Array.from(
@@ -144,6 +153,21 @@ export function UploadQueueDialog({
     );
     await Promise.all(workers);
     setRunning(false);
+
+    // Confirm the batch outcome to the user.
+    const failed = queue.length - succeeded;
+    if (succeeded > 0) {
+      toast.success(
+        failed === 0
+          ? `${succeeded} file${succeeded === 1 ? '' : 's'} uploaded successfully.`
+          : `${succeeded} of ${queue.length} files uploaded. ${failed} failed.`,
+      );
+    } else if (failed > 0) {
+      toast.error(
+        `Upload failed for ${failed} file${failed === 1 ? '' : 's'}.`,
+      );
+    }
+
     if (anyUploaded.current) onUploaded();
   }
 

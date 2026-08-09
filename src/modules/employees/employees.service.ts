@@ -15,6 +15,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../core/database/prisma.service';
+import { ProvisioningService } from '../provisioning/provisioning.service';
 import { EncryptionService } from '../../core/crypto/encryption.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import {
@@ -24,6 +25,10 @@ import {
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { OnboardEmployeeDto } from './dto/onboard-employee.dto';
+import {
+  EmployeePhotoUploadUrlDto,
+  SetEmployeePhotoDto,
+} from './dto/employee-photo.dto';
 import { UpdateBankDetailsDto } from './dto/update-bank-details.dto';
 import { UpdateStatutoryDto } from './dto/update-statutory.dto';
 import { GrantAccessDto } from './dto/grant-access.dto';
@@ -38,8 +43,16 @@ import { EmployeeCompensationEntity } from './entities/employee-compensation.ent
 import { EmployeeSearchResultEntity } from './entities/employee-search-result.entity';
 import { EmployeeStatutoryEntity } from './entities/employee-statutory.entity';
 import { EmployeeBankDetailsEntity } from './entities/employee-bank-details.entity';
+import { VaultStorageService } from '../vault/vault-storage.service';
+import {
+  assertExtensionAllowed,
+  assertSizeWithinCap,
+} from '../vault/vault-guardrails';
 
-const OFFICIAL_EMAIL_DOMAIN = 'vertixdcs.com';
+const OFFICIAL_EMAIL_DOMAIN = 'phaze-dynamics.com';
+
+/** All employee photos live under this R2 prefix (one object per upload). */
+const EMPLOYEE_PHOTO_PREFIX = 'employees/photos/';
 
 type PrismaTransactionClient = Prisma.TransactionClient;
 
@@ -54,6 +67,8 @@ export class EmployeesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly encryption: EncryptionService,
+    private readonly storage: VaultStorageService,
+    private readonly provisioning: ProvisioningService,
   ) {}
 
   async create(
@@ -195,6 +210,7 @@ export class EmployeesService {
         designation: dto.designation,
         employmentType: dto.employmentType,
         workLocation: dto.workLocation,
+        territory: dto.territory,
       },
     });
 
@@ -215,6 +231,87 @@ export class EmployeesService {
       },
     });
     return this.toEntity(employee);
+  }
+
+  /**
+   * Mint a short-lived presigned PUT URL for an employee photo. Mirrors the PLM
+   * progress-photo flow: image-only, size-capped, and the browser uploads the
+   * bytes directly to R2 — the backend never streams file content. The returned
+   * `storageKey` is later handed to onboard() or setPhoto() to persist it.
+   */
+  async createPhotoUploadUrl(dto: EmployeePhotoUploadUrlDto): Promise<{
+    storageKey: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+  }> {
+    assertExtensionAllowed(dto.name);
+    assertSizeWithinCap(dto.sizeBytes);
+    if (!dto.mimeType.startsWith('image/')) {
+      throw new BadRequestException('An employee photo must be an image file');
+    }
+    const storageKey = `${EMPLOYEE_PHOTO_PREFIX}${randomBytes(16).toString('hex')}`;
+    const signed = await this.storage.createUploadUrl(storageKey, dto.mimeType);
+    return {
+      storageKey,
+      uploadUrl: signed.url,
+      expiresInSeconds: signed.expiresInSeconds,
+    };
+  }
+
+  /**
+   * Set or replace an existing employee's photo (admin edit flow). Verifies the
+   * uploaded object first, then best-effort deletes the previous photo so old
+   * objects don't accumulate. Returns the updated public entity.
+   */
+  async setPhoto(
+    id: string,
+    dto: SetEmployeePhotoDto,
+  ): Promise<EmployeeEntity> {
+    const current = await this.findRawOrThrow(id);
+    const storageKey = await this.verifyPhotoUpload(dto.storageKey);
+    const employee = await this.prisma.employee.update({
+      where: { id },
+      data: { photoStorageKey: storageKey },
+    });
+    if (current.photoStorageKey && current.photoStorageKey !== storageKey) {
+      await this.storage.deleteObject(current.photoStorageKey);
+    }
+    return this.toEntity(employee);
+  }
+
+  /** Remove an employee's photo (admin edit flow); best-effort deletes the object. */
+  async removePhoto(id: string): Promise<EmployeeEntity> {
+    const current = await this.findRawOrThrow(id);
+    if (!current.photoStorageKey) {
+      return this.toEntity(current);
+    }
+    const employee = await this.prisma.employee.update({
+      where: { id },
+      data: { photoStorageKey: null },
+    });
+    await this.storage.deleteObject(current.photoStorageKey);
+    return this.toEntity(employee);
+  }
+
+  /**
+   * A short-lived signed GET URL for an employee's photo, or null if they have
+   * none. Access is gated by the same rule as findOne() (self / admin / HR
+   * manager / own reporting manager).
+   */
+  async getPhotoUrl(
+    id: string,
+    currentUser: AuthenticatedUser,
+  ): Promise<{ url: string | null; expiresInSeconds: number | null }> {
+    // Reuse findOne's authorization (throws Forbidden/NotFound as appropriate).
+    await this.findOne(id, currentUser);
+    const employee = await this.findRawOrThrow(id);
+    if (!employee.photoStorageKey) {
+      return { url: null, expiresInSeconds: null };
+    }
+    const signed = await this.storage.createDownloadUrl(
+      employee.photoStorageKey,
+    );
+    return { url: signed.url, expiresInSeconds: signed.expiresInSeconds };
   }
 
   async deactivate(id: string): Promise<EmployeeEntity> {
@@ -409,16 +506,20 @@ export class EmployeesService {
       dto.bankDetails.bankAccountNumber,
     );
 
+    // Verify the photo upload (if any) BEFORE opening the write transaction, so
+    // a bad/missing object fails fast without leaving a half-created employee.
+    const photoStorageKey = dto.photoStorageKey
+      ? await this.verifyPhotoUpload(dto.photoStorageKey)
+      : null;
+
     const employee = await this.prisma.$transaction(async (tx) => {
       const [{ nextval }] = await tx.$queryRaw<
         [{ nextval: bigint }]
       >`SELECT nextval('employee_id_seq')`;
       const employeeId = `EMP-${nextval.toString().padStart(4, '0')}`;
-      const officialEmail = await this.generateOfficialEmail(
-        tx,
-        dto.firstName,
-        dto.lastName,
-      );
+      const officialEmail = dto.officialEmail
+        ? await this.validateRequestedOfficialEmail(tx, dto.officialEmail)
+        : await this.generateOfficialEmail(tx, dto.firstName, dto.lastName);
 
       const created = await tx.employee.create({
         data: {
@@ -437,23 +538,36 @@ export class EmployeesService {
           employmentType: dto.employmentType,
           dateOfJoining: new Date(dto.dateOfJoining),
           workLocation: dto.workLocation,
+          territory: dto.territory?.trim() || null,
           emergencyContactName: dto.emergencyContactName,
           emergencyContactRelation: dto.emergencyContactRelation,
           emergencyContactPhone: dto.emergencyContactPhone,
+          photoStorageKey,
         },
       });
 
-      // ctcAnnual is a documented placeholder: (basic + hra) * 12. Full CTC
-      // composition (specialAllowance/otherAllowances) is set later via
-      // POST /salary-structures (payroll module), not at onboarding time.
+      // CTC = (monthly earning components × 12) + annual variable pay.
+      // basic/hra/specialAllowance are MONTHLY; variablePay is ANNUAL (an
+      // indirect component the payroll engine never reads — see the
+      // SalaryStructure.variablePay schema comment). otherAllowances is not
+      // captured at onboarding; it's set later via POST /salary-structures.
+      const specialAllowance = dto.compensation.specialAllowance ?? 0;
+      const variablePay = dto.compensation.variablePay ?? 0;
+      const ctcAnnual =
+        (dto.compensation.basicSalary +
+          dto.compensation.hra +
+          specialAllowance) *
+          12 +
+        variablePay;
       await tx.salaryStructure.create({
         data: {
           employeeId: created.id,
           effectiveFrom: new Date(dto.compensation.effectiveDate),
           basic: dto.compensation.basicSalary,
           hra: dto.compensation.hra,
-          specialAllowance: 0,
-          ctcAnnual: (dto.compensation.basicSalary + dto.compensation.hra) * 12,
+          specialAllowance,
+          variablePay: variablePay || null,
+          ctcAnnual,
           createdById: currentUser.id,
         },
       });
@@ -517,6 +631,7 @@ export class EmployeesService {
     const where = {
       ...(query.verticalId ? { verticalId: query.verticalId } : {}),
       ...(query.status ? { status: query.status } : {}),
+      ...(query.territory ? { territory: query.territory } : {}),
     };
 
     const [items, total] = await this.prisma.$transaction([
@@ -653,6 +768,7 @@ export class EmployeesService {
         'Employee has no officialEmail on file — was it onboarded via /employees/onboard?',
       );
     }
+    const officialEmail = current.officialEmail;
 
     await this.validateVerticalAndManager(
       dto.role,
@@ -662,16 +778,20 @@ export class EmployeesService {
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    const employee = await this.prisma.employee.update({
-      where: { id },
-      data: {
-        role: dto.role,
-        verticalId: dto.verticalId,
-        reportingManagerId: dto.reportingManagerId ?? null,
-        passwordHash,
-        email: current.officialEmail,
-        accessStatus: AccessStatus.ACTIVE,
-      },
+    const employee = await this.prisma.$transaction(async (tx) => {
+      const activated = await tx.employee.update({
+        where: { id },
+        data: {
+          role: dto.role,
+          verticalId: dto.verticalId,
+          reportingManagerId: dto.reportingManagerId ?? null,
+          passwordHash,
+          email: officialEmail,
+          accessStatus: AccessStatus.ACTIVE,
+        },
+      });
+      await this.provisioning.createForEmployee(id, tx);
+      return activated;
     });
 
     return this.toEntity(employee);
@@ -1188,7 +1308,7 @@ export class EmployeesService {
   }
 
   /**
-   * firstname.lastname@vertixdcs.com, lowercase; increments a numeric
+   * firstname.lastname@phaze-dynamics.com, lowercase; increments a numeric
    * suffix on collision (john.doe2@..., john.doe3@...). Runs inside the
    * onboarding transaction to avoid a race between the uniqueness check and
    * the insert.
@@ -1213,6 +1333,28 @@ export class EmployeesService {
     return candidate;
   }
 
+  /**
+   * HR may override the generated address during onboarding. Normalise it so
+   * login identifiers remain case-insensitive, and fail with a useful message
+   * instead of exposing a database unique-constraint error.
+   */
+  private async validateRequestedOfficialEmail(
+    tx: PrismaTransactionClient,
+    requestedEmail: string,
+  ): Promise<string> {
+    const officialEmail = requestedEmail.trim().toLowerCase();
+    const [officialEmailOwner, loginEmailOwner] = await Promise.all([
+      tx.employee.findUnique({ where: { officialEmail } }),
+      tx.employee.findUnique({ where: { email: officialEmail } }),
+    ]);
+    if (officialEmailOwner || loginEmailOwner) {
+      throw new ConflictException(
+        'This official email is already assigned to another employee',
+      );
+    }
+    return officialEmail;
+  }
+
   private toRosterEntity(employee: Employee): EmployeeRosterEntity {
     return new EmployeeRosterEntity({
       id: employee.id,
@@ -1224,6 +1366,7 @@ export class EmployeesService {
       employmentType: employee.employmentType,
       dateOfJoining: employee.dateOfJoining,
       workLocation: employee.workLocation,
+      territory: employee.territory,
       mobile: employee.mobile,
       status: employee.status,
       accessStatus: employee.accessStatus,
@@ -1247,6 +1390,29 @@ export class EmployeesService {
       throw new NotFoundException('Employee not found');
     }
     return employee;
+  }
+
+  /**
+   * Confirm a photo `storageKey` refers to an image object our upload-url
+   * endpoint actually minted (correct prefix), that the browser uploaded it,
+   * and that it's within the size cap and is an image. Returns the key on
+   * success so callers can persist it. Mirrors the PLM photo-confirm checks.
+   */
+  private async verifyPhotoUpload(storageKey: string): Promise<string> {
+    if (!storageKey.startsWith(EMPLOYEE_PHOTO_PREFIX)) {
+      throw new BadRequestException('Invalid photo storage key');
+    }
+    const head = await this.storage.headObject(storageKey);
+    if (!head) {
+      throw new BadRequestException(
+        'Photo upload was not found — upload the file before saving',
+      );
+    }
+    assertSizeWithinCap(head.sizeBytes);
+    if (!head.contentType?.startsWith('image/')) {
+      throw new BadRequestException('An employee photo must be an image file');
+    }
+    return storageKey;
   }
 
   /**
@@ -1274,7 +1440,7 @@ export class EmployeesService {
     // Cannot promote anyone INTO a privileged role.
     if (privileged(nextRole)) {
       throw new ForbiddenException(
-        'Only a Super Admin can assign the Admin or Super Admin role',
+        'Only the CEO can assign the Admin or CEO role',
       );
     }
     // Cannot change the role of someone who is ALREADY privileged (no demoting
@@ -1283,7 +1449,7 @@ export class EmployeesService {
     // non-super-admin can't round-trip through this path.
     if (privileged(currentRole) && nextRole !== undefined) {
       throw new ForbiddenException(
-        'Only a Super Admin can change the role of an Admin or Super Admin',
+        'Only the CEO can change the role of an Admin or CEO',
       );
     }
   }
@@ -1369,6 +1535,7 @@ export class EmployeesService {
       designation: employee.designation,
       employmentType: employee.employmentType,
       workLocation: employee.workLocation,
+      territory: employee.territory,
       status: employee.status,
       deactivatedAt: employee.deactivatedAt,
       accessStatus: employee.accessStatus,
@@ -1383,6 +1550,7 @@ export class EmployeesService {
       isRdHead: employee.isRdHead,
       isAccountsHead: employee.isAccountsHead,
       officialEmail: employee.officialEmail,
+      photoStorageKey: employee.photoStorageKey,
       signatureText: employee.signatureText,
       signatureFont: employee.signatureFont,
       createdAt: employee.createdAt,

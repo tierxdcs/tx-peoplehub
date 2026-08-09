@@ -6,6 +6,8 @@ import { useAuth } from '../../lib/auth-context';
 import { apiFetch, ApiError } from '../../lib/api';
 import { Employee, SignatureFont, Vertical } from '../../lib/types';
 import { SIGNATURE_FONTS } from '../../lib/signature';
+import { getEmployeePhotoUrl } from '../../lib/employee-photo';
+import { roleLabel } from '../../lib/status';
 import { PageContainer } from '../../components/ui/page-container';
 import { PageHeader } from '../../components/ui/page-header';
 import {
@@ -50,6 +52,7 @@ export default function ProfilePage() {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [verticalName, setVerticalName] = useState<string | null>(null);
   const [managerName, setManagerName] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [sigText, setSigText] = useState('');
@@ -74,6 +77,15 @@ export default function ProfilePage() {
         setEmployee(me);
         setSigText(me.signatureText ?? '');
         setSigFont(me.signatureFont ?? SIGNATURE_FONTS[0]);
+
+        if (me.photoStorageKey) {
+          try {
+            const res = await getEmployeePhotoUrl(me.id);
+            setPhotoUrl(res.url);
+          } catch {
+            setPhotoUrl(null);
+          }
+        }
 
         if (me.verticalId) {
           // /verticals/me (own vertical) rather than the ADMIN-only
@@ -178,7 +190,16 @@ export default function ProfilePage() {
       <Card className="mb-4 max-w-2xl">
         <CardContent className="p-6">
           <div className="flex items-center gap-4">
-            <Avatar name={fullName} className="size-14 text-lg" />
+            {photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={photoUrl}
+                alt={fullName}
+                className="size-14 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <Avatar name={fullName} className="size-14 text-lg" />
+            )}
             <div className="min-w-0">
               <div className="truncate text-xl font-semibold tracking-tight">
                 {fullName}
@@ -206,7 +227,7 @@ export default function ProfilePage() {
               <DetailLabel>Role</DetailLabel>
               <div className="mt-1.5">
                 {employee.role ? (
-                  <Badge variant="muted">{employee.role}</Badge>
+                  <Badge variant="muted">{roleLabel(employee.role)}</Badge>
                 ) : (
                   <span className="text-sm text-muted-foreground">—</span>
                 )}

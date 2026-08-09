@@ -32,12 +32,14 @@ export interface Employee {
   isRdHead: boolean;
   isAccountsHead: boolean;
   officialEmail: string | null;
+  photoStorageKey?: string | null;
   signatureText?: string | null;
   signatureFont?: SignatureFont | null;
   designation?: string | null;
   employmentType?: EmploymentType | null;
   dateOfJoining?: string | null;
   workLocation?: string | null;
+  territory?: string | null;
   mobile?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -48,6 +50,13 @@ export interface Vertical {
   name: string;
   code: string;
   isActive: boolean;
+  ownerId?: string | null;
+  owner?: {
+    id: string;
+    employeeId: string;
+    firstName: string;
+    lastName: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -70,6 +79,7 @@ export interface EmployeeRoster {
   employmentType: EmploymentType | null;
   dateOfJoining: string | null;
   workLocation: string | null;
+  territory: string | null;
   mobile: string | null;
   status: EmployeeStatus;
   accessStatus: AccessStatus;
@@ -165,7 +175,36 @@ export interface SalaryStructure {
   hra: string;
   specialAllowance: string;
   otherAllowances: string | null;
+  variablePay: string | null;
   ctcAnnual: string;
+}
+
+/** One line of the derived CTC breakdown (GET /salary-structures/:id/ctc-breakdown). */
+export interface CtcBreakdownRow {
+  label: string;
+  /** Decimal-as-string, or null when not computable (missing config / TDS). */
+  perMonth: string | null;
+  perAnnum: string | null;
+  /** Marks sub-total / total rows for heavier styling. */
+  emphasize?: boolean;
+  /** Free-text stand-in shown instead of an amount (e.g. TDS). */
+  note?: string;
+}
+
+/**
+ * Fully-derived CTC breakdown (offer-letter view). Statutory rows (PF/ESI/PT
+ * + employer contributions) are computed from StatutoryConfig on read via the
+ * same logic payroll uses; nothing is stored. `warnings` names any missing
+ * config — rows depending on it show "—" and are excluded from the CTC.
+ */
+export interface CtcBreakdown {
+  employeeId: string;
+  effectiveFrom: string;
+  directComponents: CtcBreakdownRow[];
+  employeeDeductions: CtcBreakdownRow[];
+  indirectBenefits: CtcBreakdownRow[];
+  grandTotal: CtcBreakdownRow;
+  warnings: string[];
 }
 
 export type StatutoryConfigType =

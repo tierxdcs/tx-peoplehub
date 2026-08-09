@@ -177,7 +177,7 @@ export default function QcInspectionPage() {
         <EmptyState
           icon={Lock}
           title="QC inspection is restricted"
-          description="Only a designated QC Inspector (or a Super Admin) can inspect incoming goods and finalize the QC gate."
+          description="Only a designated QC Inspector (or the CEO) can inspect incoming goods and finalize the QC gate."
         />
         <div className="flex justify-center">
           <Button variant="outline" onClick={() => router.push(`/stores/grn/${id}`)}>

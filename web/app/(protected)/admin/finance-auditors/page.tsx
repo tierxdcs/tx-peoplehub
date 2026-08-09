@@ -40,7 +40,7 @@ export default function FinanceAuditorsPage() {
   }
   if (user?.role !== 'SUPER_ADMIN') return null;
   return <PageContainer>
-    <PageHeader title="Finance Auditors" description="Super Admin controls time-bound, read-only access to executive finance reports" />
+    <PageHeader title="Finance Auditors" description="The CEO controls time-bound, read-only access to executive finance reports" />
     <Card className="mb-6"><CardContent className="p-5">
       <form className="grid gap-3 md:grid-cols-3" onSubmit={grant}>
         <Input required value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} placeholder="Employee record ID" />

@@ -7,6 +7,7 @@ import { Role } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { CreateVerticalDto } from './dto/create-vertical.dto';
+import { UpdateVerticalOwnerDto } from './dto/update-vertical-owner.dto';
 import { VerticalEntity } from './entities/vertical.entity';
 
 @Injectable()
@@ -21,12 +22,16 @@ export class VerticalsService {
       throw new ConflictException('Vertical name or code already in use');
     }
 
+    if (dto.ownerId) await this.assertEmployeeExists(dto.ownerId);
+
     const vertical = await this.prisma.vertical.create({
       data: {
         name: dto.name,
         code: dto.code,
         isActive: dto.isActive ?? true,
+        ownerId: dto.ownerId,
       },
+      include: { owner: { select: this.ownerSelect } },
     });
 
     return new VerticalEntity(vertical);
@@ -35,6 +40,7 @@ export class VerticalsService {
   async findAll(): Promise<VerticalEntity[]> {
     const verticals = await this.prisma.vertical.findMany({
       orderBy: { name: 'asc' },
+      include: { owner: { select: this.ownerSelect } },
     });
     return verticals.map((v) => new VerticalEntity(v));
   }
@@ -52,6 +58,34 @@ export class VerticalsService {
       orderBy: { name: 'asc' },
     });
     return verticals.map((v) => new VerticalEntity(v));
+  }
+
+  async updateOwner(
+    id: string,
+    dto: UpdateVerticalOwnerDto,
+  ): Promise<VerticalEntity> {
+    await this.assertEmployeeExists(dto.ownerId);
+    const vertical = await this.prisma.vertical.update({
+      where: { id },
+      data: { ownerId: dto.ownerId },
+      include: { owner: { select: this.ownerSelect } },
+    });
+    return new VerticalEntity(vertical);
+  }
+
+  private readonly ownerSelect = {
+    id: true,
+    employeeId: true,
+    firstName: true,
+    lastName: true,
+  } as const;
+
+  private async assertEmployeeExists(id: string) {
+    const employee = await this.prisma.employee.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!employee) throw new ConflictException('Selected owner does not exist');
   }
 
   /**

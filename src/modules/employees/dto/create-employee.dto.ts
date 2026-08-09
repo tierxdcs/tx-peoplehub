@@ -45,7 +45,9 @@ export class CreateEmployeeDto {
   @IsUUID()
   reportingManagerId?: string;
 
-  @ApiPropertyOptional({ description: 'Job title, e.g. "Senior Design Engineer"' })
+  @ApiPropertyOptional({
+    description: 'Job title, e.g. "Senior Design Engineer"',
+  })
   @IsOptional()
   @IsString()
   designation?: string;
@@ -55,8 +57,17 @@ export class CreateEmployeeDto {
   @IsEnum(EmploymentType)
   employmentType?: EmploymentType;
 
-  @ApiPropertyOptional({ description: 'Work location / office, e.g. "Bengaluru"' })
+  @ApiPropertyOptional({
+    description: 'Work location / office, e.g. "Bengaluru"',
+  })
   @IsOptional()
   @IsString()
   workLocation?: string;
+
+  @ApiPropertyOptional({
+    description: 'Assigned geographic sales/service territory',
+  })
+  @IsOptional()
+  @IsString()
+  territory?: string;
 }

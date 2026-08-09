@@ -158,7 +158,7 @@ export default function KickoffDetailPage() {
         <EmptyState
           icon={Rocket}
           title="You don’t have access to this kickoff"
-          description="Only the creator, internal attendees, or a SuperAdmin can view this record."
+          description="Only the creator, internal attendees, or the CEO can view this record."
         />
         <div className="mt-4 flex justify-center">
           <Button variant="outline" onClick={() => router.push('/project-kickoff')}>

@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import {
@@ -8,6 +16,7 @@ import {
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CreateVerticalDto } from './dto/create-vertical.dto';
+import { UpdateVerticalOwnerDto } from './dto/update-vertical-owner.dto';
 import { VerticalsService } from './verticals.service';
 
 @ApiTags('verticals')
@@ -22,6 +31,13 @@ export class VerticalsController {
   @ApiOperation({ summary: 'Create a business vertical' })
   create(@Body() dto: CreateVerticalDto) {
     return this.verticalsService.create(dto);
+  }
+
+  @Patch(':id/owner')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Assign the employee responsible for a vertical' })
+  updateOwner(@Param('id') id: string, @Body() dto: UpdateVerticalOwnerDto) {
+    return this.verticalsService.updateOwner(id, dto);
   }
 
   @Get('me')

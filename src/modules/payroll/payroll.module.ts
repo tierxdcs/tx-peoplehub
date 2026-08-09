@@ -23,6 +23,6 @@ import { PayslipsService } from './payslips.service';
     PayrollRunsService,
     PayslipsService,
   ],
-  exports: [SalaryStructuresService],
+  exports: [SalaryStructuresService, PayrollComputationService],
 })
 export class PayrollModule {}

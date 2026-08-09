@@ -6,6 +6,8 @@ import { EmployeesService } from '../employees/employees.service';
 import { BidsService } from '../sales/bids.service';
 import { BidAssessmentsService } from '../sales/bid-assessments.service';
 import { ConfirmationSheetsService } from '../sales/confirmation-sheets.service';
+import { OfferLettersService } from '../offer-letters/offer-letters.service';
+import { ProvisioningService } from '../provisioning/provisioning.service';
 import { PendingCountsEntity } from './entities/pending-counts.entity';
 
 /**
@@ -23,6 +25,8 @@ export class NotificationsService {
     private readonly bids: BidsService,
     private readonly bidAssessments: BidAssessmentsService,
     private readonly confirmationSheets: ConfirmationSheetsService,
+    private readonly offerLetters: OfferLettersService,
+    private readonly provisioning: ProvisioningService,
   ) {}
 
   async getPendingCounts(
@@ -36,11 +40,15 @@ export class NotificationsService {
       bidDiscountApprovals,
       bidAssessmentApprovals,
       confirmationSheetsPending,
+      offerLetterApprovals,
+      provisioningApprovals,
     ] = await Promise.all([
       this.leaveRequests.countPendingApproval(user),
       this.bids.countPendingApproval(user),
       this.bidAssessments.countPendingForReviewer(user),
       this.confirmationSheets.countPendingForReviewer(user),
+      this.offerLetters.countPendingApproval(user),
+      this.provisioning.countPending(user),
     ]);
 
     // HR pending-access is a company-wide, ADMIN-only surface — the count
@@ -55,6 +63,8 @@ export class NotificationsService {
       bidAssessmentApprovals,
       hrPendingAccess,
       confirmationSheetsPending,
+      offerLetterApprovals,
+      provisioningApprovals,
     });
   }
 }

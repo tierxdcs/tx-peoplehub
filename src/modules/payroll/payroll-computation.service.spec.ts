@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   Employee,
   EmployeeStatus,
@@ -63,10 +63,12 @@ describe('PayrollComputationService', () => {
     employmentType: null,
     dateOfJoining: null,
     workLocation: null,
+    territory: null,
     officialEmail: null,
     emergencyContactName: null,
     emergencyContactRelation: null,
     emergencyContactPhone: null,
+    photoStorageKey: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -157,6 +159,7 @@ describe('PayrollComputationService', () => {
   beforeEach(async () => {
     prisma = {
       leaveRequest: { findMany: jest.fn().mockResolvedValue([]) },
+      employee: { findUnique: jest.fn().mockResolvedValue(employee) },
     };
     salaryStructures = { getCurrentOrThrow: jest.fn() };
     statutoryConfig = { findEffective: jest.fn() };
@@ -243,6 +246,7 @@ describe('PayrollComputationService', () => {
         hra: new Prisma.Decimal(10000),
         specialAllowance: new Prisma.Decimal(5000),
         otherAllowances: null,
+        variablePay: null,
         ctcAnnual: new Prisma.Decimal(780000),
         createdById: null,
         createdAt: new Date(),
@@ -282,6 +286,7 @@ describe('PayrollComputationService', () => {
         hra: new Prisma.Decimal(3000),
         specialAllowance: new Prisma.Decimal(0),
         otherAllowances: null,
+        variablePay: null,
         ctcAnnual: new Prisma.Decimal(216000),
         createdById: null,
         createdAt: new Date(),
@@ -370,6 +375,173 @@ describe('PayrollComputationService', () => {
         .minus(result.unpaidLeaveDeduction);
 
       expect(result.netPay.toString()).toBe(expectedNet.toString());
+    });
+  });
+
+  describe('computeCtcBreakdown', () => {
+    // Karnataka PT slab: 0 below 25k, ₹200 at/above. Keyed by workLocation
+    // string, matching the workLocation-as-state-key convention.
+    const fakePtConfig = {
+      id: 'pt-1',
+      configType: StatutoryConfigType.PROFESSIONAL_TAX,
+      state: 'Bangalore HQ',
+      effectiveFrom: new Date('2026-01-01'),
+      effectiveTo: null,
+      configData: {
+        slabs: [
+          { slabFrom: 0, slabTo: 24999, amount: 0 },
+          { slabFrom: 25000, slabTo: null, amount: 200 },
+        ],
+      },
+      sourceNote: 'fake',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const employeeAtHq = { ...employee, workLocation: 'Bangalore HQ' };
+
+    const structure = {
+      id: 'ss-ctc',
+      employeeId: employee.id,
+      effectiveFrom: new Date('2026-01-01'),
+      basic: new Prisma.Decimal(56000),
+      hra: new Prisma.Decimal(22400),
+      specialAllowance: new Prisma.Decimal(36467),
+      otherAllowances: null,
+      variablePay: new Prisma.Decimal(60000),
+      ctcAnnual: new Prisma.Decimal(1460004),
+      createdById: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    function findRow(rows: { label: string }[], label: string) {
+      const row = rows.find((r) => r.label === label);
+      if (!row) throw new Error(`row not found: ${label}`);
+      return row as any;
+    }
+
+    beforeEach(() => {
+      prisma.employee.findUnique.mockResolvedValue(employeeAtHq);
+      salaryStructures.getCurrentOrThrow.mockResolvedValue(structure);
+    });
+
+    it('throws NotFoundException when the employee does not exist', async () => {
+      prisma.employee.findUnique.mockResolvedValue(null);
+
+      await expect(service.computeCtcBreakdown('nope')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('reuses payroll rate logic for the derived rows and no warnings when configured', async () => {
+      statutoryConfig.findEffective.mockImplementation(
+        (type: StatutoryConfigType) => {
+          if (type === StatutoryConfigType.PF)
+            return Promise.resolve(fakePfConfig);
+          if (type === StatutoryConfigType.ESI)
+            return Promise.resolve(fakeEsiConfig);
+          if (type === StatutoryConfigType.PROFESSIONAL_TAX)
+            return Promise.resolve(fakePtConfig);
+          return Promise.resolve(null);
+        },
+      );
+
+      const result = await service.computeCtcBreakdown('emp-1');
+
+      expect(result.warnings).toEqual([]);
+      // gross = 56000 + 22400 + 36467 = 114867
+      expect(findRow(result.directComponents, 'Sub Total – Gross Salary').perMonth).toBe(
+        '114867',
+      );
+      // PF capped at ceiling 15000 → 1800; gross > ESI threshold 21000 → "—".
+      expect(findRow(result.employeeDeductions, 'Employee PF').perMonth).toBe(
+        '1800',
+      );
+      expect(findRow(result.employeeDeductions, 'Employee ESI').perMonth).toBeNull();
+      expect(
+        findRow(result.employeeDeductions, 'Professional Tax (PT)').perMonth,
+      ).toBe('200');
+      // Salary Before Taxes = 114867 − 1800 − 200 = 112867.
+      expect(
+        findRow(result.employeeDeductions, 'Salary Before Taxes').perMonth,
+      ).toBe('112867');
+      // Employer PF mirrors employee PF; ESI "—".
+      expect(
+        findRow(result.indirectBenefits, 'Employer Contribution to PF').perMonth,
+      ).toBe('1800');
+      // Variable pay stored annual (60000) → monthly 5000.
+      expect(findRow(result.indirectBenefits, 'Variable Pay').perMonth).toBe('5000');
+      // CTC/mo = gross 114867 + employer PF 1800 = 116667.
+      expect(result.grandTotal.perMonth).toBe('116667');
+      // CTC/yr = 116667*12 + 60000 variable = 1460004.
+      expect(result.grandTotal.perAnnum).toBe('1460004');
+    });
+
+    it('does not compute TDS — surfaces it as a note, Net Take Home before TDS', async () => {
+      statutoryConfig.findEffective.mockImplementation(
+        (type: StatutoryConfigType) => {
+          if (type === StatutoryConfigType.PF)
+            return Promise.resolve(fakePfConfig);
+          if (type === StatutoryConfigType.ESI)
+            return Promise.resolve(fakeEsiConfig);
+          if (type === StatutoryConfigType.PROFESSIONAL_TAX)
+            return Promise.resolve(fakePtConfig);
+          return Promise.resolve(null);
+        },
+      );
+
+      const result = await service.computeCtcBreakdown('emp-1');
+
+      const tds = findRow(result.employeeDeductions, 'TDS (As Applicable)');
+      expect(tds.perMonth).toBeNull();
+      expect(tds.note).toBeTruthy();
+      // Net Take Home equals Salary Before Taxes (no TDS subtracted).
+      expect(findRow(result.employeeDeductions, 'Net Take Home Salary').perMonth).toBe(
+        findRow(result.employeeDeductions, 'Salary Before Taxes').perMonth,
+      );
+    });
+
+    it('warns and shows "—" for statutory rows when no config is present', async () => {
+      statutoryConfig.findEffective.mockResolvedValue(null);
+
+      const result = await service.computeCtcBreakdown('emp-1');
+
+      expect(result.warnings).toEqual(
+        expect.arrayContaining(['PF', 'ESI', 'Professional Tax (Bangalore HQ)']),
+      );
+      expect(findRow(result.employeeDeductions, 'Employee PF').perMonth).toBeNull();
+      expect(
+        findRow(result.employeeDeductions, 'Professional Tax (PT)').perMonth,
+      ).toBeNull();
+      // With no employer contributions, CTC/mo == gross, CTC/yr adds variable.
+      expect(result.grandTotal.perMonth).toBe('114867');
+      expect(result.grandTotal.perAnnum).toBe('1438404'); // 114867*12 + 60000
+    });
+
+    it('warns about a missing work location rather than looking up PT', async () => {
+      prisma.employee.findUnique.mockResolvedValue({
+        ...employeeAtHq,
+        workLocation: null,
+      });
+      statutoryConfig.findEffective.mockImplementation(
+        (type: StatutoryConfigType) => {
+          if (type === StatutoryConfigType.PF)
+            return Promise.resolve(fakePfConfig);
+          if (type === StatutoryConfigType.ESI)
+            return Promise.resolve(fakeEsiConfig);
+          return Promise.resolve(null);
+        },
+      );
+
+      const result = await service.computeCtcBreakdown('emp-1');
+
+      expect(result.warnings).toContain(
+        'Professional Tax (no work location on file)',
+      );
+      expect(
+        findRow(result.employeeDeductions, 'Professional Tax (PT)').perMonth,
+      ).toBeNull();
     });
   });
 });

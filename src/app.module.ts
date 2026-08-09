@@ -49,6 +49,9 @@ import { QmsModule } from './modules/qms/qms.module';
 import { DesignModule } from './modules/design/design.module';
 import { PlmModule } from './modules/plm/plm.module';
 import { CustomerOrderProgressModule } from './modules/customer-order-progress/customer-order-progress.module';
+import { OfferLettersModule } from './modules/offer-letters/offer-letters.module';
+import { ProvisioningModule } from './modules/provisioning/provisioning.module';
+import { CandidateRequisitionsModule } from './modules/candidate-requisitions/candidate-requisitions.module';
 
 @Module({
   imports: [
@@ -88,6 +91,9 @@ import { CustomerOrderProgressModule } from './modules/customer-order-progress/c
     DesignModule,
     PlmModule,
     CustomerOrderProgressModule,
+    OfferLettersModule,
+    ProvisioningModule,
+    CandidateRequisitionsModule,
     ScmPurchasingModule,
     LogisticsModule,
     RfqModule,

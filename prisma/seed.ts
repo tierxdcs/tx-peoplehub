@@ -6,6 +6,7 @@ import {
   PrismaClient,
   Role,
   NormalBalance,
+  ProvisioningApproverType,
   VaultFolderType,
   VaultVisibilityScope,
 } from '@prisma/client';
@@ -506,6 +507,28 @@ export async function seed(prisma: PrismaClient): Promise<void> {
       where: { code: vertical.code },
       update: {},
       create: vertical,
+    });
+  }
+
+  const hrVertical = await prisma.vertical.findUniqueOrThrow({
+    where: { code: 'HR' },
+  });
+  const provisioningTypes = [
+    { name: 'Laptop', requiresScmFulfillment: true, approverType: ProvisioningApproverType.SUPER_ADMIN, approverVerticalId: null },
+    { name: 'Email ID Creation', requiresScmFulfillment: false, approverType: ProvisioningApproverType.SUPER_ADMIN, approverVerticalId: null },
+    { name: 'ID Card', requiresScmFulfillment: true, approverType: ProvisioningApproverType.VERTICAL_OWNER, approverVerticalId: hrVertical.id },
+    { name: 'Business Card', requiresScmFulfillment: true, approverType: ProvisioningApproverType.VERTICAL_OWNER, approverVerticalId: hrVertical.id },
+    { name: 'Joining Kit', requiresScmFulfillment: true, approverType: ProvisioningApproverType.VERTICAL_OWNER, approverVerticalId: hrVertical.id },
+  ];
+  for (const item of provisioningTypes) {
+    await prisma.provisioningItemType.upsert({
+      where: { name: item.name },
+      update: {
+        requiresScmFulfillment: item.requiresScmFulfillment,
+        approverType: item.approverType,
+        approverVerticalId: item.approverVerticalId,
+      },
+      create: { ...item, isActive: true },
     });
   }
 

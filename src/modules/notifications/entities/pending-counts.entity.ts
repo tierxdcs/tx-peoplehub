@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
- * Pending-approval counts across all five approval surfaces. Every key is
+ * Pending-approval counts across all six approval surfaces. Every key is
  * always present — a category that doesn't apply to the caller's role returns
  * 0 (never omitted), so the frontend can treat the shape uniformly.
  */
@@ -22,6 +22,15 @@ export class PendingCountsEntity {
     description: 'Confirmation sheets awaiting internal countersignature',
   })
   confirmationSheetsPending!: number;
+
+  @ApiProperty({
+    description:
+      "Offer letters awaiting the caller's vertical-owner approval",
+  })
+  offerLetterApprovals!: number;
+
+  @ApiProperty({ description: "Onboarding provisioning requests awaiting the caller's approval" })
+  provisioningApprovals!: number;
 
   constructor(partial: Partial<PendingCountsEntity>) {
     Object.assign(this, partial);

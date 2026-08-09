@@ -45,6 +45,14 @@ export interface Access {
   isQmsHead?: boolean;
   isDesignUser?: boolean;
   isDesignHead?: boolean;
+  /**
+   * The current user has ≥1 offer letter awaiting their approval. Approvers are
+   * the new hire's vertical owner (or a Super Admin fallback) — a set that spans
+   * every vertical with no dedicated designation flag, so the inbox link is
+   * surfaced dynamically off the live pending count rather than a role/vertical
+   * gate. It self-cleans when the queue empties.
+   */
+  offerLetterApprovalsPending?: boolean;
   payslipsEnabled: boolean;
 }
 
@@ -115,6 +123,21 @@ export function sharedNav(access: Access): NavGroup[] {
     me.push({ label: 'My Payslips', href: '/payslips' });
   if (me.length) groups.push({ heading: 'Me', items: me });
 
+  // Offer Letter Approvals — surfaced to whoever currently has letters routed
+  // to them as the new hire's vertical owner (or a Super Admin fallback). This
+  // audience spans every vertical, so the link appears dynamically off the live
+  // pending count instead of a role/vertical gate; it disappears when the queue
+  // is empty. The page self-guards and returns an empty list to non-approvers.
+  const approvalItems: NavItem[] = [
+    { label: 'Candidate Requisitions', href: '/hr/candidate-requisitions' },
+    { label: 'Provisioning Approvals', href: '/hr/provisioning-approvals' },
+  ];
+  if (access.offerLetterApprovalsPending) approvalItems.push({
+    label: 'Offer Letter Approvals',
+    href: '/hr/offer-letters/pending-approval',
+  });
+  groups.push({ heading: 'Approvals', items: approvalItems });
+
   // "My Team" (roster, leave approvals, team attendance) is no longer a sidebar
   // group — those manager tools now live as tabs under My Profile (reached from
   // the account dropdown), alongside My Team / My Leave / My Attendance. The
@@ -172,6 +195,7 @@ export function sharedNav(access: Access): NavGroup[] {
         { label: 'Suppliers', href: '/scm/suppliers' },
         { label: 'RFQs', href: '/scm/rfqs' },
         { label: 'Purchase Orders', href: '/stores/purchase-orders' },
+        { label: 'Employee Provisioning', href: '/scm/provisioning' },
       ],
     });
   }
@@ -270,9 +294,18 @@ export function sharedNav(access: Access): NavGroup[] {
       heading: 'Reports',
       items: [
         { label: 'Financial Reports', href: '/finance/reports' },
-        { label: FINANCE_LABELS.outstandingReceivable, href: '/finance/ar/summary' },
-        { label: FINANCE_LABELS.outstandingPayable, href: '/finance/ap/summary' },
-        { label: FINANCE_LABELS.paymentCalendar, href: '/finance/payment-calendar' },
+        {
+          label: FINANCE_LABELS.outstandingReceivable,
+          href: '/finance/ar/summary',
+        },
+        {
+          label: FINANCE_LABELS.outstandingPayable,
+          href: '/finance/ap/summary',
+        },
+        {
+          label: FINANCE_LABELS.paymentCalendar,
+          href: '/finance/payment-calendar',
+        },
         { label: FINANCE_LABELS.gstReports, href: '/finance/compliance' },
         { label: FINANCE_LABELS.statutoryFilings, href: '/finance/filings' },
         { label: FINANCE_LABELS.periodClose, href: '/finance/period-close' },
@@ -356,6 +389,7 @@ export function hrNav(access: Access): NavGroup[] {
           ? [
               { label: 'Business Units', href: '/admin/business-units' },
               { label: 'Finance Auditors', href: '/admin/finance-auditors' },
+              { label: 'Provisioning Setup', href: '/admin/provisioning' },
             ]
           : []),
         {
@@ -373,6 +407,9 @@ export function hrNav(access: Access): NavGroup[] {
       items: [
         { label: 'Roster', href: '/hr/roster' },
         { label: 'Onboard Employee', href: '/hr/onboard' },
+        ...(isAdmin || isHrManager
+          ? [{ label: 'Offer Letters', href: '/hr/offer-letters' }]
+          : []),
       ],
     });
   }

@@ -4,10 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { Employee, PaginatedResult, Vertical } from '../../../../lib/types';
-import {
-  EmployeeForm,
-  EmployeeFormValues,
-} from '../_components/employee-form';
+import { EmployeeForm, EmployeeFormValues } from '../_components/employee-form';
 import { ArrowLeft } from 'lucide-react';
 import { Badge } from '../../../../components/ui/badge';
 import { Button } from '../../../../components/ui/button';
@@ -26,6 +23,13 @@ import {
 import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
 import { useAuth } from '../../../../lib/auth-context';
+import { EmployeePhotoField } from '../../../../components/ui/employee-photo-field';
+import {
+  getEmployeePhotoUrl,
+  removeEmployeePhoto,
+  setEmployeePhoto,
+} from '../../../../lib/employee-photo';
+import { ProvisioningChecklist } from '../../../../components/provisioning/provisioning-checklist';
 
 export default function EditEmployeePage() {
   const { id } = useParams<{ id: string }>();
@@ -55,6 +59,8 @@ export default function EditEmployeePage() {
   // show once in the dialog below; never persisted or logged.
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
+  // Signed URL for the current photo (null while loading or if none).
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [employeeRes, verticalsRes, employeesRes] = await Promise.all([
@@ -72,9 +78,19 @@ export default function EditEmployeePage() {
           (e.role === 'MANAGER' || e.role === 'SUPER_ADMIN'),
       ),
     );
-    setCurrentSalesHead(
-      employeesRes.items.find((e) => e.isSalesHead) ?? null,
-    );
+    setCurrentSalesHead(employeesRes.items.find((e) => e.isSalesHead) ?? null);
+    // Photo signed URL is fetched separately (short-lived, on-demand). A
+    // failure here shouldn't block the rest of the page.
+    if (employeeRes.photoStorageKey) {
+      try {
+        const res = await getEmployeePhotoUrl(employeeRes.id);
+        setPhotoUrl(res.url);
+      } catch {
+        setPhotoUrl(null);
+      }
+    } else {
+      setPhotoUrl(null);
+    }
   }, [id]);
 
   useEffect(() => {
@@ -87,6 +103,34 @@ export default function EditEmployeePage() {
       body: JSON.stringify(values),
     });
     router.push(returnTo);
+  }
+
+  // Photo: the field uploads the bytes to R2 and hands back a storageKey; we
+  // then persist it (or clear it) and reload the signed preview URL.
+  async function handlePhotoUploaded(storageKey: string) {
+    if (!employee) return;
+    try {
+      await setEmployeePhoto(employee.id, storageKey);
+      toast.success('Photo updated');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to save photo',
+      );
+    }
+  }
+
+  async function handlePhotoRemove() {
+    if (!employee) return;
+    try {
+      await removeEmployeePhoto(employee.id);
+      toast.success('Photo removed');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to remove photo',
+      );
+    }
   }
 
   async function designateSalesHead() {
@@ -111,7 +155,9 @@ export default function EditEmployeePage() {
       await load();
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : 'Failed to designate Sales Head',
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to designate Sales Head',
       );
     } finally {
       setDesignating(false);
@@ -205,9 +251,7 @@ export default function EditEmployeePage() {
         `/employees/${employee.id}/${next ? 'designate' : 'revoke'}-qc-inspector`,
         { method: 'PATCH' },
       );
-      toast.success(
-        next ? 'QC Inspector designated' : 'QC Inspector revoked',
-      );
+      toast.success(next ? 'QC Inspector designated' : 'QC Inspector revoked');
       await load();
     } catch (err) {
       toast.error(
@@ -253,7 +297,9 @@ export default function EditEmployeePage() {
   async function setAccountsHead(next: boolean) {
     if (!employee) return;
     const ok = await confirm({
-      title: next ? 'Designate Finance/Accounts Head' : 'Revoke Finance/Accounts Head',
+      title: next
+        ? 'Designate Finance/Accounts Head'
+        : 'Revoke Finance/Accounts Head',
       description: next
         ? `Designate ${employee.firstName} ${employee.lastName} as the sole Finance/Accounts Head? Any existing holder will be replaced.`
         : `Revoke ${employee.firstName} ${employee.lastName}’s Finance/Accounts Head designation? Finance approvals will stop until a new head is assigned.`,
@@ -267,10 +313,18 @@ export default function EditEmployeePage() {
         `/employees/${employee.id}/${next ? 'designate' : 'revoke'}-accounts-head`,
         { method: 'PATCH' },
       );
-      toast.success(next ? 'Finance/Accounts Head designated' : 'Finance/Accounts Head revoked');
+      toast.success(
+        next
+          ? 'Finance/Accounts Head designated'
+          : 'Finance/Accounts Head revoked',
+      );
       await load();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update Finance/Accounts Head');
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to update Finance/Accounts Head',
+      );
     } finally {
       setDesignating(false);
     }
@@ -278,22 +332,58 @@ export default function EditEmployeePage() {
 
   async function setQmsHead(next: boolean) {
     if (!employee) return;
-    const ok = await confirm({ title: next ? 'Designate QMS Head' : 'Revoke QMS Head', description: next ? `Designate ${employee.firstName} ${employee.lastName} as the sole QMS approver? Any existing holder will be replaced.` : 'QMS approvals will stop until a new head is assigned.', confirmLabel: next ? 'Designate' : 'Revoke', destructive: !next });
+    const ok = await confirm({
+      title: next ? 'Designate QMS Head' : 'Revoke QMS Head',
+      description: next
+        ? `Designate ${employee.firstName} ${employee.lastName} as the sole QMS approver? Any existing holder will be replaced.`
+        : 'QMS approvals will stop until a new head is assigned.',
+      confirmLabel: next ? 'Designate' : 'Revoke',
+      destructive: !next,
+    });
     if (!ok) return;
     setDesignating(true);
-    try { await apiFetch(`/employees/${employee.id}/${next ? 'designate' : 'revoke'}-qms-head`, { method: 'PATCH' }); toast.success(next ? 'QMS Head designated' : 'QMS Head revoked'); await load(); }
-    catch (err) { toast.error(err instanceof ApiError ? err.message : 'Failed to update QMS Head'); }
-    finally { setDesignating(false); }
+    try {
+      await apiFetch(
+        `/employees/${employee.id}/${next ? 'designate' : 'revoke'}-qms-head`,
+        { method: 'PATCH' },
+      );
+      toast.success(next ? 'QMS Head designated' : 'QMS Head revoked');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to update QMS Head',
+      );
+    } finally {
+      setDesignating(false);
+    }
   }
 
   async function setDesignHead(next: boolean) {
     if (!employee) return;
-    const ok = await confirm({ title: next ? 'Designate Design Head' : 'Revoke Design Head', description: next ? `Designate ${employee.firstName} ${employee.lastName} as the sole design release authority? Any existing holder will be replaced.` : 'Design releases will stop until a new Design Head is assigned.', confirmLabel: next ? 'Designate' : 'Revoke', destructive: !next });
+    const ok = await confirm({
+      title: next ? 'Designate Design Head' : 'Revoke Design Head',
+      description: next
+        ? `Designate ${employee.firstName} ${employee.lastName} as the sole design release authority? Any existing holder will be replaced.`
+        : 'Design releases will stop until a new Design Head is assigned.',
+      confirmLabel: next ? 'Designate' : 'Revoke',
+      destructive: !next,
+    });
     if (!ok) return;
     setDesignating(true);
-    try { await apiFetch(`/employees/${employee.id}/${next ? 'designate' : 'revoke'}-design-head`, { method: 'PATCH' }); toast.success(next ? 'Design Head designated' : 'Design Head revoked'); await load(); }
-    catch (err) { toast.error(err instanceof ApiError ? err.message : 'Failed to update Design Head'); }
-    finally { setDesignating(false); }
+    try {
+      await apiFetch(
+        `/employees/${employee.id}/${next ? 'designate' : 'revoke'}-design-head`,
+        { method: 'PATCH' },
+      );
+      toast.success(next ? 'Design Head designated' : 'Design Head revoked');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to update Design Head',
+      );
+    } finally {
+      setDesignating(false);
+    }
   }
 
   async function setProductionHead(next: boolean) {
@@ -380,7 +470,9 @@ export default function EditEmployeePage() {
         `/employees/${employee.id}/${deactivating ? 'deactivate' : 'reactivate'}`,
         { method: 'PATCH' },
       );
-      toast.success(deactivating ? 'Employee offboarded.' : 'Employee reactivated.');
+      toast.success(
+        deactivating ? 'Employee offboarded.' : 'Employee reactivated.',
+      );
       await load();
     } catch (err) {
       toast.error(
@@ -520,6 +612,7 @@ export default function EditEmployeePage() {
           designation: employee.designation ?? '',
           employmentType: employee.employmentType ?? undefined,
           workLocation: employee.workLocation ?? '',
+          territory: employee.territory ?? '',
         }}
         verticals={verticals}
         candidateManagers={candidateManagers}
@@ -528,9 +621,24 @@ export default function EditEmployeePage() {
         callerIsSuperAdmin={isSuperAdmin}
       />
 
+      {/* Photo — used for ID cards and other collaterals. Set/replace/remove
+          uses the same presigned direct-to-R2 upload as onboarding. */}
+      <Card className="mt-4">
+        <CardContent className="p-4">
+          <div className="mb-3 text-sm font-medium">Photo</div>
+          <EmployeePhotoField
+            previewUrl={photoUrl}
+            onUploaded={handlePhotoUploaded}
+            onRemove={photoUrl ? handlePhotoRemove : undefined}
+          />
+        </CardContent>
+      </Card>
+
       {/* Designations & roles — capability grants, secondary to the details. */}
       {hasAnyDesignationCard && (
-        <h2 className="mb-3 mt-8 text-lg font-semibold">Designations &amp; roles</h2>
+        <h2 className="mb-3 mt-8 text-lg font-semibold">
+          Designations &amp; roles
+        </h2>
       )}
 
       {/* Sales Head designation — only meaningful for Sales-vertical staff. */}
@@ -668,10 +776,14 @@ export default function EditEmployeePage() {
             {canDesignate && (
               <Button
                 variant={employee.isRdHead ? 'destructive' : 'outline'}
-                disabled={designating || (!employee.isRdHead && !rdHeadEligible)}
+                disabled={
+                  designating || (!employee.isRdHead && !rdHeadEligible)
+                }
                 onClick={() => setRdHead(!employee.isRdHead)}
               >
-                {employee.isRdHead ? 'Revoke R&D Head' : 'Designate as R&D Head'}
+                {employee.isRdHead
+                  ? 'Revoke R&D Head'
+                  : 'Designate as R&D Head'}
               </Button>
             )}
           </CardContent>
@@ -682,7 +794,9 @@ export default function EditEmployeePage() {
         <Card className="mb-4">
           <CardContent className="flex items-center justify-between gap-4 p-4">
             <div className="text-sm">
-              <div className="font-medium">Finance/Accounts Head designation</div>
+              <div className="font-medium">
+                Finance/Accounts Head designation
+              </div>
               <div className="text-muted-foreground">
                 {employee.isAccountsHead
                   ? 'This employee is the sole approver for all Finance & Accounts transactions.'
@@ -695,7 +809,9 @@ export default function EditEmployeePage() {
                 disabled={designating}
                 onClick={() => setAccountsHead(!employee.isAccountsHead)}
               >
-                {employee.isAccountsHead ? 'Revoke Accounts Head' : 'Designate as Accounts Head'}
+                {employee.isAccountsHead
+                  ? 'Revoke Accounts Head'
+                  : 'Designate as Accounts Head'}
               </Button>
             )}
           </CardContent>
@@ -703,11 +819,55 @@ export default function EditEmployeePage() {
       )}
 
       {(isSuperAdmin || employee.isQmsHead) && (
-        <Card className="mb-4"><CardContent className="flex items-center justify-between gap-4 p-4"><div className="text-sm"><div className="font-medium">QMS Head designation</div><div className="text-muted-foreground">{employee.isQmsHead ? 'This employee is the sole approver for QMS templates, plans and inspection reviews.' : 'Designate as the sole QMS approval authority.'}</div></div>{isSuperAdmin && <Button variant={employee.isQmsHead ? 'destructive' : 'outline'} disabled={designating} onClick={()=>setQmsHead(!employee.isQmsHead)}>{employee.isQmsHead ? 'Revoke QMS Head' : 'Designate as QMS Head'}</Button>}</CardContent></Card>
+        <Card className="mb-4">
+          <CardContent className="flex items-center justify-between gap-4 p-4">
+            <div className="text-sm">
+              <div className="font-medium">QMS Head designation</div>
+              <div className="text-muted-foreground">
+                {employee.isQmsHead
+                  ? 'This employee is the sole approver for QMS templates, plans and inspection reviews.'
+                  : 'Designate as the sole QMS approval authority.'}
+              </div>
+            </div>
+            {isSuperAdmin && (
+              <Button
+                variant={employee.isQmsHead ? 'destructive' : 'outline'}
+                disabled={designating}
+                onClick={() => setQmsHead(!employee.isQmsHead)}
+              >
+                {employee.isQmsHead
+                  ? 'Revoke QMS Head'
+                  : 'Designate as QMS Head'}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {(isSuperAdmin || employee.isDesignHead) && (
-        <Card className="mb-4"><CardContent className="flex items-center justify-between gap-4 p-4"><div className="text-sm"><div className="font-medium">Design Head designation</div><div className="text-muted-foreground">{employee.isDesignHead ? 'This employee is the sole approver and production-release authority for design documents.' : 'Designate as the sole Design Engineering release authority.'}</div></div>{isSuperAdmin && <Button variant={employee.isDesignHead ? 'destructive' : 'outline'} disabled={designating} onClick={()=>setDesignHead(!employee.isDesignHead)}>{employee.isDesignHead ? 'Revoke Design Head' : 'Designate as Design Head'}</Button>}</CardContent></Card>
+        <Card className="mb-4">
+          <CardContent className="flex items-center justify-between gap-4 p-4">
+            <div className="text-sm">
+              <div className="font-medium">Design Head designation</div>
+              <div className="text-muted-foreground">
+                {employee.isDesignHead
+                  ? 'This employee is the sole approver and production-release authority for design documents.'
+                  : 'Designate as the sole Design Engineering release authority.'}
+              </div>
+            </div>
+            {isSuperAdmin && (
+              <Button
+                variant={employee.isDesignHead ? 'destructive' : 'outline'}
+                disabled={designating}
+                onClick={() => setDesignHead(!employee.isDesignHead)}
+              >
+                {employee.isDesignHead
+                  ? 'Revoke Design Head'
+                  : 'Designate as Design Head'}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {(isSuperAdmin || employee.isProductionHead) && (
@@ -724,7 +884,9 @@ export default function EditEmployeePage() {
             {isSuperAdmin && (
               <Button
                 variant={employee.isProductionHead ? 'destructive' : 'outline'}
-                disabled={designating || (!employee.isProductionHead && !managerOrAbove)}
+                disabled={
+                  designating || (!employee.isProductionHead && !managerOrAbove)
+                }
                 onClick={() => setProductionHead(!employee.isProductionHead)}
               >
                 {employee.isProductionHead
@@ -842,6 +1004,7 @@ export default function EditEmployeePage() {
           </CardContent>
         </Card>
       )}
+      <ProvisioningChecklist employeeId={employee.id} />
     </PageContainer>
   );
 }
