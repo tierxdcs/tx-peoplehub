@@ -8,6 +8,8 @@ import {
   createAudit,
   type AuditType,
   type CreateAuditInput,
+  type VendorCoreCompetency,
+  VENDOR_CORE_COMPETENCY_LABEL,
 } from '../../../../lib/scm';
 import { todayDateStr } from '../../../../lib/date';
 import { useToast } from '../../../../components/ui/toaster';
@@ -48,6 +50,7 @@ export function AuditForm({
   const toast = useToast();
   const [auditType, setAuditType] = useState<AuditType>('PHYSICAL');
   const [auditDate, setAuditDate] = useState(todayDateStr());
+  const [coreCompetency, setCoreCompetency] = useState<VendorCoreCompetency | ''>('');
   const [scores, setScores] = useState<Record<ScoreKey, string>>(
     Object.fromEntries(AUDIT_CATEGORIES.map((c) => [c.key, ''])) as Record<
       ScoreKey,
@@ -90,10 +93,16 @@ export function AuditForm({
     setSubmitting(true);
     setError(null);
     try {
+      if (!coreCompetency) {
+        setError('Select the vendor’s core competency before finalizing.');
+        setSubmitting(false);
+        return;
+      }
       const payload: CreateAuditInput = {
         questionnaireId,
         auditType,
         auditDate,
+        coreCompetency,
         auditNotes: auditNotes.trim() || undefined,
         manufacturingCapabilityScore: Number(scores.manufacturingCapabilityScore),
         capacityScore: Number(scores.capacityScore),
@@ -143,6 +152,19 @@ export function AuditForm({
               />
             </Field>
           </div>
+
+          <Field label="Core competency" htmlFor="a-core-competency" required>
+            <Select
+              id="a-core-competency"
+              value={coreCompetency}
+              onChange={(e) => setCoreCompetency(e.target.value as VendorCoreCompetency)}
+            >
+              <option value="">Select core competency…</option>
+              {Object.entries(VENDOR_CORE_COMPETENCY_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </Select>
+          </Field>
 
           <div className="rounded-md border">
             <table className="w-full text-sm">

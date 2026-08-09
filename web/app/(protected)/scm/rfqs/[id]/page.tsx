@@ -13,13 +13,17 @@ import {
   issueRfq,
   closeRfq,
   cancelRfq,
+  rfqComparison,
   type Rfq,
+  type ComparisonColumn,
 } from '../../../../lib/rfq';
 import { listSuppliers, type Supplier } from '../../../../lib/scm-supplier';
 import { listVendors, type Vendor } from '../../../../lib/scm';
 import { isQualifiedStatus } from '../../../../lib/stores';
 import { humanizeEnum } from '../../../../lib/status';
 import { dateOnlyStr } from '../../../../lib/date';
+import { formatINR } from '../../../../lib/sales';
+import { useNumberFormat } from '../../../../lib/number-format-context';
 import { PageContainer } from '../../../../components/ui/page-container';
 import {
   Card,
@@ -55,11 +59,18 @@ export default function RfqDetailPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const { user } = useAuth();
+  const { style: numberFormatStyle } = useNumberFormat();
 
   const [rfq, setRfq] = useState<Rfq | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
+  // Per-invitee quoted totals, keyed by inviteeId. Sealed-bid: these live only
+  // in the guarded comparison endpoint and are fetched once quotes are visible
+  // (CLOSED / AWARDED) so the detail table can show what each partner quoted.
+  const [quoteTotals, setQuoteTotals] = useState<Map<string, ComparisonColumn>>(
+    new Map(),
+  );
 
   // Add-invitee form state.
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -102,6 +113,29 @@ export default function RfqDetailPage() {
       }
     })();
   }, [canManage, rfq?.status]);
+
+  // Once the sealed phase is over (CLOSED / AWARDED), pull the comparison so we
+  // can show each invitee's quoted total on the detail table. Non-fatal: if it
+  // fails the table simply omits the amount column.
+  useEffect(() => {
+    if (rfq?.status !== 'CLOSED' && rfq?.status !== 'AWARDED') {
+      setQuoteTotals(new Map());
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const cmp = await rfqComparison(id);
+        if (cancelled) return;
+        setQuoteTotals(new Map(cmp.columns.map((c) => [c.inviteeId, c])));
+      } catch {
+        /* comparison load failure is non-fatal; amounts just won't show */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, rfq?.status]);
 
   const partners = partnerType === 'SUPPLIER' ? suppliers : vendors;
   // Exclude partners already invited (not revoked) from the picker.
@@ -266,7 +300,11 @@ export default function RfqDetailPage() {
   const isDraft = rfq.status === 'DRAFT';
   const isIssued = rfq.status === 'ISSUED';
   const isClosed = rfq.status === 'CLOSED';
+  const isAwarded = rfq.status === 'AWARDED';
   const showTokens = isIssued || isClosed;
+  // Quoted totals are only meaningful (and only fetched) once the RFQ is past
+  // the sealed phase. Show the column for CLOSED and AWARDED.
+  const showQuotedValue = isClosed || isAwarded;
   const enoughInvitees = activeInvitees.length >= MIN_INVITEES;
 
   return (
@@ -418,6 +456,9 @@ export default function RfqDetailPage() {
                   <TableHead>Type</TableHead>
                   <TableHead>Qualification</TableHead>
                   <TableHead>Quote</TableHead>
+                  {showQuotedValue && (
+                    <TableHead className="text-right">Quoted Value</TableHead>
+                  )}
                   {showTokens && <TableHead>Quote Link</TableHead>}
                   {canManage && isDraft && <TableHead className="w-10" />}
                 </TableRow>
@@ -433,6 +474,30 @@ export default function RfqDetailPage() {
                     <TableCell>
                       <StatusBadge value={inv.quoteStatus} />
                     </TableCell>
+                    {showQuotedValue &&
+                      (() => {
+                        const col = quoteTotals.get(inv.id);
+                        const isAwardedInvitee = rfq.awardedInviteeId === inv.id;
+                        return (
+                          <TableCell className="text-right">
+                            {col && col.totalQuotedValue ? (
+                              <span
+                                className={
+                                  isAwardedInvitee
+                                    ? 'font-semibold text-success'
+                                    : col.isLowestTotal
+                                      ? 'font-medium text-success'
+                                      : 'font-medium'
+                                }
+                              >
+                                {formatINR(col.totalQuotedValue, numberFormatStyle)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        );
+                      })()}
                     {showTokens && (
                       <TableCell>
                         {inv.inviteToken ? (

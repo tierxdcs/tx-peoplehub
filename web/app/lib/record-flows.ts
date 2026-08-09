@@ -106,7 +106,14 @@ export function rfqFlow(status: RfqStatus): FlowResult {
     CLOSED: 'closed',
     AWARDED: 'awarded',
   };
-  return { steps: RFQ_STEPS, currentStage: map[status], cancelled: false };
+  // Awarded is the terminal success state — mark the final step complete
+  // (green check) rather than leaving it as the "current" unfilled node.
+  return {
+    steps: RFQ_STEPS,
+    currentStage: map[status],
+    completed: status === 'AWARDED',
+    cancelled: false,
+  };
 }
 
 // ── Vendor / Supplier qualification (shared shape) ───────────────────

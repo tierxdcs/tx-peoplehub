@@ -698,6 +698,11 @@ model CandidateRequisition {
   positionTitle            String
   employmentType           EmploymentType
   justification            String                     @db.Text
+  /// Annual CTC hiring budget (INR). Nullable in DB so the column can be added
+  /// to existing rows, but REQUIRED in the create DTO for every new requisition
+  /// (cf. Product.businessUnitId — the repo enforces such invariants in the DTO/
+  /// service, not with DB constraints).
+  budgetAnnualCtc          Decimal?                   @db.Decimal(14, 2)
   targetJoiningDate        DateTime?                  @db.Date
   status                   CandidateRequisitionStatus @default(PENDING_VERTICAL_APPROVAL)
   verticalApprovedById     String?
@@ -3125,6 +3130,20 @@ enum VendorAuditType {
   VIRTUAL
 }
 
+enum VendorCoreCompetency {
+  SHEET_METAL
+  FABRICATION
+  PDU_MANUFACTURER
+  MODULAR_DATA_CENTER
+  ELECTRICAL_PANELS
+  PRECISION_MACHINING
+  POWDER_COATING_SURFACE_FINISHING
+  CABLE_HARNESS
+  HVAC_COOLING
+  SYSTEM_INTEGRATION
+  OTHER
+}
+
 model Vendor {
   id                       String                   @id @default(uuid())
   /// Plain, matchable company name — the future reconciliation target for
@@ -3143,6 +3162,8 @@ model Vendor {
   contactEmail             String
   contactPhone             String?
   website                  String?
+  /// Promoted from the latest finalized audit for fast vendor-register filtering/display.
+  coreCompetency           VendorCoreCompetency?
   status                   VendorStatus             @default(PENDING_QUESTIONNAIRE)
   /// True when `status` came from a SuperAdmin classification override rather
   /// than the computed audit score. Denormalized from the latest audit so
@@ -3164,6 +3185,7 @@ model Vendor {
   updatedAt                DateTime                 @updatedAt
 
   @@index([status])
+  @@index([coreCompetency])
   @@map("vendors")
 }
 
@@ -3252,6 +3274,8 @@ model VendorAudit {
   auditDate       DateTime
   auditorId       String
   auditor         Employee            @relation("VendorAuditor", fields: [auditorId], references: [id], onDelete: Restrict)
+  /// Snapshot selected by the auditor. Historical audits remain truthful when a later audit changes the vendor master value.
+  coreCompetency  VendorCoreCompetency?
 
   // Weighted category scores — maxes 20/10/20/10/5/10/10/5/5/5 = 100.
   manufacturingCapabilityScore Decimal @db.Decimal(5, 2)

@@ -629,6 +629,7 @@ export class ScmService {
           auditType: dto.auditType,
           auditDate: new Date(dto.auditDate),
           auditorId: user.id,
+          coreCompetency: dto.coreCompetency,
           manufacturingCapabilityScore: dto.manufacturingCapabilityScore,
           capacityScore: dto.capacityScore,
           qualitySystemScore: dto.qualitySystemScore,
@@ -646,7 +647,11 @@ export class ScmService {
       // A fresh audit's computed classification supersedes any prior override.
       await tx.vendor.update({
         where: { id: vendorId },
-        data: { status, statusOverridden: false },
+        data: {
+          status,
+          statusOverridden: false,
+          coreCompetency: dto.coreCompetency,
+        },
       });
       return a;
     });
@@ -841,6 +846,7 @@ export class ScmService {
     contactEmail: string;
     contactPhone: string | null;
     website: string | null;
+    coreCompetency: VendorEntity['coreCompetency'];
     status: VendorStatus;
     statusOverridden: boolean;
     createdById: string;
@@ -956,6 +962,7 @@ export class ScmService {
     auditDate: Date;
     auditorId: string;
     auditor?: { firstName: string; lastName: string } | null;
+    coreCompetency: VendorAuditEntity['coreCompetency'];
     manufacturingCapabilityScore: Prisma.Decimal;
     capacityScore: Prisma.Decimal;
     qualitySystemScore: Prisma.Decimal;
@@ -1004,6 +1011,7 @@ export class ScmService {
       auditorName: a.auditor
         ? `${a.auditor.firstName} ${a.auditor.lastName}`
         : null,
+      coreCompetency: a.coreCompetency,
       ...scores,
       totalScore: total,
       classification,

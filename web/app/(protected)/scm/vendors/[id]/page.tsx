@@ -15,6 +15,7 @@ import {
   type VendorAudit,
   type VendorDetail,
   type VendorInvite,
+  VENDOR_CORE_COMPETENCY_LABEL,
 } from '../../../../lib/scm';
 import { PageContainer } from '../../../../components/ui/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
@@ -218,6 +219,10 @@ export default function VendorDetailPage() {
         <CardContent className="grid gap-x-8 gap-y-2 pt-0 text-sm sm:grid-cols-2">
           <Info label="Registered address" value={vendor.registeredAddress ?? '—'} />
           <Info label="Factory address" value={vendor.factoryAddress ?? '—'} />
+          <Info
+            label="Core competency"
+            value={vendor.coreCompetency ? VENDOR_CORE_COMPETENCY_LABEL[vendor.coreCompetency] : 'Not audited'}
+          />
           <Info label="Year established" value={vendor.yearEstablished ?? '—'} />
           <Info label="Employees" value={vendor.numberOfEmployees ?? '—'} />
           <Info label="Annual turnover" value={vendor.annualTurnover ?? '—'} />
@@ -350,6 +355,7 @@ export default function VendorDetailPage() {
                   <TableHead>Date</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Auditor</TableHead>
+                  <TableHead>Core competency</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead>Classification</TableHead>
                   {canOverride && <TableHead className="text-right">Override</TableHead>}
@@ -361,6 +367,7 @@ export default function VendorDetailPage() {
                     <TableCell>{new Date(a.auditDate).toLocaleDateString()}</TableCell>
                     <TableCell>{a.auditType === 'PHYSICAL' ? 'Physical' : 'Virtual'}</TableCell>
                     <TableCell>{a.auditorName ?? '—'}</TableCell>
+                    <TableCell>{a.coreCompetency ? VENDOR_CORE_COMPETENCY_LABEL[a.coreCompetency] : '—'}</TableCell>
                     <TableCell className="text-right font-medium">
                       {a.totalScore} / 100
                     </TableCell>

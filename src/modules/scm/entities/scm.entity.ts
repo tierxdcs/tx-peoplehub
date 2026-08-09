@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   VendorAuditType,
+  VendorCoreCompetency,
   VendorQuestionnaireStatus,
   VendorStatus,
 } from '@prisma/client';
@@ -20,6 +21,8 @@ export class VendorEntity {
   @ApiProperty() contactEmail!: string;
   @ApiProperty({ nullable: true }) contactPhone!: string | null;
   @ApiProperty({ nullable: true }) website!: string | null;
+  @ApiProperty({ enum: VendorCoreCompetency, nullable: true })
+  coreCompetency!: VendorCoreCompetency | null;
   @ApiProperty({ enum: VendorStatus }) status!: VendorStatus;
   @ApiProperty({
     description:
@@ -150,6 +153,8 @@ export class VendorAuditEntity {
   @ApiProperty() auditDate!: string;
   @ApiProperty() auditorId!: string;
   @ApiProperty({ nullable: true }) auditorName!: string | null;
+  @ApiProperty({ enum: VendorCoreCompetency, nullable: true })
+  coreCompetency!: VendorCoreCompetency | null;
 
   @ApiProperty() manufacturingCapabilityScore!: string;
   @ApiProperty() capacityScore!: string;

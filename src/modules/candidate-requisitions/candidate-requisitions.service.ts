@@ -23,9 +23,10 @@ export class CandidateRequisitionsService {
     if (!user.verticalId) throw new BadRequestException('Your account must belong to a vertical before raising a requisition');
     const positionTitle = dto.positionTitle.trim(); const justification = dto.justification.trim();
     if (!positionTitle || !justification) throw new BadRequestException('Position title and justification are required');
+    if (!(dto.budgetAnnualCtc > 0)) throw new BadRequestException('An annual CTC budget greater than zero is required');
     return this.prisma.$transaction(async (tx) => {
       const requisitionNumber = await this.numbering.nextNumber('REQ', 'candidate_requisition', new Date().getFullYear(), tx);
-      return tx.candidateRequisition.create({ data: { requisitionNumber, requestedById: user.id, verticalId: user.verticalId!, positionTitle, employmentType: dto.employmentType, justification, targetJoiningDate: dto.targetJoiningDate ? new Date(dto.targetJoiningDate) : null }, include });
+      return tx.candidateRequisition.create({ data: { requisitionNumber, requestedById: user.id, verticalId: user.verticalId!, positionTitle, employmentType: dto.employmentType, justification, budgetAnnualCtc: dto.budgetAnnualCtc, targetJoiningDate: dto.targetJoiningDate ? new Date(dto.targetJoiningDate) : null }, include });
     });
   }
 

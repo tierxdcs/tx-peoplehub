@@ -12,10 +12,15 @@ describe('CandidateRequisitionsService', () => {
   const request = { id: 'req', requestedById: 'manager', status: CandidateRequisitionStatus.PENDING_VERTICAL_APPROVAL, vertical: { ownerId: 'owner' }, verticalApprovedAt: null };
   beforeEach(() => { jest.clearAllMocks(); prisma.$transaction.mockImplementation((cb: any) => cb(prisma)); });
 
-  it('derives the manager vertical and uses shared REQ numbering', async () => {
+  it('derives the manager vertical, persists the CTC budget, and uses shared REQ numbering', async () => {
     numbering.nextNumber.mockResolvedValue('REQ-2026-0001'); prisma.candidateRequisition.create.mockImplementation(({ data }: any) => data);
-    const result: any = await service.create({ positionTitle: 'Engineer', employmentType: 'FULL_TIME' as any, justification: 'Growth' }, manager);
-    expect(result.verticalId).toBe('sales'); expect(result.requisitionNumber).toBe('REQ-2026-0001');
+    const result: any = await service.create({ positionTitle: 'Engineer', employmentType: 'FULL_TIME' as any, justification: 'Growth', budgetAnnualCtc: 1200000 }, manager);
+    expect(result.verticalId).toBe('sales'); expect(result.requisitionNumber).toBe('REQ-2026-0001'); expect(result.budgetAnnualCtc).toBe(1200000);
+  });
+
+  it('rejects a requisition without a positive CTC budget', async () => {
+    await expect(service.create({ positionTitle: 'Engineer', employmentType: 'FULL_TIME' as any, justification: 'Growth', budgetAnnualCtc: 0 }, manager)).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('keeps first-stage requisitions completely out of the SuperAdmin queue', async () => {

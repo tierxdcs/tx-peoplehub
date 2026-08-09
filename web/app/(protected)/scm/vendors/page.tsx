@@ -12,6 +12,8 @@ import {
   VENDOR_STATUS_LABEL,
   type Vendor,
   type VendorStatus,
+  type VendorCoreCompetency,
+  VENDOR_CORE_COMPETENCY_LABEL,
 } from '../../../lib/scm';
 import { uploadToPresignedUrl } from '../../../lib/vault-api';
 import { PageContainer } from '../../../components/ui/page-container';
@@ -54,6 +56,7 @@ export default function VendorsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<VendorStatus | ''>('');
+  const [competencyFilter, setCompetencyFilter] = useState<VendorCoreCompetency | ''>('');
   const [creating, setCreating] = useState(false);
   const [ndaUploading, setNdaUploading] = useState(false);
 
@@ -80,8 +83,11 @@ export default function VendorsPage() {
   }, [load]);
 
   const filtered = useMemo(
-    () => (statusFilter ? vendors.filter((s) => s.status === statusFilter) : vendors),
-    [vendors, statusFilter],
+    () => vendors.filter((vendor) =>
+      (!statusFilter || vendor.status === statusFilter) &&
+      (!competencyFilter || vendor.coreCompetency === competencyFilter),
+    ),
+    [vendors, statusFilter, competencyFilter],
   );
 
   return (
@@ -96,7 +102,7 @@ export default function VendorsPage() {
         }
       />
 
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <Select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as VendorStatus | '')}
@@ -107,6 +113,16 @@ export default function VendorsPage() {
             <option key={s} value={s}>
               {VENDOR_STATUS_LABEL[s]}
             </option>
+          ))}
+        </Select>
+        <Select
+          value={competencyFilter}
+          onChange={(e) => setCompetencyFilter(e.target.value as VendorCoreCompetency | '')}
+          className="h-9 w-64"
+        >
+          <option value="">All core competencies</option>
+          {Object.entries(VENDOR_CORE_COMPETENCY_LABEL).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
           ))}
         </Select>
         {user?.role === 'SUPER_ADMIN' && (
@@ -154,6 +170,7 @@ export default function VendorsPage() {
               <TableRow>
                 <TableHead>Company</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Core competency</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Created</TableHead>
               </TableRow>
@@ -162,7 +179,7 @@ export default function VendorsPage() {
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 4 }).map((__, j) => (
+                    {Array.from({ length: 5 }).map((__, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-4 w-28" />
                       </TableCell>
@@ -171,7 +188,7 @@ export default function VendorsPage() {
                 ))
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="p-0">
+                  <TableCell colSpan={5} className="p-0">
                     <EmptyState
                       icon={Factory}
                       title="No vendors yet"
@@ -196,6 +213,11 @@ export default function VendorsPage() {
                         <StatusBadge value={s.status} />
                         {s.statusOverridden && <OverrideTag />}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {s.coreCompetency
+                        ? VENDOR_CORE_COMPETENCY_LABEL[s.coreCompetency]
+                        : 'Not audited'}
                     </TableCell>
                     <TableCell>{s.contactPersonName ?? '—'}</TableCell>
                     <TableCell>

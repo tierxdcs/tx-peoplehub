@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { VendorAuditType, VendorStatus } from '@prisma/client';
+import { VendorAuditType, VendorCoreCompetency, VendorStatus } from '@prisma/client';
 import {
   IsDateString,
   IsEnum,
@@ -237,6 +237,10 @@ export class CreateAuditDto {
   @ApiProperty({ description: 'ISO date' })
   @IsDateString()
   auditDate!: string;
+
+  @ApiProperty({ enum: VendorCoreCompetency })
+  @IsEnum(VendorCoreCompetency)
+  coreCompetency!: VendorCoreCompetency;
 
   @ApiProperty() @IsNumber() @Min(0) @Max(20) manufacturingCapabilityScore!: number;
   @ApiProperty() @IsNumber() @Min(0) @Max(10) capacityScore!: number;

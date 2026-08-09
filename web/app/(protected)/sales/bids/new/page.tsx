@@ -56,6 +56,25 @@ const AMC_YEARS = [
   { yearNumber: 5, label: 'AMC Charges for 5th Year' },
 ] as const;
 
+/** How a year's AMC charge is entered: a direct rupee amount, or a percentage
+ *  of the bid's taxable (net-of-discount) value. Either way the bid stores a
+ *  flat rupee amount — the percentage is only an input convenience. */
+type AmcMode = 'amount' | 'percent';
+interface AmcInput {
+  mode: AmcMode;
+  value: string;
+}
+
+/** Resolve a year's typed input into a rupee AMC amount. Percentage mode is
+ *  computed against the taxable (post-discount) base. */
+function amcAmountFor(input: AmcInput, taxableBase: number): number {
+  const v = Number(input.value);
+  if (!v || v <= 0 || Number.isNaN(v)) return 0;
+  const raw = input.mode === 'percent' ? (taxableBase * v) / 100 : v;
+  // Match the server's 2-dp money rounding so the preview and payload agree.
+  return Math.round(raw * 100) / 100;
+}
+
 /** Client-side preview of bid totals. Always re-validated server-side on submit. */
 function computeTotals(
   lines: LineDraft[],
@@ -98,11 +117,11 @@ export default function NewBidPage() {
   const [attachmentName, setAttachmentName] = useState('');
   const [attachmentUrl, setAttachmentUrl] = useState('');
   const [discountPercent, setDiscountPercent] = useState('0');
-  const [amcAmounts, setAmcAmounts] = useState<Record<number, string>>({
-    2: '',
-    3: '',
-    4: '',
-    5: '',
+  const [amcInputs, setAmcInputs] = useState<Record<number, AmcInput>>({
+    2: { mode: 'amount', value: '' },
+    3: { mode: 'amount', value: '' },
+    4: { mode: 'amount', value: '' },
+    5: { mode: 'amount', value: '' },
   });
   const [lines, setLines] = useState<LineDraft[]>([blankLine()]);
   const [error, setError] = useState<string | null>(null);
@@ -129,8 +148,17 @@ export default function NewBidPage() {
     [lines, products, discountNum],
   );
   const needsApproval = discountNum > 10;
+  // Resolve each year to a rupee amount (percentage years use the taxable base),
+  // keyed by year so the UI can show a live per-row preview too.
+  const amcResolved = useMemo(() => {
+    const out: Record<number, number> = {};
+    for (const { yearNumber } of AMC_YEARS) {
+      out[yearNumber] = amcAmountFor(amcInputs[yearNumber], totals.taxable);
+    }
+    return out;
+  }, [amcInputs, totals.taxable]);
   const amcTotal = AMC_YEARS.reduce(
-    (sum, { yearNumber }) => sum + (Number(amcAmounts[yearNumber]) || 0),
+    (sum, { yearNumber }) => sum + amcResolved[yearNumber],
     0,
   );
 
@@ -205,7 +233,7 @@ export default function NewBidPage() {
           discountPercent: discountNum,
           amcCharges: AMC_YEARS.map(({ yearNumber }) => ({
             yearNumber,
-            amount: Number(amcAmounts[yearNumber]) || 0,
+            amount: amcResolved[yearNumber],
           })).filter((charge) => charge.amount > 0),
           lineItems: validLines.map((l) => ({
             ...(l.adHoc
@@ -515,32 +543,68 @@ export default function NewBidPage() {
         </div>
 
         <section className="mb-4 max-w-md rounded-md border p-4">
-          <h3 className="mb-3 text-base font-semibold">AMC Charges</h3>
+          <h3 className="mb-1 text-base font-semibold">AMC Charges</h3>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Enter each year as a direct amount, or switch to % to charge a
+            percentage of the taxable value ({formatINR(totals.taxable, numberFormatStyle)}).
+          </p>
           <div className="space-y-3">
-            {AMC_YEARS.map(({ yearNumber, label }) => (
-              <label
-                key={yearNumber}
-                className="grid gap-1 text-sm sm:grid-cols-[1fr_160px] sm:items-center"
-              >
-                <span>{label}</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  inputMode="decimal"
-                  value={amcAmounts[yearNumber]}
-                  onChange={(event) =>
-                    setAmcAmounts((current) => ({
-                      ...current,
-                      [yearNumber]: event.target.value,
-                    }))
-                  }
-                  placeholder="0.00"
-                  aria-label={label}
-                  style={fieldStyle}
-                />
-              </label>
-            ))}
+            {AMC_YEARS.map(({ yearNumber, label }) => {
+              const input = amcInputs[yearNumber];
+              const isPercent = input.mode === 'percent';
+              return (
+                <div
+                  key={yearNumber}
+                  className="grid gap-1 text-sm sm:grid-cols-[1fr_110px_170px] sm:items-center"
+                >
+                  <span>{label}</span>
+                  <select
+                    value={input.mode}
+                    onChange={(event) =>
+                      setAmcInputs((current) => ({
+                        ...current,
+                        [yearNumber]: {
+                          ...current[yearNumber],
+                          mode: event.target.value as AmcMode,
+                        },
+                      }))
+                    }
+                    aria-label={`${label} — entry mode`}
+                    style={{ padding: 4 }}
+                  >
+                    <option value="amount">Amount (₹)</option>
+                    <option value="percent">Percent (%)</option>
+                  </select>
+                  <div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={isPercent ? 100 : undefined}
+                      step="0.01"
+                      inputMode="decimal"
+                      value={input.value}
+                      onChange={(event) =>
+                        setAmcInputs((current) => ({
+                          ...current,
+                          [yearNumber]: {
+                            ...current[yearNumber],
+                            value: event.target.value,
+                          },
+                        }))
+                      }
+                      placeholder={isPercent ? '0' : '0.00'}
+                      aria-label={`${label} — ${isPercent ? 'percent' : 'amount'}`}
+                      style={fieldStyle}
+                    />
+                    {isPercent && amcResolved[yearNumber] > 0 && (
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        = {formatINR(amcResolved[yearNumber], numberFormatStyle)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
           <div className="mt-3 flex justify-between border-t pt-3 font-semibold">
             <span>AMC Total</span>

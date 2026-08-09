@@ -24,6 +24,32 @@ export type VendorStatus =
 
 export type QuestionnaireStatus = 'SENT' | 'SUBMITTED';
 export type AuditType = 'PHYSICAL' | 'VIRTUAL';
+export type VendorCoreCompetency =
+  | 'SHEET_METAL'
+  | 'FABRICATION'
+  | 'PDU_MANUFACTURER'
+  | 'MODULAR_DATA_CENTER'
+  | 'ELECTRICAL_PANELS'
+  | 'PRECISION_MACHINING'
+  | 'POWDER_COATING_SURFACE_FINISHING'
+  | 'CABLE_HARNESS'
+  | 'HVAC_COOLING'
+  | 'SYSTEM_INTEGRATION'
+  | 'OTHER';
+
+export const VENDOR_CORE_COMPETENCY_LABEL: Record<VendorCoreCompetency, string> = {
+  SHEET_METAL: 'Sheet Metal',
+  FABRICATION: 'Fabrication',
+  PDU_MANUFACTURER: 'PDU Manufacturer',
+  MODULAR_DATA_CENTER: 'Modular Data Center (MDC)',
+  ELECTRICAL_PANELS: 'Electrical Panels',
+  PRECISION_MACHINING: 'Precision Machining',
+  POWDER_COATING_SURFACE_FINISHING: 'Powder Coating / Surface Finishing',
+  CABLE_HARNESS: 'Cable Harness',
+  HVAC_COOLING: 'HVAC / Cooling',
+  SYSTEM_INTEGRATION: 'System Integration',
+  OTHER: 'Other',
+};
 export type VendorClassification =
   | 'APPROVED_PREFERRED'
   | 'APPROVED'
@@ -44,6 +70,7 @@ export interface Vendor {
   contactEmail: string;
   contactPhone: string | null;
   website: string | null;
+  coreCompetency: VendorCoreCompetency | null;
   status: VendorStatus;
   /** True when `status` came from a SuperAdmin override, not the audit score. */
   statusOverridden: boolean;
@@ -143,6 +170,7 @@ export interface VendorAudit {
   auditDate: string;
   auditorId: string;
   auditorName: string | null;
+  coreCompetency: VendorCoreCompetency | null;
   manufacturingCapabilityScore: string;
   capacityScore: string;
   qualitySystemScore: string;
@@ -259,6 +287,7 @@ export interface CreateAuditInput {
   questionnaireId: string;
   auditType: AuditType;
   auditDate: string;
+  coreCompetency: VendorCoreCompetency;
   manufacturingCapabilityScore: number;
   capacityScore: number;
   qualitySystemScore: number;
