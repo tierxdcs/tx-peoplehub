@@ -1,4 +1,6 @@
 'use client';
+
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useFinanceAccess } from '../../../lib/use-finance-access';
@@ -9,6 +11,8 @@ import { Select } from '../../../components/ui/select';
 import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
 import { useToast } from '../../../components/ui/toaster';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { serverPageCount } from '../../../lib/server-pagination';
 type Account = {
   id: string;
   accountName: string;
@@ -53,7 +57,8 @@ type Statement = {
   lines?: Line[];
   _count?: { lines: number };
 };
-type Page<T> = { items: T[] };
+type Page<T> = { items: T[]; total: number };
+const PAGE_SIZE = 25;
 type Candidate = {
   id: string;
   receiptNumber?: string;
@@ -70,6 +75,8 @@ export default function BankReconciliationPage() {
   const [accounts, setAccounts] = useState<Account[]>([]),
     [ledgers, setLedgers] = useState<Ledger[]>([]),
     [statements, setStatements] = useState<Statement[]>([]),
+    [page, setPage] = useState(1),
+    [total, setTotal] = useState(0),
     [selected, setSelected] = useState<Statement | null>(null),
     [bankName, setBankName] = useState(''),
     [accountName, setAccountName] = useState('Operating Account'),
@@ -88,11 +95,12 @@ export default function BankReconciliationPage() {
     Promise.all([
       apiFetch<Account[]>('/finance/operations/bank-accounts'),
       apiFetch<Ledger[]>('/finance/accounts'),
-      apiFetch<Page<Statement>>('/finance/operations/statements?limit=100'),
+      apiFetch<Page<Statement>>(`/finance/operations/statements?page=${page}&limit=${PAGE_SIZE}`),
     ]).then(([a, l, s]) => {
       setAccounts(a);
       setLedgers(l.filter((x) => x.accountType === 'ASSET'));
       setStatements(s.items);
+      setTotal(s.total);
       if (!bankId && a[0]) setBankId(a[0].id);
       if (!ledgerId && l[0]) setLedgerId(l[0].id);
     });
@@ -102,7 +110,7 @@ export default function BankReconciliationPage() {
         e instanceof ApiError ? e.message : 'Failed to load reconciliation',
       ),
     );
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
   async function createAccount(e: FormEvent) {
     e.preventDefault();
     try {
@@ -314,40 +322,45 @@ export default function BankReconciliationPage() {
       </Card>
       <Card className="mb-6">
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="p-3">Statement</th>
-                <th>Account</th>
-                <th>Period</th>
-                <th>Balance</th>
-                <th>Lines</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHeader>
+              <TableRow className="border-b text-left">
+                <TableHead className="p-3">Statement</TableHead>
+                <TableHead>Account</TableHead>
+                <TableHead>Period</TableHead>
+                <TableHead>Balance</TableHead>
+                <TableHead>Lines</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {statements.map((s) => (
-                <tr
+                <TableRow
                   className="border-b cursor-pointer"
                   key={s.id}
                   onClick={() => open(s.id)}
                 >
-                  <td className="p-3 font-mono">{s.statementNumber}</td>
-                  <td>{s.bankAccount.accountName}</td>
-                  <td>
+                  <TableCell className="p-3 font-mono">{s.statementNumber}</TableCell>
+                  <TableCell>{s.bankAccount.accountName}</TableCell>
+                  <TableCell>
                     {s.periodFrom.slice(0, 10)} – {s.periodTo.slice(0, 10)}
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     {s.openingBalance} → {s.closingBalance}
-                  </td>
-                  <td>{s._count?.lines}</td>
-                  <td>{s.status.replaceAll('_', ' ')}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell>{s._count?.lines}</TableCell>
+                  <TableCell>{s.status.replaceAll('_', ' ')}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
+      <RegisterPagination
+        page={page}
+        pageCount={serverPageCount(total, PAGE_SIZE)}
+        onPageChange={setPage}
+      />
       {selected?.lines && (
         <Card>
           <CardContent className="p-0 overflow-x-auto">
@@ -380,31 +393,31 @@ export default function BankReconciliationPage() {
                 )}
               </div>
             </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left">
-                  <th className="p-3">Date</th>
-                  <th>Description / Reference</th>
-                  <th>Debit</th>
-                  <th>Credit</th>
-                  <th>Resolution</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-sm">
+              <TableHeader>
+                <TableRow className="border-b text-left">
+                  <TableHead className="p-3">Date</TableHead>
+                  <TableHead>Description / Reference</TableHead>
+                  <TableHead>Debit</TableHead>
+                  <TableHead>Credit</TableHead>
+                  <TableHead>Resolution</TableHead>
+                  <TableHead>Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {selected.lines.map((l) => (
-                  <tr className="border-b" key={l.id}>
-                    <td className="p-3">{l.transactionDate.slice(0, 10)}</td>
-                    <td>
+                  <TableRow className="border-b" key={l.id}>
+                    <TableCell className="p-3">{l.transactionDate.slice(0, 10)}</TableCell>
+                    <TableCell>
                       {l.description}
                       <br />
                       <span className="font-mono text-xs">
                         {l.bankReference}
                       </span>
-                    </td>
-                    <td>{l.debitAmount}</td>
-                    <td>{l.creditAmount}</td>
-                    <td>
+                    </TableCell>
+                    <TableCell>{l.debitAmount}</TableCell>
+                    <TableCell>{l.creditAmount}</TableCell>
+                    <TableCell>
                       {l.resolution.replaceAll('_', ' ')}
                       {l.match && (
                         <div className="text-xs">
@@ -414,8 +427,8 @@ export default function BankReconciliationPage() {
                       {l.exceptionReason && (
                         <div className="text-xs">{l.exceptionReason}</div>
                       )}
-                    </td>
-                    <td className="space-x-1">
+                    </TableCell>
+                    <TableCell className="space-x-1">
                       {l.resolution === 'PENDING' && l.match && (
                         <Button
                           size="sm"
@@ -474,11 +487,11 @@ export default function BankReconciliationPage() {
                           ))}
                         </Select>
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}

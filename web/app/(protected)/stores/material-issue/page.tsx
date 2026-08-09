@@ -19,6 +19,8 @@ import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { EmptyState } from '../../../components/ui/empty-state';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
 import { Skeleton } from '../../../components/ui/skeleton';
 import {
   Table,
@@ -44,6 +46,9 @@ export default function MaterialIssuePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [issuing, setIssuing] = useState<MaterialIndent | null>(null);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,6 +101,12 @@ export default function MaterialIssuePage() {
     () => Object.fromEntries(indents.map((i) => [i.id, i])),
     [indents],
   );
+  const query = search.trim().toLowerCase();
+  const matchingPending = pending.filter((item) => `${item.indentNumber} ${item.projectName ?? ''} ${item.itemCode} ${item.itemName} ${item.status}`.toLowerCase().includes(query));
+  const matchingIssues = recentIssues.filter((item) => `${item.minNumber} ${item.itemCode} ${item.itemName ?? ''} ${item.issuedByName ?? ''}`.toLowerCase().includes(query));
+  const pageCount = Math.max(1, Math.ceil(Math.max(matchingPending.length, matchingIssues.length) / pageSize));
+  const visiblePending = matchingPending.slice((page - 1) * pageSize, page * pageSize);
+  const visibleIssues = matchingIssues.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <PageContainer className="max-w-6xl">
@@ -108,6 +119,7 @@ export default function MaterialIssuePage() {
           </Button>
         }
       />
+      <RegisterToolbar title="Material Issue Register" search={search} onSearchChange={(value) => { setSearch(value); setPage(1); }} searchPlaceholder="Search indent, MIN, project, item or status" />
 
       {loading ? (
         <Skeleton className="h-64 w-full" />
@@ -120,7 +132,7 @@ export default function MaterialIssuePage() {
               <CardTitle className="text-base">Pending Indents</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {pending.length === 0 ? (
+              {visiblePending.length === 0 ? (
                 <EmptyState
                   icon={PackageMinus}
                   title="No pending indents"
@@ -141,7 +153,7 @@ export default function MaterialIssuePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pending.map((ind) => {
+                    {visiblePending.map((ind) => {
                       const stock = stockByItem[ind.itemId] ?? 0;
                       return (
                         <TableRow key={ind.id}>
@@ -183,7 +195,7 @@ export default function MaterialIssuePage() {
               <CardTitle className="text-base">Recent Issues (MIN)</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {recentIssues.length === 0 ? (
+              {visibleIssues.length === 0 ? (
                 <EmptyState icon={PackageMinus} title="No material issued yet" />
               ) : (
                 <Table>
@@ -199,7 +211,7 @@ export default function MaterialIssuePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentIssues.map((note) => {
+                    {visibleIssues.map((note) => {
                       const ind = indentById[note.materialIndentId];
                       // Short if the indent didn't reach fully-issued from this note's
                       // perspective; we mark ongoing partials as short.
@@ -231,6 +243,7 @@ export default function MaterialIssuePage() {
           </Card>
         </div>
       )}
+      <RegisterPagination page={page} pageCount={pageCount} onPageChange={setPage} disabled={loading} />
 
       {issuing && (
         <IssueDialog

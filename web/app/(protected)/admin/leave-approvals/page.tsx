@@ -11,6 +11,18 @@ import {
 } from '../../../lib/types';
 import { useToast } from '../../../components/ui/toaster';
 import { useConfirm } from '../../../components/ui/confirm';
+import { PageContainer } from '../../../components/ui/page-container';
+import { PageHeader } from '../../../components/ui/page-header';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { Card, CardContent } from '../../../components/ui/card';
+import { Select } from '../../../components/ui/select';
+import { Input } from '../../../components/ui/input';
+import { Button } from '../../../components/ui/button';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { ClipboardCheck } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import { useRegisterList } from '../../../lib/use-register-list';
 
 /**
  * Same /leave-requests/pending-approval endpoint as the Manager screen —
@@ -78,6 +90,7 @@ export default function AdminLeaveApprovalsPage() {
     if (!verticalFilter) return true;
     return employees[r.employeeId]?.verticalId === verticalFilter;
   });
+  const register = useRegisterList(filtered, (request) => { const employee = employees[request.employeeId]; return `${employee?.firstName ?? ''} ${employee?.lastName ?? ''} ${request.status} ${leaveTypeName(request.leaveTypeId)} ${verticalName(employee?.verticalId ?? null)} ${request.reason}`; });
 
   async function act(id: string, action: 'approve' | 'reject') {
     const ok = await confirm(
@@ -107,14 +120,12 @@ export default function AdminLeaveApprovalsPage() {
   }
 
   return (
-    <div>
-      <h1>All Pending Approvals</h1>
-
-      <div style={{ marginBottom: 16 }}>
-        <select
+    <PageContainer>
+      <PageHeader title="Leave Approvals" description="Review pending leave requests across the company." />
+      <RegisterToolbar title="Approval Queue" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search requester, status, type or vertical" filters={<Select
           value={verticalFilter}
           onChange={(e) => setVerticalFilter(e.target.value)}
-          style={{ padding: 6 }}
+          className="w-48"
         >
           <option value="">All verticals</option>
           {verticals.map((v) => (
@@ -122,73 +133,43 @@ export default function AdminLeaveApprovalsPage() {
               {v.name}
             </option>
           ))}
-        </select>
-      </div>
+        </Select>} />
 
       {error && <p className="text-destructive">{error}</p>}
       {loading ? (
-        <p>Loading…</p>
-      ) : filtered.length === 0 ? (
-        <p>No pending requests.</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
-              <th>Employee</th>
-              <th>Vertical</th>
-              <th>Type</th>
-              <th>Dates</th>
-              <th>Days</th>
-              <th>Reason</th>
-              <th>Requested</th>
-              <th>Comment</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((r) => {
+        <Card><CardContent className="p-0"><Table>
+          <TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Vertical</TableHead><TableHead>Type</TableHead><TableHead>Dates</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Requested</TableHead><TableHead>Comment</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {register.visibleItems.map((r) => {
               const emp = employees[r.employeeId];
               return (
-                <tr key={r.id} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
-                  <td>{emp ? `${emp.firstName} ${emp.lastName}` : r.employeeId}</td>
-                  <td>{verticalName(emp?.verticalId ?? null)}</td>
-                  <td>{leaveTypeName(r.leaveTypeId)}</td>
-                  <td>
+                <TableRow key={r.id}>
+                  <TableCell>{emp ? `${emp.firstName} ${emp.lastName}` : r.employeeId}</TableCell><TableCell>{verticalName(emp?.verticalId ?? null)}</TableCell><TableCell>{leaveTypeName(r.leaveTypeId)}</TableCell><TableCell>
                     {r.startDate.slice(0, 10)} → {r.endDate.slice(0, 10)}
-                  </td>
-                  <td>{r.numberOfDays}</td>
-                  <td>{r.reason}</td>
-                  <td>{new Date(r.createdAt).toLocaleDateString()}</td>
-                  <td>
-                    <input
+                  </TableCell><TableCell>{r.numberOfDays}</TableCell><TableCell>{r.reason}</TableCell><TableCell>{new Date(r.createdAt).toLocaleDateString()}</TableCell><TableCell><Input
                       placeholder="Optional comment"
                       value={comments[r.id] ?? ''}
                       onChange={(e) =>
                         setComments((c) => ({ ...c, [r.id]: e.target.value }))
                       }
-                      style={{ padding: 4, width: 140 }}
-                    />
-                  </td>
-                  <td style={{ display: 'flex', gap: 4 }}>
-                    <button
+                      className="min-w-40"
+                    /></TableCell>
+                  <TableCell><div className="flex justify-end gap-2"><Button size="sm"
                       disabled={acting === r.id}
                       onClick={() => act(r.id, 'approve')}
-                    >
-                      Approve
-                    </button>
-                    <button
+                    >Approve</Button><Button size="sm" variant="destructive"
                       disabled={acting === r.id}
                       onClick={() => act(r.id, 'reject')}
-                    >
-                      Reject
-                    </button>
-                  </td>
-                </tr>
+                    >Reject</Button></div></TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+            {!register.visibleItems.length && <TableRow><TableCell colSpan={9} className="p-0"><EmptyState icon={ClipboardCheck} title="No pending leave requests match your filters" tone="positive" /></TableCell></TableRow>}
+          </TableBody></Table></CardContent></Card>
       )}
-    </div>
+      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
+    </PageContainer>
   );
 }

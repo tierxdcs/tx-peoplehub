@@ -11,6 +11,16 @@ import { useBusinessUnitOptions } from '../../../lib/business-units';
 import { Button } from '../../../components/ui/button';
 import { BusinessUnitLabel } from '../../../components/ui/business-unit-label';
 import { ProductForm } from '../_components/product-form';
+import { PageContainer } from '../../../components/ui/page-container';
+import { PageHeader } from '../../../components/ui/page-header';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { Card, CardContent } from '../../../components/ui/card';
+import { Select } from '../../../components/ui/select';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { StatusBadge } from '../../../components/ui/status-badge';
+import { PackageSearch } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
 
 export default function ProductsPage() {
   const { user } = useAuth();
@@ -68,43 +78,20 @@ export default function ProductsPage() {
   );
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <h1>Product Catalog</h1>
-        {canEdit && (
+    <PageContainer>
+      <PageHeader title="Product Catalog" description="Products available for sales quotations and product lifecycle tracking." action={canEdit ? (
           <Button onClick={() => setEditing('new')}>
             <Plus /> New Product
           </Button>
-        )}
-      </div>
+        ) : undefined} />
 
       {/* Filters apply to the products on the current page (client-side),
           matching the existing search behaviour. */}
-      <div
-        style={{
-          marginBottom: 16,
-          display: 'flex',
-          gap: 12,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-        }}
-      >
-        <input
-          placeholder="Search SKU or name"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: 6 }}
-        />
-        <select
+      <RegisterToolbar title="Product Register" search={search} onSearchChange={setSearch} searchPlaceholder="Search SKU or product name" filters={<>
+        <Select
           value={buFilter}
           onChange={(e) => setBuFilter(e.target.value)}
-          style={{ padding: 6 }}
+          className="w-52"
         >
           <option value="">All business units</option>
           {businessUnits.map((b) => (
@@ -112,15 +99,8 @@ export default function ProductsPage() {
               {b.name}
             </option>
           ))}
-        </select>
-        <label
-          style={{
-            fontSize: 14,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
+        </Select>
+        <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={autoOnly}
@@ -128,34 +108,19 @@ export default function ProductsPage() {
           />
           Auto-assigned only (needs review)
         </label>
-      </div>
+      </>} />
 
       {error && <p className="text-destructive">{error}</p>}
       {loading ? (
         <p>Loading…</p>
       ) : (
         <>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
-                <th>SKU</th>
-                <th>Name</th>
-                <th>Business Unit</th>
-                <th>Unit Price</th>
-                {canSeeCost && <th>Released BOM Cost</th>}
-                {canSeeCost && <th>Target Margin</th>}
-                {canSeeCost && <th>Actual Margin</th>}
-                <th>UoM</th>
-                <th>Active</th>
-                {canEdit && <th></th>}
-              </tr>
-            </thead>
-            <tbody>
+          <Card><CardContent className="p-0"><Table>
+            <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Name</TableHead><TableHead>Business Unit</TableHead><TableHead>Unit Price</TableHead>{canSeeCost && <TableHead>Released BOM Cost</TableHead>}{canSeeCost && <TableHead>Target Margin</TableHead>}{canSeeCost && <TableHead>Actual Margin</TableHead>}<TableHead>UoM</TableHead><TableHead>Active</TableHead>{canEdit && <TableHead />}</TableRow></TableHeader>
+            <TableBody>
               {filtered.map((p) => (
-                <tr key={p.id} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
-                  <td>{p.sku}</td>
-                  <td>{p.name}</td>
-                  <td>
+                <TableRow key={p.id}>
+                  <TableCell>{p.sku}</TableCell><TableCell>{p.name}</TableCell><TableCell>
                     <BusinessUnitLabel
                       name={p.businessUnitName}
                       colorHex={p.businessUnitColorHex}
@@ -172,33 +137,31 @@ export default function ProductsPage() {
                         ✨ auto
                       </span>
                     )}
-                  </td>
-                  <td>{formatINR(p.unitPrice, numberFormatStyle)}</td>
+                  </TableCell><TableCell>{formatINR(p.unitPrice, numberFormatStyle)}</TableCell>
                   {canSeeCost && (
-                    <td>
+                    <TableCell>
                       {p.rolledUpCostSnapshot == null
                         ? '—'
                         : formatINR(p.rolledUpCostSnapshot, numberFormatStyle)}
-                    </td>
+                    </TableCell>
                   )}
                   {canSeeCost && (
-                    <td>
+                    <TableCell>
                       {p.targetMarginPercent == null
                         ? '—'
                         : `${Number(p.targetMarginPercent).toFixed(2)}%`}
-                    </td>
+                    </TableCell>
                   )}
                   {canSeeCost && (
-                    <td>
+                    <TableCell>
                       {p.actualMarginPercent == null
                         ? '—'
                         : `${Number(p.actualMarginPercent).toFixed(2)}%`}
-                    </td>
+                    </TableCell>
                   )}
-                  <td>{p.unitOfMeasure}</td>
-                  <td>{p.isActive ? 'Yes' : 'No'}</td>
+                  <TableCell>{p.unitOfMeasure}</TableCell><TableCell><StatusBadge value={p.isActive ? 'ACTIVE' : 'INACTIVE'} /></TableCell>
                   {canEdit && (
-                    <td>
+                    <TableCell>
                       <Button
                         variant="outline"
                         size="sm"
@@ -206,44 +169,20 @@ export default function ProductsPage() {
                       >
                         Edit
                       </Button>
-                    </td>
+                    </TableCell>
                   )}
-                </tr>
+                </TableRow>
               ))}
               {filtered.length === 0 && (
-                <tr>
-                  <td
+                <TableRow><TableCell
                     colSpan={(canEdit ? 7 : 6) + (canSeeCost ? 3 : 0)}
-                    style={{ padding: 12, color: 'hsl(var(--muted-foreground))' }}
+                    className="p-0"
                   >
-                    No products.
-                  </td>
-                </tr>
+                    <EmptyState icon={PackageSearch} title="No products match your filters" />
+                  </TableCell></TableRow>
               )}
-            </tbody>
-          </table>
-
-          <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Prev
-            </Button>
-            <span>
-              Page {page} of {Math.max(1, Math.ceil(total / limit))}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page * limit >= total}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
+            </TableBody></Table></CardContent></Card>
+          <RegisterPagination page={page} pageCount={Math.ceil(total / limit)} onPageChange={setPage} disabled={loading} />
         </>
       )}
 
@@ -257,6 +196,6 @@ export default function ProductsPage() {
           }}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }

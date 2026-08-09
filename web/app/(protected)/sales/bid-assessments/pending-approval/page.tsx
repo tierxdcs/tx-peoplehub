@@ -33,14 +33,25 @@ import {
 } from '../../../../components/ui/dialog';
 import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
+import { RegisterToolbar } from '../../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../../components/ui/register-pagination';
+import { EmptyState } from '../../../../components/ui/empty-state';
+import { ClipboardCheck } from 'lucide-react';
+import { useRegisterList } from '../../../../lib/use-register-list';
+import {
+  employeeNameOrFallback,
+  resolveEmployeeNames,
+} from '../../../../lib/employee-name-resolution';
 
 export default function BidAssessmentQueuePage() {
   const toast = useToast();
   const [items, setItems] = useState<BidDecisionAssessment[]>([]);
   const [oppNames, setOppNames] = useState<Record<string, string>>({});
+  const [submitterNames, setSubmitterNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [selected, setSelected] = useState<BidDecisionAssessment | null>(null);
+  const register = useRegisterList(items, (item) => `${oppNames[item.opportunityId] ?? item.opportunityId} ${employeeNameOrFallback(submitterNames, item.submittedById)} ${item.status} ${item.createdAt}`);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,6 +76,9 @@ export default function BidAssessmentQueuePage() {
         ),
       );
       setOppNames(names);
+      setSubmitterNames(
+        await resolveEmployeeNames(res.items.map((a) => a.submittedById)),
+      );
     } catch (err) {
       if (err instanceof ApiError && err.statusCode === 403) {
         setForbidden(true);
@@ -100,6 +114,7 @@ export default function BidAssessmentQueuePage() {
         title="Bid/No-Bid Approvals"
         description="Assessments awaiting your review. Approve to let the rep create a bid, or reject with feedback."
       />
+      <RegisterToolbar title="Approval Queue" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search opportunity, requester or status" />
 
       <Card>
         <CardContent className="pt-6">
@@ -108,7 +123,7 @@ export default function BidAssessmentQueuePage() {
           ) : (
             <>
               <div className="space-y-3 md:hidden">
-                {items.map((assessment) => (
+                {register.visibleItems.map((assessment) => (
                   <article
                     key={assessment.id}
                     className="space-y-3 rounded-lg border p-4"
@@ -119,7 +134,7 @@ export default function BidAssessmentQueuePage() {
                           assessment.opportunityId}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Submitted {dateOnlyStr(assessment.createdAt)}
+                        {employeeNameOrFallback(submitterNames, assessment.submittedById)} · Submitted {dateOnlyStr(assessment.createdAt)}
                       </p>
                     </div>
                     <Button
@@ -131,11 +146,7 @@ export default function BidAssessmentQueuePage() {
                     </Button>
                   </article>
                 ))}
-                {items.length === 0 && (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    No assessments pending review.
-                  </p>
-                )}
+                {!register.visibleItems.length && <EmptyState icon={ClipboardCheck} title="No assessments pending review" tone="positive" />}
               </div>
               <div className="hidden md:block">
                 <Table>
@@ -143,16 +154,18 @@ export default function BidAssessmentQueuePage() {
                     <TableRow>
                       <TableHead>Opportunity</TableHead>
                       <TableHead>Submitted</TableHead>
+                      <TableHead>Requester</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {items.map((a) => (
+                    {register.visibleItems.map((a) => (
                       <TableRow key={a.id}>
                         <TableCell className="font-medium">
                           {oppNames[a.opportunityId] ?? a.opportunityId}
                         </TableCell>
                         <TableCell>{dateOnlyStr(a.createdAt)}</TableCell>
+                        <TableCell>{employeeNameOrFallback(submitterNames, a.submittedById)}</TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="outline"
@@ -164,13 +177,13 @@ export default function BidAssessmentQueuePage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {items.length === 0 && (
+                    {register.visibleItems.length === 0 && (
                       <TableRow>
                         <TableCell
-                          colSpan={3}
-                          className="text-center text-muted-foreground"
+                          colSpan={4}
+                          className="p-0"
                         >
-                          No assessments pending review.
+                          <EmptyState icon={ClipboardCheck} title="No assessments pending review" tone="positive" />
                         </TableCell>
                       </TableRow>
                     )}
@@ -181,6 +194,7 @@ export default function BidAssessmentQueuePage() {
           )}
         </CardContent>
       </Card>
+      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
 
       {selected && (
         <ReviewDialog

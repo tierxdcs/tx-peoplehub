@@ -1,4 +1,6 @@
 'use client';
+
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../../components/ui/table';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ApiError, apiFetch } from '../../../../lib/api';
@@ -12,6 +14,8 @@ import { Select } from '../../../../components/ui/select';
 import { PageContainer } from '../../../../components/ui/page-container';
 import { PageHeader } from '../../../../components/ui/page-header';
 import { useToast } from '../../../../components/ui/toaster';
+import { RegisterPagination } from '../../../../components/ui/register-pagination';
+import { serverPageCount } from '../../../../lib/server-pagination';
 
 type Partner = { id: string; companyName: string };
 type PoLine = {
@@ -45,7 +49,8 @@ type Invoice = {
   supplier?: Partner;
   vendor?: Partner;
 };
-type Page<T> = { items: T[] };
+type Page<T> = { items: T[]; total: number };
+const PAGE_SIZE = 25;
 
 export default function VendorInvoicesPage() {
   const toast = useToast();
@@ -55,6 +60,7 @@ export default function VendorInvoicesPage() {
     [vendors, setVendors] = useState<Partner[]>([]),
     [pos, setPos] = useState<Po[]>([]),
     [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [page, setPage] = useState(1), [total, setTotal] = useState(0);
   const [partyType, setPartyType] = useState('SUPPLIER'),
     [partyId, setPartyId] = useState(''),
     [poId, setPoId] = useState(''),
@@ -79,12 +85,13 @@ export default function VendorInvoicesPage() {
         '/finance/ap/reference/partners',
       ),
       apiFetch<Po[]>('/finance/ap/reference/purchase-orders'),
-      apiFetch<Page<Invoice>>('/finance/ap/invoices?limit=100'),
+      apiFetch<Page<Invoice>>(`/finance/ap/invoices?page=${page}&limit=${PAGE_SIZE}`),
     ]).then(([p, o, i]) => {
       setSuppliers(p.suppliers);
       setVendors(p.vendors);
       setPos(o);
       setInvoices(i.items);
+      setTotal(i.total);
       if (!partyId && (p.suppliers[0] || p.vendors[0])) {
         setPartyType(p.suppliers[0] ? 'SUPPLIER' : 'VENDOR');
         setPartyId((p.suppliers[0] || p.vendors[0]).id);
@@ -94,7 +101,7 @@ export default function VendorInvoicesPage() {
     load().catch((e) =>
       toast.error(e instanceof ApiError ? e.message : 'Failed to load AP'),
     );
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
   const tax = useMemo(
     () => Number(cgst) + Number(sgst) + Number(igst),
     [cgst, sgst, igst],
@@ -310,36 +317,36 @@ export default function VendorInvoicesPage() {
       </Card>
       <Card>
         <CardContent className="overflow-x-auto p-0">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="p-3">Bill / Supplier ref</th>
-                <th>Party</th>
-                <th>Due</th>
-                <th>Total / Outstanding</th>
-                <th>Match</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHeader>
+              <TableRow className="border-b text-left">
+                <TableHead className="p-3">Bill / Supplier ref</TableHead>
+                <TableHead>Party</TableHead>
+                <TableHead>Due</TableHead>
+                <TableHead>Total / Outstanding</TableHead>
+                <TableHead>Match</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {invoices.map((i) => (
-                <tr className="border-b" key={i.id}>
-                  <td className="p-3 font-mono">
+                <TableRow className="border-b" key={i.id}>
+                  <TableCell className="p-3 font-mono">
                     {i.internalBillNumber}
                     <br />
                     <span className="text-xs">{i.externalInvoiceNumber}</span>
-                  </td>
-                  <td>{i.supplier?.companyName || i.vendor?.companyName}</td>
-                  <td>{i.dueDate.slice(0, 10)}</td>
-                  <td>
+                  </TableCell>
+                  <TableCell>{i.supplier?.companyName || i.vendor?.companyName}</TableCell>
+                  <TableCell>{i.dueDate.slice(0, 10)}</TableCell>
+                  <TableCell>
                     {formatINR(i.totalAmount, numberFormatStyle)}
                     <br />
                     {formatINR(i.outstandingAmount, numberFormatStyle)} open
-                  </td>
-                  <td>{i.matchStatus.replaceAll('_', ' ')}</td>
-                  <td>{i.status.replaceAll('_', ' ')}</td>
-                  <td className="space-x-1">
+                  </TableCell>
+                  <TableCell>{i.matchStatus.replaceAll('_', ' ')}</TableCell>
+                  <TableCell>{i.status.replaceAll('_', ' ')}</TableCell>
+                  <TableCell className="space-x-1">
                     {[
                       'DRAFT',
                       'PENDING_MATCH',
@@ -391,13 +398,14 @@ export default function VendorInvoicesPage() {
                           </Button>
                         </>
                       )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
+      <RegisterPagination page={page} pageCount={serverPageCount(total, PAGE_SIZE)} onPageChange={setPage} />
     </PageContainer>
   );
 }

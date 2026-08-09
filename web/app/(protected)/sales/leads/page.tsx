@@ -27,7 +27,7 @@ import { useBusinessUnitOptions } from '../../../lib/business-units';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
-import { RegisterToolbar } from '../_components/register-toolbar';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
 import { Textarea } from '../../../components/ui/textarea';
 import { Field } from '../../../components/ui/field';
 import { Label } from '../../../components/ui/label';

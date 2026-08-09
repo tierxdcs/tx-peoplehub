@@ -20,6 +20,9 @@ import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { EmptyState } from '../../../components/ui/empty-state';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { useRegisterList } from '../../../lib/use-register-list';
 import { Skeleton } from '../../../components/ui/skeleton';
 import {
   Table,
@@ -73,6 +76,7 @@ export default function PurchaseOrdersPage() {
     () => (statusFilter ? orders.filter((o) => o.status === statusFilter) : orders),
     [orders, statusFilter],
   );
+  const register = useRegisterList(filtered, (po) => `${po.poNumber} ${po.status} ${po.supplierName ?? ''} ${po.vendorName ?? ''}`);
 
   return (
     <PageContainer>
@@ -88,8 +92,7 @@ export default function PurchaseOrdersPage() {
         }
       />
 
-      <div className="mb-4 flex items-center gap-2">
-        <Select
+      <RegisterToolbar title="Purchase Order Register" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search PO, supplier/vendor or status" filters={<Select
           className="w-56"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as PurchaseOrderStatus | '')}
@@ -100,8 +103,7 @@ export default function PurchaseOrdersPage() {
               {s.replace(/_/g, ' ')}
             </option>
           ))}
-        </Select>
-      </div>
+        </Select>} />
 
       <Card>
         <CardContent className="p-0">
@@ -113,7 +115,7 @@ export default function PurchaseOrdersPage() {
             </div>
           ) : error ? (
             <div className="p-6 text-sm text-destructive">{error}</div>
-          ) : filtered.length === 0 ? (
+          ) : register.visibleItems.length === 0 ? (
             <EmptyState
               icon={ClipboardList}
               title="No purchase orders"
@@ -131,7 +133,7 @@ export default function PurchaseOrdersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((po) => (
+                {register.visibleItems.map((po) => (
                   <TableRow
                     key={po.id}
                     className="cursor-pointer"
@@ -166,6 +168,7 @@ export default function PurchaseOrdersPage() {
           )}
         </CardContent>
       </Card>
+      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
     </PageContainer>
   );
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiError } from '../../../lib/api';
@@ -14,6 +16,8 @@ import { StatusBadge } from '../../../components/ui/status-badge';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { useToast } from '../../../components/ui/toaster';
 import { ArrowLeftRight } from 'lucide-react';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { serverPageCount } from '../../../lib/server-pagination';
 
 interface ContraVoucher {
   id: string;
@@ -29,6 +33,7 @@ interface Page<T> {
   items: T[];
   total: number;
 }
+const PAGE_SIZE = 25;
 
 export default function ContraVouchersPage() {
   const toast = useToast();
@@ -36,9 +41,14 @@ export default function ContraVouchersPage() {
   const { style: numberFormatStyle } = useNumberFormat();
   const [vouchers, setVouchers] = useState<ContraVoucher[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const load = () =>
-    apiFetch<Page<ContraVoucher>>('/finance/contra?limit=100').then((r) => setVouchers(r.items));
+    apiFetch<Page<ContraVoucher>>(`/finance/contra?page=${page}&limit=${PAGE_SIZE}`).then((r) => {
+      setVouchers(r.items);
+      setTotal(r.total);
+    });
 
   useEffect(() => {
     setLoading(true);
@@ -46,7 +56,7 @@ export default function ContraVouchersPage() {
       .catch((e) => toast.error(e instanceof ApiError ? e.message : 'Failed to load contra vouchers'))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [page]);
 
   async function action(id: string, act: string) {
     try {
@@ -79,30 +89,30 @@ export default function ContraVouchersPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left">
-                    <th className="p-3">Voucher</th>
-                    <th>Date</th>
-                    <th>From</th>
-                    <th>To</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHeader>
+                  <TableRow className="border-b text-left">
+                    <TableHead className="p-3">Voucher</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>From</TableHead>
+                    <TableHead>To</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {vouchers.map((v) => (
-                    <tr className="border-b" key={v.id}>
-                      <td className="p-3 font-mono">{v.voucherNumber}</td>
-                      <td>{v.voucherDate.slice(0, 10)}</td>
-                      <td>{v.fromLedgerAccount.name}</td>
-                      <td>{v.toLedgerAccount.name}</td>
-                      <td>{formatINR(v.amount, numberFormatStyle)}</td>
-                      <td>
+                    <TableRow className="border-b" key={v.id}>
+                      <TableCell className="p-3 font-mono">{v.voucherNumber}</TableCell>
+                      <TableCell>{v.voucherDate.slice(0, 10)}</TableCell>
+                      <TableCell>{v.fromLedgerAccount.name}</TableCell>
+                      <TableCell>{v.toLedgerAccount.name}</TableCell>
+                      <TableCell>{formatINR(v.amount, numberFormatStyle)}</TableCell>
+                      <TableCell>
                         <StatusBadge value={v.status} />
-                      </td>
-                      <td className="space-x-2">
+                      </TableCell>
+                      <TableCell className="space-x-2">
                         {(v.status === 'DRAFT' || v.status === 'REJECTED') && (
                           <Button size="sm" variant="outline" onClick={() => void action(v.id, 'submit')}>
                             Submit
@@ -118,15 +128,21 @@ export default function ContraVouchersPage() {
                             </Button>
                           </>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
       </Card>
+      <RegisterPagination
+        page={page}
+        pageCount={serverPageCount(total, PAGE_SIZE)}
+        onPageChange={setPage}
+        disabled={loading}
+      />
     </PageContainer>
   );
 }

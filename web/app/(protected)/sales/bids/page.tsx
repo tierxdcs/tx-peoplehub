@@ -13,7 +13,8 @@ import { Card, CardContent } from '../../../components/ui/card';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
-import { RegisterToolbar } from '../_components/register-toolbar';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { BusinessUnitLabel } from '../../../components/ui/business-unit-label';
 import { useBusinessUnitOptions } from '../../../lib/business-units';
@@ -297,27 +298,12 @@ export default function BidsPage() {
         </CardContent>
       </Card>
 
-      <div className="mt-4 flex items-center gap-2 text-sm">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page <= 1 || loading}
-          onClick={() => setPage((current) => current - 1)}
-        >
-          Prev
-        </Button>
-        <span className="text-muted-foreground">
-          Page {page} of {pageCount}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page >= pageCount || loading}
-          onClick={() => setPage((current) => current + 1)}
-        >
-          Next
-        </Button>
-      </div>
+      <RegisterPagination
+        page={page}
+        pageCount={pageCount}
+        onPageChange={setPage}
+        disabled={loading}
+      />
     </PageContainer>
   );
 }

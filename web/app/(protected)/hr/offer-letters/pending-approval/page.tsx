@@ -19,6 +19,9 @@ import {
   TableHeader,
   TableRow,
 } from '../../../../components/ui/table';
+import { RegisterToolbar } from '../../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../../components/ui/register-pagination';
+import { useRegisterList } from '../../../../lib/use-register-list';
 
 /**
  * A pending offer letter as returned by the list endpoint (raw record + a
@@ -49,6 +52,7 @@ export default function OfferLetterApprovalQueuePage() {
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const register = useRegisterList(letters, (letter) => `${letter.referenceNumber} ${letter.employee.firstName} ${letter.employee.lastName} ${letter.employee.employeeId} ${letter.employee.designation ?? ''} pending`);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,6 +97,7 @@ export default function OfferLetterApprovalQueuePage() {
         title="Offer Letter Approvals"
         description="Offer letters awaiting your approval as the new hire’s vertical owner. Open one to review and decide."
       />
+      <RegisterToolbar title="Approval Queue" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search candidate, reference or status" />
 
       <Card>
         <CardContent className="pt-6">
@@ -112,7 +117,7 @@ export default function OfferLetterApprovalQueuePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {letters.map((l) => (
+                {register.visibleItems.map((l) => (
                   <TableRow
                     key={l.id}
                     className="cursor-pointer"
@@ -149,7 +154,7 @@ export default function OfferLetterApprovalQueuePage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {letters.length === 0 && (
+                {register.visibleItems.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="p-0">
                       <EmptyState
@@ -165,6 +170,7 @@ export default function OfferLetterApprovalQueuePage() {
           )}
         </CardContent>
       </Card>
+      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
     </PageContainer>
   );
 }

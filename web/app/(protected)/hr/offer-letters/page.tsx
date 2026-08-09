@@ -13,6 +13,11 @@ import { Textarea } from '../../../components/ui/textarea';
 import { Button } from '../../../components/ui/button';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { useToast } from '../../../components/ui/toaster';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import { useRegisterList } from '../../../lib/use-register-list';
 import {
   OfferLetterDocument,
   OfferLetterPrintDocument,
@@ -51,6 +56,7 @@ export default function OfferLettersPage() {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const register = useRegisterList(employees, (employee) => `${employee.employeeId} ${employee.firstName} ${employee.lastName} ${employee.designation ?? ''} ${employee.accessStatus}`);
 
   const status: OfferLetterStatus | null = offer?.status ?? null;
 
@@ -219,6 +225,12 @@ export default function OfferLettersPage() {
           title="Offer Letters"
           description="Author the letter, submit it to the vertical owner for approval, and download it once approved."
         />
+        <RegisterToolbar title="Employee Offer Register" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search employee, designation or status" />
+        <Card className="mb-6"><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Designation</TableHead><TableHead>Access status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader><TableBody>
+          {register.visibleItems.map((employee) => <TableRow key={employee.id}><TableCell className="font-medium">{employee.firstName} {employee.lastName}<span className="block text-xs text-muted-foreground">{employee.employeeId}</span></TableCell><TableCell>{employee.designation ?? '—'}</TableCell><TableCell><StatusBadge value={employee.accessStatus} /></TableCell><TableCell className="text-right"><Button size="sm" variant={employee.id === employeeId ? 'secondary' : 'outline'} onClick={() => void selectEmployee(employee.id)}>{employee.id === employeeId ? 'Selected' : 'Open offer'}</Button></TableCell></TableRow>)}
+          {!register.visibleItems.length && <TableRow><TableCell colSpan={4} className="p-0"><EmptyState icon={FileText} title="No employees match your search" /></TableCell></TableRow>}
+        </TableBody></Table></CardContent></Card>
+        <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} />
         <Card>
           <CardContent className="space-y-5 p-6">
             <div className="grid gap-4 sm:grid-cols-2">

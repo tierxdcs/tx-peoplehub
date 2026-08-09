@@ -1,4 +1,6 @@
 'use client';
+
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useFinanceAccess } from '../../../lib/use-finance-access';
@@ -197,37 +199,37 @@ export default function FixedAssetsPage() {
       </Card>
       <Card>
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="p-3">Asset</th>
-                <th>Capitalised</th>
-                <th>Cost</th>
-                <th>Accumulated depreciation</th>
-                <th>Net book value</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHeader>
+              <TableRow className="border-b text-left">
+                <TableHead className="p-3">Asset</TableHead>
+                <TableHead>Capitalised</TableHead>
+                <TableHead>Cost</TableHead>
+                <TableHead>Accumulated depreciation</TableHead>
+                <TableHead>Net book value</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {assets.map((a) => (
-                <tr className="border-b" key={a.id}>
-                  <td className="p-3">
+                <TableRow className="border-b" key={a.id}>
+                  <TableCell className="p-3">
                     <span className="font-mono">{a.assetNumber}</span>
                     <br />
                     {a.name}
-                  </td>
-                  <td>{a.capitalizationDate.slice(0, 10)}</td>
-                  <td>{formatINR(a.originalCost, numberFormatStyle)}</td>
-                  <td>{formatINR(a.accumulatedDepreciation, numberFormatStyle)}</td>
-                  <td>
+                  </TableCell>
+                  <TableCell>{a.capitalizationDate.slice(0, 10)}</TableCell>
+                  <TableCell>{formatINR(a.originalCost, numberFormatStyle)}</TableCell>
+                  <TableCell>{formatINR(a.accumulatedDepreciation, numberFormatStyle)}</TableCell>
+                  <TableCell>
                     {formatINR(
                       Number(a.originalCost) - Number(a.accumulatedDepreciation),
                       numberFormatStyle,
                     )}
-                  </td>
-                  <td>{a.status}</td>
-                  <td className="space-x-1">
+                  </TableCell>
+                  <TableCell>{a.status}</TableCell>
+                  <TableCell className="space-x-1">
                     {['DRAFT', 'REJECTED'].includes(a.status) && (
                       <Button
                         size="sm"
@@ -258,11 +260,11 @@ export default function FixedAssetsPage() {
                         </Button>
                       </>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </PageContainer>

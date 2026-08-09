@@ -1,28 +1,33 @@
 import * as React from 'react';
 import { Search } from 'lucide-react';
-import { Input } from '../../../components/ui/input';
+import { Input } from './input';
+
+export interface RegisterToolbarProps {
+  title: string;
+  search: string;
+  onSearchChange: (value: string) => void;
+  searchPlaceholder?: string;
+  filters?: React.ReactNode;
+  action?: React.ReactNode;
+  children?: React.ReactNode;
+}
 
 /**
- * Shared toolbar for the sales register tables (Leads / Opportunities / Bids /
- * Orders). Keeps a consistent layout: the register title on the left, then a
- * search box and any filter controls grouped together on the right. Filters are
- * passed in as children (the page owns its own Stage/Status/Business-unit
- * Selects) so each register keeps its specific filters while the arrangement
- * stays identical everywhere.
+ * Shared controls for searchable register pages. Pages own their query state
+ * and filter controls; this component only standardises their arrangement.
+ * `children` remains supported for the original Sales register call sites.
  */
 export function RegisterToolbar({
   title,
   search,
   onSearchChange,
   searchPlaceholder = 'Search…',
+  filters,
+  action,
   children,
-}: {
-  title: string;
-  search: string;
-  onSearchChange: (value: string) => void;
-  searchPlaceholder?: string;
-  children?: React.ReactNode;
-}) {
+}: RegisterToolbarProps) {
+  const filterControls = filters ?? children;
+
   return (
     <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
       <h2 className="text-lg font-semibold">{title}</h2>
@@ -31,13 +36,14 @@ export function RegisterToolbar({
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={(event) => onSearchChange(event.target.value)}
             placeholder={searchPlaceholder}
             className="pl-8"
             aria-label={searchPlaceholder}
           />
         </div>
-        {children}
+        {filterControls}
+        {action}
       </div>
     </div>
   );

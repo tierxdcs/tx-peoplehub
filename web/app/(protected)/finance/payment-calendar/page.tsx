@@ -1,4 +1,6 @@
 'use client';
+
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../../lib/api';
 import { formatINR } from '../../../lib/sales';
@@ -68,30 +70,30 @@ export default function PaymentCalendarPage() {
       </Card>
       <Card>
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="p-3">Date</th>
-                <th>Cash event</th>
-                <th>Party</th>
-                <th>Reference</th>
-                <th>Amount</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHeader>
+              <TableRow className="border-b text-left">
+                <TableHead className="p-3">Date</TableHead>
+                <TableHead>Cash event</TableHead>
+                <TableHead>Party</TableHead>
+                <TableHead>Reference</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((r, n) => (
-                <tr className="border-b" key={`${r.type}:${r.reference}:${n}`}>
-                  <td className="p-3">{r.date.slice(0, 10)}</td>
-                  <td>{r.type.replaceAll('_', ' ')}</td>
-                  <td>{r.party}</td>
-                  <td className="font-mono">{r.reference}</td>
-                  <td>{formatINR(r.amount, numberFormatStyle)}</td>
-                  <td>{r.status || 'DUE'}</td>
-                </tr>
+                <TableRow className="border-b" key={`${r.type}:${r.reference}:${n}`}>
+                  <TableCell className="p-3">{r.date.slice(0, 10)}</TableCell>
+                  <TableCell>{r.type.replaceAll('_', ' ')}</TableCell>
+                  <TableCell>{r.party}</TableCell>
+                  <TableCell className="font-mono">{r.reference}</TableCell>
+                  <TableCell>{formatINR(r.amount, numberFormatStyle)}</TableCell>
+                  <TableCell>{r.status || 'DUE'}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </PageContainer>

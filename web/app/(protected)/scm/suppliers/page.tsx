@@ -18,6 +18,9 @@ import { Select } from '../../../components/ui/select';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { OverrideTag } from '../../../components/ui/override-tag';
 import { EmptyState } from '../../../components/ui/empty-state';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { useRegisterList } from '../../../lib/use-register-list';
 import { Skeleton } from '../../../components/ui/skeleton';
 import {
   Table,
@@ -81,6 +84,7 @@ export default function SuppliersPage() {
         : suppliers,
     [suppliers, statusFilter],
   );
+  const register = useRegisterList(filtered, (supplier) => `${supplier.companyName} ${supplier.status} ${supplier.contactPersonName ?? ''} ${supplier.contactEmail}`);
 
   return (
     <PageContainer>
@@ -94,8 +98,7 @@ export default function SuppliersPage() {
         }
       />
 
-      <div className="mb-4 flex items-center gap-2">
-        <Select
+      <RegisterToolbar title="Supplier Register" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search supplier, contact or status" filters={<Select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as SupplierStatus | '')}
           className="h-9 w-56"
@@ -106,8 +109,7 @@ export default function SuppliersPage() {
               {SUPPLIER_STATUS_LABEL[s]}
             </option>
           ))}
-        </Select>
-      </div>
+        </Select>} />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -133,7 +135,7 @@ export default function SuppliersPage() {
                     ))}
                   </TableRow>
                 ))
-              ) : filtered.length === 0 ? (
+              ) : register.visibleItems.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="p-0">
                     <EmptyState
@@ -148,7 +150,7 @@ export default function SuppliersPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((s) => (
+                register.visibleItems.map((s) => (
                   <TableRow
                     key={s.id}
                     className="cursor-pointer"
@@ -172,6 +174,7 @@ export default function SuppliersPage() {
           </Table>
         </CardContent>
       </Card>
+      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
 
       {creating && (
         <NewSupplierDialog

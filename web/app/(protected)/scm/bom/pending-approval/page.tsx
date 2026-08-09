@@ -11,6 +11,9 @@ import { Card, CardContent } from '../../../../components/ui/card';
 import { EmptyState } from '../../../../components/ui/empty-state';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
+import { RegisterToolbar } from '../../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../../components/ui/register-pagination';
+import { useRegisterList } from '../../../../lib/use-register-list';
 import {
   Table,
   TableBody,
@@ -30,6 +33,7 @@ export default function PendingApprovalPage() {
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const register = useRegisterList(boms, (b) => `${b.itemCode ?? ''} ${b.itemName ?? ''} ${b.status} ${b.createdByName ?? ''}`);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,6 +64,7 @@ export default function PendingApprovalPage() {
         title="Pending BOM Approvals"
         description="BOMs awaiting an R&D Head’s technical approval."
       />
+      <RegisterToolbar title="Approval Queue" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search item, status or requester" />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -93,7 +98,7 @@ export default function PendingApprovalPage() {
                       ))}
                     </TableRow>
                   ))
-                ) : boms.length === 0 ? (
+                ) : register.visibleItems.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="p-0">
                       <EmptyState
@@ -105,7 +110,7 @@ export default function PendingApprovalPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  boms.map((b) => (
+                  register.visibleItems.map((b) => (
                     <TableRow
                       key={b.id}
                       className="cursor-pointer"
@@ -135,6 +140,7 @@ export default function PendingApprovalPage() {
           )}
         </CardContent>
       </Card>
+      {!forbidden && <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />}
     </PageContainer>
   );
 }

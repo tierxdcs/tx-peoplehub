@@ -26,6 +26,9 @@ import {
   TableHeader,
   TableRow,
 } from '../../../../components/ui/table';
+import { RegisterToolbar } from '../../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../../components/ui/register-pagination';
+import { useRegisterList } from '../../../../lib/use-register-list';
 
 type SortKey =
   | 'projectName'
@@ -95,6 +98,7 @@ export default function ResourcePlanSummaryPage() {
     });
     return copy;
   }, [rows, sortKey, sortDir]);
+  const register = useRegisterList(sorted, (row) => `${row.projectName} ${row.orderNumber} ${row.customerName}`);
 
   const SortHead = ({ label, k, right }: { label: string; k: SortKey; right?: boolean }) => (
     <TableHead className={right ? 'text-right' : undefined}>
@@ -122,6 +126,7 @@ export default function ResourcePlanSummaryPage() {
           </Button>
         }
       />
+      <RegisterToolbar title="Resource Plan Summary" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search project, order or customer" />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -131,7 +136,7 @@ export default function ResourcePlanSummaryPage() {
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
         </div>
-      ) : sorted.length === 0 ? (
+      ) : register.visibleItems.length === 0 ? (
         <EmptyState
           icon={BarChart3}
           title="No resource plans yet"
@@ -153,7 +158,7 @@ export default function ResourcePlanSummaryPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sorted.map((r) => (
+                {register.visibleItems.map((r) => (
                   <TableRow
                     key={r.planId}
                     className="cursor-pointer"
@@ -197,6 +202,7 @@ export default function ResourcePlanSummaryPage() {
           </CardContent>
         </Card>
       )}
+      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
     </PageContainer>
   );
 }

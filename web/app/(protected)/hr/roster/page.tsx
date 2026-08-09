@@ -14,7 +14,6 @@ import {
 import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
 import { Card, CardContent } from '../../../components/ui/card';
-import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
@@ -28,6 +27,8 @@ import {
   TableRow,
 } from '../../../components/ui/table';
 import { Skeleton } from '../../../components/ui/skeleton';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
 import { SensitiveDetailPanel } from './_components/sensitive-detail-panel';
 import { useIsHrStaff } from '../../../lib/use-is-hr-staff';
 
@@ -121,14 +122,13 @@ export default function RosterPage() {
         description="Company-wide directory of employees and onboarding status."
       />
 
-      <Card className="mb-4">
-        <CardContent className="flex flex-wrap gap-3 p-4">
-          <Input
-            placeholder="Search name"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="max-w-xs"
-          />
+      <RegisterToolbar
+        title="Employee Register"
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search employee name"
+        filters={
+          <>
           <Select
             value={verticalFilter}
             onChange={(e) => setVerticalFilter(e.target.value)}
@@ -165,8 +165,9 @@ export default function RosterPage() {
             <option value="ACTIVE">Active</option>
             <option value="INACTIVE">Inactive</option>
           </Select>
-        </CardContent>
-      </Card>
+          </>
+        }
+      />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -281,27 +282,12 @@ export default function RosterPage() {
         </CardContent>
       </Card>
 
-      <div className="mt-4 flex items-center gap-3">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page <= 1}
-          onClick={() => setPage((p) => p - 1)}
-        >
-          Prev
-        </Button>
-        <span className="text-sm text-muted-foreground">
-          Page {page} of {Math.max(1, Math.ceil(total / limit))}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page * limit >= total}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          Next
-        </Button>
-      </div>
+      <RegisterPagination
+        page={page}
+        pageCount={Math.ceil(total / limit)}
+        onPageChange={setPage}
+        disabled={loading}
+      />
 
       {detailTarget && (
         <SensitiveDetailPanel

@@ -1,4 +1,6 @@
 'use client';
+
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../../components/ui/table';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { apiFetch } from '../../../../lib/api';
@@ -210,10 +212,10 @@ function ReportBody({ r }: { r: R }) {
           {r.reportNumber} · Revision {r.revision} · {r.status}
         </div>
       </header>
-      <table
+      <Table
         style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}
       >
-        <tbody>
+        <TableBody>
           {[
             ['Change', c.changeNumber],
             ['Title', c.title],
@@ -225,8 +227,8 @@ function ReportBody({ r }: { r: R }) {
           ]
             .filter((x) => x[1])
             .map(([k, v]) => (
-              <tr key={k}>
-                <th
+              <TableRow key={k}>
+                <TableHead
                   style={{
                     textAlign: 'left',
                     border: '1px solid #bbb',
@@ -235,12 +237,12 @@ function ReportBody({ r }: { r: R }) {
                   }}
                 >
                   {k}
-                </th>
-                <td style={{ border: '1px solid #bbb', padding: 7 }}>{v}</td>
-              </tr>
+                </TableHead>
+                <TableCell style={{ border: '1px solid #bbb', padding: 7 }}>{v}</TableCell>
+              </TableRow>
             ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
       <h2 style={{ fontSize: 16, fontWeight: 700 }}>Reason</h2>
       <p>{c.reason}</p>
       <h2 style={{ fontSize: 16, fontWeight: 700 }}>Approved change</h2>

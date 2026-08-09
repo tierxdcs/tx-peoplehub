@@ -24,6 +24,9 @@ import { Select } from '../../../components/ui/select';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { OverrideTag } from '../../../components/ui/override-tag';
 import { EmptyState } from '../../../components/ui/empty-state';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { useRegisterList } from '../../../lib/use-register-list';
 import { Skeleton } from '../../../components/ui/skeleton';
 import {
   Table,
@@ -89,6 +92,7 @@ export default function VendorsPage() {
     ),
     [vendors, statusFilter, competencyFilter],
   );
+  const register = useRegisterList(filtered, (vendor) => `${vendor.companyName} ${vendor.status} ${vendor.contactPersonName ?? ''} ${vendor.contactEmail} ${vendor.coreCompetency ?? ''}`);
 
   return (
     <PageContainer>
@@ -102,7 +106,7 @@ export default function VendorsPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <RegisterToolbar title="Vendor Register" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search vendor, contact, competency or status" filters={<>
         <Select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as VendorStatus | '')}
@@ -159,7 +163,7 @@ export default function VendorsPage() {
             />
           </label>
         )}
-      </div>
+      </>} />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -186,7 +190,7 @@ export default function VendorsPage() {
                     ))}
                   </TableRow>
                 ))
-              ) : filtered.length === 0 ? (
+              ) : register.visibleItems.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="p-0">
                     <EmptyState
@@ -201,7 +205,7 @@ export default function VendorsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((s) => (
+                register.visibleItems.map((s) => (
                   <TableRow
                     key={s.id}
                     className="cursor-pointer"
@@ -230,6 +234,7 @@ export default function VendorsPage() {
           </Table>
         </CardContent>
       </Card>
+      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
 
       {creating && (
         <NewVendorDialog

@@ -1,5 +1,7 @@
 'use client';
 
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../../../components/ui/table';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -208,12 +210,12 @@ export default function RfqComparePage() {
           <CardTitle className="text-base">Quote Comparison</CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="p-3 text-left font-medium text-muted-foreground">Item</th>
+          <Table className="w-full border-collapse text-sm">
+            <TableHeader>
+              <TableRow className="border-b">
+                <TableHead className="p-3 text-left font-medium text-muted-foreground">Item</TableHead>
                 {cols.map((c) => (
-                  <th
+                  <TableHead
                     key={c.inviteeId}
                     className={`p-3 text-right font-medium ${c.nonResponder ? 'text-muted-foreground' : ''}`}
                   >
@@ -224,33 +226,33 @@ export default function RfqComparePage() {
                     <div className="mt-1">
                       <StatusBadge value={c.quoteStatus} />
                     </div>
-                  </th>
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {/* Per-line unit prices */}
               {comparison.lines.map((line) => (
-                <tr key={line.rfqLineId} className="border-b">
-                  <td className="p-3">
+                <TableRow key={line.rfqLineId} className="border-b">
+                  <TableCell className="p-3">
                     <div className="font-medium">{line.itemName ?? '—'}</div>
                     <div className="text-xs text-muted-foreground">
                       {line.itemCode ?? ''} · {line.quantity} {line.unitOfMeasure}
                     </div>
-                  </td>
+                  </TableCell>
                   {cols.map((c) => {
                     if (c.nonResponder) return <MutedCell key={c.inviteeId} />;
                     const ql = c.lines.find((l) => l.rfqLineId === line.rfqLineId);
                     return (
-                      <td
+                      <TableCell
                         key={c.inviteeId}
                         className={`p-3 text-right ${ql?.isLowestUnitPrice ? 'font-medium text-success' : ''}`}
                       >
                         {formatINR(ql?.unitPrice ?? null, numberFormatStyle)}
-                      </td>
+                      </TableCell>
                     );
                   })}
-                </tr>
+                </TableRow>
               ))}
 
               {/* Summary rows */}
@@ -289,10 +291,10 @@ export default function RfqComparePage() {
               </SummaryRow>
 
               {/* Non-responder decline reasons + award actions */}
-              <tr className="border-b bg-muted/30">
-                <td className="p-3 font-medium">Decision</td>
+              <TableRow className="border-b bg-muted/30">
+                <TableCell className="p-3 font-medium">Decision</TableCell>
                 {cols.map((c) => (
-                  <td key={c.inviteeId} className="p-3 text-right align-top">
+                  <TableCell key={c.inviteeId} className="p-3 text-right align-top">
                     {c.nonResponder ? (
                       <span className="text-xs text-muted-foreground">
                         {c.declineReason ? `Declined: ${c.declineReason}` : 'No response'}
@@ -308,11 +310,11 @@ export default function RfqComparePage() {
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
-            </tbody>
-          </table>
+              </TableRow>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
@@ -371,7 +373,7 @@ function BackLink({ id, rfqNumber }: { id: string; rfqNumber?: string }) {
 }
 
 function MutedCell() {
-  return <td className="p-3 text-right text-muted-foreground">—</td>;
+  return <TableCell className="p-3 text-right text-muted-foreground">—</TableCell>;
 }
 
 /**
@@ -391,17 +393,17 @@ function SummaryRow({
 }) {
   const render = responderRender ?? children ?? (() => '—');
   return (
-    <tr className="border-b">
-      <td className="p-3 text-muted-foreground">{label}</td>
+    <TableRow className="border-b">
+      <TableCell className="p-3 text-muted-foreground">{label}</TableCell>
       {cols.map((c) =>
         c.nonResponder ? (
           <MutedCell key={c.inviteeId} />
         ) : (
-          <td key={c.inviteeId} className="p-3 text-right">
+          <TableCell key={c.inviteeId} className="p-3 text-right">
             {render(c)}
-          </td>
+          </TableCell>
         ),
       )}
-    </tr>
+    </TableRow>
   );
 }

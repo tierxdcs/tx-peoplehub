@@ -18,6 +18,9 @@ import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { EmptyState } from '../../../components/ui/empty-state';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { useRegisterList } from '../../../lib/use-register-list';
 import { Skeleton } from '../../../components/ui/skeleton';
 import {
   Table,
@@ -90,6 +93,7 @@ export default function GrnRegisterPage() {
       grn.lines.map((line) => ({ grn, line })),
     );
   }, [grns, statusFilter]);
+  const register = useRegisterList(rows, ({ grn, line }) => `${grn.grnNumber} ${grn.poNumber ?? ''} ${grn.status} ${line.itemCode} ${line.itemName}`);
 
   return (
     <PageContainer className="max-w-7xl">
@@ -103,8 +107,7 @@ export default function GrnRegisterPage() {
         }
       />
 
-      <div className="mb-4 flex items-center gap-2">
-        <Select
+      <RegisterToolbar title="GRN Register" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search GRN, PO, material or status" filters={<Select
           className="w-56"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as GoodsReceiptNoteStatus | '')}
@@ -115,8 +118,7 @@ export default function GrnRegisterPage() {
               {s.replace(/_/g, ' ')}
             </option>
           ))}
-        </Select>
-      </div>
+        </Select>} />
 
       <Card>
         <CardContent className="p-0">
@@ -128,7 +130,7 @@ export default function GrnRegisterPage() {
             </div>
           ) : error ? (
             <div className="p-6 text-sm text-destructive">{error}</div>
-          ) : rows.length === 0 ? (
+          ) : register.visibleItems.length === 0 ? (
             <EmptyState
               icon={PackageCheck}
               title="No goods receipts"
@@ -153,7 +155,7 @@ export default function GrnRegisterPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map(({ grn, line }) => {
+                {register.visibleItems.map(({ grn, line }) => {
                   const action = grnAction(grn);
                   const finalized = isGrnFinalized(grn.status);
                   const stockUpdated = finalized && Number(line.acceptedQuantity ?? 0) > 0;
@@ -231,6 +233,7 @@ export default function GrnRegisterPage() {
           )}
         </CardContent>
       </Card>
+      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
     </PageContainer>
   );
 }

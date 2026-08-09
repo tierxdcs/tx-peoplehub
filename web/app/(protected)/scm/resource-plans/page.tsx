@@ -22,6 +22,9 @@ import { Badge } from '../../../components/ui/badge';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { useToast } from '../../../components/ui/toaster';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { useRegisterList } from '../../../lib/use-register-list';
 import {
   Table,
   TableBody,
@@ -46,6 +49,7 @@ export default function ResourcePlansPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const register = useRegisterList(projects, (project) => `${project.projectName} ${project.orderNumber} ${project.customerName} ${project.hasPlan ? 'plan ready' : 'no plan'}`);
 
   const canGenerate =
     user?.role === 'SUPER_ADMIN' || user?.role === 'MANAGER';
@@ -98,6 +102,7 @@ export default function ResourcePlansPage() {
           </Button>
         }
       />
+      <RegisterToolbar title="Project Resource Plans" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search project, order, customer or plan status" />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -107,7 +112,7 @@ export default function ResourcePlansPage() {
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
         </div>
-      ) : projects.length === 0 ? (
+      ) : register.visibleItems.length === 0 ? (
         <EmptyState
           icon={ClipboardList}
           title="No completed projects yet"
@@ -129,7 +134,7 @@ export default function ResourcePlansPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {projects.map((p) => (
+                {register.visibleItems.map((p) => (
                   <TableRow
                     key={p.projectKickoffId}
                     className={p.hasPlan ? 'cursor-pointer' : undefined}
@@ -221,6 +226,7 @@ export default function ResourcePlansPage() {
           </CardContent>
         </Card>
       )}
+      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
     </PageContainer>
   );
 }

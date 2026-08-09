@@ -1,4 +1,6 @@
 'use client';
+
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../../components/ui/table';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../../../lib/api';
 import { Card, CardContent } from '../../../../components/ui/card';
@@ -47,62 +49,62 @@ export default function ApSummaryPage() {
       />
       <Card>
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="p-3">Party</th>
-                <th>Type</th>
-                <th>Invoices</th>
-                <th>Outstanding</th>
-                <th>Overdue</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHeader>
+              <TableRow className="border-b text-left">
+                <TableHead className="p-3">Party</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Invoices</TableHead>
+                <TableHead>Outstanding</TableHead>
+                <TableHead>Overdue</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((r) => (
-                <tr className="border-b" key={`${r.partyType}:${r.partyId}`}>
-                  <td className="p-3 font-medium">{r.partyName}</td>
-                  <td>{r.partyType}</td>
-                  <td>{r.invoiceCount}</td>
-                  <td>{formatINR(r.outstanding, numberFormatStyle)}</td>
-                  <td>{formatINR(r.overdue, numberFormatStyle)}</td>
-                </tr>
+                <TableRow className="border-b" key={`${r.partyType}:${r.partyId}`}>
+                  <TableCell className="p-3 font-medium">{r.partyName}</TableCell>
+                  <TableCell>{r.partyType}</TableCell>
+                  <TableCell>{r.invoiceCount}</TableCell>
+                  <TableCell>{formatINR(r.outstanding, numberFormatStyle)}</TableCell>
+                  <TableCell>{formatINR(r.overdue, numberFormatStyle)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
       <Card className="mt-6">
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="p-3">Released PO</th>
-                <th>Party</th>
-                <th>Ordered</th>
-                <th>QC accepted</th>
-                <th>Billed</th>
-                <th>Unreceived</th>
-                <th>Unbilled</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHeader>
+              <TableRow className="border-b text-left">
+                <TableHead className="p-3">Released PO</TableHead>
+                <TableHead>Party</TableHead>
+                <TableHead>Ordered</TableHead>
+                <TableHead>QC accepted</TableHead>
+                <TableHead>Billed</TableHead>
+                <TableHead>Unreceived</TableHead>
+                <TableHead>Unbilled</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {commitments.map((p) => (
-                <tr className="border-b" key={p.id}>
-                  <td className="p-3 font-mono">
+                <TableRow className="border-b" key={p.id}>
+                  <TableCell className="p-3 font-mono">
                     {p.poNumber}
                     <br />
                     <span className="text-xs">{p.status}</span>
-                  </td>
-                  <td>{p.partyName}</td>
-                  <td>{formatINR(p.orderedValue, numberFormatStyle)}</td>
-                  <td>{formatINR(p.acceptedValue, numberFormatStyle)}</td>
-                  <td>{formatINR(p.billedValue, numberFormatStyle)}</td>
-                  <td>{formatINR(p.unreceivedCommitment, numberFormatStyle)}</td>
-                  <td>{formatINR(p.unbilledCommitment, numberFormatStyle)}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell>{p.partyName}</TableCell>
+                  <TableCell>{formatINR(p.orderedValue, numberFormatStyle)}</TableCell>
+                  <TableCell>{formatINR(p.acceptedValue, numberFormatStyle)}</TableCell>
+                  <TableCell>{formatINR(p.billedValue, numberFormatStyle)}</TableCell>
+                  <TableCell>{formatINR(p.unreceivedCommitment, numberFormatStyle)}</TableCell>
+                  <TableCell>{formatINR(p.unbilledCommitment, numberFormatStyle)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </PageContainer>

@@ -1,4 +1,6 @@
 'use client';
+
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useFinanceAccess } from '../../../lib/use-finance-access';
@@ -11,6 +13,8 @@ import { Select } from '../../../components/ui/select';
 import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
 import { useToast } from '../../../components/ui/toaster';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { serverPageCount } from '../../../lib/server-pagination';
 type Invoice = {
   id: string;
   invoiceNumber?: string;
@@ -33,7 +37,8 @@ type Note = {
   salesInvoice?: Invoice;
   apInvoice?: Invoice;
 };
-type Page<T> = { items: T[] };
+type Page<T> = { items: T[]; total: number };
+const PAGE_SIZE = 25;
 export default function AdjustmentsPage() {
   const toast = useToast(),
     { isAccountsHead } = useFinanceAccess();
@@ -41,6 +46,7 @@ export default function AdjustmentsPage() {
   const [ar, setAr] = useState<Invoice[]>([]),
     [ap, setAp] = useState<Invoice[]>([]),
     [notes, setNotes] = useState<Note[]>([]);
+  const [page, setPage] = useState(1), [total, setTotal] = useState(0);
   const [side, setSide] = useState('ACCOUNTS_RECEIVABLE'),
     [type, setType] = useState('CREDIT_NOTE'),
     [invoiceId, setInvoiceId] = useState(''),
@@ -56,17 +62,18 @@ export default function AdjustmentsPage() {
     Promise.all([
       apiFetch<Page<Invoice>>('/finance/ar/invoices?limit=100'),
       apiFetch<Page<Invoice>>('/finance/ap/invoices?limit=100'),
-      apiFetch<Page<Note>>('/finance/compliance/notes?limit=100'),
+      apiFetch<Page<Note>>(`/finance/compliance/notes?page=${page}&limit=${PAGE_SIZE}`),
     ]).then(([a, p, n]) => {
       setAr(a.items);
       setAp(p.items);
       setNotes(n.items);
+      setTotal(n.total);
     });
   useEffect(() => {
     load().catch((e) =>
       toast.error(e instanceof ApiError ? e.message : 'Failed to load notes'),
     );
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
   async function create(e: FormEvent) {
     e.preventDefault();
     try {
@@ -183,34 +190,34 @@ export default function AdjustmentsPage() {
       </Card>
       <Card>
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="p-3">Note</th>
-                <th>Side / Type</th>
-                <th>Invoice</th>
-                <th>Amount</th>
-                <th>Reason</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHeader>
+              <TableRow className="border-b text-left">
+                <TableHead className="p-3">Note</TableHead>
+                <TableHead>Side / Type</TableHead>
+                <TableHead>Invoice</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {notes.map((n) => (
-                <tr className="border-b" key={n.id}>
-                  <td className="p-3 font-mono">{n.noteNumber}</td>
-                  <td>
+                <TableRow className="border-b" key={n.id}>
+                  <TableCell className="p-3 font-mono">{n.noteNumber}</TableCell>
+                  <TableCell>
                     {n.side.replace('ACCOUNTS_', '')} /{' '}
                     {n.noteType.replace('_', ' ')}
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     {n.salesInvoice?.invoiceNumber ||
                       n.apInvoice?.internalBillNumber}
-                  </td>
-                  <td>{formatINR(n.totalAmount, numberFormatStyle)}</td>
-                  <td>{n.reason}</td>
-                  <td>{n.status}</td>
-                  <td className="space-x-1">
+                  </TableCell>
+                  <TableCell>{formatINR(n.totalAmount, numberFormatStyle)}</TableCell>
+                  <TableCell>{n.reason}</TableCell>
+                  <TableCell>{n.status}</TableCell>
+                  <TableCell className="space-x-1">
                     {['DRAFT', 'REJECTED'].includes(n.status) && (
                       <Button
                         size="sm"
@@ -241,13 +248,18 @@ export default function AdjustmentsPage() {
                         </Button>
                       </>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
+      <RegisterPagination
+        page={page}
+        pageCount={serverPageCount(total, PAGE_SIZE)}
+        onPageChange={setPage}
+      />
     </PageContainer>
   );
 }

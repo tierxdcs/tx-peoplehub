@@ -14,6 +14,9 @@ import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { EmptyState } from '../../../components/ui/empty-state';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { useRegisterList } from '../../../lib/use-register-list';
 import { Skeleton } from '../../../components/ui/skeleton';
 import {
   Table,
@@ -60,6 +63,7 @@ export default function RfqsPage() {
     () => (statusFilter ? rfqs.filter((r) => r.status === statusFilter) : rfqs),
     [rfqs, statusFilter],
   );
+  const register = useRegisterList(filtered, (rfq) => `${rfq.rfqNumber} ${rfq.title} ${rfq.status} ${rfq.projectName ?? ''}`);
 
   return (
     <PageContainer>
@@ -75,8 +79,7 @@ export default function RfqsPage() {
         }
       />
 
-      <div className="mb-4 flex items-center gap-2">
-        <Select
+      <RegisterToolbar title="RFQ Register" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search RFQ, title, project or status" filters={<Select
           className="w-56"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as RfqStatus | '')}
@@ -87,8 +90,7 @@ export default function RfqsPage() {
               {s.replace(/_/g, ' ')}
             </option>
           ))}
-        </Select>
-      </div>
+        </Select>} />
 
       <Card>
         <CardContent className="p-0">
@@ -100,7 +102,7 @@ export default function RfqsPage() {
             </div>
           ) : error ? (
             <div className="p-6 text-sm text-destructive">{error}</div>
-          ) : filtered.length === 0 ? (
+          ) : register.visibleItems.length === 0 ? (
             <EmptyState
               icon={FileText}
               title="No RFQs"
@@ -119,7 +121,7 @@ export default function RfqsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((rfq) => (
+                {register.visibleItems.map((rfq) => (
                   <TableRow
                     key={rfq.id}
                     className="cursor-pointer"
@@ -148,6 +150,7 @@ export default function RfqsPage() {
           )}
         </CardContent>
       </Card>
+      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
     </PageContainer>
   );
 }

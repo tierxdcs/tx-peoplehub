@@ -8,17 +8,18 @@ import { useConfirm } from '../../../components/ui/confirm';
 import { useToast } from '../../../components/ui/toaster';
 import { useAuth } from '../../../lib/auth-context';
 import { roleLabel } from '../../../lib/status';
-
-/** Inline designation pill on the roster (Sales Head / Project Manager). */
-const rosterBadgeStyle: React.CSSProperties = {
-  marginLeft: 8,
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'hsl(var(--primary))',
-  background: 'hsl(var(--primary) / 0.1)',
-  borderRadius: 10,
-  padding: '1px 8px',
-};
+import { PageContainer } from '../../../components/ui/page-container';
+import { PageHeader } from '../../../components/ui/page-header';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { Card, CardContent } from '../../../components/ui/card';
+import { Button } from '../../../components/ui/button';
+import { Select } from '../../../components/ui/select';
+import { Badge } from '../../../components/ui/badge';
+import { StatusBadge } from '../../../components/ui/status-badge';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { Users } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
 
 export default function EmployeesListPage() {
   const confirm = useConfirm();
@@ -135,31 +136,13 @@ export default function EmployeesListPage() {
   });
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <h1>Employees</h1>
-        <Link href="/admin/employees/new">
-          <button style={{ padding: '8px 16px' }}>Create Employee</button>
-        </Link>
-      </div>
-
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-        <input
-          placeholder="Search name or email"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: 6 }}
-        />
-        <select
+    <PageContainer>
+      <PageHeader title="Employees" description="Manage employee access, roles and organizational assignments." action={<Link href="/admin/employees/new"><Button>Create Employee</Button></Link>} />
+      <RegisterToolbar title="Employee Register" search={search} onSearchChange={setSearch} searchPlaceholder="Search name or email" filters={<>
+        <Select
           value={verticalFilter}
           onChange={(e) => setVerticalFilter(e.target.value)}
-          style={{ padding: 6 }}
+          className="w-48"
         >
           <option value="">All verticals</option>
           {verticals.map((v) => (
@@ -167,105 +150,65 @@ export default function EmployeesListPage() {
               {v.name}
             </option>
           ))}
-        </select>
-        <select
+        </Select>
+        <Select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ padding: 6 }}
+          className="w-44"
         >
           <option value="">All statuses</option>
           <option value="ACTIVE">Active</option>
           <option value="INACTIVE">Inactive</option>
-        </select>
-      </div>
+        </Select>
+      </>} />
 
       {error && <p className="text-destructive">{error}</p>}
       {loading ? (
-        <p>Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
         <>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
-                <th>Employee ID</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Vertical</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
+          <Card><CardContent className="p-0"><Table>
+            <TableHeader><TableRow><TableHead>Employee ID</TableHead><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Vertical</TableHead><TableHead>Role</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+            <TableBody>
               {filtered.map((e) => (
-                <tr key={e.id} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
-                  <td>{e.employeeId}</td>
-                  <td>
+                <TableRow key={e.id}>
+                  <TableCell>{e.employeeId}</TableCell>
+                  <TableCell>
                     <Link href={`/admin/employees/${e.id}`}>
                       {e.firstName} {e.lastName}
                     </Link>
                     {e.isSalesHead && (
-                      <span style={rosterBadgeStyle}>Sales Head</span>
+                      <Badge variant="secondary" className="ml-2">Sales Head</Badge>
                     )}
                     {e.isProjectManager && (
-                      <span style={rosterBadgeStyle}>Project Manager</span>
+                      <Badge variant="secondary" className="ml-2">Project Manager</Badge>
                     )}
                     {e.isInternalAuditor && (
-                      <span style={rosterBadgeStyle}>Internal Auditor</span>
+                      <Badge variant="secondary" className="ml-2">Internal Auditor</Badge>
                     )}
                     {e.isRdHead && (
-                      <span style={rosterBadgeStyle}>R&D Head</span>
+                      <Badge variant="secondary" className="ml-2">R&D Head</Badge>
                     )}
-                  </td>
-                  <td>{e.email}</td>
-                  <td>{verticalName(e.verticalId)}</td>
-                  <td>{roleLabel(e.role)}</td>
-                  <td>{e.status}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <Link href={`/admin/employees/${e.id}`}>
-                        <button>Edit</button>
-                      </Link>
+                  </TableCell>
+                  <TableCell>{e.email}</TableCell><TableCell>{verticalName(e.verticalId)}</TableCell><TableCell>{roleLabel(e.role)}</TableCell><TableCell><StatusBadge value={e.status} /></TableCell>
+                  <TableCell><div className="flex justify-end gap-2">
+                      <Link href={`/admin/employees/${e.id}`}><Button variant="outline" size="sm">Edit</Button></Link>
                       {e.status === 'ACTIVE' ? (
-                        <button onClick={() => handleDeactivate(e)}>
-                          Deactivate
-                        </button>
+                        <Button variant="outline" size="sm" onClick={() => handleDeactivate(e)}>Deactivate</Button>
                       ) : (
-                        <button onClick={() => handleReactivate(e)}>
-                          Activate
-                        </button>
+                        <Button variant="outline" size="sm" onClick={() => handleReactivate(e)}>Activate</Button>
                       )}
                       {isSuperAdmin && (
-                        <button
-                          onClick={() => handleDelete(e)}
-                          className="text-destructive"
-                        >
-                          Delete
-                        </button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDelete(e)}>Delete</Button>
                       )}
-                    </div>
-                  </td>
-                </tr>
+                    </div></TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-
-          <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Prev
-            </button>
-            <span>
-              Page {page} of {Math.max(1, Math.ceil(total / limit))}
-            </span>
-            <button
-              disabled={page * limit >= total}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </button>
-          </div>
+              {!filtered.length && <TableRow><TableCell colSpan={7} className="p-0"><EmptyState icon={Users} title="No employees match your filters" /></TableCell></TableRow>}
+            </TableBody></Table></CardContent></Card>
+          <RegisterPagination page={page} pageCount={Math.ceil(total / limit)} onPageChange={setPage} disabled={loading} />
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

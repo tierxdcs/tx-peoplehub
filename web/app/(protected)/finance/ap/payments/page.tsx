@@ -1,4 +1,6 @@
 'use client';
+
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../../components/ui/table';
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiError } from '../../../../lib/api';
@@ -12,6 +14,8 @@ import { Select } from '../../../../components/ui/select';
 import { PageContainer } from '../../../../components/ui/page-container';
 import { PageHeader } from '../../../../components/ui/page-header';
 import { useToast } from '../../../../components/ui/toaster';
+import { RegisterPagination } from '../../../../components/ui/register-pagination';
+import { serverPageCount } from '../../../../lib/server-pagination';
 type Partner = { id: string; companyName: string };
 type Invoice = {
   id: string;
@@ -30,7 +34,8 @@ type Payment = {
   supplier?: Partner;
   vendor?: Partner;
 };
-type Page<T> = { items: T[] };
+type Page<T> = { items: T[]; total: number };
+const PAGE_SIZE = 25;
 export default function VendorPaymentsPage() {
   const toast = useToast(),
     { isAccountsHead } = useFinanceAccess();
@@ -39,6 +44,7 @@ export default function VendorPaymentsPage() {
     [vendors, setVendors] = useState<Partner[]>([]),
     [invoices, setInvoices] = useState<Invoice[]>([]),
     [payments, setPayments] = useState<Payment[]>([]);
+  const [page, setPage] = useState(1), [total, setTotal] = useState(0);
   const [type, setType] = useState('SUPPLIER'),
     [partyId, setPartyId] = useState(''),
     [invoiceId, setInvoiceId] = useState(''),
@@ -57,12 +63,13 @@ export default function VendorPaymentsPage() {
         '/finance/ap/reference/partners',
       ),
       apiFetch<Page<Invoice>>('/finance/ap/invoices?limit=100'),
-      apiFetch<Page<Payment>>('/finance/ap/payments?limit=100'),
+      apiFetch<Page<Payment>>(`/finance/ap/payments?page=${page}&limit=${PAGE_SIZE}`),
     ]).then(([p, i, x]) => {
       setSuppliers(p.suppliers);
       setVendors(p.vendors);
       setInvoices(i.items);
       setPayments(x.items);
+      setTotal(x.total);
       if (!partyId && p.suppliers[0]) setPartyId(p.suppliers[0].id);
     });
   useEffect(() => {
@@ -71,7 +78,7 @@ export default function VendorPaymentsPage() {
         e instanceof ApiError ? e.message : 'Failed to load payments',
       ),
     );
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
   async function create(e: FormEvent) {
     e.preventDefault();
     try {
@@ -178,26 +185,26 @@ export default function VendorPaymentsPage() {
       </Card>
       <Card>
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="p-3">Payment</th>
-                <th>Party</th>
-                <th>Planned</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHeader>
+              <TableRow className="border-b text-left">
+                <TableHead className="p-3">Payment</TableHead>
+                <TableHead>Party</TableHead>
+                <TableHead>Planned</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {payments.map((p) => (
-                <tr className="border-b" key={p.id}>
-                  <td className="p-3 font-mono">{p.paymentNumber}</td>
-                  <td>{p.supplier?.companyName || p.vendor?.companyName}</td>
-                  <td>{p.plannedDate.slice(0, 10)}</td>
-                  <td>{formatINR(p.amount, numberFormatStyle)}</td>
-                  <td>{p.status.replaceAll('_', ' ')}</td>
-                  <td className="space-x-1">
+                <TableRow className="border-b" key={p.id}>
+                  <TableCell className="p-3 font-mono">{p.paymentNumber}</TableCell>
+                  <TableCell>{p.supplier?.companyName || p.vendor?.companyName}</TableCell>
+                  <TableCell>{p.plannedDate.slice(0, 10)}</TableCell>
+                  <TableCell>{formatINR(p.amount, numberFormatStyle)}</TableCell>
+                  <TableCell>{p.status.replaceAll('_', ' ')}</TableCell>
+                  <TableCell className="space-x-1">
                     {['DRAFT', 'REJECTED'].includes(p.status) && (
                       <Button
                         size="sm"
@@ -242,13 +249,14 @@ export default function VendorPaymentsPage() {
                         Record paid
                       </Button>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
+      <RegisterPagination page={page} pageCount={serverPageCount(total, PAGE_SIZE)} onPageChange={setPage} />
     </PageContainer>
   );
 }

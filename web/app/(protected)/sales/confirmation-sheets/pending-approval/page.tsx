@@ -20,6 +20,13 @@ import {
   TableHeader,
   TableRow,
 } from '../../../../components/ui/table';
+import { RegisterToolbar } from '../../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../../components/ui/register-pagination';
+import { useRegisterList } from '../../../../lib/use-register-list';
+import {
+  employeeNameOrFallback,
+  resolveEmployeeNames,
+} from '../../../../lib/employee-name-resolution';
 
 /**
  * Confirmation sheets awaiting the Sales Head's internal countersignature,
@@ -33,6 +40,8 @@ export default function ConfirmationSheetQueuePage() {
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
+  const register = useRegisterList(sheets, (sheet) => `${sheet.confirmationNumber} ${sheet.customerContactName} ${employeeNameOrFallback(creatorNames, sheet.createdById)} ${sheet.status} ${sheet.createdAt}`);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,6 +52,9 @@ export default function ConfirmationSheetQueuePage() {
         '/confirmation-sheets/pending-approval',
       );
       setSheets(res);
+      setCreatorNames(
+        await resolveEmployeeNames(res.map((sheet) => sheet.createdById)),
+      );
     } catch (err) {
       if (err instanceof ApiError && err.statusCode === 403) {
         setForbidden(true);
@@ -78,6 +90,7 @@ export default function ConfirmationSheetQueuePage() {
         title="Confirmation Sheet Approvals"
         description="Order confirmation sheets awaiting your internal signature. Open an order to sign or reject its sheet."
       />
+      <RegisterToolbar title="Approval Queue" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search confirmation, requester or status" />
 
       <Card>
         <CardContent className="pt-6">
@@ -92,12 +105,13 @@ export default function ConfirmationSheetQueuePage() {
                   <TableHead>Confirmation #</TableHead>
                   <TableHead>Revision</TableHead>
                   <TableHead>Customer Contact</TableHead>
+                  <TableHead>Requester</TableHead>
                   <TableHead>Submitted</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sheets.map((s) => (
+                {register.visibleItems.map((s) => (
                   <TableRow
                     key={s.id}
                     className="cursor-pointer"
@@ -108,6 +122,7 @@ export default function ConfirmationSheetQueuePage() {
                     </TableCell>
                     <TableCell>Rev {s.revisionNumber}</TableCell>
                     <TableCell>{s.customerContactName}</TableCell>
+                    <TableCell>{employeeNameOrFallback(creatorNames, s.createdById)}</TableCell>
                     <TableCell>{dateOnlyStr(s.createdAt)}</TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -123,9 +138,9 @@ export default function ConfirmationSheetQueuePage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {sheets.length === 0 && (
+                {register.visibleItems.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="p-0">
+                    <TableCell colSpan={6} className="p-0">
                       <EmptyState
                         icon={FileCheck}
                         tone="positive"
@@ -139,6 +154,7 @@ export default function ConfirmationSheetQueuePage() {
           )}
         </CardContent>
       </Card>
+      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
     </PageContainer>
   );
 }

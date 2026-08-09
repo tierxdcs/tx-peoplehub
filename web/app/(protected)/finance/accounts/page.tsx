@@ -1,5 +1,7 @@
 'use client';
 
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { Button } from '../../../components/ui/button';
@@ -45,13 +47,13 @@ export default function FinanceAccountsPage() {
   for (const list of byParent.values()) list.sort((x, y) => x.code.localeCompare(y.code));
   function renderRows(parent: string | null, depth: number): React.ReactNode[] {
     return (byParent.get(parent) ?? []).flatMap((a) => [
-      <tr className="border-b" key={a.id}>
-        <td className="p-3 font-mono" style={{ paddingLeft: `${12 + depth * 20}px` }}>{a.code}</td>
-        <td className={isGroupHeader(a) ? 'font-semibold' : undefined}>{a.name}</td>
-        <td>{a.accountType.replaceAll('_', ' ')}</td>
-        <td>{a.normalBalance}</td>
-        <td>{a.isActive ? 'Active' : 'Inactive'}</td>
-      </tr>,
+      <TableRow className="border-b" key={a.id}>
+        <TableCell className="p-3 font-mono" style={{ paddingLeft: `${12 + depth * 20}px` }}>{a.code}</TableCell>
+        <TableCell className={isGroupHeader(a) ? 'font-semibold' : undefined}>{a.name}</TableCell>
+        <TableCell>{a.accountType.replaceAll('_', ' ')}</TableCell>
+        <TableCell>{a.normalBalance}</TableCell>
+        <TableCell>{a.isActive ? 'Active' : 'Inactive'}</TableCell>
+      </TableRow>,
       ...renderRows(a.id, depth + 1),
     ]);
   }
@@ -95,6 +97,6 @@ export default function FinanceAccountsPage() {
         <Button type="submit">Add account</Button>
       </form>
     </CardContent></Card>
-    <Card><CardContent className="overflow-x-auto p-0"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-3">Code</th><th>Name</th><th>Type</th><th>Normal balance</th><th>Status</th></tr></thead><tbody>{renderRows(null, 0)}</tbody></table></CardContent></Card>
+    <Card><CardContent className="overflow-x-auto p-0"><Table className="w-full text-sm"><TableHeader><TableRow className="border-b text-left"><TableHead className="p-3">Code</TableHead><TableHead>Name</TableHead><TableHead>Type</TableHead><TableHead>Normal balance</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{renderRows(null, 0)}</TableBody></Table></CardContent></Card>
   </PageContainer>;
 }

@@ -19,6 +19,9 @@ import { Select } from '../../../components/ui/select';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { StatusBadge } from '../../../components/ui/status-badge';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { useRegisterList } from '../../../lib/use-register-list';
 import {
   Table,
   TableBody,
@@ -47,6 +50,7 @@ export default function BomListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<BomStatus | ''>('');
+  const register = useRegisterList(boms, (b) => `${b.itemCode ?? ''} ${b.itemName ?? ''} ${b.status} ${b.createdByName ?? ''}`);
 
   const canManage =
     user?.role === 'SUPER_ADMIN' ||
@@ -81,8 +85,7 @@ export default function BomListPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Select
+      <RegisterToolbar title="BOM Register" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search item, status or creator" filters={<Select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as BomStatus | '')}
           className="h-9 w-52"
@@ -93,8 +96,7 @@ export default function BomListPage() {
               {BOM_STATUS_LABEL[s]}
             </option>
           ))}
-        </Select>
-      </div>
+        </Select>} />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -121,7 +123,7 @@ export default function BomListPage() {
                     ))}
                   </TableRow>
                 ))
-              ) : boms.length === 0 ? (
+              ) : register.visibleItems.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="p-0">
                     <EmptyState
@@ -136,7 +138,7 @@ export default function BomListPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                boms.map((b) => (
+                register.visibleItems.map((b) => (
                   <TableRow
                     key={b.id}
                     className="cursor-pointer"
@@ -163,6 +165,7 @@ export default function BomListPage() {
           </Table>
         </CardContent>
       </Card>
+      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
     </PageContainer>
   );
 }

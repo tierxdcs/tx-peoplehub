@@ -7,6 +7,18 @@ import {
   createBusinessUnit,
   updateBusinessUnit,
 } from '../../../lib/business-units';
+import { PageContainer } from '../../../components/ui/page-container';
+import { PageHeader } from '../../../components/ui/page-header';
+import { RegisterToolbar } from '../../../components/ui/register-toolbar';
+import { RegisterPagination } from '../../../components/ui/register-pagination';
+import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
+import { StatusBadge } from '../../../components/ui/status-badge';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { Layers3 } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import { useRegisterList } from '../../../lib/use-register-list';
 
 /**
  * SUPER_ADMIN business-unit management. Create, edit, and activate/deactivate.
@@ -33,6 +45,7 @@ export default function BusinessUnitsPage() {
   const [editDescription, setEditDescription] = useState('');
   const [editOrder, setEditOrder] = useState('');
   const [editColorHex, setEditColorHex] = useState('#2563EB');
+  const register = useRegisterList(units, (unit) => `${unit.name} ${unit.code} ${unit.description ?? ''} ${unit.isActive ? 'active' : 'inactive'}`);
 
   async function load() {
     setLoading(true);
@@ -109,93 +122,49 @@ export default function BusinessUnitsPage() {
   }
 
   return (
-    <div>
-      <h1>Business Units</h1>
-      <p className="mb-4 text-muted-foreground">
-        Deactivating a unit hides it from the product dropdown but keeps it on
-        products already tagged with it.
-      </p>
+    <PageContainer>
+      <PageHeader title="Business Units" description="Classify products for reporting and maintain their display labels." />
+      <RegisterToolbar title="Business Unit Register" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search name, code or status" />
 
       {error && <p className="text-destructive">{error}</p>}
 
       {loading ? (
-        <p>Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            marginBottom: 24,
-          }}
-        >
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
-              <th>Order</th>
-              <th>Name</th>
-              <th>Code</th>
-              <th>Description</th>
-              <th>Colour</th>
-              <th>Active</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {units.map((u) => (
-              <tr key={u.id} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+        <Card><CardContent className="p-0"><Table>
+          <TableHeader><TableRow><TableHead>Order</TableHead><TableHead>Name</TableHead><TableHead>Code</TableHead><TableHead>Description</TableHead><TableHead>Colour</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {register.visibleItems.map((u) => (
+              <TableRow key={u.id}>
                 {editingId === u.id ? (
                   <>
-                    <td>
-                      <input
+                    <TableCell><Input
                         value={editOrder}
                         onChange={(e) => setEditOrder(e.target.value)}
-                        style={{ width: 50, padding: 4 }}
-                      />
-                    </td>
-                    <td>
-                      <input
+                        className="w-20"
+                      /></TableCell>
+                    <TableCell><Input
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
-                        style={{ padding: 4 }}
-                      />
-                    </td>
-                    <td>{u.code}</td>
-                    <td>
-                      <input
+                      /></TableCell>
+                    <TableCell>{u.code}</TableCell>
+                    <TableCell><Input
                         value={editDescription}
                         onChange={(e) => setEditDescription(e.target.value)}
-                        style={{ padding: 4, width: '100%' }}
-                      />
-                    </td>
-                    <td>
+                      /></TableCell>
+                    <TableCell>
                       <input
                         type="color"
                         value={editColorHex}
                         onChange={(e) => setEditColorHex(e.target.value)}
                       />
-                    </td>
-                    <td>{u.isActive ? 'Yes' : 'No'}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <button
-                        onClick={() => saveEdit(u.id)}
-                        style={{ padding: 4 }}
-                      >
-                        Save
-                      </button>{' '}
-                      <button
-                        onClick={() => setEditingId(null)}
-                        style={{ padding: 4 }}
-                      >
-                        Cancel
-                      </button>
-                    </td>
+                    </TableCell>
+                    <TableCell><StatusBadge value={u.isActive ? 'ACTIVE' : 'INACTIVE'} /></TableCell>
+                    <TableCell className="space-x-2 text-right"><Button size="sm" onClick={() => saveEdit(u.id)}>Save</Button><Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button></TableCell>
                   </>
                 ) : (
                   <>
-                    <td>{u.displayOrder}</td>
-                    <td>{u.name}</td>
-                    <td>{u.code}</td>
-                    <td className="text-muted-foreground">{u.description ?? '—'}</td>
-                    <td>
+                    <TableCell>{u.displayOrder}</TableCell><TableCell>{u.name}</TableCell><TableCell>{u.code}</TableCell><TableCell className="text-muted-foreground">{u.description ?? '—'}</TableCell><TableCell>
                       <span
                         style={{
                           display: 'inline-block',
@@ -206,36 +175,21 @@ export default function BusinessUnitsPage() {
                         }}
                       />{' '}
                       {u.colorHex}
-                    </td>
-                    <td>{u.isActive ? 'Yes' : 'No'}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <button
-                        onClick={() => startEdit(u)}
-                        style={{ padding: 4 }}
-                      >
-                        Edit
-                      </button>{' '}
-                      <button
-                        onClick={() => toggleActive(u)}
-                        style={{ padding: 4 }}
-                      >
-                        {u.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </td>
+                    </TableCell><TableCell><StatusBadge value={u.isActive ? 'ACTIVE' : 'INACTIVE'} /></TableCell><TableCell className="space-x-2 text-right"><Button size="sm" variant="outline" onClick={() => startEdit(u)}>Edit</Button><Button size="sm" variant="outline" onClick={() => toggleActive(u)}>{u.isActive ? 'Deactivate' : 'Activate'}</Button></TableCell>
                   </>
                 )}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+            {!register.visibleItems.length && <TableRow><TableCell colSpan={7} className="p-0"><EmptyState icon={Layers3} title="No business units match your search" /></TableCell></TableRow>}
+          </TableBody></Table></CardContent></Card>
       )}
+      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
 
-      <h2>Create business unit</h2>
-      <form onSubmit={handleCreate} style={{ maxWidth: 360 }}>
+      <Card className="mt-6"><CardHeader><CardTitle>Create business unit</CardTitle></CardHeader><CardContent><form onSubmit={handleCreate} className="max-w-md space-y-4">
         <div style={{ marginBottom: 12 }}>
           <label>Label colour</label>
           <br />
-          <input
+          <Input
             type="color"
             value={colorHex}
             onChange={(e) => setColorHex(e.target.value)}
@@ -244,46 +198,42 @@ export default function BusinessUnitsPage() {
         <div style={{ marginBottom: 12 }}>
           <label>Name</label>
           <br />
-          <input
+          <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
-            style={{ width: '100%', padding: 8 }}
           />
         </div>
         <div style={{ marginBottom: 12 }}>
           <label>Code</label>
           <br />
-          <input
+          <Input
             value={code}
             onChange={(e) => setCode(e.target.value)}
             required
-            style={{ width: '100%', padding: 8 }}
           />
         </div>
         <div style={{ marginBottom: 12 }}>
           <label>Description (optional)</label>
           <br />
-          <input
+          <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            style={{ width: '100%', padding: 8 }}
           />
         </div>
         <div style={{ marginBottom: 12 }}>
           <label>Display order</label>
           <br />
-          <input
+          <Input
             type="number"
             value={displayOrder}
             onChange={(e) => setDisplayOrder(e.target.value)}
-            style={{ width: '100%', padding: 8 }}
           />
         </div>
-        <button type="submit" disabled={submitting} style={{ padding: 8 }}>
+        <Button type="submit" disabled={submitting}>
           {submitting ? 'Creating…' : 'Create'}
-        </button>
-      </form>
-    </div>
+        </Button>
+      </form></CardContent></Card>
+    </PageContainer>
   );
 }

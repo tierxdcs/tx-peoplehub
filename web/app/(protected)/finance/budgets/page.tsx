@@ -1,4 +1,6 @@
 'use client';
+
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useFinanceAccess } from '../../../lib/use-finance-access';
@@ -217,31 +219,31 @@ export default function BudgetsPage() {
       </Card>
       <Card className="mb-6">
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="p-3">Budget</th>
-                <th>FY</th>
-                <th>Lines</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHeader>
+              <TableRow className="border-b text-left">
+                <TableHead className="p-3">Budget</TableHead>
+                <TableHead>FY</TableHead>
+                <TableHead>Lines</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {budgets.map((b) => (
-                <tr className="border-b" key={b.id}>
-                  <td className="p-3 font-medium">{b.name}</td>
-                  <td>{b.fiscalYear.name}</td>
-                  <td>{b.lines.length}</td>
-                  <td>
+                <TableRow className="border-b" key={b.id}>
+                  <TableCell className="p-3 font-medium">{b.name}</TableCell>
+                  <TableCell>{b.fiscalYear.name}</TableCell>
+                  <TableCell>{b.lines.length}</TableCell>
+                  <TableCell>
                     {formatINR(
                       b.lines.reduce((s, l) => s + Number(l.amount), 0),
                       numberFormatStyle,
                     )}
-                  </td>
-                  <td>{b.status}</td>
-                  <td className="space-x-1">
+                  </TableCell>
+                  <TableCell>{b.status}</TableCell>
+                  <TableCell className="space-x-1">
                     {['DRAFT', 'REJECTED'].includes(b.status) && (
                       <Button
                         size="sm"
@@ -277,44 +279,44 @@ export default function BudgetsPage() {
                         Variance
                       </Button>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
       {variance.length > 0 && (
         <Card>
           <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left">
-                  <th className="p-3">Period</th>
-                  <th>Account</th>
-                  <th>Dimension</th>
-                  <th>Budget</th>
-                  <th>Actual</th>
-                  <th>Variance</th>
-                  <th>%</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-sm">
+              <TableHeader>
+                <TableRow className="border-b text-left">
+                  <TableHead className="p-3">Period</TableHead>
+                  <TableHead>Account</TableHead>
+                  <TableHead>Dimension</TableHead>
+                  <TableHead>Budget</TableHead>
+                  <TableHead>Actual</TableHead>
+                  <TableHead>Variance</TableHead>
+                  <TableHead>%</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {variance.map((v, i) => (
-                  <tr className="border-b" key={i}>
-                    <td className="p-3">{v.period}</td>
-                    <td>
+                  <TableRow className="border-b" key={i}>
+                    <TableCell className="p-3">{v.period}</TableCell>
+                    <TableCell>
                       {v.accountCode} · {v.accountName}
-                    </td>
-                    <td>{v.costCenter || v.projectReference || 'Company'}</td>
-                    <td>{formatINR(v.budget, numberFormatStyle)}</td>
-                    <td>{formatINR(v.actual, numberFormatStyle)}</td>
-                    <td>{formatINR(v.variance, numberFormatStyle)}</td>
-                    <td>{v.variancePercent ?? '—'}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell>{v.costCenter || v.projectReference || 'Company'}</TableCell>
+                    <TableCell>{formatINR(v.budget, numberFormatStyle)}</TableCell>
+                    <TableCell>{formatINR(v.actual, numberFormatStyle)}</TableCell>
+                    <TableCell>{formatINR(v.variance, numberFormatStyle)}</TableCell>
+                    <TableCell>{v.variancePercent ?? '—'}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
