@@ -52,6 +52,7 @@ import { CustomerOrderProgressModule } from './modules/customer-order-progress/c
 import { OfferLettersModule } from './modules/offer-letters/offer-letters.module';
 import { ProvisioningModule } from './modules/provisioning/provisioning.module';
 import { CandidateRequisitionsModule } from './modules/candidate-requisitions/candidate-requisitions.module';
+import { ReferenceRatesModule } from './modules/reference-rates/reference-rates.module';
 
 @Module({
   imports: [
@@ -94,6 +95,7 @@ import { CandidateRequisitionsModule } from './modules/candidate-requisitions/ca
     OfferLettersModule,
     ProvisioningModule,
     CandidateRequisitionsModule,
+    ReferenceRatesModule,
     ScmPurchasingModule,
     LogisticsModule,
     RfqModule,

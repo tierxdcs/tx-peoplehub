@@ -155,6 +155,20 @@ export default function RfqDetailPage() {
     [rfq],
   );
 
+  // The winning invitee + its comparison figures, resolved for the Award
+  // Decision card. Name/type come from the RFQ payload immediately; the quoted
+  // value and commercial terms arrive once the (async) comparison loads.
+  const awardedInvitee = useMemo(
+    () =>
+      rfq?.awardedInviteeId
+        ? (rfq.invitees ?? []).find((i) => i.id === rfq.awardedInviteeId) ?? null
+        : null,
+    [rfq],
+  );
+  const awardedColumn = rfq?.awardedInviteeId
+    ? quoteTotals.get(rfq.awardedInviteeId) ?? null
+    : null;
+
   async function handleAddInvitee() {
     if (!rfq || !partnerId) return;
     setActing(true);
@@ -383,22 +397,75 @@ export default function RfqDetailPage() {
           <CardHeader>
             <CardTitle className="text-base">Award Decision</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            <div>
-              <span className="text-muted-foreground">Decided by: </span>
-              <span className="font-medium">{rfq.awardDecisionByName ?? '—'}</span>
-              {rfq.awardDecisionAt && (
-                <span className="ml-1 text-muted-foreground">
-                  on {dateOnlyStr(rfq.awardDecisionAt)}
+          <CardContent className="space-y-4 text-sm">
+            {/* Awardee — the winning partner, front and centre. */}
+            <div className="rounded-md border border-success/40 bg-success/10 p-3">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                Awarded to
+              </div>
+              <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span className="text-base font-semibold">
+                  {awardedInvitee?.partnerName ?? '—'}
                 </span>
+                {awardedInvitee && (
+                  <span className="text-xs text-muted-foreground">
+                    {humanizeEnum(awardedInvitee.partnerType)}
+                  </span>
+                )}
+              </div>
+              {awardedColumn?.totalQuotedValue && (
+                <div className="mt-1 text-sm">
+                  <span className="text-muted-foreground">Awarded value: </span>
+                  <span className="font-semibold text-success">
+                    {formatINR(awardedColumn.totalQuotedValue, numberFormatStyle)}
+                  </span>
+                </div>
               )}
             </div>
-            {rfq.awardJustification && (
-              <div>
-                <span className="text-muted-foreground">Justification: </span>
-                {rfq.awardJustification}
+
+            {/* Winning quote's commercial terms, when the comparison has loaded. */}
+            {awardedColumn && (
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+                <Info
+                  label="Lead Time"
+                  value={
+                    awardedColumn.quotedLeadTimeDays != null
+                      ? `${awardedColumn.quotedLeadTimeDays} days`
+                      : '—'
+                  }
+                />
+                <Info
+                  label="Payment Terms"
+                  value={awardedColumn.paymentTermsOffered ?? '—'}
+                />
+                <Info
+                  label="Quote Validity"
+                  value={
+                    awardedColumn.validityDays != null
+                      ? `${awardedColumn.validityDays} days`
+                      : '—'
+                  }
+                />
               </div>
             )}
+
+            <div className="space-y-1 border-t pt-3">
+              <div>
+                <span className="text-muted-foreground">Decided by: </span>
+                <span className="font-medium">{rfq.awardDecisionByName ?? '—'}</span>
+                {rfq.awardDecisionAt && (
+                  <span className="ml-1 text-muted-foreground">
+                    on {dateOnlyStr(rfq.awardDecisionAt)}
+                  </span>
+                )}
+              </div>
+              {rfq.awardJustification && (
+                <div>
+                  <span className="text-muted-foreground">Justification: </span>
+                  {rfq.awardJustification}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

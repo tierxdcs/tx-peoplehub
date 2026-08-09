@@ -5,6 +5,7 @@ import {
   Opportunity,
   OrderStatus,
 } from './types';
+import { formatApproximateReference } from './reference-currency';
 
 /**
  * INR currency formatters for Decimal-as-string amounts. Both keep the ₹
@@ -37,7 +38,9 @@ export function formatINR(
   if (value === null || value === undefined || value === '') return '—';
   const n = typeof value === 'number' ? value : Number(value);
   if (Number.isNaN(n)) return String(value);
-  return inrByStyle[style].format(n);
+  const inr = inrByStyle[style].format(n);
+  const reference = formatApproximateReference(n, style);
+  return reference ? `${inr} (${reference})` : inr;
 }
 
 /**
@@ -97,7 +100,11 @@ export function pipelineStatusColor(displayStatus: string): string {
   if (s.includes('won')) return 'hsl(var(--success))';
   if (s.includes('lost') || s.includes('disqualified'))
     return 'hsl(var(--destructive))';
-  if (s.includes('qualified') || s.includes('proposal') || s.includes('negotiation'))
+  if (
+    s.includes('qualified') ||
+    s.includes('proposal') ||
+    s.includes('negotiation')
+  )
     return 'hsl(var(--info))';
   return 'hsl(var(--muted-foreground))'; // New / Contacted / Prospecting / etc.
 }
