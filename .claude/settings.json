@@ -11,7 +11,8 @@
       "Bash(echo \"exit: $?\")",
       "Bash(SEED_ADMIN_EMAIL=admin@peoplehub.local SEED_ADMIN_PASSWORD=ChangeMe123! npx jest --config ./test/jest-e2e.json kanban)",
       "Bash(SEED_ADMIN_EMAIL=admin@peoplehub.local SEED_ADMIN_PASSWORD=ChangeMe123! npx jest --config ./test/jest-e2e.json employees kanban notifications)",
-      "Bash(awk '/^model Vendor /{f=1} f{print NR\": \"$0} /^}/{if\\(f\\){exit}}' prisma/schema.prisma)"
+      "Bash(awk '/^model Vendor /{f=1} f{print NR\": \"$0} /^}/{if\\(f\\){exit}}' prisma/schema.prisma)",
+      "Bash(awk '/^model Rfq /{f=1} f{print NR\": \"$0} /^}/{if\\(f\\){exit}}' prisma/schema.prisma)"
     ]
   }
 }
