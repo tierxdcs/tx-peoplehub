@@ -12,7 +12,24 @@
       "Bash(SEED_ADMIN_EMAIL=admin@peoplehub.local SEED_ADMIN_PASSWORD=ChangeMe123! npx jest --config ./test/jest-e2e.json kanban)",
       "Bash(SEED_ADMIN_EMAIL=admin@peoplehub.local SEED_ADMIN_PASSWORD=ChangeMe123! npx jest --config ./test/jest-e2e.json employees kanban notifications)",
       "Bash(awk '/^model Vendor /{f=1} f{print NR\": \"$0} /^}/{if\\(f\\){exit}}' prisma/schema.prisma)",
-      "Bash(awk '/^model Rfq /{f=1} f{print NR\": \"$0} /^}/{if\\(f\\){exit}}' prisma/schema.prisma)"
+      "Bash(awk '/^model Rfq /{f=1} f{print NR\": \"$0} /^}/{if\\(f\\){exit}}' prisma/schema.prisma)",
+      "Bash(awk '/^model AccountsPayableInvoice /{f=1} f{print NR\": \"$0} /^}/{if\\(f\\)exit}' prisma/schema.prisma)",
+      "Bash(awk '/^model AccountsPayableInvoiceLine /{f=1} f{print} /^}/{if\\(f\\)exit}' prisma/schema.prisma)",
+      "Bash(awk '/^enum AccountType /{f=1} f{print} /^}/{if\\(f\\)exit}' prisma/schema.prisma)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma migrate dev --name employee_expense_claims --skip-seed)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma migrate deploy)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma generate)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma db seed)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx jest src/modules/expense-claims)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx tsc --noEmit)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx tsc --noEmit -p tsconfig.json)",
+      "Bash(echo \"TSC_EXIT: $?\")",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx jest app/lib/nav.test.ts)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx vitest run app/lib/nav.test.ts)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npm run build)",
+      "Bash(echo \"BUILD_EXIT: $?\")",
+      "Bash(echo \"BE_BUILD_EXIT: $?\")",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx jest)"
     ]
   }
 }

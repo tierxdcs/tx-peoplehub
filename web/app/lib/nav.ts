@@ -122,6 +122,9 @@ export function sharedNav(access: Access): NavGroup[] {
   const me: NavItem[] = [];
   if (access.payslipsEnabled)
     me.push({ label: 'My Payslips', href: '/payslips' });
+  // Expense reimbursement claims — self-service for every employee; the page
+  // and API are scoped to the caller's own claims, so the item is ungated.
+  me.push({ label: 'My Expense Claims', href: '/expense-claims' });
   if (me.length) groups.push({ heading: 'Me', items: me });
 
   // Offer Letter Approvals — surfaced to whoever currently has letters routed
@@ -290,6 +293,7 @@ export function sharedNav(access: Access): NavGroup[] {
         { label: 'Credit & Debit Notes', href: '/finance/adjustments' },
         { label: FINANCE_LABELS.journalVoucher, href: '/finance/journals' },
         { label: FINANCE_LABELS.contraVoucher, href: '/finance/contra' },
+        { label: 'Expense Claims', href: '/finance/expense-claims' },
       ],
     });
     groups.push({
@@ -403,6 +407,7 @@ export function hrNav(access: Access): NavGroup[] {
           href: '/admin/bid-assessment-questions',
         },
         { label: 'Milestone Templates', href: '/admin/milestone-templates' },
+        { label: 'Expense Categories', href: '/admin/expense-categories' },
       ],
     });
   }

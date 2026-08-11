@@ -497,8 +497,8 @@ model Employee {
   candidateRequisitionsRejected           CandidateRequisition[] @relation("CandidateRequisitionRejector")
   payrollRunsInitiated                    PayrollRun[]
   payslips                                Payslip[]
-  learningCoursesCreated                  LearningCourse[]   @relation("LearningCourseCreator")
-  learningCoursesUpdated                  LearningCourse[]   @relation("LearningCourseUpdater")
+  learningCoursesCreated                  LearningCourse[]       @relation("LearningCourseCreator")
+  learningCoursesUpdated                  LearningCourse[]       @relation("LearningCourseUpdater")
   learningProgress                        LearningProgress[]
 
   leaveBalances          LeaveBalance[]
@@ -555,12 +555,12 @@ model Employee {
   plmUpdatesReported        PlmProductionUpdate[]   @relation("PlmUpdateInternalReporter")
 
   // Project Kickoff back-relations.
-  projectKickoffsCreated  ProjectKickoff[]    @relation("KickoffCreator")
+  projectKickoffsCreated  ProjectKickoff[]      @relation("KickoffCreator")
   resourcePlansGenerated  ProjectResourcePlan[] @relation("ResourcePlanGeneratedBy")
-  kickoffAttendances      KickoffAttendee[]   @relation("KickoffAttendeeEmployee")
-  kickoffMilestonesOwned  KickoffMilestone[]  @relation("KickoffMilestoneOwner")
-  kickoffActionItemsOwned KickoffActionItem[] @relation("KickoffActionItemOwner")
-  kickoffRisksOwned       KickoffRisk[]       @relation("KickoffRiskOwner")
+  kickoffAttendances      KickoffAttendee[]     @relation("KickoffAttendeeEmployee")
+  kickoffMilestonesOwned  KickoffMilestone[]    @relation("KickoffMilestoneOwner")
+  kickoffActionItemsOwned KickoffActionItem[]   @relation("KickoffActionItemOwner")
+  kickoffRisksOwned       KickoffRisk[]         @relation("KickoffRiskOwner")
 
   // Vendor Qualification (SCM) back-relations.
   vendorsCreated         Vendor[]                    @relation("VendorCreator")
@@ -630,6 +630,13 @@ model Employee {
   financeSchedulesCreated  FinanceSchedule[]        @relation("FinanceScheduleCreator")
   financeSchedulesApproved FinanceSchedule[]        @relation("FinanceScheduleApprover")
   reservationsCancelled    StockReservation[]       @relation("ReservationCanceller")
+
+  // Employee Expense Claims back-relations.
+  expenseClaimsSubmitted  ExpenseClaim[]        @relation("ExpenseClaimClaimant")
+  expenseClaimsApproved   ExpenseClaim[]        @relation("ExpenseClaimApprover")
+  expenseClaimsRejected   ExpenseClaim[]        @relation("ExpenseClaimRejecter")
+  expenseClaimsPaid       ExpenseClaim[]        @relation("ExpenseClaimPayer")
+  expenseReceiptsUploaded ExpenseClaimReceipt[] @relation("ExpenseReceiptUploader")
 
   // Purchasing (Stores) back-relations.
   purchaseOrdersCreated   PurchaseOrder[]        @relation("PurchaseOrderCreator")
@@ -2905,7 +2912,7 @@ model ProjectKickoff {
   risks             KickoffRisk[]
   stockReport       KickoffStockReport?
   resourcePlan      ProjectResourcePlan?
-  stockReservations StockReservation[]  @relation("KickoffReservations")
+  stockReservations StockReservation[]   @relation("KickoffReservations")
   materialIndents   MaterialIndent[]
   rfqs              Rfq[]
   plmTrackers       PlmTracker[]
@@ -3627,9 +3634,9 @@ model Item {
   /// Fallback cost used only until an accepted GRN provides a procurement cost.
   manualStandardCost    Decimal? @db.Decimal(14, 2)
 
-  boms                 Bom[]                  @relation("ItemBoms")
+  boms                 Bom[]                     @relation("ItemBoms")
   bomLines             BomLine[]
-  products             Product[]              @relation("ProductItem")
+  products             Product[]                 @relation("ProductItem")
   stockBalances        StockBalance[]
   stockAdjustments     StockAdjustment[]
   reservations         StockReservation[]
@@ -3960,18 +3967,18 @@ model ProjectResourcePlan {
 /// (plan, item) so regeneration can match existing lines by item and preserve
 /// already-entered negotiated prices.
 model ProjectResourcePlanLine {
-  id                    String              @id @default(uuid())
-  resourcePlanId        String
-  resourcePlan          ProjectResourcePlan @relation(fields: [resourcePlanId], references: [id], onDelete: Cascade)
-  itemId                String
-  item                  Item                @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  itemCode              String
-  itemName              String
-  requiredQuantity      Decimal             @db.Decimal(14, 4)
-  unitOfMeasure         String
-  benchmarkCostPerUnit  Decimal             @db.Decimal(14, 2)
-  negotiatedPricePerUnit Decimal?           @db.Decimal(14, 2)
-  notes                 String?             @db.Text
+  id                     String              @id @default(uuid())
+  resourcePlanId         String
+  resourcePlan           ProjectResourcePlan @relation(fields: [resourcePlanId], references: [id], onDelete: Cascade)
+  itemId                 String
+  item                   Item                @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  itemCode               String
+  itemName               String
+  requiredQuantity       Decimal             @db.Decimal(14, 4)
+  unitOfMeasure          String
+  benchmarkCostPerUnit   Decimal             @db.Decimal(14, 2)
+  negotiatedPricePerUnit Decimal?            @db.Decimal(14, 2)
+  notes                  String?             @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4094,6 +4101,7 @@ model LedgerAccount {
   scheduleCredits                   FinanceSchedule[]    @relation("FinanceScheduleCreditAccount")
   contraFromVouchers                ContraVoucher[]      @relation("ContraFromAccount")
   contraToVouchers                  ContraVoucher[]      @relation("ContraToAccount")
+  expenseCategories                 ExpenseCategory[]    @relation("ExpenseCategoryLedger")
   createdAt                         DateTime             @default(now())
   updatedAt                         DateTime             @updatedAt
 
@@ -4247,44 +4255,46 @@ model FinanceSequence {
 /// Manual journal header. Only POSTED entries contribute to financial reports.
 /// Posted entries are immutable; correction is by an explicit reversal.
 model JournalEntry {
-  id                String                    @id @default(uuid())
-  journalNumber     String                    @unique
-  entryDate         DateTime
-  periodId          String
-  period            AccountingPeriod          @relation(fields: [periodId], references: [id], onDelete: Restrict)
-  description       String                    @db.Text
-  reference         String?
-  status            JournalStatus             @default(DRAFT)
-  createdById       String
-  createdBy         Employee                  @relation("JournalCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  submittedById     String?
-  submittedBy       Employee?                 @relation("JournalSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
-  submittedAt       DateTime?
-  approvedById      String?
-  approvedBy        Employee?                 @relation("JournalApprover", fields: [approvedById], references: [id], onDelete: SetNull)
-  approvedAt        DateTime?
-  rejectedById      String?
-  rejectedBy        Employee?                 @relation("JournalRejecter", fields: [rejectedById], references: [id], onDelete: SetNull)
-  rejectedAt        DateTime?
-  rejectionComment  String?                   @db.Text
-  reversedById      String?
-  reversedBy        Employee?                 @relation("JournalReverser", fields: [reversedById], references: [id], onDelete: SetNull)
-  reversedAt        DateTime?
-  reversalOfId      String?                   @unique
-  reversalOf        JournalEntry?             @relation("JournalReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
-  reversalEntry     JournalEntry?             @relation("JournalReversal")
-  lines             JournalLine[]
-  salesInvoice      SalesInvoice?             @relation("SalesInvoiceJournal")
-  customerReceipt   CustomerReceipt?          @relation("CustomerReceiptJournal")
-  apInvoice         AccountsPayableInvoice?   @relation("ApInvoiceJournal")
-  apPayment         AccountsPayablePayment?   @relation("ApPaymentJournal")
-  financeNote       FinanceAdjustmentNote?    @relation("FinanceNoteJournal")
-  contraVoucher     ContraVoucher?            @relation("ContraVoucherJournal")
-  bankMatches       BankTransactionMatch[]
-  depreciationEntry AssetDepreciationEntry?
-  scheduleExecution FinanceScheduleExecution?
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
+  id                   String                    @id @default(uuid())
+  journalNumber        String                    @unique
+  entryDate            DateTime
+  periodId             String
+  period               AccountingPeriod          @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  description          String                    @db.Text
+  reference            String?
+  status               JournalStatus             @default(DRAFT)
+  createdById          String
+  createdBy            Employee                  @relation("JournalCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedById        String?
+  submittedBy          Employee?                 @relation("JournalSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt          DateTime?
+  approvedById         String?
+  approvedBy           Employee?                 @relation("JournalApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt           DateTime?
+  rejectedById         String?
+  rejectedBy           Employee?                 @relation("JournalRejecter", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedAt           DateTime?
+  rejectionComment     String?                   @db.Text
+  reversedById         String?
+  reversedBy           Employee?                 @relation("JournalReverser", fields: [reversedById], references: [id], onDelete: SetNull)
+  reversedAt           DateTime?
+  reversalOfId         String?                   @unique
+  reversalOf           JournalEntry?             @relation("JournalReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversalEntry        JournalEntry?             @relation("JournalReversal")
+  lines                JournalLine[]
+  salesInvoice         SalesInvoice?             @relation("SalesInvoiceJournal")
+  customerReceipt      CustomerReceipt?          @relation("CustomerReceiptJournal")
+  apInvoice            AccountsPayableInvoice?   @relation("ApInvoiceJournal")
+  apPayment            AccountsPayablePayment?   @relation("ApPaymentJournal")
+  financeNote          FinanceAdjustmentNote?    @relation("FinanceNoteJournal")
+  contraVoucher        ContraVoucher?            @relation("ContraVoucherJournal")
+  bankMatches          BankTransactionMatch[]
+  depreciationEntry    AssetDepreciationEntry?
+  scheduleExecution    FinanceScheduleExecution?
+  expenseClaimApproval ExpenseClaim?             @relation("ExpenseClaimApprovalJournal")
+  expenseClaimPayment  ExpenseClaim?             @relation("ExpenseClaimPaymentJournal")
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
 
   @@index([entryDate, status])
   @@index([periodId, status])
@@ -6934,4 +6944,138 @@ model RfqQuoteLine {
   @@unique([quoteId, rfqLineId])
   @@index([rfqLineId])
   @@map("rfq_quote_lines")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Employee Expense Claims
+//
+// An employee submits a claim for out-of-pocket expenses; on approval it posts a
+// balanced journal debiting the mapped expense ledger(s) and crediting a dedicated
+// "Employee Reimbursements Payable" liability (code 2500) — kept DISTINCT from
+// Accounts Payable (2000) so vendor AP aging is never touched. Marking the claim
+// Paid posts a second journal clearing that liability against Cash and Bank (1000).
+// Receipts are mandatory: every line points at an ACTIVE ExpenseClaimReceipt (a
+// required FK), so a receipt-less line cannot exist and a claim cannot be
+// submitted without one. Bytes live in R2 via the same presigned-PUT +
+// head-check-before-ACTIVE discipline as Vault/Kanban attachments.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Admin-managed expense category catalogue. Each category maps to the expense
+/// ledger its lines post to on approval; soft-deactivated (isActive=false) rather
+/// than deleted so historical claims keep their category. Mirrors the
+/// MilestoneTemplate admin-lookup pattern.
+model ExpenseCategory {
+  id                     String             @id @default(uuid())
+  name                   String             @unique
+  defaultExpenseLedgerId String
+  defaultExpenseLedger   LedgerAccount      @relation("ExpenseCategoryLedger", fields: [defaultExpenseLedgerId], references: [id], onDelete: Restrict)
+  isActive               Boolean            @default(true)
+  lines                  ExpenseClaimLine[]
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  @@index([isActive])
+  @@map("expense_categories")
+}
+
+enum ExpenseClaimStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+}
+
+/// Expense claim header. The claimant is any employee (self-service, not
+/// vertical-scoped). Approval authority is the designated Accounts Head or
+/// SUPER_ADMIN (see the service); totalAmount is the summed line amounts,
+/// recomputed on every line mutation while DRAFT.
+model ExpenseClaim {
+  id          String             @id @default(uuid())
+  claimNumber String             @unique
+  employeeId  String
+  employee    Employee           @relation("ExpenseClaimClaimant", fields: [employeeId], references: [id], onDelete: Restrict)
+  title       String
+  status      ExpenseClaimStatus @default(DRAFT)
+  totalAmount Decimal            @default(0) @db.Decimal(14, 2)
+
+  submittedAt      DateTime?
+  approvedById     String?
+  approvedBy       Employee? @relation("ExpenseClaimApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt       DateTime?
+  rejectedById     String?
+  rejectedBy       Employee? @relation("ExpenseClaimRejecter", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedAt       DateTime?
+  rejectionComment String?   @db.Text
+  paidById         String?
+  paidBy           Employee? @relation("ExpenseClaimPayer", fields: [paidById], references: [id], onDelete: SetNull)
+  paidAt           DateTime?
+
+  /// The journal posted when the claim was approved (debit expenses / credit
+  /// reimbursements payable). Restrict so an approved claim's audit trail
+  /// cannot be silently orphaned.
+  approvalJournalId String?       @unique
+  approvalJournal   JournalEntry? @relation("ExpenseClaimApprovalJournal", fields: [approvalJournalId], references: [id], onDelete: Restrict)
+  /// The journal posted when the claim was marked Paid (debit reimbursements
+  /// payable / credit cash and bank).
+  paymentJournalId  String?       @unique
+  paymentJournal    JournalEntry? @relation("ExpenseClaimPaymentJournal", fields: [paymentJournalId], references: [id], onDelete: Restrict)
+
+  lines     ExpenseClaimLine[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([employeeId, status])
+  @@index([status, createdAt])
+  @@map("expense_claims")
+}
+
+/// A single expense line. receiptId is REQUIRED and UNIQUE — a line always owns
+/// exactly one ACTIVE receipt (enforced at the DB with a non-null FK and in the
+/// service, which only links receipts that head-checked into R2). The line's
+/// category determines which expense ledger the amount debits on approval.
+model ExpenseClaimLine {
+  id          String              @id @default(uuid())
+  claimId     String
+  claim       ExpenseClaim        @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  expenseDate DateTime
+  categoryId  String
+  category    ExpenseCategory     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  description String
+  amount      Decimal             @db.Decimal(14, 2)
+  receiptId   String              @unique
+  receipt     ExpenseClaimReceipt @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([claimId])
+  @@index([categoryId])
+  @@map("expense_claim_lines")
+}
+
+enum ExpenseReceiptStatus {
+  PENDING
+  ACTIVE
+}
+
+/// A receipt file in R2. Created PENDING when the upload URL is minted; flipped
+/// ACTIVE only after a HEAD confirms the bytes landed at the expected key (same
+/// discipline as Vault/Kanban). A line references it via a required FK, so only
+/// ACTIVE receipts are ever attached. The claimant owns the receipt row.
+model ExpenseClaimReceipt {
+  id           String               @id @default(uuid())
+  uploadedById String
+  uploadedBy   Employee             @relation("ExpenseReceiptUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  filename     String
+  contentType  String
+  sizeBytes    BigInt
+  storageKey   String
+  status       ExpenseReceiptStatus @default(PENDING)
+  line         ExpenseClaimLine?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([uploadedById, status])
+  @@map("expense_claim_receipts")
 }

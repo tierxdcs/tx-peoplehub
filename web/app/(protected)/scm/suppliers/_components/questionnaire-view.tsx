@@ -1,5 +1,8 @@
 'use client';
 
+import { useState } from 'react';
+import { ExternalLink } from 'lucide-react';
+import { apiFetch, ApiError } from '../../../../lib/api';
 import {
   FILLED_BY_LABEL,
   OPTIONAL_SECTION_KEYS,
@@ -7,6 +10,8 @@ import {
   type SupplierDetail,
   type SupplierQuestionnaire,
 } from '../../../../lib/scm-supplier';
+import { Button } from '../../../../components/ui/button';
+import { useToast } from '../../../../components/ui/toaster';
 
 /** Section key → human title (the 9 supplier questionnaire sections). */
 const SECTION_TITLES: Record<string, string> = {
@@ -23,9 +28,11 @@ const SECTION_TITLES: Record<string, string> = {
 
 /** Render any JSON value as readable read-only content. */
 function renderValue(value: unknown): React.ReactNode {
-  if (value == null || value === '') return <span className="text-muted-foreground">—</span>;
+  if (value == null || value === '')
+    return <span className="text-muted-foreground">—</span>;
   if (Array.isArray(value)) {
-    if (value.length === 0) return <span className="text-muted-foreground">—</span>;
+    if (value.length === 0)
+      return <span className="text-muted-foreground">—</span>;
     return (
       <ul className="list-inside list-disc">
         {value.map((v, i) => (
@@ -39,7 +46,10 @@ function renderValue(value: unknown): React.ReactNode {
     return (
       <div className="ml-2 space-y-0.5">
         {Object.entries(value as Record<string, unknown>).map(([k, v]) => (
-          <div key={k} className="grid grid-cols-[minmax(120px,220px)_1fr] gap-2">
+          <div
+            key={k}
+            className="grid grid-cols-[minmax(120px,220px)_1fr] gap-2"
+          >
             <span className="text-muted-foreground">{humanizeKey(k)}</span>
             <span>{renderValue(v)}</span>
           </div>
@@ -58,7 +68,9 @@ function humanizeKey(k: string): string {
 }
 
 function isFilled(v: unknown): boolean {
-  return v != null && typeof v === 'object' && Object.keys(v as object).length > 0;
+  return (
+    v != null && typeof v === 'object' && Object.keys(v as object).length > 0
+  );
 }
 
 /**
@@ -79,11 +91,32 @@ export function QuestionnaireView({
   questionnaire: SupplierQuestionnaire;
   supplier: SupplierDetail;
 }) {
+  const toast = useToast();
+  const [openingCertificate, setOpeningCertificate] = useState<number | null>(
+    null,
+  );
   // Sections to render: any filled section, plus optional sections always
   // (so a blank optional section renders its explicit "Not provided" state).
   const sectionsToShow = SECTION_KEYS.filter(
     (k) => isFilled(questionnaire[k]) || OPTIONAL_SECTION_KEYS.includes(k),
   );
+
+  async function openCertificate(fileIndex: number) {
+    setOpeningCertificate(fileIndex);
+    try {
+      const result = await apiFetch<{ downloadUrl: string }>(
+        `/suppliers/questionnaires/${questionnaire.id}/certificates/${fileIndex}/download`,
+      );
+      window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : 'Could not open the certificate',
+      );
+      setOpeningCertificate(null);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -108,12 +141,21 @@ export function QuestionnaireView({
         <div className="mb-2 font-medium">Supplier Information</div>
         <div className="space-y-0.5 text-sm">
           <Row label="Company Name" value={supplier.companyName} />
-          <Row label="Registered Address / Origin" value={supplier.registeredAddress} />
+          <Row
+            label="Registered Address / Origin"
+            value={supplier.registeredAddress}
+          />
           <Row label="Factory Address" value={supplier.factoryAddress} />
           <Row label="Year Established" value={supplier.yearEstablished} />
           <Row label="Employees" value={supplier.numberOfEmployees} />
           <Row label="Annual Turnover" value={supplier.annualTurnover} />
-          <Row label="Contact" value={joinParts([supplier.contactPersonName, supplier.contactPersonDesignation])} />
+          <Row
+            label="Contact"
+            value={joinParts([
+              supplier.contactPersonName,
+              supplier.contactPersonDesignation,
+            ])}
+          />
         </div>
       </section>
 
@@ -153,16 +195,32 @@ export function QuestionnaireView({
         {questionnaire.certificateFiles.length === 0 ? (
           <span className="text-muted-foreground">None uploaded.</span>
         ) : (
-          <ul className="list-inside list-disc">
-            {questionnaire.certificateFiles.map((f) => (
-              <li key={f.storageKey}>
-                {f.name}
-                {f.sizeBytes != null && (
-                  <span className="text-muted-foreground">
-                    {' '}
-                    ({Math.round(f.sizeBytes / 1024)} KB)
-                  </span>
-                )}
+          <ul className="divide-y rounded-md border">
+            {questionnaire.certificateFiles.map((f, index) => (
+              <li
+                key={`${f.storageKey}-${index}`}
+                className="flex flex-wrap items-center justify-between gap-3 p-3"
+              >
+                <div className="min-w-0">
+                  <span className="break-all">{f.name}</span>
+                  {f.sizeBytes != null && (
+                    <span className="ml-1 text-muted-foreground">
+                      ({Math.round(f.sizeBytes / 1024)} KB)
+                    </span>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={openingCertificate === index}
+                  onClick={() => void openCertificate(index)}
+                >
+                  <ExternalLink className="size-4" />
+                  {openingCertificate === index
+                    ? 'Opening…'
+                    : 'View / download'}
+                </Button>
               </li>
             ))}
           </ul>

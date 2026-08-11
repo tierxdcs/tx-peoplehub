@@ -6,6 +6,7 @@ import {
   BookOpen,
   Check,
   ChevronRight,
+  ClipboardCheck,
   Compass,
   Edit3,
   LockKeyhole,
@@ -17,6 +18,7 @@ import { useAuth } from '../../lib/auth-context';
 import { useVertical } from '../../lib/use-vertical';
 import { useVerticalOptions } from '../../lib/verticals';
 import { flowForVertical, VERTICAL_FLOWS } from '../../lib/process-flows';
+import type { VerticalFlow } from '../../lib/process-flows';
 import {
   createLearningCourse,
   LearningCourse,
@@ -55,6 +57,9 @@ export default function LearningPage() {
   const [courses, setCourses] = useState<LearningCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState<LearningCourse | null>(null);
+  const [playingProcess, setPlayingProcess] = useState<VerticalFlow | null>(
+    null,
+  );
   const [editing, setEditing] = useState<LearningCourse | 'new' | null>(null);
   const flow =
     flowForVertical(vertical?.code) ??
@@ -62,6 +67,12 @@ export default function LearningPage() {
   const canAuthor =
     user?.role === 'SUPER_ADMIN' ||
     (!!vertical?.ownerId && vertical.ownerId === user?.sub);
+  const hiringRequisitionFlow = VERTICAL_FLOWS.find((item) =>
+    item.codes.includes('RECRUITMENT'),
+  );
+  const canRaiseHiringRequest = ['MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(
+    user?.role ?? '',
+  );
   const load = useCallback(
     () =>
       listLearningCourses()
@@ -152,6 +163,41 @@ export default function LearningPage() {
                   ))}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {canRaiseHiringRequest && hiringRequisitionFlow && (
+        <section>
+          <div className="mb-3">
+            <h2 className="text-xl font-semibold">Owner playbooks</h2>
+            <p className="text-sm text-muted-foreground">
+              Guided procedures for managers and accountable process owners.
+            </p>
+          </div>
+          <Card className="overflow-hidden">
+            <CardContent className="grid gap-5 p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+              <div className="rounded-xl bg-primary/10 p-3 text-primary">
+                <ClipboardCheck className="size-6" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-semibold">
+                    How to raise a hiring requisition
+                  </h3>
+                  <Badge variant="secondary">
+                    {hiringRequisitionFlow.steps.length} steps
+                  </Badge>
+                </div>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  Create a headcount request, understand both approval gates and
+                  learn how the approved request is used for an offer letter.
+                </p>
+              </div>
+              <Button onClick={() => setPlayingProcess(hiringRequisitionFlow)}>
+                <Play className="size-4" /> Start walkthrough
+              </Button>
             </CardContent>
           </Card>
         </section>
@@ -277,6 +323,12 @@ export default function LearningPage() {
           }}
         />
       )}
+      {playingProcess && (
+        <ProcessWalkthrough
+          flow={playingProcess}
+          onClose={() => setPlayingProcess(null)}
+        />
+      )}
       {editing && (
         <CourseEditor
           course={editing === 'new' ? null : editing}
@@ -296,6 +348,95 @@ export default function LearningPage() {
         />
       )}
     </PageContainer>
+  );
+}
+
+function ProcessWalkthrough({
+  flow,
+  onClose,
+}: {
+  flow: VerticalFlow;
+  onClose: () => void;
+}) {
+  const [index, setIndex] = useState(0);
+  const step = flow.steps[index];
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto p-0">
+        <div className="bg-gradient-to-r from-primary/15 to-cyan-500/10 p-6">
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+            Guided process · Step {index + 1} of {flow.steps.length}
+          </p>
+          <DialogTitle className="mt-2 text-2xl">{flow.title}</DialogTitle>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {flow.participants}
+          </p>
+          <div className="mt-4 flex gap-2" aria-label="Walkthrough progress">
+            {flow.steps.map((item, itemIndex) => (
+              <button
+                key={item.key}
+                type="button"
+                aria-label={`Open step ${itemIndex + 1}: ${item.label}`}
+                onClick={() => setIndex(itemIndex)}
+                className={cn(
+                  'h-2 flex-1 rounded-full transition-colors',
+                  itemIndex <= index ? 'bg-primary' : 'bg-border',
+                )}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="p-6">
+          <div className="flex items-start gap-4">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">
+              {index + 1}
+            </span>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-xl font-semibold">{step.label}</h3>
+                {step.gate && <Badge variant="warning">Approval gate</Badge>}
+              </div>
+              <p className="mt-3 whitespace-pre-wrap leading-7 text-muted-foreground">
+                {step.detail}
+              </p>
+              {step.href && (
+                <a
+                  href={step.href}
+                  className="mt-5 inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium hover:bg-accent"
+                >
+                  Open this screen <ChevronRight className="size-4" />
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="border-t p-5">
+          <Button
+            variant="outline"
+            disabled={index === 0}
+            onClick={() => setIndex((current) => current - 1)}
+          >
+            Previous
+          </Button>
+          <Button
+            onClick={() => {
+              if (index === flow.steps.length - 1) onClose();
+              else setIndex((current) => current + 1);
+            }}
+          >
+            {index === flow.steps.length - 1 ? (
+              <>
+                <Check className="size-4" /> Finish walkthrough
+              </>
+            ) : (
+              <>
+                Next step <ChevronRight className="size-4" />
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

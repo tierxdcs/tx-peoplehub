@@ -102,6 +102,8 @@ function iconForHref(href: string): LucideIcon {
   if (href.includes('/dispatch')) return Truck;
   if (href.includes('/otd')) return Gauge;
 
+  if (href.includes('expense-claim') || href.includes('expense-categories'))
+    return ReceiptText;
   if (href.includes('/daybook')) return ScrollText;
   if (href.includes('/contra')) return ArrowLeftRight;
   if (href.includes('/invoices') || href.includes('/adjustments'))

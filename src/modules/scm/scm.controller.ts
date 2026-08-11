@@ -43,7 +43,9 @@ export class ScmController {
 
   // ── Vendors ──────────────────────────────────────────────────────
   @Post()
-  @ApiOperation({ summary: 'Create a vendor + first questionnaire (SCM Manager+/SA)' })
+  @ApiOperation({
+    summary: 'Create a vendor + first questionnaire (SCM Manager+/SA)',
+  })
   createVendor(
     @Body() dto: CreateVendorDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -58,7 +60,9 @@ export class ScmController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'One vendor with questionnaires + audits (company-wide read)' })
+  @ApiOperation({
+    summary: 'One vendor with questionnaires + audits (company-wide read)',
+  })
   getVendor(@Param('id') id: string) {
     return this.service.getVendor(id);
   }
@@ -78,13 +82,23 @@ export class ScmController {
   // ── Questionnaire revisions ────────────────────────────────────────
   @Post(':id/questionnaires')
   @ApiOperation({
-    summary: 'Create the next questionnaire revision for resubmission (SCM Manager+/SA)',
+    summary:
+      'Create the next questionnaire revision for resubmission (SCM Manager+/SA)',
   })
   createQuestionnaireRevision(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.createQuestionnaireRevision(id, user);
+  }
+
+  @Get('questionnaires/:questionnaireId/certificates/:fileIndex/download')
+  @ApiOperation({ summary: 'Download a vendor questionnaire certificate' })
+  certificateDownload(
+    @Param('questionnaireId') questionnaireId: string,
+    @Param('fileIndex') fileIndex: string,
+  ) {
+    return this.service.certificateDownload(questionnaireId, Number(fileIndex));
   }
 
   // ── Invites ────────────────────────────────────────────────────────

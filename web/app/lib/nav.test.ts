@@ -397,6 +397,64 @@ describe('sidebarNav — the reported bug', () => {
   });
 });
 
+describe('sidebarNav — expense claims', () => {
+  it('every role gets the self-service My Expense Claims item', () => {
+    for (const role of [
+      'SUPER_ADMIN',
+      'ADMIN',
+      'MANAGER',
+      'EMPLOYEE',
+    ] as const) {
+      const a = access(role);
+      const shown = labels(a, activeModule('/dashboard', availableModules(a)));
+      expect(shown).toContain('My Expense Claims');
+    }
+  });
+
+  it('finance users get the approver Expense Claims voucher; a plain employee does not', () => {
+    const financeUser = access('EMPLOYEE', { isFinanceUser: true });
+    const financeShown = labels(
+      financeUser,
+      activeModule('/finance/ar/invoices', availableModules(financeUser)),
+    );
+    expect(financeShown).toContain('Expense Claims');
+
+    const plain = access('EMPLOYEE');
+    const plainShown = labels(
+      plain,
+      activeModule('/dashboard', availableModules(plain)),
+    );
+    // Only the personal item, never the finance approver voucher.
+    expect(plainShown).toContain('My Expense Claims');
+    expect(plainShown).not.toContain('Expense Claims');
+  });
+
+  it('the designated Accounts Head also gets the approver Expense Claims voucher', () => {
+    const a = { ...access('EMPLOYEE'), isAccountsHead: true };
+    const shown = labels(
+      a,
+      activeModule('/finance/daybook', availableModules(a)),
+    );
+    expect(shown).toContain('Expense Claims');
+  });
+
+  it('admins get the Expense Categories admin item; non-admins do not', () => {
+    const admin = access('ADMIN');
+    const adminShown = labels(
+      admin,
+      activeModule('/hr/roster', availableModules(admin)),
+    );
+    expect(adminShown).toContain('Expense Categories');
+
+    const hrManager = access('MANAGER', { isHrStaff: true });
+    const managerShown = labels(
+      hrManager,
+      activeModule('/hr/roster', availableModules(hrManager)),
+    );
+    expect(managerShown).not.toContain('Expense Categories');
+  });
+});
+
 describe('landingRoute', () => {
   // The personal dashboard is now the single post-login landing for every role.
   it('sends every role to the personal dashboard', () => {

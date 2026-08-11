@@ -56,6 +56,7 @@ import { CandidateRequisitionsModule } from './modules/candidate-requisitions/ca
 import { ReferenceRatesModule } from './modules/reference-rates/reference-rates.module';
 import { ScmResourcePlanModule } from './modules/scm-resource-plan/scm-resource-plan.module';
 import { LearningModule } from './modules/learning/learning.module';
+import { ExpenseClaimsModule } from './modules/expense-claims/expense-claims.module';
 
 @Module({
   imports: [
@@ -105,6 +106,7 @@ import { LearningModule } from './modules/learning/learning.module';
     ScmPurchasingModule,
     LogisticsModule,
     RfqModule,
+    ExpenseClaimsModule,
     HealthModule,
   ],
   providers: [

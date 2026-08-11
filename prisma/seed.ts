@@ -158,6 +158,17 @@ const BASE_ACCOUNTS: Array<{
     normalBalance: NormalBalance.CREDIT,
   },
   {
+    // Employee reimbursements owed to staff for approved expense claims. A
+    // liability DISTINCT from Accounts Payable (2000) so vendor AP aging never
+    // mixes with what the company owes its own employees. Credited when a claim
+    // is approved, cleared to Cash and Bank (1000) when it is marked Paid.
+    code: '2500',
+    name: 'Employee Reimbursements Payable',
+    accountType: AccountType.LIABILITY,
+    normalBalance: NormalBalance.CREDIT,
+    isControlAccount: true,
+  },
+  {
     code: '3000',
     name: 'Owner Equity',
     accountType: AccountType.EQUITY,
@@ -279,6 +290,7 @@ const ACCOUNT_GROUP_MEMBERSHIP: Record<string, string> = {
   '2200': 'GRP-DUTIES-TAXES',
   '2300': 'GRP-CURRENT-LIAB',
   '2400': 'GRP-CURRENT-LIAB',
+  '2500': 'GRP-CURRENT-LIAB',
   '3000': 'GRP-CAPITAL',
   '4000': 'GRP-SALES',
   '5000': 'GRP-PURCHASE',
@@ -291,6 +303,21 @@ const ACCOUNT_GROUP_MEMBERSHIP: Record<string, string> = {
   '7000': 'GRP-INDIRECT-INC',
   '8000': 'GRP-OTHER-EXP',
 };
+
+/**
+ * Default employee-expense categories, each mapped to the EXISTING expense
+ * ledger its lines debit on approval (by ledger code — resolved to the id at
+ * seed time). Chosen so a mixed-category claim posts to more than one debit
+ * ledger, exercising the multi-debit posting path. Admins can add/deactivate
+ * more via the admin-config screen; these are idempotent starters.
+ */
+const EXPENSE_CATEGORIES: Array<{ name: string; ledgerCode: string }> = [
+  { name: 'Travel', ledgerCode: '6100' }, // Administrative Expenses
+  { name: 'Accommodation', ledgerCode: '6100' }, // Administrative Expenses
+  { name: 'Office Supplies', ledgerCode: '6100' }, // Administrative Expenses
+  { name: 'Meals', ledgerCode: '6000' }, // Employee Costs
+  { name: 'Other', ledgerCode: '8000' }, // Other Expenses
+];
 
 const LEAVE_TYPES: Array<{
   code: string;
@@ -721,6 +748,22 @@ export async function seed(prisma: PrismaClient): Promise<void> {
     if (account && account.parentId !== groupId) {
       await prisma.ledgerAccount.update({ where: { code: accountCode }, data: { parentId: groupId } });
     }
+  }
+
+  // Employee expense categories — each resolves its mapped expense ledger by
+  // code. Idempotent by unique name (`update: {}` leaves an existing category's
+  // ledger mapping and active flag untouched, so re-seeding never overrides an
+  // admin's later remap or deactivation).
+  for (const category of EXPENSE_CATEGORIES) {
+    const ledger = await prisma.ledgerAccount.findUnique({
+      where: { code: category.ledgerCode },
+    });
+    if (!ledger) continue;
+    await prisma.expenseCategory.upsert({
+      where: { name: category.name },
+      update: {},
+      create: { name: category.name, defaultExpenseLedgerId: ledger.id },
+    });
   }
 
   // Default Vault folders — owned by the SUPER_ADMIN, seeded idempotently

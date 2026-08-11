@@ -43,7 +43,9 @@ export class SupplierController {
   constructor(private readonly service: SupplierService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a supplier + first questionnaire (SCM Manager+/SA)' })
+  @ApiOperation({
+    summary: 'Create a supplier + first questionnaire (SCM Manager+/SA)',
+  })
   createSupplier(
     @Body() dto: CreateSupplierDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -58,18 +60,31 @@ export class SupplierController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'One supplier with questionnaires + audits (company-wide read)' })
+  @ApiOperation({
+    summary: 'One supplier with questionnaires + audits (company-wide read)',
+  })
   getSupplier(@Param('id') id: string) {
     return this.service.getSupplier(id);
   }
 
   @Post(':id/questionnaires')
-  @ApiOperation({ summary: 'Create the next questionnaire revision (SCM Manager+/SA)' })
+  @ApiOperation({
+    summary: 'Create the next questionnaire revision (SCM Manager+/SA)',
+  })
   createQuestionnaireRevision(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.createQuestionnaireRevision(id, user);
+  }
+
+  @Get('questionnaires/:questionnaireId/certificates/:fileIndex/download')
+  @ApiOperation({ summary: 'Download a supplier questionnaire certificate' })
+  certificateDownload(
+    @Param('questionnaireId') questionnaireId: string,
+    @Param('fileIndex') fileIndex: string,
+  ) {
+    return this.service.certificateDownload(questionnaireId, Number(fileIndex));
   }
 
   @Post('questionnaires/:questionnaireId/invites')
@@ -96,7 +111,10 @@ export class SupplierController {
   // SCM staff fill the same questionnaire directly in-app. Every field is
   // optional. Same access as invite management (SCM Manager+/SA).
   @Post('questionnaires/:questionnaireId/internal-fill/save')
-  @ApiOperation({ summary: 'Save internal-fill section data — all fields optional (SCM Manager+/SA)' })
+  @ApiOperation({
+    summary:
+      'Save internal-fill section data — all fields optional (SCM Manager+/SA)',
+  })
   saveInternal(
     @Param('questionnaireId') questionnaireId: string,
     @Body() dto: PublicQuestionnaireSaveDto,
@@ -119,7 +137,9 @@ export class SupplierController {
   }
 
   @Post('questionnaires/:questionnaireId/internal-fill/certificate-upload-url')
-  @ApiOperation({ summary: 'Presign a certificate upload for internal fill (SCM Manager+/SA)' })
+  @ApiOperation({
+    summary: 'Presign a certificate upload for internal fill (SCM Manager+/SA)',
+  })
   internalCertUploadUrl(
     @Param('questionnaireId') questionnaireId: string,
     @Body() dto: PublicCertUploadUrlDto,
@@ -129,7 +149,9 @@ export class SupplierController {
   }
 
   @Post('questionnaires/:questionnaireId/internal-fill/certificate-confirm')
-  @ApiOperation({ summary: 'Confirm a certificate upload for internal fill (SCM Manager+/SA)' })
+  @ApiOperation({
+    summary: 'Confirm a certificate upload for internal fill (SCM Manager+/SA)',
+  })
   internalCertConfirm(
     @Param('questionnaireId') questionnaireId: string,
     @Body() dto: PublicCertConfirmDto,

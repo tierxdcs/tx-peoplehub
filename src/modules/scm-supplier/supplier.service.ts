@@ -177,7 +177,8 @@ export class SupplierService {
       where: { supplierId },
       orderBy: { revisionNumber: 'desc' },
     });
-    if (!latest) throw new NotFoundException('Supplier or questionnaire not found');
+    if (!latest)
+      throw new NotFoundException('Supplier or questionnaire not found');
 
     const copyForward: Prisma.SupplierQuestionnaireCreateInput = {
       supplier: { connect: { id: supplierId } },
@@ -187,13 +188,17 @@ export class SupplierService {
     for (const key of SECTION_KEYS) {
       const val = latest[key];
       if (val != null) {
-        (copyForward as Record<string, unknown>)[key] = val as Prisma.InputJsonValue;
+        (copyForward as Record<string, unknown>)[key] =
+          val as Prisma.InputJsonValue;
       }
     }
     if (latest.certificateFiles != null) {
-      copyForward.certificateFiles = latest.certificateFiles as Prisma.InputJsonValue;
+      copyForward.certificateFiles =
+        latest.certificateFiles as Prisma.InputJsonValue;
     }
-    const created = await this.prisma.supplierQuestionnaire.create({ data: copyForward });
+    const created = await this.prisma.supplierQuestionnaire.create({
+      data: copyForward,
+    });
     // Back to pending-questionnaire state for the resubmission cycle. Any prior
     // classification override no longer applies to a fresh questionnaire cycle.
     const supplier = await this.prisma.supplier.update({
@@ -223,7 +228,9 @@ export class SupplierService {
       data: {
         questionnaireId,
         token: generateInviteToken(),
-        expiresAt: computeExpiry(dto.expiresInHours ?? DEFAULT_INVITE_EXPIRY_HOURS),
+        expiresAt: computeExpiry(
+          dto.expiresInHours ?? DEFAULT_INVITE_EXPIRY_HOURS,
+        ),
         passwordHash: await hashInvitePassword(dto.password),
         createdById: user.id,
       },
@@ -312,7 +319,11 @@ export class SupplierService {
     token: string,
     dto: PublicCertUploadUrlDto,
     now: Date = new Date(),
-  ): Promise<{ storageKey: string; uploadUrl: string; expiresInSeconds: number }> {
+  ): Promise<{
+    storageKey: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+  }> {
     const invite = await this.getValidInvite(token, dto.password, now);
     const q = await this.assertEditableQuestionnaire(invite.questionnaireId);
     return this.createCertUploadUrl(q.id, dto);
@@ -379,7 +390,11 @@ export class SupplierService {
     questionnaireId: string,
     dto: PublicCertUploadUrlDto,
     user: AuthenticatedUser,
-  ): Promise<{ storageKey: string; uploadUrl: string; expiresInSeconds: number }> {
+  ): Promise<{
+    storageKey: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+  }> {
     await this.access.assertCanManageSuppliers(user);
     const q = await this.assertEditableQuestionnaire(questionnaireId);
     return this.createCertUploadUrl(q.id, dto);
@@ -407,7 +422,9 @@ export class SupplierService {
       select: { id: true },
     });
     if (!questionnaire) {
-      throw new NotFoundException('Questionnaire revision not found for this supplier');
+      throw new NotFoundException(
+        'Questionnaire revision not found for this supplier',
+      );
     }
 
     const total = computeTotalScore(dto);
@@ -421,7 +438,8 @@ export class SupplierService {
           auditType: dto.auditType,
           auditDate: new Date(dto.auditDate),
           auditorId: user.id,
-          materialCertificationsQualityScore: dto.materialCertificationsQualityScore,
+          materialCertificationsQualityScore:
+            dto.materialCertificationsQualityScore,
           complianceScore: dto.complianceScore,
           commercialTermsScore: dto.commercialTermsScore,
           logisticsDeliveryScore: dto.logisticsDeliveryScore,
@@ -543,7 +561,8 @@ export class SupplierService {
     const audit = await this.prisma.supplierAudit.findFirst({
       where: { id: auditId, supplierId },
     });
-    if (!audit) throw new NotFoundException('Audit not found for this supplier');
+    if (!audit)
+      throw new NotFoundException('Audit not found for this supplier');
     return audit;
   }
 
@@ -660,7 +679,11 @@ export class SupplierService {
   private async createCertUploadUrl(
     questionnaireId: string,
     dto: PublicCertUploadUrlDto,
-  ): Promise<{ storageKey: string; uploadUrl: string; expiresInSeconds: number }> {
+  ): Promise<{
+    storageKey: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+  }> {
     assertExtensionAllowed(dto.name);
     assertSizeWithinCap(dto.sizeBytes);
 
@@ -678,8 +701,14 @@ export class SupplierService {
     questionnaireId: string,
     dto: PublicCertConfirmDto,
   ): Promise<SupplierCertificateFileEntity> {
-    if (!dto.storageKey.startsWith(`supplier-questionnaires/${questionnaireId}/certs/`)) {
-      throw new BadRequestException('storageKey does not belong to this questionnaire');
+    if (
+      !dto.storageKey.startsWith(
+        `supplier-questionnaires/${questionnaireId}/certs/`,
+      )
+    ) {
+      throw new BadRequestException(
+        'storageKey does not belong to this questionnaire',
+      );
     }
     const head = await this.storage.headObject(dto.storageKey);
     if (!head) throw new BadRequestException('Uploaded object not found');
@@ -691,20 +720,45 @@ export class SupplierService {
       sizeBytes: head.sizeBytes,
       contentType: head.contentType,
     };
-    const existing =
-      (
-        await this.prisma.supplierQuestionnaire.findUniqueOrThrow({
-          where: { id: questionnaireId },
-          select: { certificateFiles: true },
-        })
-      ).certificateFiles as CertFile[] | null;
+    const existing = (
+      await this.prisma.supplierQuestionnaire.findUniqueOrThrow({
+        where: { id: questionnaireId },
+        select: { certificateFiles: true },
+      })
+    ).certificateFiles as CertFile[] | null;
     await this.prisma.supplierQuestionnaire.update({
       where: { id: questionnaireId },
       data: {
-        certificateFiles: [...(existing ?? []), file] as unknown as Prisma.InputJsonValue,
+        certificateFiles: [
+          ...(existing ?? []),
+          file,
+        ] as unknown as Prisma.InputJsonValue,
       },
     });
     return new SupplierCertificateFileEntity(file);
+  }
+
+  /** Create a short-lived download URL for a certificate recorded on a questionnaire. */
+  async certificateDownload(questionnaireId: string, fileIndex: number) {
+    const questionnaire = await this.prisma.supplierQuestionnaire.findUnique({
+      where: { id: questionnaireId },
+      select: { certificateFiles: true },
+    });
+    if (!questionnaire) {
+      throw new NotFoundException('Supplier questionnaire not found');
+    }
+    const files = (questionnaire.certificateFiles as CertFile[] | null) ?? [];
+    const file = files[fileIndex];
+    if (!Number.isInteger(fileIndex) || fileIndex < 0 || !file) {
+      throw new NotFoundException('Supplier certificate not found');
+    }
+    const signed = await this.storage.createDownloadUrl(file.storageKey);
+    return {
+      downloadUrl: signed.url,
+      expiresInSeconds: signed.expiresInSeconds,
+      fileName: file.name,
+      contentType: file.contentType,
+    };
   }
 
   // ── mappers ────────────────────────────────────────────────────────
@@ -741,14 +795,22 @@ export class SupplierService {
   ): Prisma.SupplierUpdateInput {
     if (!info) return {};
     const data: Prisma.SupplierUpdateInput = {};
-    if (info.registeredAddress !== undefined) data.registeredAddress = info.registeredAddress;
-    if (info.factoryAddress !== undefined) data.factoryAddress = info.factoryAddress;
-    if (info.yearEstablished !== undefined) data.yearEstablished = info.yearEstablished;
-    if (info.numberOfEmployees !== undefined) data.numberOfEmployees = info.numberOfEmployees;
-    if (info.annualTurnover !== undefined) data.annualTurnover = info.annualTurnover;
-    if (info.msmeUdyamCertificate !== undefined) data.msmeUdyamCertificate = info.msmeUdyamCertificate;
-    if (info.contactPersonName !== undefined) data.contactPersonName = info.contactPersonName;
-    if (info.contactPersonDesignation !== undefined) data.contactPersonDesignation = info.contactPersonDesignation;
+    if (info.registeredAddress !== undefined)
+      data.registeredAddress = info.registeredAddress;
+    if (info.factoryAddress !== undefined)
+      data.factoryAddress = info.factoryAddress;
+    if (info.yearEstablished !== undefined)
+      data.yearEstablished = info.yearEstablished;
+    if (info.numberOfEmployees !== undefined)
+      data.numberOfEmployees = info.numberOfEmployees;
+    if (info.annualTurnover !== undefined)
+      data.annualTurnover = info.annualTurnover;
+    if (info.msmeUdyamCertificate !== undefined)
+      data.msmeUdyamCertificate = info.msmeUdyamCertificate;
+    if (info.contactPersonName !== undefined)
+      data.contactPersonName = info.contactPersonName;
+    if (info.contactPersonDesignation !== undefined)
+      data.contactPersonDesignation = info.contactPersonDesignation;
     if (info.contactPhone !== undefined) data.contactPhone = info.contactPhone;
     if (info.website !== undefined) data.website = info.website;
     return data;
@@ -851,7 +913,8 @@ export class SupplierService {
     updatedAt: Date;
   }): SupplierAuditEntity {
     const scores = {
-      materialCertificationsQualityScore: a.materialCertificationsQualityScore.toString(),
+      materialCertificationsQualityScore:
+        a.materialCertificationsQualityScore.toString(),
       complianceScore: a.complianceScore.toString(),
       commercialTermsScore: a.commercialTermsScore.toString(),
       logisticsDeliveryScore: a.logisticsDeliveryScore.toString(),
@@ -872,7 +935,9 @@ export class SupplierService {
       auditType: a.auditType,
       auditDate: a.auditDate.toISOString(),
       auditorId: a.auditorId,
-      auditorName: a.auditor ? `${a.auditor.firstName} ${a.auditor.lastName}` : null,
+      auditorName: a.auditor
+        ? `${a.auditor.firstName} ${a.auditor.lastName}`
+        : null,
       ...scores,
       totalScore: total,
       classification,

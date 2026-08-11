@@ -234,7 +234,8 @@ export class ScmService {
       where: { vendorId },
       orderBy: { revisionNumber: 'desc' },
     });
-    if (!latest) throw new NotFoundException('Vendor or questionnaire not found');
+    if (!latest)
+      throw new NotFoundException('Vendor or questionnaire not found');
 
     const copyForward: Prisma.VendorQuestionnaireCreateInput = {
       vendor: { connect: { id: vendorId } },
@@ -244,7 +245,8 @@ export class ScmService {
     for (const key of SECTION_KEYS) {
       const val = latest[key];
       if (val != null) {
-        (copyForward as Record<string, unknown>)[key] = val as Prisma.InputJsonValue;
+        (copyForward as Record<string, unknown>)[key] =
+          val as Prisma.InputJsonValue;
       }
     }
     if (latest.qualityCertificateFiles != null) {
@@ -430,7 +432,11 @@ export class ScmService {
     token: string,
     dto: PublicCertUploadUrlDto,
     now: Date = new Date(),
-  ): Promise<{ storageKey: string; uploadUrl: string; expiresInSeconds: number }> {
+  ): Promise<{
+    storageKey: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+  }> {
     const invite = await this.getValidInvite(token, dto.password, now);
     const q = await this.assertEditableQuestionnaire(invite.questionnaireId);
 
@@ -462,7 +468,9 @@ export class ScmService {
     const q = await this.assertEditableQuestionnaire(invite.questionnaireId);
 
     if (!dto.storageKey.startsWith(`vendor-questionnaires/${q.id}/certs/`)) {
-      throw new BadRequestException('storageKey does not belong to this questionnaire');
+      throw new BadRequestException(
+        'storageKey does not belong to this questionnaire',
+      );
     }
     const head = await this.storage.headObject(dto.storageKey);
     if (!head) {
@@ -488,6 +496,30 @@ export class ScmService {
       },
     });
     return new VendorCertificateFileEntity(file);
+  }
+
+  /** Create a short-lived download URL for a certificate recorded on a questionnaire. */
+  async certificateDownload(questionnaireId: string, fileIndex: number) {
+    const questionnaire = await this.prisma.vendorQuestionnaire.findUnique({
+      where: { id: questionnaireId },
+      select: { qualityCertificateFiles: true },
+    });
+    if (!questionnaire) {
+      throw new NotFoundException('Vendor questionnaire not found');
+    }
+    const files =
+      (questionnaire.qualityCertificateFiles as CertFile[] | null) ?? [];
+    const file = files[fileIndex];
+    if (!Number.isInteger(fileIndex) || fileIndex < 0 || !file) {
+      throw new NotFoundException('Vendor certificate not found');
+    }
+    const signed = await this.storage.createDownloadUrl(file.storageKey);
+    return {
+      downloadUrl: signed.url,
+      expiresInSeconds: signed.expiresInSeconds,
+      fileName: file.name,
+      contentType: file.contentType,
+    };
   }
 
   async ndaTemplateUploadUrl(
@@ -566,13 +598,13 @@ export class ScmService {
       throw new NotFoundException('NDA template is not configured');
     }
     const signed = await this.storage.createDownloadUrl(version.storageKey);
-    return { downloadUrl: signed.url, expiresInSeconds: signed.expiresInSeconds };
+    return {
+      downloadUrl: signed.url,
+      expiresInSeconds: signed.expiresInSeconds,
+    };
   }
 
-  async publicSignedNdaUploadUrl(
-    token: string,
-    dto: PublicNdaUploadUrlDto,
-  ) {
+  async publicSignedNdaUploadUrl(token: string, dto: PublicNdaUploadUrlDto) {
     const invite = await this.getValidInvite(token, dto.password, new Date());
     const q = await this.prisma.vendorQuestionnaire.findUnique({
       where: { id: invite.questionnaireId },
@@ -893,14 +925,22 @@ export class ScmService {
   ): Prisma.VendorUpdateInput {
     if (!info) return {};
     const data: Prisma.VendorUpdateInput = {};
-    if (info.registeredAddress !== undefined) data.registeredAddress = info.registeredAddress;
-    if (info.factoryAddress !== undefined) data.factoryAddress = info.factoryAddress;
-    if (info.yearEstablished !== undefined) data.yearEstablished = info.yearEstablished;
-    if (info.numberOfEmployees !== undefined) data.numberOfEmployees = info.numberOfEmployees;
-    if (info.annualTurnover !== undefined) data.annualTurnover = info.annualTurnover;
-    if (info.msmeUdyamCertificate !== undefined) data.msmeUdyamCertificate = info.msmeUdyamCertificate;
-    if (info.contactPersonName !== undefined) data.contactPersonName = info.contactPersonName;
-    if (info.contactPersonDesignation !== undefined) data.contactPersonDesignation = info.contactPersonDesignation;
+    if (info.registeredAddress !== undefined)
+      data.registeredAddress = info.registeredAddress;
+    if (info.factoryAddress !== undefined)
+      data.factoryAddress = info.factoryAddress;
+    if (info.yearEstablished !== undefined)
+      data.yearEstablished = info.yearEstablished;
+    if (info.numberOfEmployees !== undefined)
+      data.numberOfEmployees = info.numberOfEmployees;
+    if (info.annualTurnover !== undefined)
+      data.annualTurnover = info.annualTurnover;
+    if (info.msmeUdyamCertificate !== undefined)
+      data.msmeUdyamCertificate = info.msmeUdyamCertificate;
+    if (info.contactPersonName !== undefined)
+      data.contactPersonName = info.contactPersonName;
+    if (info.contactPersonDesignation !== undefined)
+      data.contactPersonDesignation = info.contactPersonDesignation;
     if (info.contactPhone !== undefined) data.contactPhone = info.contactPhone;
     if (info.website !== undefined) data.website = info.website;
     return data;

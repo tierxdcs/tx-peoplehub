@@ -407,7 +407,8 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
     title: 'Resource Planning — Kickoff to Negotiated Cost',
     summary:
       'Turn a completed project’s BOMs into a costed material plan, then negotiate and track savings against benchmark cost.',
-    participants: 'SCM employees, SCM Managers, Project Managers and SUPER_ADMIN',
+    participants:
+      'SCM employees, SCM Managers, Project Managers and SUPER_ADMIN',
     steps: [
       {
         key: 'eligible',
@@ -458,36 +459,37 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
     steps: [
       {
         key: 'raise',
-        label: 'Requisition raised',
+        label: 'Open Candidate Requisitions',
         detail:
-          'A hiring manager raises a candidate requisition for a role, which is stamped with a unique REQ number. It names the position, employment type and target joining date. This is the formal request to add headcount.',
+          'Go to HR > Candidate Requisitions. Managers and above can raise a request for their own vertical; the vertical is taken from their employee record and cannot be changed. Before starting, confirm that the correct vertical owner is assigned in Administration > Verticals, because that owner is the first approver.',
         href: '/hr/candidate-requisitions',
       },
       {
         key: 'budget',
-        label: 'Budget & justification',
+        label: 'Complete the hiring request',
         detail:
-          'The requisition carries a budgeted annual CTC and a written justification for the hire. This makes the cost and the business case explicit up front. Approvers decide on real numbers, not vague intent.',
+          'Under Request a position, enter the position title, employment type, optional target joining date, annual CTC budget and a clear business justification. The CTC must be greater than zero. Explain the need, expected outcome and urgency so both approvers have enough context to decide.',
       },
       {
         key: 'vertical',
-        label: 'Vertical owner approves',
+        label: 'Submit to the vertical owner',
         detail:
-          'The vertical owner is the first approver, confirming the role fits the team’s plan and budget. This gate keeps hiring decisions with the accountable owner. A rejection stops the requisition with the reason recorded.',
+          'Select Submit requisition. The system creates a unique REQ number and sends it to the owner of the requester’s vertical with status Pending Vertical Approval. The requester can follow it under My requisitions. The owner approves it to continue, or rejects it with a mandatory reason; rejection ends this request.',
         gate: true,
       },
       {
         key: 'superadmin',
-        label: 'SuperAdmin approves',
+        label: 'CEO gives final approval',
         detail:
-          'After the vertical, SUPER_ADMIN gives the final executive approval. This second gate is the company-level control on headcount growth. Only a requisition cleared at both levels can proceed to hire.',
+          'Only after the vertical owner approves does the request enter the CEO/SuperAdmin queue with status Pending SuperAdmin Approval. The CEO reviews the same position, budget and justification, then approves or rejects it. A rejection requires a reason and is terminal, so a corrected need must be raised as a new requisition.',
         gate: true,
       },
       {
         key: 'approved',
-        label: 'Approved to hire',
+        label: 'Use it for one offer letter',
         detail:
-          'A fully approved requisition authorises recruitment for the role. It feeds naturally into offer letters and, once accepted, onboarding. The paper trail from headcount request to new joiner stays intact.',
+          'After both approvals, the status becomes Approved. HR selects this requisition while creating the candidate’s Offer Letter. One approved requisition authorises one position: once linked to an offer it is consumed and cannot be reused for another candidate. Existing historical offers remain unaffected.',
+        href: '/hr/offer-letters',
       },
     ],
   },
