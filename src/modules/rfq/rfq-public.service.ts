@@ -67,20 +67,33 @@ export class RfqPublicService {
     const priced = new Set(dto.lines.map((l) => l.rfqLineId));
     for (const rl of rfqLines) {
       if (!priced.has(rl.id)) {
-        throw new BadRequestException('Every RFQ line must be priced before submitting');
+        throw new BadRequestException(
+          'Every RFQ line must be priced before submitting',
+        );
       }
     }
     for (const l of dto.lines) {
       if (!rfqLines.some((rl) => rl.id === l.rfqLineId)) {
-        throw new BadRequestException('A quote line references an unknown RFQ line');
+        throw new BadRequestException(
+          'A quote line references an unknown RFQ line',
+        );
       }
     }
 
     await this.prisma.$transaction(async (tx) => {
-      const { total } = await this.writeQuote(tx, invitee.id, invitee.rfqId, dto, true);
+      const { total } = await this.writeQuote(
+        tx,
+        invitee.id,
+        invitee.rfqId,
+        dto,
+        true,
+      );
       await tx.rfqInvitee.update({
         where: { id: invitee.id },
-        data: { quoteStatus: RfqQuoteStatus.SUBMITTED, submittedAt: new Date() },
+        data: {
+          quoteStatus: RfqQuoteStatus.SUBMITTED,
+          submittedAt: new Date(),
+        },
       });
       await tx.rfqQuote.update({
         where: { inviteeId: invitee.id },
@@ -104,14 +117,21 @@ export class RfqPublicService {
   }
 
   // ── Attachments (mirrors the public cert upload/confirm) ─────────────
-  async attachmentUploadUrl(token: string, dto: PublicQuoteAttachmentUploadUrlDto) {
+  async attachmentUploadUrl(
+    token: string,
+    dto: PublicQuoteAttachmentUploadUrlDto,
+  ) {
     const invitee = await this.validate(token, dto.password);
     this.assertOpen(invitee);
     assertExtensionAllowed(dto.name);
     assertSizeWithinCap(dto.sizeBytes);
     const storageKey = `rfq-quotes/${invitee.id}/attachments/${randomBytes(8).toString('hex')}`;
     const signed = await this.storage.createUploadUrl(storageKey, dto.mimeType);
-    return { storageKey, uploadUrl: signed.url, expiresInSeconds: signed.expiresInSeconds };
+    return {
+      storageKey,
+      uploadUrl: signed.url,
+      expiresInSeconds: signed.expiresInSeconds,
+    };
   }
 
   async attachmentConfirm(token: string, dto: PublicQuoteAttachmentConfirmDto) {
@@ -122,7 +142,10 @@ export class RfqPublicService {
       throw new BadRequestException('Invalid storage key');
     }
     const head = await this.storage.headObject(dto.storageKey);
-    if (!head) throw new BadRequestException('Attachment upload was not found in storage');
+    if (!head)
+      throw new BadRequestException(
+        'Attachment upload was not found in storage',
+      );
     assertSizeWithinCap(head.sizeBytes);
     const quote = await this.ensureQuote(invitee.id);
     const keys = ((quote.attachmentFileKeys as string[] | null) ?? []).slice();
@@ -167,7 +190,9 @@ export class RfqPublicService {
       throw new ForbiddenException('The submission deadline has passed');
     }
     if (invitee.quoteStatus === RfqQuoteStatus.SUBMITTED) {
-      throw new ForbiddenException('Your quote has already been submitted and is locked');
+      throw new ForbiddenException(
+        'Your quote has already been submitted and is locked',
+      );
     }
     if (invitee.quoteStatus === RfqQuoteStatus.DECLINED) {
       throw new ForbiddenException('You have declined this RFQ');
@@ -175,7 +200,9 @@ export class RfqPublicService {
   }
 
   private async ensureQuote(inviteeId: string) {
-    const existing = await this.prisma.rfqQuote.findUnique({ where: { inviteeId } });
+    const existing = await this.prisma.rfqQuote.findUnique({
+      where: { inviteeId },
+    });
     if (existing) return existing;
     return this.prisma.rfqQuote.create({ data: { inviteeId } });
   }
@@ -186,7 +213,9 @@ export class RfqPublicService {
       select: { rfqId: true },
     });
     await this.prisma.$transaction((tx) =>
-      this.writeQuote(tx, inviteeId, invitee.rfqId, dto, false).then(() => undefined),
+      this.writeQuote(tx, inviteeId, invitee.rfqId, dto, false).then(
+        () => undefined,
+      ),
     );
   }
 
@@ -209,9 +238,15 @@ export class RfqPublicService {
         notes: dto.notes ?? null,
       },
       update: {
-        ...(dto.quotedLeadTimeDays !== undefined ? { quotedLeadTimeDays: dto.quotedLeadTimeDays } : {}),
-        ...(dto.paymentTermsOffered !== undefined ? { paymentTermsOffered: dto.paymentTermsOffered } : {}),
-        ...(dto.validityDays !== undefined ? { validityDays: dto.validityDays } : {}),
+        ...(dto.quotedLeadTimeDays !== undefined
+          ? { quotedLeadTimeDays: dto.quotedLeadTimeDays }
+          : {}),
+        ...(dto.paymentTermsOffered !== undefined
+          ? { paymentTermsOffered: dto.paymentTermsOffered }
+          : {}),
+        ...(dto.validityDays !== undefined
+          ? { validityDays: dto.validityDays }
+          : {}),
         ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
       },
     });
@@ -225,12 +260,17 @@ export class RfqPublicService {
       const qtyById = new Map(rfqLines.map((l) => [l.id, l.quantity]));
       for (const l of dto.lines) {
         const qty = qtyById.get(l.rfqLineId);
-        if (!qty) throw new BadRequestException('A quote line references an unknown RFQ line');
+        if (!qty)
+          throw new BadRequestException(
+            'A quote line references an unknown RFQ line',
+          );
         const unit = new Prisma.Decimal(l.unitPrice);
         const lineTotal = unit.times(qty).toDecimalPlaces(2);
         total = total.plus(lineTotal);
         await tx.rfqQuoteLine.upsert({
-          where: { quoteId_rfqLineId: { quoteId: quote.id, rfqLineId: l.rfqLineId } },
+          where: {
+            quoteId_rfqLineId: { quoteId: quote.id, rfqLineId: l.rfqLineId },
+          },
           create: {
             quoteId: quote.id,
             rfqLineId: l.rfqLineId,
@@ -254,7 +294,10 @@ export class RfqPublicService {
           where: { quoteId: quote.id },
           select: { lineTotal: true },
         });
-        total = all.reduce((s, l) => s.plus(l.lineTotal), new Prisma.Decimal(0));
+        total = all.reduce(
+          (s, l) => s.plus(l.lineTotal),
+          new Prisma.Decimal(0),
+        );
         await tx.rfqQuote.update({
           where: { id: quote.id },
           data: { totalQuotedValue: total },
@@ -285,13 +328,16 @@ export class RfqPublicService {
     });
     return {
       inviteeId: invitee.id,
-      partnerName: invitee.supplier?.companyName ?? invitee.vendor?.companyName ?? null,
+      partnerName:
+        invitee.supplier?.companyName ?? invitee.vendor?.companyName ?? null,
       quoteStatus: invitee.quoteStatus,
       declineReason: invitee.declineReason,
       rfq: {
         rfqNumber: invitee.rfq.rfqNumber,
-        title: invitee.rfq.title,
-        description: invitee.rfq.description,
+        // Internal RFQ titles/descriptions may contain linked project, order or
+        // customer context. The external quote template must never disclose it.
+        title: 'Request for Quotation',
+        description: null,
         submissionDeadline: invitee.rfq.submissionDeadline.toISOString(),
         requiredByDate: invitee.rfq.requiredByDate?.toISOString() ?? null,
         deliveryLocation: invitee.rfq.deliveryLocation,
@@ -312,7 +358,8 @@ export class RfqPublicService {
             paymentTermsOffered: invitee.quote.paymentTermsOffered,
             validityDays: invitee.quote.validityDays,
             notes: invitee.quote.notes,
-            attachmentFileKeys: (invitee.quote.attachmentFileKeys as string[] | null) ?? [],
+            attachmentFileKeys:
+              (invitee.quote.attachmentFileKeys as string[] | null) ?? [],
             totalQuotedValue: invitee.quote.totalQuotedValue.toString(),
             lines: invitee.quote.lines.map((l) => ({
               rfqLineId: l.rfqLineId,

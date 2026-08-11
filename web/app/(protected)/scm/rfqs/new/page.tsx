@@ -108,18 +108,6 @@ export default function NewRfqPage() {
 
   function selectProject(value: string) {
     setProjectKickoffId(value);
-    const selected = projects.find(
-      (project) => project.projectKickoffId === value,
-    );
-    if (!selected) return;
-    if (!title.trim()) {
-      setTitle(`${selected.orderNumber} — ${selected.projectName}`);
-    }
-    if (!description.trim()) {
-      setDescription(
-        `Procurement requirement for ${selected.projectName}, linked to customer order ${selected.orderNumber}.`,
-      );
-    }
   }
 
   async function handleSubmit() {
