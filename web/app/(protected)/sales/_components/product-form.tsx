@@ -15,7 +15,7 @@ import { useNumberFormat } from '../../../lib/number-format-context';
 
 const fieldStyle: React.CSSProperties = {
   width: '100%',
-  padding: 8,
+  padding: 7,
   boxSizing: 'border-box',
 };
 
@@ -223,20 +223,47 @@ export function ProductForm({
         inset: 0,
         background: 'rgba(0,0,0,0.4)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
+        overflowY: 'auto',
+        padding: 16,
         zIndex: 50,
       }}
       onClick={onClose}
     >
       <form
         onSubmit={handleSubmit}
-        style={{ background: 'hsl(var(--card))', padding: 24, borderRadius: 6, width: 400 }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={isEdit ? 'Edit Product' : 'New Product'}
+        style={{
+          background: 'hsl(var(--card))',
+          borderRadius: 8,
+          width: 'min(440px, 100%)',
+          maxHeight: 'calc(100dvh - 32px)',
+          margin: 'auto',
+          overflowY: 'auto',
+          overscrollBehavior: 'contain',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.35)',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>{isEdit ? 'Edit Product' : 'New Product'}</h2>
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-card px-5 py-4">
+          <h2 className="text-lg font-semibold">
+            {isEdit ? 'Edit Product' : 'New Product'}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex size-8 items-center justify-center rounded-md text-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Close product form"
+          >
+            ×
+          </button>
+        </div>
+        <div className="px-5 pt-4">
         {!isEdit && (
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 10 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>SKU</label>
             <input
               value={sku}
@@ -246,7 +273,7 @@ export function ProductForm({
             />
           </div>
         )}
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 10 }}>
           <label style={{ display: 'block', marginBottom: 4 }}>Name</label>
           <input
             value={name}
@@ -255,7 +282,7 @@ export function ProductForm({
             style={fieldStyle}
           />
         </div>
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 10 }}>
           <label style={{ display: 'block', marginBottom: 4 }}>
             Description
           </label>
@@ -265,7 +292,7 @@ export function ProductForm({
             style={{ ...fieldStyle, minHeight: 50 }}
           />
         </div>
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 10 }}>
           <div
             style={{
               display: 'flex',
@@ -296,7 +323,7 @@ export function ProductForm({
             </p>
           )}
         </div>
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 10 }}>
           <label style={{ display: 'block', marginBottom: 4 }}>
             Unit price
           </label>
@@ -313,7 +340,7 @@ export function ProductForm({
             style={fieldStyle}
           />
         </div>
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 10 }}>
           <label style={{ display: 'block', marginBottom: 4 }}>
             Unit of measure
           </label>
@@ -324,7 +351,7 @@ export function ProductForm({
             style={fieldStyle}
           />
         </div>
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 10 }}>
           <label style={{ display: 'block', marginBottom: 4 }}>
             HSN code (optional)
           </label>
@@ -334,7 +361,7 @@ export function ProductForm({
             style={fieldStyle}
           />
         </div>
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 10 }}>
           <label style={{ display: 'block', marginBottom: 4 }}>
             Manufactured item (optional)
           </label>
@@ -406,7 +433,7 @@ export function ProductForm({
             </p>
           </div>
         )}
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 10 }}>
           <label>
             <input
               type="checkbox"
@@ -419,7 +446,8 @@ export function ProductForm({
 
         {error && <p className="text-destructive">{error}</p>}
 
-        <div style={{ display: 'flex', gap: 8 }}>
+        </div>
+        <div className="sticky bottom-0 z-10 flex gap-2 border-t bg-card px-5 py-4">
           <Button type="submit" disabled={submitting}>
             {submitting ? 'Saving…' : 'Save'}
           </Button>
