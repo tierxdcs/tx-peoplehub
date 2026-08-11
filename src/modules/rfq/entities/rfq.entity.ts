@@ -45,6 +45,19 @@ export class RfqEntity {
   @ApiProperty({ enum: RfqStatus }) status!: RfqStatus;
   @ApiProperty({ nullable: true }) projectKickoffId!: string | null;
   @ApiProperty({ nullable: true }) projectName!: string | null;
+  @ApiProperty({ nullable: true }) orderId!: string | null;
+  @ApiProperty({ nullable: true }) orderNumber!: string | null;
+  @ApiProperty({ nullable: true }) orderStatus!: string | null;
+  @ApiProperty({ nullable: true }) orderTotal!: string | null;
+  @ApiProperty({ nullable: true }) customerName!: string | null;
+  @ApiProperty({ type: [Object] }) orderLines!: Array<{
+    productSku: string;
+    productName: string;
+    quantity: string;
+    unitOfMeasure: string;
+    unitPrice: string;
+    lineTotal: string;
+  }>;
   @ApiProperty() submissionDeadline!: string;
   @ApiProperty({ nullable: true }) requiredByDate!: string | null;
   @ApiProperty({ nullable: true }) deliveryLocation!: string | null;

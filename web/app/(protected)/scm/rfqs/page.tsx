@@ -27,7 +27,13 @@ import {
   TableRow,
 } from '../../../components/ui/table';
 
-const STATUSES: RfqStatus[] = ['DRAFT', 'ISSUED', 'CLOSED', 'AWARDED', 'CANCELLED'];
+const STATUSES: RfqStatus[] = [
+  'DRAFT',
+  'ISSUED',
+  'CLOSED',
+  'AWARDED',
+  'CANCELLED',
+];
 
 /**
  * RFQ Register (SCM). Company-wide read; "New RFQ" shows for SUPER_ADMIN or
@@ -63,7 +69,11 @@ export default function RfqsPage() {
     () => (statusFilter ? rfqs.filter((r) => r.status === statusFilter) : rfqs),
     [rfqs, statusFilter],
   );
-  const register = useRegisterList(filtered, (rfq) => `${rfq.rfqNumber} ${rfq.title} ${rfq.status} ${rfq.projectName ?? ''}`);
+  const register = useRegisterList(
+    filtered,
+    (rfq) =>
+      `${rfq.rfqNumber} ${rfq.title} ${rfq.status} ${rfq.projectName ?? ''} ${rfq.orderNumber ?? ''} ${rfq.customerName ?? ''}`,
+  );
 
   return (
     <PageContainer>
@@ -79,18 +89,26 @@ export default function RfqsPage() {
         }
       />
 
-      <RegisterToolbar title="RFQ Register" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search RFQ, title, project or status" filters={<Select
-          className="w-56"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as RfqStatus | '')}
-        >
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s.replace(/_/g, ' ')}
-            </option>
-          ))}
-        </Select>} />
+      <RegisterToolbar
+        title="RFQ Register"
+        search={register.search}
+        onSearchChange={register.setSearch}
+        searchPlaceholder="Search RFQ, title, project or status"
+        filters={
+          <Select
+            className="w-56"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as RfqStatus | '')}
+          >
+            <option value="">All statuses</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s.replace(/_/g, ' ')}
+              </option>
+            ))}
+          </Select>
+        }
+      />
 
       <Card>
         <CardContent className="p-0">
@@ -118,6 +136,7 @@ export default function RfqsPage() {
                   <TableHead>Deadline</TableHead>
                   <TableHead className="text-right">Invitees</TableHead>
                   <TableHead>Project</TableHead>
+                  <TableHead>Order ID</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -141,8 +160,11 @@ export default function RfqsPage() {
                       <StatusBadge value={rfq.status} />
                     </TableCell>
                     <TableCell>{dateOnlyStr(rfq.submissionDeadline)}</TableCell>
-                    <TableCell className="text-right">{rfq.invitees.length}</TableCell>
+                    <TableCell className="text-right">
+                      {rfq.invitees.length}
+                    </TableCell>
                     <TableCell>{rfq.projectName ?? '—'}</TableCell>
+                    <TableCell>{rfq.orderNumber ?? '—'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -150,7 +172,12 @@ export default function RfqsPage() {
           )}
         </CardContent>
       </Card>
-      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
+      <RegisterPagination
+        page={register.page}
+        pageCount={register.pageCount}
+        onPageChange={register.setPage}
+        disabled={loading}
+      />
     </PageContainer>
   );
 }

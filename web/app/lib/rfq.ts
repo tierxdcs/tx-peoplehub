@@ -44,6 +44,12 @@ export interface Rfq {
   status: RfqStatus;
   projectKickoffId: string | null;
   projectName: string | null;
+  orderId: string | null;
+  orderNumber: string | null;
+  orderStatus: string | null;
+  orderTotal: string | null;
+  customerName: string | null;
+  orderLines: RfqOrderLine[];
   submissionDeadline: string;
   requiredByDate: string | null;
   deliveryLocation: string | null;
@@ -59,6 +65,27 @@ export interface Rfq {
   quotesVisible: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface RfqOrderLine {
+  productSku: string;
+  productName: string;
+  quantity: string;
+  unitOfMeasure: string;
+  unitPrice: string;
+  lineTotal: string;
+}
+
+export interface RfqProjectOption {
+  projectKickoffId: string;
+  projectName: string;
+  kickoffStatus: string;
+  orderId: string;
+  orderNumber: string;
+  orderStatus: string;
+  orderTotal: string;
+  customerName: string;
+  lines: RfqOrderLine[];
 }
 
 export interface RfqLineInput {
@@ -111,7 +138,13 @@ export interface RfqComparison {
   rfqNumber: string;
   status: string;
   weights: { price: number; leadTime: number; qualification: number };
-  lines: { rfqLineId: string; itemCode: string | null; itemName: string | null; quantity: string; unitOfMeasure: string }[];
+  lines: {
+    rfqLineId: string;
+    itemCode: string | null;
+    itemName: string | null;
+    quantity: string;
+    unitOfMeasure: string;
+  }[];
   columns: ComparisonColumn[];
 }
 
@@ -120,14 +153,23 @@ export function listRfqs(opts: { status?: RfqStatus } = {}) {
   const qs = opts.status ? `?status=${opts.status}` : '';
   return apiFetch<Rfq[]>(`/rfqs${qs}`);
 }
+export function listRfqProjectOptions() {
+  return apiFetch<RfqProjectOption[]>('/rfqs/project-options');
+}
 export function getRfq(id: string) {
   return apiFetch<Rfq>(`/rfqs/${id}`);
 }
 export function createRfq(input: CreateRfqInput) {
-  return apiFetch<Rfq>('/rfqs', { method: 'POST', body: JSON.stringify(input) });
+  return apiFetch<Rfq>('/rfqs', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 export function updateRfq(id: string, input: Partial<CreateRfqInput>) {
-  return apiFetch<Rfq>(`/rfqs/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  return apiFetch<Rfq>(`/rfqs/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
 }
 export function addInvitee(
   id: string,
@@ -139,7 +181,9 @@ export function addInvitee(
   );
 }
 export function removeInvitee(id: string, inviteeId: string) {
-  return apiFetch<Rfq>(`/rfqs/${id}/invitees/${inviteeId}`, { method: 'DELETE' });
+  return apiFetch<Rfq>(`/rfqs/${id}/invitees/${inviteeId}`, {
+    method: 'DELETE',
+  });
 }
 export function issueRfq(id: string) {
   return apiFetch<Rfq>(`/rfqs/${id}/issue`, { method: 'POST' });
@@ -156,12 +200,18 @@ export function rfqComparison(
 ) {
   const params = new URLSearchParams();
   if (weights?.price != null) params.set('price', String(weights.price));
-  if (weights?.leadTime != null) params.set('leadTime', String(weights.leadTime));
-  if (weights?.qualification != null) params.set('qualification', String(weights.qualification));
+  if (weights?.leadTime != null)
+    params.set('leadTime', String(weights.leadTime));
+  if (weights?.qualification != null)
+    params.set('qualification', String(weights.qualification));
   const qs = params.toString();
   return apiFetch<RfqComparison>(`/rfqs/${id}/comparison${qs ? `?${qs}` : ''}`);
 }
-export function awardRfq(id: string, inviteeId: string, justification?: string) {
+export function awardRfq(
+  id: string,
+  inviteeId: string,
+  justification?: string,
+) {
   return apiFetch<{ rfq: Rfq; purchaseOrderId: string }>(`/rfqs/${id}/award`, {
     method: 'POST',
     body: JSON.stringify({ inviteeId, justification }),
@@ -188,7 +238,14 @@ export interface PublicRfqView {
     deliveryLocation: string | null;
     paymentTermsRequested: string | null;
     status: RfqStatus;
-    lines: { id: string; itemCode: string | null; itemName: string | null; quantity: string; unitOfMeasure: string; specificationNotes: string | null }[];
+    lines: {
+      id: string;
+      itemCode: string | null;
+      itemName: string | null;
+      quantity: string;
+      unitOfMeasure: string;
+      specificationNotes: string | null;
+    }[];
   };
   quote: {
     quotedLeadTimeDays: number | null;
@@ -197,7 +254,13 @@ export interface PublicRfqView {
     notes: string | null;
     attachmentFileKeys: string[];
     totalQuotedValue: string;
-    lines: { rfqLineId: string; unitPrice: string; lineTotal: string; deliveryLeadTimeDays: number | null; remarks: string | null }[];
+    lines: {
+      rfqLineId: string;
+      unitPrice: string;
+      lineTotal: string;
+      deliveryLeadTimeDays: number | null;
+      remarks: string | null;
+    }[];
   } | null;
 }
 
@@ -213,7 +276,9 @@ export interface PublicQuoteLineInput {
 async function publicPost<T>(
   path: string,
   body: unknown,
-): Promise<{ ok: true; data: T } | { ok: false; status: number; message: string }> {
+): Promise<
+  { ok: true; data: T } | { ok: false; status: number; message: string }
+> {
   const res = await fetch(`${API_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -221,7 +286,11 @@ async function publicPost<T>(
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.success === false) {
-    return { ok: false, status: res.status, message: json.message ?? 'Request failed' };
+    return {
+      ok: false,
+      status: res.status,
+      message: json.message ?? 'Request failed',
+    };
   }
   return { ok: true, data: json.data as T };
 }
@@ -230,19 +299,49 @@ export const publicResolveRfq = (token: string, password?: string) =>
   publicPost<PublicRfqView>(`/public/rfq-quote/${token}/resolve`, { password });
 export const publicSaveRfqQuote = (
   token: string,
-  body: { password?: string; quotedLeadTimeDays?: number; paymentTermsOffered?: string; validityDays?: number; notes?: string; lines?: PublicQuoteLineInput[] },
+  body: {
+    password?: string;
+    quotedLeadTimeDays?: number;
+    paymentTermsOffered?: string;
+    validityDays?: number;
+    notes?: string;
+    lines?: PublicQuoteLineInput[];
+  },
 ) => publicPost<PublicRfqView>(`/public/rfq-quote/${token}/save`, body);
 export const publicSubmitRfqQuote = (
   token: string,
-  body: { password?: string; quotedLeadTimeDays?: number; paymentTermsOffered?: string; validityDays?: number; notes?: string; lines: PublicQuoteLineInput[] },
+  body: {
+    password?: string;
+    quotedLeadTimeDays?: number;
+    paymentTermsOffered?: string;
+    validityDays?: number;
+    notes?: string;
+    lines: PublicQuoteLineInput[];
+  },
 ) => publicPost<PublicRfqView>(`/public/rfq-quote/${token}/submit`, body);
-export const publicDeclineRfq = (token: string, body: { password?: string; declineReason?: string }) =>
-  publicPost<PublicRfqView>(`/public/rfq-quote/${token}/decline`, body);
+export const publicDeclineRfq = (
+  token: string,
+  body: { password?: string; declineReason?: string },
+) => publicPost<PublicRfqView>(`/public/rfq-quote/${token}/decline`, body);
 export const publicRfqAttachmentUploadUrl = (
   token: string,
-  body: { password?: string; name: string; mimeType: string; sizeBytes: number },
-) => publicPost<{ storageKey: string; uploadUrl: string; expiresInSeconds: number }>(`/public/rfq-quote/${token}/attachment-upload-url`, body);
+  body: {
+    password?: string;
+    name: string;
+    mimeType: string;
+    sizeBytes: number;
+  },
+) =>
+  publicPost<{
+    storageKey: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+  }>(`/public/rfq-quote/${token}/attachment-upload-url`, body);
 export const publicRfqAttachmentConfirm = (
   token: string,
   body: { password?: string; storageKey: string; name: string },
-) => publicPost<PublicRfqView>(`/public/rfq-quote/${token}/attachment-confirm`, body);
+) =>
+  publicPost<PublicRfqView>(
+    `/public/rfq-quote/${token}/attachment-confirm`,
+    body,
+  );

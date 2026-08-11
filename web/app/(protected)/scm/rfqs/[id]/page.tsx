@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, AlertTriangle, Check, Copy, Plus, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  AlertTriangle,
+  Check,
+  Copy,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
 import {
@@ -82,7 +89,9 @@ export default function RfqDetailPage() {
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   const canManage =
-    user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'MANAGER';
+    user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'ADMIN' ||
+    user?.role === 'MANAGER';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -161,12 +170,13 @@ export default function RfqDetailPage() {
   const awardedInvitee = useMemo(
     () =>
       rfq?.awardedInviteeId
-        ? (rfq.invitees ?? []).find((i) => i.id === rfq.awardedInviteeId) ?? null
+        ? ((rfq.invitees ?? []).find((i) => i.id === rfq.awardedInviteeId) ??
+          null)
         : null,
     [rfq],
   );
   const awardedColumn = rfq?.awardedInviteeId
-    ? quoteTotals.get(rfq.awardedInviteeId) ?? null
+    ? (quoteTotals.get(rfq.awardedInviteeId) ?? null)
     : null;
 
   async function handleAddInvitee() {
@@ -175,7 +185,9 @@ export default function RfqDetailPage() {
     setInlineWarning(null);
     try {
       const res = await addInvitee(rfq.id, {
-        ...(partnerType === 'SUPPLIER' ? { supplierId: partnerId } : { vendorId: partnerId }),
+        ...(partnerType === 'SUPPLIER'
+          ? { supplierId: partnerId }
+          : { vendorId: partnerId }),
         ...(invitePassword.trim() ? { password: invitePassword.trim() } : {}),
       });
       setRfq(res.rfq);
@@ -188,7 +200,9 @@ export default function RfqDetailPage() {
         toast.success('Invitee added');
       }
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to add invitee');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to add invitee',
+      );
     } finally {
       setActing(false);
     }
@@ -210,7 +224,9 @@ export default function RfqDetailPage() {
       setRfq(await removeInvitee(rfq.id, inviteeId));
       toast.success('Invitee removed');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to remove invitee');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to remove invitee',
+      );
     } finally {
       setActing(false);
     }
@@ -231,7 +247,9 @@ export default function RfqDetailPage() {
       setRfq(await issueRfq(rfq.id));
       toast.success('RFQ issued');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to issue RFQ');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to issue RFQ',
+      );
     } finally {
       setActing(false);
     }
@@ -252,7 +270,9 @@ export default function RfqDetailPage() {
       setRfq(await closeRfq(rfq.id));
       toast.success('RFQ closed');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to close RFQ');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to close RFQ',
+      );
     } finally {
       setActing(false);
     }
@@ -274,7 +294,9 @@ export default function RfqDetailPage() {
       setRfq(await cancelRfq(rfq.id));
       toast.success('RFQ cancelled');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to cancel RFQ');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to cancel RFQ',
+      );
     } finally {
       setActing(false);
     }
@@ -304,7 +326,11 @@ export default function RfqDetailPage() {
     return (
       <PageContainer>
         <p className="text-sm text-destructive">{error ?? 'Not found.'}</p>
-        <Button variant="outline" className="mt-4" onClick={() => router.push('/scm/rfqs')}>
+        <Button
+          variant="outline"
+          className="mt-4"
+          onClick={() => router.push('/scm/rfqs')}
+        >
           <ArrowLeft className="size-4" /> Back
         </Button>
       </PageContainer>
@@ -345,7 +371,11 @@ export default function RfqDetailPage() {
             <Button
               onClick={handleIssue}
               disabled={acting || !enoughInvitees}
-              title={enoughInvitees ? undefined : `Add at least ${MIN_INVITEES} invitees to issue`}
+              title={
+                enoughInvitees
+                  ? undefined
+                  : `Add at least ${MIN_INVITEES} invitees to issue`
+              }
             >
               Issue RFQ
             </Button>
@@ -361,7 +391,11 @@ export default function RfqDetailPage() {
             </Button>
           )}
           {canManage && (isDraft || isIssued) && (
-            <Button variant="destructive" onClick={handleCancel} disabled={acting}>
+            <Button
+              variant="destructive"
+              onClick={handleCancel}
+              disabled={acting}
+            >
               Cancel
             </Button>
           )}
@@ -369,19 +403,28 @@ export default function RfqDetailPage() {
       </div>
 
       {/* Live flow indicator — stage derived from the RFQ's status. */}
-      <ProcessFlow title="RFQ progress" className="mb-6" {...rfqFlow(rfq.status)} />
+      <ProcessFlow
+        title="RFQ progress"
+        className="mb-6"
+        {...rfqFlow(rfq.status)}
+      />
 
       {rfq.description && (
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="text-sm">Description</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">{rfq.description}</CardContent>
+          <CardContent className="text-sm text-muted-foreground">
+            {rfq.description}
+          </CardContent>
         </Card>
       )}
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3">
-        <Info label="Submission Deadline" value={dateOnlyStr(rfq.submissionDeadline)} />
+        <Info
+          label="Submission Deadline"
+          value={dateOnlyStr(rfq.submissionDeadline)}
+        />
         <Info
           label="Required By"
           value={rfq.requiredByDate ? dateOnlyStr(rfq.requiredByDate) : '—'}
@@ -391,6 +434,59 @@ export default function RfqDetailPage() {
         <Info label="Created By" value={rfq.createdByName ?? '—'} />
         <Info label="Project" value={rfq.projectName ?? '—'} />
       </div>
+
+      {rfq.orderNumber && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-base">Linked customer order</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Info label="Order ID" value={rfq.orderNumber} />
+              <Info label="Customer" value={rfq.customerName ?? '—'} />
+              <Info
+                label="Order value"
+                value={
+                  rfq.orderTotal
+                    ? formatINR(rfq.orderTotal, numberFormatStyle)
+                    : '—'
+                }
+              />
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Order status
+                </p>
+                <div className="mt-1">
+                  {rfq.orderStatus ? (
+                    <StatusBadge value={rfq.orderStatus} />
+                  ) : (
+                    '—'
+                  )}
+                </div>
+              </div>
+            </div>
+            {rfq.orderLines.length > 0 && (
+              <div>
+                <p className="mb-2 text-sm font-medium">Order products</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {rfq.orderLines.map((line, index) => (
+                    <div
+                      key={`${line.productSku}-${index}`}
+                      className="rounded-md border p-3 text-sm"
+                    >
+                      <p className="font-medium">{line.productName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {line.productSku} · {line.quantity} {line.unitOfMeasure}{' '}
+                        · {formatINR(line.lineTotal, numberFormatStyle)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {rfq.status === 'AWARDED' && (
         <Card className="mb-6 border-success/40">
@@ -417,7 +513,10 @@ export default function RfqDetailPage() {
                 <div className="mt-1 text-sm">
                   <span className="text-muted-foreground">Awarded value: </span>
                   <span className="font-semibold text-success">
-                    {formatINR(awardedColumn.totalQuotedValue, numberFormatStyle)}
+                    {formatINR(
+                      awardedColumn.totalQuotedValue,
+                      numberFormatStyle,
+                    )}
                   </span>
                 </div>
               )}
@@ -452,7 +551,9 @@ export default function RfqDetailPage() {
             <div className="space-y-1 border-t pt-3">
               <div>
                 <span className="text-muted-foreground">Decided by: </span>
-                <span className="font-medium">{rfq.awardDecisionByName ?? '—'}</span>
+                <span className="font-medium">
+                  {rfq.awardDecisionByName ?? '—'}
+                </span>
                 {rfq.awardDecisionAt && (
                   <span className="ml-1 text-muted-foreground">
                     on {dateOnlyStr(rfq.awardDecisionAt)}
@@ -489,7 +590,9 @@ export default function RfqDetailPage() {
                 <TableRow key={line.id}>
                   <TableCell>
                     <div className="font-medium">{line.itemName ?? '—'}</div>
-                    <div className="text-xs text-muted-foreground">{line.itemCode ?? ''}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {line.itemCode ?? ''}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">{line.quantity}</TableCell>
                   <TableCell>{line.unitOfMeasure}</TableCell>
@@ -533,7 +636,9 @@ export default function RfqDetailPage() {
               <TableBody>
                 {activeInvitees.map((inv) => (
                   <TableRow key={inv.id}>
-                    <TableCell className="font-medium">{inv.partnerName ?? '—'}</TableCell>
+                    <TableCell className="font-medium">
+                      {inv.partnerName ?? '—'}
+                    </TableCell>
                     <TableCell>{humanizeEnum(inv.partnerType)}</TableCell>
                     <TableCell>
                       <StatusBadge value={inv.qualificationStatusSnapshot} />
@@ -544,7 +649,8 @@ export default function RfqDetailPage() {
                     {showQuotedValue &&
                       (() => {
                         const col = quoteTotals.get(inv.id);
-                        const isAwardedInvitee = rfq.awardedInviteeId === inv.id;
+                        const isAwardedInvitee =
+                          rfq.awardedInviteeId === inv.id;
                         return (
                           <TableCell className="text-right">
                             {col && col.totalQuotedValue ? (
@@ -557,7 +663,10 @@ export default function RfqDetailPage() {
                                       : 'font-medium'
                                 }
                               >
-                                {formatINR(col.totalQuotedValue, numberFormatStyle)}
+                                {formatINR(
+                                  col.totalQuotedValue,
+                                  numberFormatStyle,
+                                )}
                               </span>
                             ) : (
                               <span className="text-muted-foreground">—</span>
@@ -598,7 +707,9 @@ export default function RfqDetailPage() {
                           variant="ghost"
                           size="icon"
                           disabled={acting}
-                          onClick={() => handleRemoveInvitee(inv.id, inv.partnerName)}
+                          onClick={() =>
+                            handleRemoveInvitee(inv.id, inv.partnerName)
+                          }
                           aria-label="Remove invitee"
                         >
                           <Trash2 className="size-4" />
@@ -631,8 +742,13 @@ export default function RfqDetailPage() {
                 ))}
               </div>
               <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
-                <Field label={partnerType === 'SUPPLIER' ? 'Supplier' : 'Vendor'}>
-                  <Select value={partnerId} onChange={(e) => setPartnerId(e.target.value)}>
+                <Field
+                  label={partnerType === 'SUPPLIER' ? 'Supplier' : 'Vendor'}
+                >
+                  <Select
+                    value={partnerId}
+                    onChange={(e) => setPartnerId(e.target.value)}
+                  >
                     <option value="">Select…</option>
                     {availablePartners.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -669,7 +785,8 @@ export default function RfqDetailPage() {
 
               {!enoughInvitees && (
                 <p className="text-xs text-muted-foreground">
-                  At least {MIN_INVITEES} invitees are required before the RFQ can be issued.
+                  At least {MIN_INVITEES} invitees are required before the RFQ
+                  can be issued.
                 </p>
               )}
             </div>
@@ -683,7 +800,9 @@ export default function RfqDetailPage() {
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
       <div className="mt-0.5 text-sm font-medium">{value}</div>
     </div>
   );

@@ -22,7 +22,11 @@ import {
   RfqLineInputDto,
   UpdateRfqDto,
 } from './dto/rfq.dto';
-import { RfqEntity, RfqInviteeEntity, RfqLineEntity } from './entities/rfq.entity';
+import {
+  RfqEntity,
+  RfqInviteeEntity,
+  RfqLineEntity,
+} from './entities/rfq.entity';
 import {
   ComparisonColumnEntity,
   ComparisonQuoteLineEntity,
@@ -45,7 +49,31 @@ const QUAL_TIER: Record<string, number> = {
 };
 
 const RFQ_INCLUDE = {
-  projectKickoff: { select: { projectName: true } },
+  projectKickoff: {
+    select: {
+      projectName: true,
+      order: {
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          totalAmount: true,
+          customer: { select: { name: true } },
+          lineItems: {
+            orderBy: { createdAt: 'asc' as const },
+            select: {
+              quantity: true,
+              unitPrice: true,
+              lineTotal: true,
+              product: {
+                select: { sku: true, name: true, unitOfMeasure: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   createdBy: { select: { firstName: true, lastName: true } },
   awardDecisionBy: { select: { firstName: true, lastName: true } },
   lines: {
@@ -101,7 +129,9 @@ export class RfqService {
       (r) => r.availabilityStatus === 'SHORTAGE' && r.itemId,
     );
     if (shortfalls.length === 0) {
-      throw new BadRequestException('This kickoff has no material shortfalls to source');
+      throw new BadRequestException(
+        'This kickoff has no material shortfalls to source',
+      );
     }
     const kickoff = await this.prisma.projectKickoff.findUnique({
       where: { id: kickoffId },
@@ -160,6 +190,57 @@ export class RfqService {
     return this.toEntity(await this.findOrThrow(id), user);
   }
 
+  /** Projects available for order-linked RFQ creation, with authoritative order context. */
+  async projectOptions(user: AuthenticatedUser) {
+    await this.access.assertCanReadRfqs(user);
+    const rows = await this.prisma.projectKickoff.findMany({
+      select: {
+        id: true,
+        projectName: true,
+        status: true,
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            totalAmount: true,
+            customer: { select: { name: true } },
+            lineItems: {
+              orderBy: { createdAt: 'asc' },
+              select: {
+                quantity: true,
+                unitPrice: true,
+                lineTotal: true,
+                product: {
+                  select: { sku: true, name: true, unitOfMeasure: true },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((row) => ({
+      projectKickoffId: row.id,
+      projectName: row.projectName,
+      kickoffStatus: row.status,
+      orderId: row.order.id,
+      orderNumber: row.order.orderNumber,
+      orderStatus: row.order.status,
+      orderTotal: row.order.totalAmount.toString(),
+      customerName: row.order.customer.name,
+      lines: row.order.lineItems.map((line) => ({
+        productSku: line.product.sku,
+        productName: line.product.name,
+        quantity: line.quantity.toString(),
+        unitOfMeasure: line.product.unitOfMeasure,
+        unitPrice: line.unitPrice.toString(),
+        lineTotal: line.lineTotal.toString(),
+      })),
+    }));
+  }
+
   // ── Create / edit ────────────────────────────────────────────────────
   async create(dto: CreateRfqDto, user: AuthenticatedUser): Promise<RfqEntity> {
     await this.access.assertCanManageRfqs(user);
@@ -186,7 +267,9 @@ export class RfqService {
           status: RfqStatus.DRAFT,
           projectKickoffId: dto.projectKickoffId ?? null,
           submissionDeadline: new Date(dto.submissionDeadline),
-          requiredByDate: dto.requiredByDate ? new Date(dto.requiredByDate) : null,
+          requiredByDate: dto.requiredByDate
+            ? new Date(dto.requiredByDate)
+            : null,
           deliveryLocation: dto.deliveryLocation ?? null,
           paymentTermsRequested: dto.paymentTermsRequested ?? null,
           createdById: user.id,
@@ -208,17 +291,25 @@ export class RfqService {
     if (rfq.status !== RfqStatus.DRAFT) {
       throw new BadRequestException('Only a DRAFT RFQ can be edited');
     }
-    const lineData = dto.lines ? await this.buildLineData(dto.lines) : undefined;
+    const lineData = dto.lines
+      ? await this.buildLineData(dto.lines)
+      : undefined;
     await this.prisma.rfq.update({
       where: { id },
       data: {
         ...(dto.title !== undefined ? { title: dto.title } : {}),
-        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.description !== undefined
+          ? { description: dto.description }
+          : {}),
         ...(dto.submissionDeadline !== undefined
           ? { submissionDeadline: new Date(dto.submissionDeadline) }
           : {}),
         ...(dto.requiredByDate !== undefined
-          ? { requiredByDate: dto.requiredByDate ? new Date(dto.requiredByDate) : null }
+          ? {
+              requiredByDate: dto.requiredByDate
+                ? new Date(dto.requiredByDate)
+                : null,
+            }
           : {}),
         ...(dto.deliveryLocation !== undefined
           ? { deliveryLocation: dto.deliveryLocation }
@@ -256,7 +347,9 @@ export class RfqService {
     const rfq = await this.prisma.rfq.findUnique({ where: { id } });
     if (!rfq) throw new NotFoundException('RFQ not found');
     if (rfq.status !== RfqStatus.DRAFT) {
-      throw new BadRequestException('Invitees can only be added to a DRAFT RFQ');
+      throw new BadRequestException(
+        'Invitees can only be added to a DRAFT RFQ',
+      );
     }
     const hasSupplier = !!dto.supplierId;
     const hasVendor = !!dto.vendorId;
@@ -283,7 +376,8 @@ export class RfqService {
       const dup = await this.prisma.rfqInvitee.findFirst({
         where: { rfqId: id, supplierId: dto.supplierId },
       });
-      if (dup) throw new BadRequestException('That supplier is already invited');
+      if (dup)
+        throw new BadRequestException('That supplier is already invited');
     } else {
       const v = await this.prisma.vendor.findUnique({
         where: { id: dto.vendorId },
@@ -326,7 +420,9 @@ export class RfqService {
     const rfq = await this.prisma.rfq.findUnique({ where: { id } });
     if (!rfq) throw new NotFoundException('RFQ not found');
     if (rfq.status !== RfqStatus.DRAFT) {
-      throw new BadRequestException('Invitees can only be removed from a DRAFT RFQ');
+      throw new BadRequestException(
+        'Invitees can only be removed from a DRAFT RFQ',
+      );
     }
     const inv = await this.prisma.rfqInvitee.findFirst({
       where: { id: inviteeId, rfqId: id },
@@ -348,7 +444,9 @@ export class RfqService {
       throw new BadRequestException('Only a DRAFT RFQ can be issued');
     }
     if (rfq.lines.length === 0) {
-      throw new BadRequestException('An RFQ must have at least one line to issue');
+      throw new BadRequestException(
+        'An RFQ must have at least one line to issue',
+      );
     }
     if (rfq.invitees.length < MIN_INVITEES) {
       throw new BadRequestException(
@@ -356,7 +454,9 @@ export class RfqService {
       );
     }
     if (new Date(rfq.submissionDeadline) <= new Date()) {
-      throw new BadRequestException('The submission deadline must be in the future');
+      throw new BadRequestException(
+        'The submission deadline must be in the future',
+      );
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -370,7 +470,10 @@ export class RfqService {
           },
         });
       }
-      await tx.rfq.update({ where: { id }, data: { status: RfqStatus.ISSUED } });
+      await tx.rfq.update({
+        where: { id },
+        data: { status: RfqStatus.ISSUED },
+      });
     });
     return this.get(id, user);
   }
@@ -448,16 +551,13 @@ export class RfqService {
       const q = inv.quote;
       const isResponder = inv.quoteStatus === RfqQuoteStatus.SUBMITTED && !!q;
       const total = isResponder ? q!.totalQuotedValue : null;
-      const variance =
-        total && lowestTotal ? total.minus(lowestTotal) : null;
+      const variance = total && lowestTotal ? total.minus(lowestTotal) : null;
       const variancePct =
         variance && lowestTotal && lowestTotal.greaterThan(0)
           ? variance.dividedBy(lowestTotal).times(100)
           : null;
 
-      const lineMap = new Map(
-        (q?.lines ?? []).map((l) => [l.rfqLineId, l]),
-      );
+      const lineMap = new Map((q?.lines ?? []).map((l) => [l.rfqLineId, l]));
       const lines: ComparisonQuoteLineEntity[] = rfq.lines.map((rl) => {
         const ql = lineMap.get(rl.id);
         const lowest = lowestByLine.get(rl.id);
@@ -465,8 +565,7 @@ export class RfqService {
           rfqLineId: rl.id,
           unitPrice: ql ? ql.unitPrice.toString() : null,
           lineTotal: ql ? ql.lineTotal.toString() : null,
-          isLowestUnitPrice:
-            !!ql && !!lowest && ql.unitPrice.equals(lowest),
+          isLowestUnitPrice: !!ql && !!lowest && ql.unitPrice.equals(lowest),
         });
       });
 
@@ -480,7 +579,11 @@ export class RfqService {
         // Lead-time score: best lead = 1, worst = 0 (1 if no spread/data).
         let leadScore = 1;
         const lead = q!.quotedLeadTimeDays;
-        if (typeof lead === 'number' && bestLead !== null && worstLead !== null) {
+        if (
+          typeof lead === 'number' &&
+          bestLead !== null &&
+          worstLead !== null
+        ) {
           leadScore =
             worstLead === bestLead
               ? 1
@@ -497,7 +600,8 @@ export class RfqService {
       return new ComparisonColumnEntity({
         inviteeId: inv.id,
         partnerType: inv.supplierId ? 'SUPPLIER' : 'VENDOR',
-        partnerName: inv.supplier?.companyName ?? inv.vendor?.companyName ?? null,
+        partnerName:
+          inv.supplier?.companyName ?? inv.vendor?.companyName ?? null,
         qualificationStatusSnapshot: inv.qualificationStatusSnapshot,
         quoteStatus: inv.quoteStatus,
         nonResponder: !isResponder,
@@ -620,7 +724,10 @@ export class RfqService {
   }
 
   /** Quotes may be revealed once the RFQ is closed/awarded, or the deadline passed. */
-  private quotesVisible(rfq: { status: RfqStatus; submissionDeadline: Date }): boolean {
+  private quotesVisible(rfq: {
+    status: RfqStatus;
+    submissionDeadline: Date;
+  }): boolean {
     if (rfq.status === RfqStatus.CLOSED || rfq.status === RfqStatus.AWARDED) {
       return true;
     }
@@ -640,7 +747,11 @@ export class RfqService {
     const qualification = dto.qualification ?? 20;
     const sum = price + leadTime + qualification;
     if (sum <= 0) return { price: 0.6, leadTime: 0.2, qualification: 0.2 };
-    return { price: price / sum, leadTime: leadTime / sum, qualification: qualification / sum };
+    return {
+      price: price / sum,
+      leadTime: leadTime / sum,
+      qualification: qualification / sum,
+    };
   }
 
   private async buildLineData(
@@ -653,7 +764,9 @@ export class RfqService {
     });
     const byId = new Map(items.map((i) => [i.id, i]));
     if (items.length !== itemIds.length) {
-      throw new BadRequestException('One or more lines reference an unknown item');
+      throw new BadRequestException(
+        'One or more lines reference an unknown item',
+      );
     }
     return lines.map((l, i) => ({
       item: { connect: { id: l.itemId } },
@@ -676,15 +789,33 @@ export class RfqService {
       status: rfq.status,
       projectKickoffId: rfq.projectKickoffId,
       projectName: rfq.projectKickoff?.projectName ?? null,
+      orderId: rfq.projectKickoff?.order.id ?? null,
+      orderNumber: rfq.projectKickoff?.order.orderNumber ?? null,
+      orderStatus: rfq.projectKickoff?.order.status ?? null,
+      orderTotal: rfq.projectKickoff?.order.totalAmount.toString() ?? null,
+      customerName: rfq.projectKickoff?.order.customer.name ?? null,
+      orderLines:
+        rfq.projectKickoff?.order.lineItems.map((line) => ({
+          productSku: line.product.sku,
+          productName: line.product.name,
+          quantity: line.quantity.toString(),
+          unitOfMeasure: line.product.unitOfMeasure,
+          unitPrice: line.unitPrice.toString(),
+          lineTotal: line.lineTotal.toString(),
+        })) ?? [],
       submissionDeadline: rfq.submissionDeadline.toISOString(),
-      requiredByDate: rfq.requiredByDate ? rfq.requiredByDate.toISOString() : null,
+      requiredByDate: rfq.requiredByDate
+        ? rfq.requiredByDate.toISOString()
+        : null,
       deliveryLocation: rfq.deliveryLocation,
       paymentTermsRequested: rfq.paymentTermsRequested,
       awardedInviteeId: rfq.awardedInviteeId,
       awardDecisionByName: rfq.awardDecisionBy
         ? `${rfq.awardDecisionBy.firstName} ${rfq.awardDecisionBy.lastName}`.trim()
         : null,
-      awardDecisionAt: rfq.awardDecisionAt ? rfq.awardDecisionAt.toISOString() : null,
+      awardDecisionAt: rfq.awardDecisionAt
+        ? rfq.awardDecisionAt.toISOString()
+        : null,
       awardJustification: rfq.awardJustification,
       createdById: rfq.createdById,
       createdByName: rfq.createdBy

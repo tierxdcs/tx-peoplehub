@@ -40,8 +40,19 @@ export class RfqController {
 
   @Get()
   @ApiOperation({ summary: 'List RFQs (SCM read)' })
-  list(@CurrentUser() user: AuthenticatedUser, @Query('status') status?: RfqStatus) {
+  list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('status') status?: RfqStatus,
+  ) {
     return this.service.list(user, { status });
+  }
+
+  @Get('project-options')
+  @ApiOperation({
+    summary: 'List projects and their linked order context for RFQ creation',
+  })
+  projectOptions(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.projectOptions(user);
   }
 
   @Post()
@@ -51,7 +62,9 @@ export class RfqController {
   }
 
   @Post('from-kickoff/:kickoffId')
-  @ApiOperation({ summary: 'Generate a DRAFT RFQ from a kickoff’s stock shortfalls' })
+  @ApiOperation({
+    summary: 'Generate a DRAFT RFQ from a kickoff’s stock shortfalls',
+  })
   fromKickoff(
     @Param('kickoffId') kickoffId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -76,7 +89,9 @@ export class RfqController {
   }
 
   @Post(':id/invitees')
-  @ApiOperation({ summary: 'Add an invitee (supplier XOR vendor); warns if unqualified' })
+  @ApiOperation({
+    summary: 'Add an invitee (supplier XOR vendor); warns if unqualified',
+  })
   addInvitee(
     @Param('id') id: string,
     @Body() dto: AddInviteeDto,
@@ -96,13 +111,17 @@ export class RfqController {
   }
 
   @Post(':id/issue')
-  @ApiOperation({ summary: 'Issue the RFQ (requires ≥3 invitees; generates tokens)' })
+  @ApiOperation({
+    summary: 'Issue the RFQ (requires ≥3 invitees; generates tokens)',
+  })
   issue(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.issue(id, user);
   }
 
   @Post(':id/close')
-  @ApiOperation({ summary: 'Close an ISSUED RFQ early (quotes then become visible)' })
+  @ApiOperation({
+    summary: 'Close an ISSUED RFQ early (quotes then become visible)',
+  })
   close(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.close(id, user);
   }
@@ -115,7 +134,8 @@ export class RfqController {
 
   @Get(':id/comparison')
   @ApiOperation({
-    summary: 'Quote comparison (sealed until close) with advisory weighted score',
+    summary:
+      'Quote comparison (sealed until close) with advisory weighted score',
   })
   comparison(
     @Param('id') id: string,
@@ -127,7 +147,8 @@ export class RfqController {
 
   @Post(':id/award')
   @ApiOperation({
-    summary: 'Award to an invitee (PM/SA); justification required if not lowest. Pre-fills a DRAFT PO.',
+    summary:
+      'Award to an invitee (PM/SA); justification required if not lowest. Pre-fills a DRAFT PO.',
   })
   award(
     @Param('id') id: string,
