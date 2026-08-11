@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -7,7 +8,7 @@ import { Prisma, StockBucket } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { BomAccessService } from './bom-access.service';
-import { StockAdjustmentDto } from './dto/bom.dto';
+import { CreateStoreLocationDto, StockAdjustmentDto } from './dto/bom.dto';
 import {
   StockAdjustmentEntity,
   StockBalanceEntity,
@@ -56,6 +57,35 @@ export class InventoryService {
           isActive: r.isActive,
         }),
     );
+  }
+
+  async createStore(
+    dto: CreateStoreLocationDto,
+    user: AuthenticatedUser,
+  ): Promise<StoreLocationEntity> {
+    await this.access.assertCanManageInventory(user);
+    const code = dto.code.trim().toUpperCase();
+    const name = dto.name.trim();
+    if (!code || !name) {
+      throw new BadRequestException('Store / Bin code and name are required');
+    }
+
+    try {
+      const row = await this.prisma.storeLocation.create({
+        data: { code, name },
+      });
+      return new StoreLocationEntity(row);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          `A Store / Bin location with code ${code} already exists`,
+        );
+      }
+      throw error;
+    }
   }
 
   async listBalances(

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Warehouse } from 'lucide-react';
+import { Plus, Warehouse } from 'lucide-react';
 import { useAuth } from '../../../lib/auth-context';
 import {
   listInventory,
@@ -27,6 +27,7 @@ import {
   TableRow,
 } from '../../../components/ui/table';
 import { AdjustStockDialog } from './_components/adjust-stock-dialog';
+import { CreateStoreDialog } from './_components/create-store-dialog';
 
 /** Inventory / stock balances (§6). */
 export default function InventoryPage() {
@@ -38,6 +39,7 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [storeFilter, setStoreFilter] = useState('');
   const [adjusting, setAdjusting] = useState(false);
+  const [creatingStore, setCreatingStore] = useState(false);
 
   const canManage =
     user?.role === 'SUPER_ADMIN' ||
@@ -78,7 +80,12 @@ export default function InventoryPage() {
         description="On-hand, reserved, blocked and available stock by store location."
         action={
           canManage ? (
-            <Button onClick={() => setAdjusting(true)}>Adjust Stock</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setCreatingStore(true)}>
+                <Plus className="size-4" /> Add Store / Bin
+              </Button>
+              <Button onClick={() => setAdjusting(true)}>Adjust Stock</Button>
+            </div>
           ) : undefined
         }
       />
@@ -178,6 +185,18 @@ export default function InventoryPage() {
           onSaved={() => {
             setAdjusting(false);
             void load();
+          }}
+        />
+      )}
+
+      {creatingStore && (
+        <CreateStoreDialog
+          onClose={() => setCreatingStore(false)}
+          onSaved={(store) => {
+            setCreatingStore(false);
+            setStores((current) =>
+              [...current, store].sort((a, b) => a.code.localeCompare(b.code)),
+            );
           }}
         />
       )}

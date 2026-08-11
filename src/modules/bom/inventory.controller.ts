@@ -16,7 +16,7 @@ import {
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { InventoryService } from './inventory.service';
-import { StockAdjustmentDto } from './dto/bom.dto';
+import { CreateStoreLocationDto, StockAdjustmentDto } from './dto/bom.dto';
 
 /**
  * Inventory MVP (§6). Read is R&D + Store; adjustments are Store-only — enforced
@@ -44,6 +44,15 @@ export class InventoryController {
   @ApiOperation({ summary: 'List store/warehouse locations' })
   stores(@CurrentUser() user: AuthenticatedUser) {
     return this.service.listStores(user);
+  }
+
+  @Post('stores')
+  @ApiOperation({ summary: 'Create a store/warehouse/bin location (Store/SA)' })
+  createStore(
+    @Body() dto: CreateStoreLocationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.createStore(dto, user);
   }
 
   @Post('adjustments')

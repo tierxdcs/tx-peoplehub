@@ -142,6 +142,13 @@ export function listStores() {
   return apiFetch<StoreLocation[]>('/inventory/stores');
 }
 
+export function createStoreLocation(input: { code: string; name: string }) {
+  return apiFetch<StoreLocation>('/inventory/stores', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export function listInventory(opts: { search?: string; storeLocationId?: string } = {}) {
   const qs = new URLSearchParams();
   if (opts.search) qs.set('search', opts.search);

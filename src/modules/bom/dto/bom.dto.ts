@@ -149,6 +149,18 @@ export class RejectBomDto {
 }
 
 // ── Inventory ────────────────────────────────────────────────────────
+export class CreateStoreLocationDto {
+  @ApiProperty({ example: 'MAIN' })
+  @IsString()
+  @MinLength(1)
+  code!: string;
+
+  @ApiProperty({ example: 'Main Store' })
+  @IsString()
+  @MinLength(1)
+  name!: string;
+}
+
 export class StockAdjustmentDto {
   @ApiProperty() @IsString() @MinLength(1) itemId!: string;
   @ApiProperty() @IsString() @MinLength(1) storeLocationId!: string;
