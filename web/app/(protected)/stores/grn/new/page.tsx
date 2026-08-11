@@ -115,7 +115,13 @@ export default function NewGrnPage() {
         toast.error('Failed to load issued purchase orders.');
       }
       if (storeResult.status === 'fulfilled') {
-        setStores(storeResult.value);
+        const activeStores = storeResult.value.filter((store) => store.isActive);
+        setStores(activeStores);
+        if (activeStores.length === 0) {
+          toast.error(
+            'No active Store / Bin locations are configured. Ask an administrator to configure one before receiving goods.',
+          );
+        }
       } else {
         toast.error('Failed to load store locations.');
       }
@@ -214,8 +220,15 @@ export default function NewGrnPage() {
     po?.lines.some((l) => overReceipt(l.id)?.over) ?? false;
   const poCanReceive =
     po?.status === 'ISSUED' || po?.status === 'PARTIALLY_RECEIVED';
+  const enteredLinesHaveStores = enteredLines.every(
+    (line) => line.storeLocationId.length > 0,
+  );
   const canSubmit =
-    !!po && poCanReceive && enteredLines.length > 0 && !submitting;
+    !!po &&
+    poCanReceive &&
+    enteredLines.length > 0 &&
+    enteredLinesHaveStores &&
+    !submitting;
 
   // Debounced supervisor type-ahead.
   useEffect(() => {
@@ -490,15 +503,21 @@ export default function NewGrnPage() {
                             <TableCell>
                               <Select
                                 value={draft?.storeLocationId ?? ''}
+                                disabled={stores.length === 0}
                                 onChange={(e) =>
                                   updateLine(line.id, {
                                     storeLocationId: e.target.value,
                                   })
                                 }
                               >
+                                <option value="">
+                                  {stores.length === 0
+                                    ? 'No Store / Bin configured'
+                                    : 'Select Store / Bin...'}
+                                </option>
                                 {stores.map((s) => (
                                   <option key={s.id} value={s.id}>
-                                    {s.name}
+                                    {s.code} - {s.name}
                                   </option>
                                 ))}
                               </Select>
@@ -510,6 +529,16 @@ export default function NewGrnPage() {
                   </Table>
                 </CardContent>
               </Card>
+
+              {stores.length === 0 && (
+                <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  <p>
+                    No active Store / Bin location is configured. This GRN
+                    cannot be saved until an administrator adds a location.
+                  </p>
+                </div>
+              )}
 
               {anyOverReceipt && (
                 <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">

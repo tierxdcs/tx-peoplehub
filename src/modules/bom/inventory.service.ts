@@ -44,6 +44,7 @@ export class InventoryService {
   async listStores(user: AuthenticatedUser): Promise<StoreLocationEntity[]> {
     await this.access.assertCanReadInventory(user);
     const rows = await this.prisma.storeLocation.findMany({
+      where: { isActive: true },
       orderBy: { code: 'asc' },
     });
     return rows.map(
