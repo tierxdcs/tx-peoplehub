@@ -133,7 +133,9 @@ export class GoodsReceiptNoteService {
           status: GoodsReceiptNoteStatus.DRAFT,
           purchaseOrderId: dto.purchaseOrderId,
           receivedById: user.id,
-          receivedDate: dto.receivedDate ? new Date(dto.receivedDate) : new Date(),
+          receivedDate: dto.receivedDate
+            ? new Date(dto.receivedDate)
+            : new Date(),
           notes: dto.notes ?? null,
           ...this.buildLogisticsData(dto),
           lines: { create: lines },
@@ -149,7 +151,9 @@ export class GoodsReceiptNoteService {
     user: AuthenticatedUser,
   ): Promise<GoodsReceiptNoteEntity> {
     await this.access.assertCanReceiveGoods(user);
-    const grn = await this.prisma.goodsReceiptNote.findUnique({ where: { id } });
+    const grn = await this.prisma.goodsReceiptNote.findUnique({
+      where: { id },
+    });
     if (!grn) throw new NotFoundException('Goods receipt note not found');
     if (grn.status !== GoodsReceiptNoteStatus.DRAFT) {
       throw new BadRequestException(
@@ -157,8 +161,7 @@ export class GoodsReceiptNoteService {
       );
     }
     let lineData:
-      | Prisma.GoodsReceiptNoteLineCreateWithoutGrnInput[]
-      | undefined;
+      Prisma.GoodsReceiptNoteLineCreateWithoutGrnInput[] | undefined;
     if (dto.lines) {
       const po = await this.loadPurchaseOrderForReceipt(grn.purchaseOrderId);
       lineData = this.buildLineData(dto.lines, po);
@@ -213,7 +216,8 @@ export class GoodsReceiptNoteService {
       supervisorSignOffId?: string | null;
     } = {};
     if (dto.vendorDeliveryChallanNumber !== undefined)
-      data.vendorDeliveryChallanNumber = dto.vendorDeliveryChallanNumber || null;
+      data.vendorDeliveryChallanNumber =
+        dto.vendorDeliveryChallanNumber || null;
     if (dto.deliveryChallanDate !== undefined)
       data.deliveryChallanDate = dto.deliveryChallanDate
         ? new Date(dto.deliveryChallanDate)
@@ -237,7 +241,9 @@ export class GoodsReceiptNoteService {
     user: AuthenticatedUser,
   ): Promise<GoodsReceiptNoteEntity> {
     await this.access.assertCanReceiveGoods(user);
-    const grn = await this.prisma.goodsReceiptNote.findUnique({ where: { id } });
+    const grn = await this.prisma.goodsReceiptNote.findUnique({
+      where: { id },
+    });
     if (!grn) throw new NotFoundException('Goods receipt note not found');
     if (grn.status !== GoodsReceiptNoteStatus.DRAFT) {
       throw new BadRequestException(
@@ -257,7 +263,9 @@ export class GoodsReceiptNoteService {
     user: AuthenticatedUser,
   ): Promise<GoodsReceiptNoteEntity> {
     await this.access.assertCanReceiveGoods(user);
-    const grn = await this.prisma.goodsReceiptNote.findUnique({ where: { id } });
+    const grn = await this.prisma.goodsReceiptNote.findUnique({
+      where: { id },
+    });
     if (!grn) throw new NotFoundException('Goods receipt note not found');
     if (
       grn.status !== GoodsReceiptNoteStatus.DRAFT &&
@@ -464,6 +472,11 @@ export class GoodsReceiptNoteService {
         'Cannot receive against a CANCELLED purchase order',
       );
     }
+    if (po.status === PurchaseOrderStatus.FULLY_RECEIVED) {
+      throw new BadRequestException(
+        'Cannot receive against a FULLY RECEIVED purchase order',
+      );
+    }
     return po;
   }
 
@@ -510,10 +523,7 @@ export class GoodsReceiptNoteService {
     const acc = new Map<string, Prisma.Decimal>();
     for (const r of rows) {
       const prev = acc.get(r.purchaseOrderLineId) ?? new Prisma.Decimal(0);
-      acc.set(
-        r.purchaseOrderLineId,
-        prev.plus(r.acceptedQuantity ?? 0),
-      );
+      acc.set(r.purchaseOrderLineId, prev.plus(r.acceptedQuantity ?? 0));
     }
     return acc;
   }
@@ -665,9 +675,13 @@ export class GoodsReceiptNoteService {
             orderedQuantity: l.purchaseOrderLine.orderedQuantity.toString(),
             receivedQuantity: l.receivedQuantity.toString(),
             acceptedQuantity:
-              l.acceptedQuantity !== null ? l.acceptedQuantity.toString() : null,
+              l.acceptedQuantity !== null
+                ? l.acceptedQuantity.toString()
+                : null,
             rejectedQuantity:
-              l.rejectedQuantity !== null ? l.rejectedQuantity.toString() : null,
+              l.rejectedQuantity !== null
+                ? l.rejectedQuantity.toString()
+                : null,
             rejectionReason: l.rejectionReason,
             previouslyReceived: (
               priorByPoLine.get(l.purchaseOrderLineId) ?? new Prisma.Decimal(0)

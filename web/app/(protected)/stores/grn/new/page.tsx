@@ -85,32 +85,54 @@ export default function NewGrnPage() {
   const [vehicleAwb, setVehicleAwb] = useState('');
   const [driverCourier, setDriverCourier] = useState('');
   const [totalPackages, setTotalPackages] = useState('');
-  const [packingCondition, setPackingCondition] = useState<PackingCondition | ''>('');
+  const [packingCondition, setPackingCondition] = useState<
+    PackingCondition | ''
+  >('');
   const [remarks, setRemarks] = useState('');
   // Supervisor sign-off — an Employee FK, chosen via type-ahead search.
   const [supervisorQuery, setSupervisorQuery] = useState('');
-  const [supervisorResults, setSupervisorResults] = useState<EmployeeSearchResult[]>([]);
-  const [supervisor, setSupervisor] = useState<EmployeeSearchResult | null>(null);
+  const [supervisorResults, setSupervisorResults] = useState<
+    EmployeeSearchResult[]
+  >([]);
+  const [supervisor, setSupervisor] = useState<EmployeeSearchResult | null>(
+    null,
+  );
 
   useEffect(() => {
     void (async () => {
-      try {
-        const [pos, st] = await Promise.all([listPurchaseOrders(), listStores()]);
+      const [poResult, storeResult] = await Promise.allSettled([
+        listPurchaseOrders(),
+        listStores(),
+      ]);
+      if (poResult.status === 'fulfilled') {
         // Only ISSUED / PARTIALLY_RECEIVED POs can receive goods.
         setIssuedPos(
-          pos.filter((p) => p.status === 'ISSUED' || p.status === 'PARTIALLY_RECEIVED'),
+          poResult.value.filter(
+            (p) => p.status === 'ISSUED' || p.status === 'PARTIALLY_RECEIVED',
+          ),
         );
-        setStores(st);
-      } catch {
-        toast.error('Failed to load form data.');
-      } finally {
-        setLoading(false);
+      } else {
+        toast.error('Failed to load issued purchase orders.');
       }
+      if (storeResult.status === 'fulfilled') {
+        setStores(storeResult.value);
+      } else {
+        toast.error('Failed to load store locations.');
+      }
+      setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const defaultStoreId = stores[0]?.id ?? '';
+  const selectablePos = useMemo(() => {
+    if (!po || !poId || issuedPos.some((item) => item.id === poId)) {
+      return issuedPos;
+    }
+    // A deep-linked PO is fetched independently. Keep its reference visible
+    // even if its status changed after navigation or the list response lagged.
+    return [po, ...issuedPos];
+  }, [issuedPos, po, poId]);
 
   // Load the selected PO + its prior GRNs (for computed previously-received).
   const loadPo = useCallback(
@@ -130,7 +152,11 @@ export default function NewGrnPage() {
         setPriorGrns(grns);
         const seed: Record<string, LineDraft> = {};
         for (const l of poData.lines) {
-          seed[l.id] = { poLineId: l.id, storeLocationId: defaultStoreId, quantity: '' };
+          seed[l.id] = {
+            poLineId: l.id,
+            storeLocationId: defaultStoreId,
+            quantity: '',
+          };
         }
         setLines(seed);
       } catch {
@@ -152,14 +178,18 @@ export default function NewGrnPage() {
       if (!isGrnFinalized(grn.status)) continue;
       for (const line of grn.lines) {
         map[line.purchaseOrderLineId] =
-          (map[line.purchaseOrderLineId] ?? 0) + Number(line.acceptedQuantity ?? 0);
+          (map[line.purchaseOrderLineId] ?? 0) +
+          Number(line.acceptedQuantity ?? 0);
       }
     }
     return map;
   }, [priorGrns]);
 
   function updateLine(poLineId: string, patch: Partial<LineDraft>) {
-    setLines((prev) => ({ ...prev, [poLineId]: { ...prev[poLineId], ...patch } }));
+    setLines((prev) => ({
+      ...prev,
+      [poLineId]: { ...prev[poLineId], ...patch },
+    }));
   }
 
   const enteredLines = useMemo(
@@ -168,7 +198,9 @@ export default function NewGrnPage() {
   );
 
   // Over-receipt: entered + previously-received exceeds ordered for a line.
-  function overReceipt(poLineId: string): { over: boolean; remaining: number } | null {
+  function overReceipt(
+    poLineId: string,
+  ): { over: boolean; remaining: number } | null {
     const poLine = po?.lines.find((l) => l.id === poLineId);
     if (!poLine) return null;
     const ordered = Number(poLine.orderedQuantity);
@@ -178,8 +210,12 @@ export default function NewGrnPage() {
     return { over: entered > remaining, remaining };
   }
 
-  const anyOverReceipt = po?.lines.some((l) => overReceipt(l.id)?.over) ?? false;
-  const canSubmit = !!po && enteredLines.length > 0 && !submitting;
+  const anyOverReceipt =
+    po?.lines.some((l) => overReceipt(l.id)?.over) ?? false;
+  const poCanReceive =
+    po?.status === 'ISSUED' || po?.status === 'PARTIALLY_RECEIVED';
+  const canSubmit =
+    !!po && poCanReceive && enteredLines.length > 0 && !submitting;
 
   // Debounced supervisor type-ahead.
   useEffect(() => {
@@ -205,10 +241,14 @@ export default function NewGrnPage() {
         // Free-text remarks only — logistics live in their own fields below.
         notes: remarks || undefined,
         vendorDeliveryChallanNumber: challanNo || undefined,
-        deliveryChallanDate: challanDate ? new Date(challanDate).toISOString() : undefined,
+        deliveryChallanDate: challanDate
+          ? new Date(challanDate).toISOString()
+          : undefined,
         vehicleOrAwbNumber: vehicleAwb || undefined,
         driverOrCourier: driverCourier || undefined,
-        totalPackagesReceived: totalPackages ? Number(totalPackages) : undefined,
+        totalPackagesReceived: totalPackages
+          ? Number(totalPackages)
+          : undefined,
         packingCondition: packingCondition || undefined,
         supervisorSignOffId: supervisor?.id,
         lines: enteredLines.map((l) => ({
@@ -225,7 +265,9 @@ export default function NewGrnPage() {
       }
       router.push(`/stores/grn/${grn.id}`);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to create GRN');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to create GRN',
+      );
       setSubmitting(false);
     }
   }
@@ -240,10 +282,12 @@ export default function NewGrnPage() {
           <ArrowLeft className="size-4" /> GRN Register
         </Link>
       </div>
-      <h1 className="mb-2 text-2xl font-semibold tracking-tight">New Goods Receipt Note</h1>
+      <h1 className="mb-2 text-2xl font-semibold tracking-tight">
+        New Goods Receipt Note
+      </h1>
       <p className="mb-6 text-sm text-muted-foreground">
-        Recording a receipt moves <span className="font-medium">no stock</span> — material
-        enters stock only after QC inspection accepts it.
+        Recording a receipt moves <span className="font-medium">no stock</span>{' '}
+        — material enters stock only after QC inspection accepts it.
       </p>
 
       <GrnFlowIndicator status="DRAFT" className="mb-6" />
@@ -271,52 +315,112 @@ export default function NewGrnPage() {
               <Field label="Received By">
                 <Input value={user?.email ?? ''} disabled />
               </Field>
-              <Field label="PO Reference" htmlFor="po" required className="md:col-span-2">
-                <Select id="po" value={poId} onChange={(e) => setPoId(e.target.value)}>
+              <Field
+                label="PO Reference"
+                htmlFor="po"
+                required
+                className="md:col-span-2"
+              >
+                <Select
+                  id="po"
+                  value={poId}
+                  onChange={(e) => setPoId(e.target.value)}
+                >
                   <option value="">Select an issued PO…</option>
-                  {issuedPos.map((p) => (
+                  {selectablePos.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.poNumber} — {p.supplierName ?? p.vendorName}
+                      {p.status !== 'ISSUED' &&
+                      p.status !== 'PARTIALLY_RECEIVED'
+                        ? ` (${p.status.replaceAll('_', ' ')})`
+                        : ''}
                     </option>
                   ))}
                 </Select>
               </Field>
               <Field label="Supplier / Vendor">
-                <Input value={po ? (po.supplierName ?? po.vendorName ?? '') : ''} disabled />
+                <Input
+                  value={po ? (po.supplierName ?? po.vendorName ?? '') : ''}
+                  disabled
+                />
               </Field>
             </CardContent>
           </Card>
 
           {po && (
             <>
+              {!poCanReceive && (
+                <div className="flex gap-3 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
+                  <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warning" />
+                  <div>
+                    <p className="font-medium">This PO cannot receive goods</p>
+                    <p className="text-muted-foreground">
+                      {po.poNumber} is {po.status.replaceAll('_', ' ')}. Only
+                      issued or partially received purchase orders can be used
+                      for a new GRN.
+                    </p>
+                  </div>
+                </div>
+              )}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Logistics</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-3">
                   <Field label="Delivery Challan No." htmlFor="challan">
-                    <Input id="challan" value={challanNo} onChange={(e) => setChallanNo(e.target.value)} />
+                    <Input
+                      id="challan"
+                      value={challanNo}
+                      onChange={(e) => setChallanNo(e.target.value)}
+                    />
                   </Field>
                   <Field label="Challan Date" htmlFor="cdate">
-                    <Input id="cdate" type="date" value={challanDate} onChange={(e) => setChallanDate(e.target.value)} />
+                    <Input
+                      id="cdate"
+                      type="date"
+                      value={challanDate}
+                      onChange={(e) => setChallanDate(e.target.value)}
+                    />
                   </Field>
                   <Field label="Vehicle / AWB No." htmlFor="vehicle">
-                    <Input id="vehicle" value={vehicleAwb} onChange={(e) => setVehicleAwb(e.target.value)} />
+                    <Input
+                      id="vehicle"
+                      value={vehicleAwb}
+                      onChange={(e) => setVehicleAwb(e.target.value)}
+                    />
                   </Field>
                   <Field label="Driver / Courier" htmlFor="driver">
-                    <Input id="driver" value={driverCourier} onChange={(e) => setDriverCourier(e.target.value)} />
+                    <Input
+                      id="driver"
+                      value={driverCourier}
+                      onChange={(e) => setDriverCourier(e.target.value)}
+                    />
                   </Field>
                   <Field label="Total Packages" htmlFor="pkgs">
-                    <Input id="pkgs" type="number" min="0" value={totalPackages} onChange={(e) => setTotalPackages(e.target.value)} />
+                    <Input
+                      id="pkgs"
+                      type="number"
+                      min="0"
+                      value={totalPackages}
+                      onChange={(e) => setTotalPackages(e.target.value)}
+                    />
                   </Field>
                   <Field label="Packing Condition" htmlFor="pack">
                     <Select
                       id="pack"
                       value={packingCondition}
-                      onChange={(e) => setPackingCondition(e.target.value as PackingCondition | '')}
+                      onChange={(e) =>
+                        setPackingCondition(
+                          e.target.value as PackingCondition | '',
+                        )
+                      }
                     >
                       <option value="">Not recorded</option>
-                      {(Object.keys(PACKING_CONDITION_LABEL) as PackingCondition[]).map((c) => (
+                      {(
+                        Object.keys(
+                          PACKING_CONDITION_LABEL,
+                        ) as PackingCondition[]
+                      ).map((c) => (
                         <option key={c} value={c}>
                           {PACKING_CONDITION_LABEL[c]}
                         </option>
@@ -336,8 +440,12 @@ export default function NewGrnPage() {
                       <TableRow>
                         <TableHead>Part No. / Description</TableHead>
                         <TableHead className="text-right">PO Qty</TableHead>
-                        <TableHead className="text-right">Prev. Received</TableHead>
-                        <TableHead className="w-32 text-right">Qty This GRN</TableHead>
+                        <TableHead className="text-right">
+                          Prev. Received
+                        </TableHead>
+                        <TableHead className="w-32 text-right">
+                          Qty This GRN
+                        </TableHead>
                         <TableHead className="w-40">Bin / Store</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -350,7 +458,9 @@ export default function NewGrnPage() {
                           <TableRow key={line.id}>
                             <TableCell>
                               <div className="font-medium">{line.itemCode}</div>
-                              <div className="text-xs text-muted-foreground">{line.itemName}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {line.itemName}
+                              </div>
                             </TableCell>
                             <TableCell className="text-right">
                               {line.orderedQuantity} {line.unitOfMeasure}
@@ -363,7 +473,11 @@ export default function NewGrnPage() {
                                 step="any"
                                 className="text-right"
                                 value={draft?.quantity ?? ''}
-                                onChange={(e) => updateLine(line.id, { quantity: e.target.value })}
+                                onChange={(e) =>
+                                  updateLine(line.id, {
+                                    quantity: e.target.value,
+                                  })
+                                }
                                 aria-invalid={or?.over ? true : undefined}
                               />
                               {or?.over && (
@@ -376,7 +490,11 @@ export default function NewGrnPage() {
                             <TableCell>
                               <Select
                                 value={draft?.storeLocationId ?? ''}
-                                onChange={(e) => updateLine(line.id, { storeLocationId: e.target.value })}
+                                onChange={(e) =>
+                                  updateLine(line.id, {
+                                    storeLocationId: e.target.value,
+                                  })
+                                }
                               >
                                 {stores.map((s) => (
                                   <option key={s.id} value={s.id}>
@@ -397,19 +515,30 @@ export default function NewGrnPage() {
                 <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
                   <p>
-                    One or more lines exceed the remaining ordered quantity. This is allowed
-                    (over-receipts happen), but confirm the quantities are correct before sending to QC.
+                    One or more lines exceed the remaining ordered quantity.
+                    This is allowed (over-receipts happen), but confirm the
+                    quantities are correct before sending to QC.
                   </p>
                 </div>
               )}
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Receiving Remarks &amp; Sign-off</CardTitle>
+                  <CardTitle className="text-base">
+                    Receiving Remarks &amp; Sign-off
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
-                  <Field label="Receiving Remarks" htmlFor="remarks" className="md:col-span-2">
-                    <Textarea id="remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+                  <Field
+                    label="Receiving Remarks"
+                    htmlFor="remarks"
+                    className="md:col-span-2"
+                  >
+                    <Textarea
+                      id="remarks"
+                      value={remarks}
+                      onChange={(e) => setRemarks(e.target.value)}
+                    />
                   </Field>
                   <Field label="Stores Keeper">
                     <Input value={user?.email ?? ''} disabled />
@@ -423,7 +552,9 @@ export default function NewGrnPage() {
                       <div className="flex items-center justify-between gap-2 rounded-md border border-input px-3 py-1.5 text-sm">
                         <span>
                           {supervisor.firstName} {supervisor.lastName}{' '}
-                          <span className="text-muted-foreground">({supervisor.employeeId})</span>
+                          <span className="text-muted-foreground">
+                            ({supervisor.employeeId})
+                          </span>
                         </span>
                         <button
                           type="button"
@@ -460,7 +591,9 @@ export default function NewGrnPage() {
                                   <span>
                                     {emp.firstName} {emp.lastName}
                                   </span>
-                                  <span className="text-xs text-muted-foreground">{emp.employeeId}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {emp.employeeId}
+                                  </span>
                                 </button>
                               </li>
                             ))}
@@ -473,10 +606,17 @@ export default function NewGrnPage() {
               </Card>
 
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => handleSubmit(false)} disabled={!canSubmit}>
+                <Button
+                  variant="outline"
+                  onClick={() => handleSubmit(false)}
+                  disabled={!canSubmit}
+                >
                   Save Draft
                 </Button>
-                <Button onClick={() => handleSubmit(true)} disabled={!canSubmit}>
+                <Button
+                  onClick={() => handleSubmit(true)}
+                  disabled={!canSubmit}
+                >
                   <Send className="size-4" /> Send to QC Inspection
                 </Button>
               </div>
