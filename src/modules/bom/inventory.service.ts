@@ -43,7 +43,10 @@ export class InventoryService {
   }
 
   async listStores(user: AuthenticatedUser): Promise<StoreLocationEntity[]> {
-    await this.access.assertCanReadInventory(user);
+    // Store/Bin locations are shared reference data used by GRN, material
+    // issue and logistics screens. Reading the names/codes is company-wide;
+    // stock balances and every mutation retain their stricter access checks.
+    void user;
     const rows = await this.prisma.storeLocation.findMany({
       where: { isActive: true },
       orderBy: { code: 'asc' },

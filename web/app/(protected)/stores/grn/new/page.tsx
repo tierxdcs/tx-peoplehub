@@ -123,7 +123,11 @@ export default function NewGrnPage() {
           );
         }
       } else {
-        toast.error('Failed to load store locations.');
+        toast.error(
+          storeResult.reason instanceof ApiError
+            ? storeResult.reason.message
+            : 'Failed to load store locations.',
+        );
       }
       setLoading(false);
     })();

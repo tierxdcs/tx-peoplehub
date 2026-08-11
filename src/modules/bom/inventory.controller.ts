@@ -41,7 +41,9 @@ export class InventoryController {
   }
 
   @Get('stores')
-  @ApiOperation({ summary: 'List store/warehouse locations' })
+  @ApiOperation({
+    summary: 'List active store/warehouse locations (authenticated reference data)',
+  })
   stores(@CurrentUser() user: AuthenticatedUser) {
     return this.service.listStores(user);
   }
