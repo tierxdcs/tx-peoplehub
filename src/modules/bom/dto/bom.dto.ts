@@ -10,6 +10,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   Min,
   MinLength,
@@ -88,6 +89,16 @@ export class UpdateItemCostDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   manualStandardCost?: number | null;
+}
+
+export class MergeItemsDto {
+  @ApiProperty({ description: 'Item that remains active' })
+  @IsUUID()
+  canonicalItemId!: string;
+
+  @ApiProperty({ description: 'Duplicate item to replace and deactivate' })
+  @IsUUID()
+  duplicateItemId!: string;
 }
 
 // ── BOM ──────────────────────────────────────────────────────────────

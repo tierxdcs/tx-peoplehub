@@ -28,6 +28,7 @@ export class CreateRfqDto {
   @ApiProperty() @IsString() @MinLength(1) title!: string;
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() projectKickoffId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() customerBomIntakeId?: string;
   @ApiProperty({ description: 'ISO timestamp — quote submission deadline' })
   @IsDateString()
   submissionDeadline!: string;

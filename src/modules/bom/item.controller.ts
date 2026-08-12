@@ -18,7 +18,12 @@ import {
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ItemService } from './item.service';
-import { CreateItemDto, UpdateItemCostDto, UpdateItemDto } from './dto/bom.dto';
+import {
+  CreateItemDto,
+  MergeItemsDto,
+  UpdateItemCostDto,
+  UpdateItemDto,
+} from './dto/bom.dto';
 
 /**
  * Item Master (§2). Read is broad (R&D + Store); create/update is R&D Head only
@@ -67,6 +72,14 @@ export class ItemController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.previewNextItemCode(itemType, user);
+  }
+
+  @Post('merge')
+  @ApiOperation({
+    summary: 'Merge a duplicate item into a canonical item (R&D Head/SA)',
+  })
+  merge(@Body() dto: MergeItemsDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.merge(dto, user);
   }
 
   @Get(':id')

@@ -74,7 +74,11 @@ export function ProcessFlow({
                   className={cn(
                     'flex size-9 items-center justify-center rounded-full border-2 transition-colors',
                     isDone && 'border-success bg-success text-success-foreground',
-                    isActive && 'border-primary bg-primary/10 text-primary',
+                    // Current step: solid fill (+ ring) so it reads as prominently
+                    // "reached" as the completed steps — not a faint tint that
+                    // looks upcoming against a dark background.
+                    isActive &&
+                      'border-primary bg-primary text-primary-foreground ring-2 ring-primary/30',
                     !isDone && !isActive && 'border-muted-foreground/30 text-muted-foreground',
                   )}
                 >

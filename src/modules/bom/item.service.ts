@@ -8,7 +8,12 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { SalesNumberingService } from '../sales/common/sales-numbering.service';
 import { BomAccessService } from './bom-access.service';
-import { CreateItemDto, UpdateItemCostDto, UpdateItemDto } from './dto/bom.dto';
+import {
+  CreateItemDto,
+  MergeItemsDto,
+  UpdateItemCostDto,
+  UpdateItemDto,
+} from './dto/bom.dto';
 import { ItemEntity } from './entities/bom.entity';
 import { ItemCostService } from './item-cost.service';
 
@@ -194,6 +199,66 @@ export class ItemService {
       },
     });
     return this.toEntity(row, true);
+  }
+
+  async merge(dto: MergeItemsDto, user: AuthenticatedUser) {
+    await this.access.assertCanManageItems(user);
+    if (dto.canonicalItemId === dto.duplicateItemId) {
+      throw new BadRequestException('Choose two different items to merge');
+    }
+    const [canonical, duplicate] = await Promise.all([
+      this.prisma.item.findUnique({ where: { id: dto.canonicalItemId } }),
+      this.prisma.item.findUnique({ where: { id: dto.duplicateItemId } }),
+    ]);
+    if (!canonical || !duplicate) {
+      throw new NotFoundException('Canonical or duplicate item was not found');
+    }
+    if (!canonical.isActive) {
+      throw new BadRequestException('The canonical item must be active');
+    }
+
+    const affectedBomLines = await this.prisma.$transaction(async (tx) => {
+      const duplicateLines = await tx.bomLine.findMany({
+        where: { itemId: duplicate.id },
+        orderBy: { sequence: 'asc' },
+      });
+      for (const duplicateLine of duplicateLines) {
+        const existingCanonicalLine = await tx.bomLine.findFirst({
+          where: { bomId: duplicateLine.bomId, itemId: canonical.id },
+        });
+        if (existingCanonicalLine) {
+          await tx.bomLine.update({
+            where: { id: existingCanonicalLine.id },
+            data: {
+              quantityPerUnit: existingCanonicalLine.quantityPerUnit.plus(
+                duplicateLine.quantityPerUnit,
+              ),
+            },
+          });
+          await tx.bomLine.delete({ where: { id: duplicateLine.id } });
+        } else {
+          await tx.bomLine.update({
+            where: { id: duplicateLine.id },
+            data: { itemId: canonical.id },
+          });
+        }
+      }
+      await tx.customerBomIntakeLine.updateMany({
+        where: { resolvedItemId: duplicate.id },
+        data: { resolvedItemId: canonical.id },
+      });
+      await tx.item.update({
+        where: { id: duplicate.id },
+        data: { isActive: false },
+      });
+      return duplicateLines.length;
+    });
+    return {
+      canonicalItemId: canonical.id,
+      duplicateItemId: duplicate.id,
+      duplicateDeactivated: true,
+      affectedBomLines,
+    };
   }
 
   /**

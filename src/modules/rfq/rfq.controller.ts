@@ -62,6 +62,19 @@ export class RfqController {
     return this.service.projectOptions(user);
   }
 
+  @Get('quote-stage-options')
+  quoteStageOptions(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.quoteStageOptions(user);
+  }
+
+  @Get('quote-stage-options/:intakeId/sourcing-lines')
+  quoteStageSourcingLines(
+    @Param('intakeId') intakeId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.quoteStageSourcingLines(intakeId, user);
+  }
+
   @Get('project-options/:projectKickoffId/sourcing-lines')
   @ApiOperation({
     summary: 'Exploded BUY requirements for an order-linked RFQ',

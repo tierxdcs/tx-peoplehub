@@ -342,22 +342,23 @@ model Vertical {
 /// without a migration. Deactivating hides it from the new-product dropdown but
 /// never breaks products already tagged with it (soft-disable, not delete).
 model BusinessUnit {
-  id            String        @id @default(uuid())
-  name          String        @unique
+  id                 String              @id @default(uuid())
+  name               String              @unique
   /// Short form, used for keyword-rule matching + compact display.
-  code          String        @unique
-  description   String?
-  isActive      Boolean       @default(true)
+  code               String              @unique
+  description        String?
+  isActive           Boolean             @default(true)
   /// Sort order in dropdowns / management screen.
-  displayOrder  Int           @default(0)
-  colorHex      String        @default("#2563EB")
-  products      Product[]
-  leads         Lead[]
-  opportunities Opportunity[]
-  bids          Bid[]
-  orders        Order[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  displayOrder       Int                 @default(0)
+  colorHex           String              @default("#2563EB")
+  products           Product[]
+  leads              Lead[]
+  opportunities      Opportunity[]
+  bids               Bid[]
+  orders             Order[]
+  customerBomIntakes CustomerBomIntake[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@map("business_units")
 }
@@ -518,6 +519,7 @@ model Employee {
   ordersOwned                  Order[]                       @relation("OrderOwner")
   ordersOriginated             Order[]                       @relation("OrderEnquiryCreator")
   customerProgressLinksCreated OrderCustomerProgressInvite[] @relation("OrderCustomerProgressInviteCreator")
+  customerBomIntakesCreated    CustomerBomIntake[]           @relation("CustomerBomIntakeCreator")
 
   bidAssessmentsSubmitted BidDecisionAssessment[] @relation("BidAssessmentSubmitter")
   bidAssessmentsReviewed  BidDecisionAssessment[] @relation("BidAssessmentReviewer")
@@ -1189,6 +1191,7 @@ model Product {
   autoAssignedBusinessUnit Boolean            @default(false)
   /// Optional true-margin target. Informational pricing guidance only.
   targetMarginPercent      Decimal?           @db.Decimal(5, 2)
+  customerBomIntake        CustomerBomIntake? @relation("CustomerBomIntakeProduct")
   bidLineItems             BidLineItem[]
   orderLineItems           OrderLineItem[]
   salesInvoiceLines        SalesInvoiceLine[]
@@ -1253,26 +1256,27 @@ model LeadAttachment {
 }
 
 model Opportunity {
-  id                String                  @id @default(uuid())
-  leadId            String?
-  lead              Lead?                   @relation("LeadConversion")
-  customerId        String?
-  customer          Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  name              String
-  stage             OpportunityStage        @default(PROSPECTING)
-  estimatedValue    Decimal                 @db.Decimal(14, 2)
-  expectedCloseDate DateTime
-  ownerId           String
-  owner             Employee                @relation("OpportunityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  enquiryCreatorId  String
-  enquiryCreator    Employee                @relation("OpportunityEnquiryCreator", fields: [enquiryCreatorId], references: [id], onDelete: Restrict)
-  businessUnitId    String
-  businessUnit      BusinessUnit            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
-  lostReason        String?
-  bids              Bid[]
-  bidAssessments    BidDecisionAssessment[]
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
+  id                 String                  @id @default(uuid())
+  leadId             String?
+  lead               Lead?                   @relation("LeadConversion")
+  customerId         String?
+  customer           Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  name               String
+  stage              OpportunityStage        @default(PROSPECTING)
+  estimatedValue     Decimal                 @db.Decimal(14, 2)
+  expectedCloseDate  DateTime
+  ownerId            String
+  owner              Employee                @relation("OpportunityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  enquiryCreatorId   String
+  enquiryCreator     Employee                @relation("OpportunityEnquiryCreator", fields: [enquiryCreatorId], references: [id], onDelete: Restrict)
+  businessUnitId     String
+  businessUnit       BusinessUnit            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  lostReason         String?
+  bids               Bid[]
+  bidAssessments     BidDecisionAssessment[]
+  customerBomIntakes CustomerBomIntake[]
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
 
   @@index([ownerId])
   @@index([enquiryCreatorId])
@@ -3598,6 +3602,65 @@ enum BomLineSource {
   BUY
 }
 
+enum CustomerBomIntakeStatus {
+  DRAFT
+  CREATED
+}
+
+/// Sales-facing transcription of a customer's quote-stage BOM. Submission
+/// creates real Item/Product/BOM records; this row retains provenance and the
+/// original private upload without exposing Item Master cost data to Sales.
+model CustomerBomIntake {
+  id                 String                  @id @default(uuid())
+  opportunityId      String
+  opportunity        Opportunity             @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  businessUnitId     String
+  businessUnit       BusinessUnit            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  productName        String
+  unitOfMeasure      String                  @default("each")
+  rawFileKey         String
+  rawFileName        String
+  rawFileSize        Int
+  rawMimeType        String
+  status             CustomerBomIntakeStatus @default(DRAFT)
+  finishedGoodItemId String?                 @unique
+  finishedGoodItem   Item?                   @relation("CustomerBomIntakeFinishedGood", fields: [finishedGoodItemId], references: [id], onDelete: SetNull)
+  productId          String?                 @unique
+  product            Product?                @relation("CustomerBomIntakeProduct", fields: [productId], references: [id], onDelete: SetNull)
+  bomId              String?                 @unique
+  bom                Bom?                    @relation("CustomerBomIntakeBom", fields: [bomId], references: [id], onDelete: SetNull)
+  createdById        String
+  createdBy          Employee                @relation("CustomerBomIntakeCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  lines              CustomerBomIntakeLine[]
+  rfqs               Rfq[]
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  @@index([opportunityId])
+  @@index([status])
+  @@map("customer_bom_intakes")
+}
+
+model CustomerBomIntakeLine {
+  id                    String            @id @default(uuid())
+  intakeId              String
+  intake                CustomerBomIntake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  description           String
+  customerPartReference String?
+  quantity              Decimal           @db.Decimal(14, 4)
+  unitOfMeasure         String
+  resolvedItemId        String
+  resolvedItem          Item              @relation(fields: [resolvedItemId], references: [id], onDelete: Restrict)
+  createdNewItem        Boolean           @default(false)
+  fuzzyCandidates       Json?
+  sequence              Int               @default(0)
+  createdAt             DateTime          @default(now())
+
+  @@index([intakeId])
+  @@index([resolvedItemId])
+  @@map("customer_bom_intake_lines")
+}
+
 /// The kind of workflow action captured in a BomEvent (audit/history trail).
 enum BomEventType {
   CREATED
@@ -3636,21 +3699,24 @@ model Item {
   /// Fallback cost used only until an accepted GRN provides a procurement cost.
   manualStandardCost    Decimal? @db.Decimal(14, 2)
 
-  boms                 Bom[]                     @relation("ItemBoms")
-  bomLines             BomLine[]
-  products             Product[]                 @relation("ProductItem")
-  stockBalances        StockBalance[]
-  stockAdjustments     StockAdjustment[]
-  reservations         StockReservation[]
-  supplierLinks        ItemSupplier[]
-  purchaseOrderLines   PurchaseOrderLine[]
-  grnLines             GoodsReceiptNoteLine[]
-  ncrs                 NonConformanceReport[]
-  materialIndents      MaterialIndent[]
-  materialIssueNotes   MaterialIssueNote[]
-  deliveryChallanLines DeliveryChallanLine[]
-  rfqLines             RfqLine[]
-  resourcePlanLines    ProjectResourcePlanLine[]
+  boms                     Bom[]                     @relation("ItemBoms")
+  bomLines                 BomLine[]
+  products                 Product[]                 @relation("ProductItem")
+  stockBalances            StockBalance[]
+  stockAdjustments         StockAdjustment[]
+  reservations             StockReservation[]
+  supplierLinks            ItemSupplier[]
+  purchaseOrderLines       PurchaseOrderLine[]
+  grnLines                 GoodsReceiptNoteLine[]
+  ncrs                     NonConformanceReport[]
+  materialIndents          MaterialIndent[]
+  materialIssueNotes       MaterialIssueNote[]
+  deliveryChallanLines     DeliveryChallanLine[]
+  rfqLines                 RfqLine[]
+  resourcePlanLines        ProjectResourcePlanLine[]
+  customerBomFinishedGoods CustomerBomIntake[]       @relation("CustomerBomIntakeFinishedGood")
+  customerBomLines         CustomerBomIntakeLine[]
+  quotedCosts              ItemQuotedCost[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3724,6 +3790,7 @@ model Bom {
   events            BomEvent[]
   notifications     Notification[]
   kickoffSelections KickoffBomSelection[]
+  customerBomIntake CustomerBomIntake?    @relation("CustomerBomIntakeBom")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -6819,8 +6886,10 @@ model Rfq {
   status      RfqStatus @default(DRAFT)
 
   /// Set when generated from a kickoff stock shortfall.
-  projectKickoffId String?
-  projectKickoff   ProjectKickoff? @relation(fields: [projectKickoffId], references: [id], onDelete: SetNull)
+  projectKickoffId    String?
+  projectKickoff      ProjectKickoff?    @relation(fields: [projectKickoffId], references: [id], onDelete: SetNull)
+  customerBomIntakeId String?
+  customerBomIntake   CustomerBomIntake? @relation(fields: [customerBomIntakeId], references: [id], onDelete: SetNull)
 
   /// OrderLineItem ids the creator chose to EXCLUDE from this RFQ's linked-order
   /// context. Empty (the default) means every order line is shown — so existing
@@ -6858,15 +6927,17 @@ model Rfq {
   pmApprovedAt       DateTime?
   pmRejectionComment String?   @db.Text
 
-  lines    RfqLine[]
-  invitees RfqInvitee[] @relation("RfqInvitees")
+  lines       RfqLine[]
+  invitees    RfqInvitee[]     @relation("RfqInvitees")
   attachments RfqAttachment[]
+  quotedCosts ItemQuotedCost[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([projectKickoffId])
+  @@index([customerBomIntakeId])
   @@map("rfqs")
 }
 
@@ -6881,7 +6952,7 @@ model RfqLine {
   specificationNotes String? @db.Text
   sequence           Int     @default(0)
 
-  quoteLines RfqQuoteLine[]
+  quoteLines  RfqQuoteLine[]
   attachments RfqAttachment[]
 
   @@index([rfqId])
@@ -6890,9 +6961,9 @@ model RfqLine {
 }
 
 model RfqAttachment {
-  id        String @id @default(uuid())
+  id        String   @id @default(uuid())
   rfqId     String
-  rfq       Rfq    @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  rfq       Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
   /// Null means a general RFQ-level document; otherwise it belongs to one line.
   rfqLineId String?
   rfqLine   RfqLine? @relation(fields: [rfqLineId], references: [id], onDelete: Cascade)
@@ -6904,7 +6975,7 @@ model RfqAttachment {
 
   uploadedById String
   uploadedBy   Employee @relation("RfqAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
-  uploadedAt DateTime @default(now())
+  uploadedAt   DateTime @default(now())
 
   @@index([rfqId])
   @@index([rfqLineId])
@@ -6980,14 +7051,34 @@ model RfqQuoteLine {
   rfqLineId String
   rfqLine   RfqLine  @relation(fields: [rfqLineId], references: [id], onDelete: Restrict)
 
-  unitPrice            Decimal @db.Decimal(18, 2)
-  lineTotal            Decimal @db.Decimal(18, 2)
+  unitPrice            Decimal         @db.Decimal(18, 2)
+  lineTotal            Decimal         @db.Decimal(18, 2)
   deliveryLeadTimeDays Int?
-  remarks              String? @db.Text
+  remarks              String?         @db.Text
+  itemQuotedCost       ItemQuotedCost?
 
   @@unique([quoteId, rfqLineId])
   @@index([rfqLineId])
   @@map("rfq_quote_lines")
+}
+
+/// Latest awarded vendor quote is an informational procurement-cost source.
+/// It is used only until an accepted GRN exists and never changes selling price.
+model ItemQuotedCost {
+  id          String       @id @default(uuid())
+  itemId      String
+  item        Item         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  rfqId       String
+  rfq         Rfq          @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  quoteLineId String       @unique
+  quoteLine   RfqQuoteLine @relation(fields: [quoteLineId], references: [id], onDelete: Cascade)
+  unitPrice   Decimal      @db.Decimal(18, 2)
+  awardedAt   DateTime
+  createdAt   DateTime     @default(now())
+
+  @@index([itemId, awardedAt])
+  @@index([rfqId])
+  @@map("item_quoted_costs")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -23,7 +23,7 @@ import {
   CardTitle,
 } from '../../../../components/ui/card';
 import { Badge } from '../../../../components/ui/badge';
-import { Button } from '../../../../components/ui/button';
+import { Button, buttonVariants } from '../../../../components/ui/button';
 import { Select } from '../../../../components/ui/select';
 import { Textarea } from '../../../../components/ui/textarea';
 import { Field } from '../../../../components/ui/field';
@@ -218,6 +218,24 @@ export default function OpportunityDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="mb-6">
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Customer BOM intake</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Turn a customer file into traceable Items, a Product, and a
+              quote-stage BOM for SCM sourcing.
+            </p>
+          </div>
+          <Link
+            className={buttonVariants()}
+            href={`/sales/opportunities/${opp.id}/customer-bom-intake`}
+          >
+            Open BOM intake
+          </Link>
+        </CardHeader>
+      </Card>
 
       {/* Update stage — compact form card */}
       <Card className="mb-6 max-w-[400px]">

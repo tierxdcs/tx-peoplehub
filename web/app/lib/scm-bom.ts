@@ -66,6 +66,17 @@ export interface Bom {
   rejectionComment: string | null;
   approverSignatureTextSnapshot: string | null;
   approverSignatureFontSnapshot: string | null;
+  customerBomIntake?: {
+    id: string;
+    opportunityName: string;
+    rawFileName: string;
+    lines: Array<{
+      description: string;
+      resolvedItemId: string;
+      createdNewItem: boolean;
+      fuzzyCandidates: Array<{ id: string; itemCode: string; name: string; score: number }> | null;
+    }>;
+  } | null;
   lines: BomLine[];
   events?: BomEvent[];
   createdAt: string;

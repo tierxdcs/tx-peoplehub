@@ -144,6 +144,7 @@ export interface CreateRfqInput {
   title: string;
   description?: string;
   projectKickoffId?: string;
+  customerBomIntakeId?: string;
   submissionDeadline: string;
   requiredByDate?: string;
   deliveryLocation?: string;
@@ -151,6 +152,14 @@ export interface CreateRfqInput {
   lines: RfqLineInput[];
   /** OrderLineItem ids to exclude from the linked order's context. Omit = all. */
   excludedOrderLineIds?: string[];
+}
+
+export interface RfqQuoteStageOption {
+  id: string;
+  productName: string;
+  opportunity: { id: string; name: string };
+  businessUnit: { name: string };
+  bom: { revisionNumber: number; status: string } | null;
 }
 
 // ── Comparison ─────────────────────────────────────────────────────────
@@ -201,6 +210,14 @@ export function listRfqs(opts: { status?: RfqStatus } = {}) {
 }
 export function listRfqProjectOptions() {
   return apiFetch<RfqProjectOption[]>('/rfqs/project-options');
+}
+export function listRfqQuoteStageOptions() {
+  return apiFetch<RfqQuoteStageOption[]>('/rfqs/quote-stage-options');
+}
+export function getRfqQuoteStageSourcingLines(intakeId: string) {
+  return apiFetch<RfqSourcingLine[]>(
+    `/rfqs/quote-stage-options/${intakeId}/sourcing-lines`,
+  );
 }
 export function getRfqSourcingLines(
   projectKickoffId: string,

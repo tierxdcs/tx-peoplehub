@@ -75,3 +75,20 @@ describe('ItemCostService — cost visibility vs. management', () => {
     expect(await svc.canViewCost(user)).toBe(false);
   });
 });
+
+describe('ItemCostService — awarded quote fallback', () => {
+  it('uses the latest awarded quote when no accepted GRN exists', async () => {
+    const prisma = {
+      goodsReceiptNoteLine: { findFirst: jest.fn().mockResolvedValue(null) },
+      itemQuotedCost: {
+        findFirst: jest.fn().mockResolvedValue({
+          unitPrice: { toString: () => '125.50' },
+        }),
+      },
+    } as any;
+    const service = new ItemCostService(prisma, {} as any);
+    const result = await service.currentCost('item-1');
+    expect(result.source).toBe('LATEST_AWARDED_QUOTE');
+    expect(result.amount?.toString()).toBe('125.50');
+  });
+});

@@ -190,6 +190,37 @@ export default function BomDetailPage() {
         <StatusBadge value={bom.status} />
       </div>
 
+      {bom.customerBomIntake && bom.status !== 'RELEASED' && (
+        <Card className="mb-4 border-warning/50 bg-warning/10">
+          <CardHeader>
+            <CardTitle>Sales-created quote-stage BOM — R&amp;D review required</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-0 text-sm">
+            <p>
+              Created from customer file <strong>{bom.customerBomIntake.rawFileName}</strong>{' '}
+              for {bom.customerBomIntake.opportunityName}. Verify descriptions,
+              quantities, Make/Buy choices and possible duplicate Items before release.
+            </p>
+            {bom.customerBomIntake.lines.some(
+              (line) => line.createdNewItem && (line.fuzzyCandidates?.length ?? 0) > 0,
+            ) && (
+              <div className="rounded-md border border-warning/40 p-3">
+                <strong>Possible missed Item matches</strong>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {bom.customerBomIntake.lines
+                    .filter((line) => line.createdNewItem && (line.fuzzyCandidates?.length ?? 0) > 0)
+                    .map((line, index) => (
+                      <li key={`${line.resolvedItemId}-${index}`}>
+                        {line.description}: {line.fuzzyCandidates!.slice(0, 3).map((candidate) => `${candidate.itemCode} ${candidate.name}`).join(', ')}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Workflow actions */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {(bom.status === 'DRAFT' || bom.status === 'REJECTED') && (

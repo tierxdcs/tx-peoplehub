@@ -71,7 +71,20 @@ export class OrdersService {
     const bid = await this.prisma.bid.findUnique({
       where: { id: bidId },
       include: {
-        lineItems: { include: { product: true } },
+        lineItems: {
+          include: {
+            product: {
+              include: {
+                customerBomIntake: {
+                  select: {
+                    id: true,
+                    bom: { select: { status: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
         amcCharges: true,
       },
     });
@@ -98,6 +111,16 @@ export class OrdersService {
     if (unresolved.length > 0) {
       throw new BadRequestException(
         `This bid has ${unresolved.length} line item(s) awaiting product setup — resolve them before converting to an order`,
+      );
+    }
+
+    const unreleasedCustomerBoms = bid.lineItems.filter((line) => {
+      const intake = line.product?.customerBomIntake;
+      return intake && intake.bom?.status !== 'RELEASED';
+    });
+    if (unreleasedCustomerBoms.length > 0) {
+      throw new BadRequestException(
+        `This bid has ${unreleasedCustomerBoms.length} customer-BOM product(s) still awaiting R&D release — release every linked BOM before converting to an order`,
       );
     }
 

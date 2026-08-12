@@ -395,9 +395,70 @@ export class RfqService {
       .sort((a, b) => a.itemCode.localeCompare(b.itemCode));
   }
 
+  async quoteStageOptions(user: AuthenticatedUser) {
+    await this.access.assertCanReadRfqs(user);
+    const rows = await this.prisma.customerBomIntake.findMany({
+      where: { status: 'CREATED', bomId: { not: null } },
+      select: {
+        id: true,
+        productName: true,
+        opportunity: { select: { id: true, name: true } },
+        businessUnit: { select: { name: true } },
+        bom: { select: { revisionNumber: true, status: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows;
+  }
+
+  async quoteStageSourcingLines(intakeId: string, user: AuthenticatedUser) {
+    await this.access.assertCanReadRfqs(user);
+    const intake = await this.prisma.customerBomIntake.findUnique({
+      where: { id: intakeId },
+      select: { finishedGoodItemId: true, bomId: true, status: true },
+    });
+    if (!intake || intake.status !== 'CREATED' || !intake.finishedGoodItemId || !intake.bomId) {
+      throw new NotFoundException('Quote-stage customer BOM not found');
+    }
+    const boms = await this.prisma.bom.findMany({
+      where: { OR: [{ status: BomStatus.RELEASED }, { id: intake.bomId }] },
+      orderBy: { revisionNumber: 'desc' },
+      select: {
+        id: true,
+        itemId: true,
+        revisionNumber: true,
+        lines: { select: { itemId: true, quantityPerUnit: true, wastagePercent: true, unitOfMeasure: true, makeBuy: true } },
+      },
+    });
+    const byItem = new Map<string, ExplodableBom>();
+    for (const bom of boms) {
+      if (bom.id === intake.bomId || !byItem.has(bom.itemId)) byItem.set(bom.itemId, bom);
+    }
+    const aggregate = new Map<string, { quantity: Prisma.Decimal; unitOfMeasure: string }>();
+    for (const leaf of explodeProcurementBom(intake.finishedGoodItemId, (id) => byItem.get(id) ?? null)) {
+      const current = aggregate.get(leaf.itemId);
+      if (current) current.quantity = round(current.quantity.plus(leaf.quantityPerTopUnit));
+      else aggregate.set(leaf.itemId, { quantity: leaf.quantityPerTopUnit, unitOfMeasure: leaf.unitOfMeasure });
+    }
+    const items = await this.prisma.item.findMany({
+      where: { id: { in: [...aggregate.keys()] }, isActive: true },
+      select: { id: true, itemCode: true, name: true },
+    });
+    return items.map((item) => ({
+      itemId: item.id,
+      itemCode: item.itemCode,
+      itemName: item.name,
+      requiredQuantity: aggregate.get(item.id)!.quantity.toString(),
+      unitOfMeasure: aggregate.get(item.id)!.unitOfMeasure,
+    }));
+  }
+
   // ── Create / edit ────────────────────────────────────────────────────
   async create(dto: CreateRfqDto, user: AuthenticatedUser): Promise<RfqEntity> {
     await this.access.assertCanManageRfqs(user);
+    if (dto.projectKickoffId && dto.customerBomIntakeId) {
+      throw new BadRequestException('Link an RFQ to either an order or a quote-stage BOM, not both');
+    }
     const lines = await this.buildLineData(dto.lines);
     const excludedOrderLineIds = await this.resolveExcludedOrderLineIds(
       dto.projectKickoffId ?? null,
@@ -417,6 +478,7 @@ export class RfqService {
           description: dto.description ?? null,
           status: RfqStatus.DRAFT,
           projectKickoffId: dto.projectKickoffId ?? null,
+          customerBomIntakeId: dto.customerBomIntakeId ?? null,
           submissionDeadline: new Date(dto.submissionDeadline),
           requiredByDate: dto.requiredByDate
             ? new Date(dto.requiredByDate)
@@ -973,15 +1035,31 @@ export class RfqService {
       user,
     );
 
-    await this.prisma.rfq.update({
-      where: { id },
-      data: {
-        status: RfqStatus.AWARDED,
-        awardedInviteeId: invitee.id,
-        awardDecisionById: user.id,
-        awardDecisionAt: new Date(),
-        awardJustification: dto.justification?.trim() || null,
-      },
+    const awardedAt = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.rfq.update({
+        where: { id },
+        data: {
+          status: RfqStatus.AWARDED,
+          awardedInviteeId: invitee.id,
+          awardDecisionById: user.id,
+          awardDecisionAt: awardedAt,
+          awardJustification: dto.justification?.trim() || null,
+        },
+      });
+      await tx.itemQuotedCost.createMany({
+        data: invitee.quote!.lines.map((quoteLine) => {
+          const rfqLine = rfqLineById.get(quoteLine.rfqLineId)!;
+          return {
+            itemId: rfqLine.itemId,
+            rfqId: id,
+            quoteLineId: quoteLine.id,
+            unitPrice: quoteLine.unitPrice,
+            awardedAt,
+          };
+        }),
+        skipDuplicates: true,
+      });
     });
     // Do not mutate or hide invite history here. Public token validation uses
     // the persisted award winner to revoke non-winners' technical access while

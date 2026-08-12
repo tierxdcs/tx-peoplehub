@@ -32,7 +32,7 @@ export interface Item {
   standardLeadTimeDays: number | null;
   manualStandardCost?: string | null;
   currentCost?: string | null;
-  costSource?: 'LATEST_ACCEPTED_GRN' | 'MANUAL_STANDARD' | null;
+  costSource?: 'LATEST_ACCEPTED_GRN' | 'LATEST_AWARDED_QUOTE' | 'MANUAL_STANDARD' | null;
   releasedBomCostSnapshot?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -88,4 +88,16 @@ export function updateItemCost(id: string, manualStandardCost: number | null) {
 
 export function deactivateItem(id: string) {
   return apiFetch<Item>(`/items/${id}`, { method: 'DELETE' });
+}
+
+export function mergeItems(canonicalItemId: string, duplicateItemId: string) {
+  return apiFetch<{
+    canonicalItemId: string;
+    duplicateItemId: string;
+    duplicateDeactivated: boolean;
+    affectedBomLines: number;
+  }>('/items/merge', {
+    method: 'POST',
+    body: JSON.stringify({ canonicalItemId, duplicateItemId }),
+  });
 }

@@ -47,6 +47,22 @@ const BOM_INCLUDE = {
   item: { select: { itemCode: true, name: true, itemType: true } },
   createdBy: { select: { firstName: true, lastName: true } },
   approvedBy: { select: { firstName: true, lastName: true } },
+  customerBomIntake: {
+    select: {
+      id: true,
+      rawFileName: true,
+      opportunity: { select: { name: true } },
+      lines: {
+        orderBy: { sequence: 'asc' as const },
+        select: {
+          description: true,
+          resolvedItemId: true,
+          createdNewItem: true,
+          fuzzyCandidates: true,
+        },
+      },
+    },
+  },
   lines: {
     orderBy: { sequence: 'asc' as const },
     include: { item: { select: { itemCode: true, name: true } } },
@@ -736,6 +752,14 @@ export class BomService {
       rejectionComment: b.rejectionComment,
       approverSignatureTextSnapshot: b.approverSignatureTextSnapshot,
       approverSignatureFontSnapshot: b.approverSignatureFontSnapshot,
+      customerBomIntake: b.customerBomIntake
+        ? {
+            id: b.customerBomIntake.id,
+            opportunityName: b.customerBomIntake.opportunity.name,
+            rawFileName: b.customerBomIntake.rawFileName,
+            lines: b.customerBomIntake.lines,
+          }
+        : null,
       lines: b.lines.map(
         (l) =>
           new BomLineEntity({

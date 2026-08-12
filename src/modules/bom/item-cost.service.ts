@@ -6,7 +6,11 @@ import { FinanceAccessService } from '../finance/finance-access.service';
 
 export interface CurrentItemCost {
   amount: Prisma.Decimal | null;
-  source: 'LATEST_ACCEPTED_GRN' | 'MANUAL_STANDARD' | null;
+  source:
+    | 'LATEST_ACCEPTED_GRN'
+    | 'LATEST_AWARDED_QUOTE'
+    | 'MANUAL_STANDARD'
+    | null;
 }
 
 @Injectable()
@@ -79,6 +83,17 @@ export class ItemCostService {
       return {
         amount: accepted.purchaseOrderLine.unitPrice,
         source: 'LATEST_ACCEPTED_GRN',
+      };
+    }
+    const awardedQuote = await this.prisma.itemQuotedCost.findFirst({
+      where: { itemId },
+      orderBy: [{ awardedAt: 'desc' }, { createdAt: 'desc' }],
+      select: { unitPrice: true },
+    });
+    if (awardedQuote) {
+      return {
+        amount: awardedQuote.unitPrice,
+        source: 'LATEST_AWARDED_QUOTE',
       };
     }
     const item = await this.prisma.item.findUnique({

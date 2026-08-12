@@ -121,6 +121,34 @@ describe('OrdersService', () => {
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
+    it('rejects a customer-BOM product until R&D releases its BOM', async () => {
+      prisma.bid.findUnique.mockResolvedValue({
+        id: 'bid-1',
+        status: BidStatus.ACCEPTED,
+        createdById: 'emp-1',
+        customerId: 'cust-1',
+        totalAmount: new Prisma.Decimal(1000),
+        amcCharges: [],
+        lineItems: [
+          {
+            productId: 'prod-1',
+            product: {
+              customerBomIntake: { id: 'intake-1', bom: { status: 'DRAFT' } },
+            },
+            quantity: new Prisma.Decimal(1),
+            unitPrice: new Prisma.Decimal(1000),
+            lineTotal: new Prisma.Decimal(1000),
+          },
+        ],
+      });
+      prisma.order.findFirst.mockResolvedValue(null);
+
+      await expect(service.convertFromBid('bid-1', rep)).rejects.toThrow(
+        /awaiting R&D release/,
+      );
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
     it('copies line items from an ACCEPTED bid into a CONFIRMED order', async () => {
       prisma.bid.findUnique.mockResolvedValue({
         id: 'bid-1',

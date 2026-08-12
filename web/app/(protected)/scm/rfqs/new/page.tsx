@@ -9,8 +9,11 @@ import {
   createRfq,
   listRfqProjectOptions,
   getRfqSourcingLines,
+  getRfqQuoteStageSourcingLines,
+  listRfqQuoteStageOptions,
   type CreateRfqInput,
   type RfqProjectOption,
+  type RfqQuoteStageOption,
 } from '../../../../lib/rfq';
 import { listItems, type Item } from '../../../../lib/scm-item-master';
 import { PageContainer } from '../../../../components/ui/page-container';
@@ -48,10 +51,12 @@ export default function NewRfqPage() {
 
   const [items, setItems] = useState<Item[]>([]);
   const [projects, setProjects] = useState<RfqProjectOption[]>([]);
+  const [quoteStageOptions, setQuoteStageOptions] = useState<RfqQuoteStageOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [title, setTitle] = useState('');
   const [projectKickoffId, setProjectKickoffId] = useState('');
+  const [customerBomIntakeId, setCustomerBomIntakeId] = useState('');
   const [description, setDescription] = useState('');
   const [submissionDeadline, setSubmissionDeadline] = useState('');
   const [requiredByDate, setRequiredByDate] = useState('');
@@ -74,12 +79,14 @@ export default function NewRfqPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const [itemRows, projectRows] = await Promise.all([
+        const [itemRows, projectRows, intakeRows] = await Promise.all([
           listItems({ activeOnly: true }),
           listRfqProjectOptions(),
+          listRfqQuoteStageOptions(),
         ]);
         setItems(itemRows);
         setProjects(projectRows);
+        setQuoteStageOptions(intakeRows);
       } catch {
         toast.error('Failed to load items.');
       } finally {
@@ -169,6 +176,7 @@ export default function NewRfqPage() {
 
   function selectProject(value: string) {
     setProjectKickoffId(value);
+    setCustomerBomIntakeId('');
     // A different order means a different set of lines — start fresh.
     setExcludedOrderLineIds(new Set());
     setNoBomRequirements(false);
@@ -178,6 +186,22 @@ export default function NewRfqPage() {
       setLoadingSourcingLines(false);
       applySourcingLines([]);
       setNoBomRequirements(false);
+    }
+  }
+
+  async function selectQuoteStageIntake(value: string) {
+    setCustomerBomIntakeId(value);
+    setProjectKickoffId('');
+    setExcludedOrderLineIds(new Set());
+    setNoBomRequirements(false);
+    if (!value) return;
+    setLoadingSourcingLines(true);
+    try {
+      applySourcingLines(await getRfqQuoteStageSourcingLines(value));
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Failed to load quote-stage BOM');
+    } finally {
+      setLoadingSourcingLines(false);
     }
   }
 
@@ -195,6 +219,7 @@ export default function NewRfqPage() {
     const input: CreateRfqInput = {
       title: title.trim(),
       ...(projectKickoffId ? { projectKickoffId } : {}),
+      ...(customerBomIntakeId ? { customerBomIntakeId } : {}),
       ...(description.trim() ? { description: description.trim() } : {}),
       submissionDeadline: new Date(submissionDeadline).toISOString(),
       ...(requiredByDate ? { requiredByDate } : {}),
@@ -263,6 +288,16 @@ export default function NewRfqPage() {
                     >
                       {project.orderNumber} — {project.projectName} —{' '}
                       {project.customerName}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Or quote-stage customer BOM" htmlFor="quoteStageBom">
+                <Select id="quoteStageBom" value={customerBomIntakeId} onChange={(event) => void selectQuoteStageIntake(event.target.value)}>
+                  <option value="">Not linked to a quote-stage BOM</option>
+                  {quoteStageOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.productName} — {option.opportunity.name} — Draft BOM Rev {option.bom?.revisionNumber ?? '—'}
                     </option>
                   ))}
                 </Select>
@@ -414,18 +449,15 @@ export default function NewRfqPage() {
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-base">Line Items</CardTitle>
-                {selectedProject && (
+                {(selectedProject || customerBomIntakeId) && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     disabled={loadingSourcingLines}
-                    onClick={() =>
-                      void refreshSourcingLines(
-                        projectKickoffId,
-                        excludedOrderLineIds,
-                      )
-                    }
+                    onClick={() => customerBomIntakeId
+                      ? void selectQuoteStageIntake(customerBomIntakeId)
+                      : void refreshSourcingLines(projectKickoffId, excludedOrderLineIds)}
                   >
                     <RotateCcw className="size-4" />
                     {loadingSourcingLines

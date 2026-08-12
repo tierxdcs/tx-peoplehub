@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Boxes } from 'lucide-react';
 import { useAuth } from '../../../lib/auth-context';
+import { useIsRndHead } from '../../../lib/use-is-rnd-head';
 import {
   deactivateItem,
   ITEM_TYPE_LABEL,
   listItems,
+  mergeItems,
   type Item,
   type ItemType,
 } from '../../../lib/scm-item-master';
@@ -49,6 +51,7 @@ const TYPES: ItemType[] = [
  */
 export default function ItemMasterPage() {
   const { user } = useAuth();
+  const { isRndHead } = useIsRndHead();
   const { style: numberFormatStyle } = useNumberFormat();
   const toast = useToast();
   const confirm = useConfirm();
@@ -59,13 +62,12 @@ export default function ItemMasterPage() {
   const [typeFilter, setTypeFilter] = useState<ItemType | ''>('');
   const [editing, setEditing] = useState<Item | null>(null);
   const [creating, setCreating] = useState(false);
+  const [canonicalItemId, setCanonicalItemId] = useState('');
+  const [duplicateItemId, setDuplicateItemId] = useState('');
 
   // R&D Head / SUPER_ADMIN can manage; the button shows for MANAGER+/SA and the
   // backend is the real gate.
-  const canManage =
-    user?.role === 'SUPER_ADMIN' ||
-    user?.role === 'ADMIN' ||
-    user?.role === 'MANAGER';
+  const canManage = user?.role === 'SUPER_ADMIN' || isRndHead;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,6 +119,27 @@ export default function ItemMasterPage() {
     }
   }
 
+  async function onMerge() {
+    if (!canonicalItemId || !duplicateItemId) return;
+    const canonical = items.find((item) => item.id === canonicalItemId);
+    const duplicate = items.find((item) => item.id === duplicateItemId);
+    if (!(await confirm({
+      title: `Merge ${duplicate?.itemCode} into ${canonical?.itemCode}?`,
+      description: 'All BOM references will move to the canonical item and the duplicate will be deactivated. This cannot be undone automatically.',
+      confirmLabel: 'Merge items',
+      destructive: true,
+    }))) return;
+    try {
+      const result = await mergeItems(canonicalItemId, duplicateItemId);
+      toast.success(`Merged ${result.affectedBomLines} BOM reference(s).`);
+      setCanonicalItemId('');
+      setDuplicateItemId('');
+      await load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to merge items.');
+    }
+  }
+
   return (
     <PageContainer>
       <PageHeader
@@ -149,6 +172,34 @@ export default function ItemMasterPage() {
           ))}
         </Select>
       </div>
+
+      {canManage && (
+        <Card className="mb-4">
+          <CardContent className="flex flex-wrap items-end gap-3 p-4">
+            <div className="min-w-64 flex-1">
+              <label className="mb-1 block text-sm font-medium">Canonical item (keep)</label>
+              <Select value={canonicalItemId} onChange={(event) => setCanonicalItemId(event.target.value)}>
+                <option value="">Select canonical item…</option>
+                {items.filter((item) => item.isActive).map((item) => (
+                  <option key={item.id} value={item.id}>{item.itemCode} — {item.name}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="min-w-64 flex-1">
+              <label className="mb-1 block text-sm font-medium">Duplicate item (deactivate)</label>
+              <Select value={duplicateItemId} onChange={(event) => setDuplicateItemId(event.target.value)}>
+                <option value="">Select duplicate item…</option>
+                {items.filter((item) => item.isActive && item.id !== canonicalItemId).map((item) => (
+                  <option key={item.id} value={item.id}>{item.itemCode} — {item.name}</option>
+                ))}
+              </Select>
+            </div>
+            <Button variant="destructive" disabled={!canonicalItemId || !duplicateItemId} onClick={() => void onMerge()}>
+              Merge duplicate
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -207,7 +258,9 @@ export default function ItemMasterPage() {
                           <span className="block text-xs text-muted-foreground">
                             {i.costSource === 'LATEST_ACCEPTED_GRN'
                               ? 'Latest accepted GRN'
-                              : 'Manual fallback'}
+                              : i.costSource === 'LATEST_AWARDED_QUOTE'
+                                ? 'Latest awarded RFQ'
+                                : 'Manual fallback'}
                           </span>
                         )}
                       </TableCell>
