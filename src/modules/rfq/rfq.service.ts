@@ -62,6 +62,7 @@ const RFQ_INCLUDE = {
           lineItems: {
             orderBy: { createdAt: 'asc' as const },
             select: {
+              id: true,
               quantity: true,
               unitPrice: true,
               lineTotal: true,
@@ -208,6 +209,7 @@ export class RfqService {
             lineItems: {
               orderBy: { createdAt: 'asc' },
               select: {
+                id: true,
                 quantity: true,
                 unitPrice: true,
                 lineTotal: true,
@@ -231,6 +233,7 @@ export class RfqService {
       orderTotal: row.order.totalAmount.toString(),
       customerName: row.order.customer.name,
       lines: row.order.lineItems.map((line) => ({
+        orderLineId: line.id,
         productSku: line.product.sku,
         productName: line.product.name,
         quantity: line.quantity.toString(),
@@ -245,13 +248,10 @@ export class RfqService {
   async create(dto: CreateRfqDto, user: AuthenticatedUser): Promise<RfqEntity> {
     await this.access.assertCanManageRfqs(user);
     const lines = await this.buildLineData(dto.lines);
-    if (dto.projectKickoffId) {
-      const k = await this.prisma.projectKickoff.findUnique({
-        where: { id: dto.projectKickoffId },
-        select: { id: true },
-      });
-      if (!k) throw new NotFoundException('Project kickoff not found');
-    }
+    const excludedOrderLineIds = await this.resolveExcludedOrderLineIds(
+      dto.projectKickoffId ?? null,
+      dto.excludedOrderLineIds,
+    );
     const created = await this.prisma.$transaction(async (tx) => {
       const rfqNumber = await this.numbering.nextNumber(
         'RFQ',
@@ -272,12 +272,55 @@ export class RfqService {
             : null,
           deliveryLocation: dto.deliveryLocation ?? null,
           paymentTermsRequested: dto.paymentTermsRequested ?? null,
+          excludedOrderLineIds,
           createdById: user.id,
           lines: { create: lines },
         },
       });
     });
     return this.get(created.id, user);
+  }
+
+  /**
+   * Validate the SCM-chosen order-line exclusions against the linked order and
+   * return the sanitised set to persist. Excluding order lines only curates the
+   * RFQ's read-time order *context* — the Order itself is never touched, and the
+   * actual sourcing scope is the item-based RfqLine[]. Empty (default) = show all.
+   */
+  private async resolveExcludedOrderLineIds(
+    projectKickoffId: string | null,
+    excludedOrderLineIds: string[] | undefined,
+  ): Promise<string[]> {
+    if (!projectKickoffId) {
+      // No linked order → no order context to curate. Reject stray ids so the
+      // caller learns the exclusion had no target rather than failing silently.
+      if (excludedOrderLineIds && excludedOrderLineIds.length > 0) {
+        throw new BadRequestException(
+          'Order line exclusions require a linked project/order',
+        );
+      }
+      return [];
+    }
+    const kickoff = await this.prisma.projectKickoff.findUnique({
+      where: { id: projectKickoffId },
+      select: { order: { select: { lineItems: { select: { id: true } } } } },
+    });
+    if (!kickoff) throw new NotFoundException('Project kickoff not found');
+    const requested = Array.from(new Set(excludedOrderLineIds ?? []));
+    if (requested.length === 0) return [];
+    const orderLineIds = new Set(kickoff.order.lineItems.map((li) => li.id));
+    const unknown = requested.filter((id) => !orderLineIds.has(id));
+    if (unknown.length > 0) {
+      throw new BadRequestException(
+        'One or more excluded order lines do not belong to the linked order',
+      );
+    }
+    if (requested.length >= orderLineIds.size) {
+      throw new BadRequestException(
+        'At least one order line must remain in the RFQ context',
+      );
+    }
+    return requested;
   }
 
   async update(
@@ -294,6 +337,13 @@ export class RfqService {
     const lineData = dto.lines
       ? await this.buildLineData(dto.lines)
       : undefined;
+    const excludedOrderLineIds =
+      dto.excludedOrderLineIds !== undefined
+        ? await this.resolveExcludedOrderLineIds(
+            rfq.projectKickoffId,
+            dto.excludedOrderLineIds,
+          )
+        : undefined;
     await this.prisma.rfq.update({
       where: { id },
       data: {
@@ -317,6 +367,7 @@ export class RfqService {
         ...(dto.paymentTermsRequested !== undefined
           ? { paymentTermsRequested: dto.paymentTermsRequested }
           : {}),
+        ...(excludedOrderLineIds !== undefined ? { excludedOrderLineIds } : {}),
         ...(lineData ? { lines: { deleteMany: {}, create: lineData } } : {}),
       },
     });
@@ -710,6 +761,13 @@ export class RfqService {
         awardJustification: dto.justification?.trim() || null,
       },
     });
+    // Award is an explicit technical-access revocation event. The winning
+    // partner keeps the invite; every non-winner loses all future resolve and
+    // presigned-download capability immediately, independent of token expiry.
+    await this.prisma.rfqInvitee.updateMany({
+      where: { rfqId: id, id: { not: invitee.id }, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
     return { rfq: await this.get(id, user), purchaseOrderId: po.id };
   }
 
@@ -794,15 +852,22 @@ export class RfqService {
       orderStatus: rfq.projectKickoff?.order.status ?? null,
       orderTotal: rfq.projectKickoff?.order.totalAmount.toString() ?? null,
       customerName: rfq.projectKickoff?.order.customer.name ?? null,
+      // Curated order context: order lines the creator chose to EXCLUDE are
+      // dropped here so they appear nowhere downstream (comparison, quote form,
+      // award). Empty exclusion set (the default) shows every line — existing
+      // RFQs are unchanged. The Order itself is never modified.
       orderLines:
-        rfq.projectKickoff?.order.lineItems.map((line) => ({
-          productSku: line.product.sku,
-          productName: line.product.name,
-          quantity: line.quantity.toString(),
-          unitOfMeasure: line.product.unitOfMeasure,
-          unitPrice: line.unitPrice.toString(),
-          lineTotal: line.lineTotal.toString(),
-        })) ?? [],
+        rfq.projectKickoff?.order.lineItems
+          .filter((line) => !rfq.excludedOrderLineIds.includes(line.id))
+          .map((line) => ({
+            orderLineId: line.id,
+            productSku: line.product.sku,
+            productName: line.product.name,
+            quantity: line.quantity.toString(),
+            unitOfMeasure: line.product.unitOfMeasure,
+            unitPrice: line.unitPrice.toString(),
+            lineTotal: line.lineTotal.toString(),
+          })) ?? [],
       submissionDeadline: rfq.submissionDeadline.toISOString(),
       requiredByDate: rfq.requiredByDate
         ? rfq.requiredByDate.toISOString()

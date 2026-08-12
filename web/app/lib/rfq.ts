@@ -22,6 +22,34 @@ export interface RfqLine {
   sequence: number;
 }
 
+export interface RfqTechnicalAttachment {
+  id: string;
+  rfqLineId: string | null;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  uploadedByName: string;
+  uploadedAt: string;
+}
+
+export interface RfqTechnicalView {
+  maxDrawingFileSizeBytes: number;
+  attachments: RfqTechnicalAttachment[];
+  lineBoms: Array<{
+    rfqLineId: string;
+    revisionNumber: number | null;
+    components: Array<{
+      itemId: string;
+      itemCode: string | null;
+      itemName: string | null;
+      quantity: string;
+      unitOfMeasure: string;
+      specification: string | null;
+      sourceTrail: string[];
+    }>;
+  }>;
+}
+
 export interface RfqInvitee {
   id: string;
   supplierId: string | null;
@@ -68,6 +96,7 @@ export interface Rfq {
 }
 
 export interface RfqOrderLine {
+  orderLineId: string;
   productSku: string;
   productName: string;
   quantity: string;
@@ -105,6 +134,8 @@ export interface CreateRfqInput {
   deliveryLocation?: string;
   paymentTermsRequested?: string;
   lines: RfqLineInput[];
+  /** OrderLineItem ids to exclude from the linked order's context. Omit = all. */
+  excludedOrderLineIds?: string[];
 }
 
 // ── Comparison ─────────────────────────────────────────────────────────
@@ -158,6 +189,33 @@ export function listRfqProjectOptions() {
 }
 export function getRfq(id: string) {
   return apiFetch<Rfq>(`/rfqs/${id}`);
+}
+export function getRfqTechnicalDocuments(id: string) {
+  return apiFetch<RfqTechnicalView>(`/rfqs/${id}/technical-documents`);
+}
+export function rfqTechnicalUploadUrl(
+  id: string,
+  input: { fileName: string; mimeType: string; fileSize: number; rfqLineId?: string },
+) {
+  return apiFetch<{ fileKey: string; uploadUrl: string; expiresInSeconds: number }>(
+    `/rfqs/${id}/technical-attachments/upload-url`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+}
+export function confirmRfqTechnicalUpload(
+  id: string,
+  input: { fileKey: string; fileName: string; rfqLineId?: string },
+) {
+  return apiFetch(`/rfqs/${id}/technical-attachments/confirm`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+export function downloadRfqTechnicalAttachment(id: string, attachmentId: string) {
+  return apiFetch<{ url: string; expiresInSeconds: number; fileName: string }>(
+    `/rfqs/${id}/technical-attachments/${attachmentId}/download`,
+    { method: 'POST' },
+  );
 }
 export function createRfq(input: CreateRfqInput) {
   return apiFetch<Rfq>('/rfqs', {
@@ -262,6 +320,7 @@ export interface PublicRfqView {
       remarks: string | null;
     }[];
   } | null;
+  technical: RfqTechnicalView;
 }
 
 export interface PublicQuoteLineInput {
@@ -343,5 +402,13 @@ export const publicRfqAttachmentConfirm = (
 ) =>
   publicPost<PublicRfqView>(
     `/public/rfq-quote/${token}/attachment-confirm`,
+    body,
+  );
+export const publicRfqTechnicalDownload = (
+  token: string,
+  body: { password?: string; attachmentId: string },
+) =>
+  publicPost<{ url: string; expiresInSeconds: number; fileName: string }>(
+    `/public/rfq-quote/${token}/technical-attachment-download`,
     body,
   );

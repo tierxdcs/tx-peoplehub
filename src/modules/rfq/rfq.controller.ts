@@ -24,7 +24,10 @@ import {
   ComparisonWeightsDto,
   CreateRfqDto,
   UpdateRfqDto,
+  RfqAttachmentConfirmDto,
+  RfqAttachmentUploadUrlDto,
 } from './dto/rfq.dto';
+import { RfqTechnicalService } from './rfq-technical.service';
 
 /**
  * RFQ Builder (SCM). Coarse @Roles keeps unauthenticated/foreign roles off;
@@ -36,7 +39,10 @@ import {
 @Roles(Role.MANAGER, Role.EMPLOYEE, Role.ADMIN, Role.SUPER_ADMIN)
 @Controller('rfqs')
 export class RfqController {
-  constructor(private readonly service: RfqService) {}
+  constructor(
+    private readonly service: RfqService,
+    private readonly technical: RfqTechnicalService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List RFQs (SCM read)' })
@@ -76,6 +82,41 @@ export class RfqController {
   @ApiOperation({ summary: 'Get an RFQ (SCM read; quote values not included)' })
   get(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.get(id, user);
+  }
+
+  @Get(':id/technical-documents')
+  technicalDocuments(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.technical.internalView(id, user);
+  }
+
+  @Post(':id/technical-attachments/upload-url')
+  technicalUploadUrl(
+    @Param('id') id: string,
+    @Body() dto: RfqAttachmentUploadUrlDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.technical.uploadUrl(id, dto, user);
+  }
+
+  @Post(':id/technical-attachments/confirm')
+  technicalConfirm(
+    @Param('id') id: string,
+    @Body() dto: RfqAttachmentConfirmDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.technical.confirm(id, dto, user);
+  }
+
+  @Post(':id/technical-attachments/:attachmentId/download')
+  technicalDownload(
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.technical.internalDownload(id, attachmentId, user);
   }
 
   @Patch(':id')

@@ -8,6 +8,7 @@ import { RfqPublicController } from './rfq-public.controller';
 import { RfqService } from './rfq.service';
 import { RfqPublicService } from './rfq-public.service';
 import { RfqAccessService } from './rfq-access.service';
+import { RfqTechnicalService } from './rfq-technical.service';
 
 /**
  * RFQ Builder (SCM). Imports:
@@ -19,6 +20,6 @@ import { RfqAccessService } from './rfq-access.service';
 @Module({
   imports: [SalesModule, BomModule, VaultModule, ScmPurchasingModule],
   controllers: [RfqController, RfqPublicController],
-  providers: [RfqService, RfqPublicService, RfqAccessService],
+  providers: [RfqService, RfqPublicService, RfqAccessService, RfqTechnicalService],
 })
 export class RfqModule {}

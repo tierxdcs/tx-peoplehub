@@ -20,7 +20,9 @@ import {
   PublicResolveRfqDto,
   PublicSaveQuoteDto,
   PublicSubmitQuoteDto,
+  PublicTechnicalDownloadDto,
 } from './dto/rfq-public.dto';
+import { RfqTechnicalService } from './rfq-technical.service';
 
 /**
  * Public (unauthenticated, token-authed) RFQ quote submission — mirrors the
@@ -34,6 +36,7 @@ export class RfqPublicService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: VaultStorageService,
+    private readonly technical: RfqTechnicalService,
   ) {}
 
   /** Resolve + validate a token; marks the invitee VIEWED. Returns the public RFQ shape. */
@@ -157,11 +160,24 @@ export class RfqPublicService {
     return this.publicView(invitee.id);
   }
 
+  async technicalDownload(token: string, dto: PublicTechnicalDownloadDto) {
+    const invitee = await this.validate(token, dto.password);
+    return this.technical.download(invitee.rfqId, dto.attachmentId);
+  }
+
   // ── Internals ────────────────────────────────────────────────────────
   private async validate(token: string, password: string | undefined) {
     const invitee = await this.prisma.rfqInvitee.findUnique({
       where: { inviteToken: token },
-      include: { rfq: { select: { status: true, submissionDeadline: true } } },
+      include: {
+        rfq: {
+          select: {
+            status: true,
+            submissionDeadline: true,
+            awardedInviteeId: true,
+          },
+        },
+      },
     });
     if (!invitee || invitee.inviteToken.startsWith('pending:')) {
       throw new NotFoundException('Invalid link');
@@ -174,6 +190,14 @@ export class RfqPublicService {
       },
       password,
     );
+    if (
+      invitee.rfq.status === RfqStatus.AWARDED &&
+      invitee.rfq.awardedInviteeId !== invitee.id
+    ) {
+      throw new ForbiddenException(
+        'Technical access ended when this RFQ was awarded to another partner',
+      );
+    }
     return invitee;
   }
 
@@ -370,6 +394,7 @@ export class RfqPublicService {
             })),
           }
         : null,
+      technical: await this.technical.view(invitee.rfqId),
     };
   }
 }

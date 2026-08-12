@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import {
   createRfq,
@@ -59,6 +59,12 @@ export default function NewRfqPage() {
   const [lines, setLines] = useState<LineDraft[]>([
     { key: lineKeySeq++, itemId: '', quantity: '', specificationNotes: '' },
   ]);
+  // OrderLineItem ids the SCM user chose to exclude from the linked order's
+  // context. Empty = every order line is covered (the default). Reset whenever
+  // the linked project changes; never touches the Order itself.
+  const [excludedOrderLineIds, setExcludedOrderLineIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -105,9 +111,25 @@ export default function NewRfqPage() {
   const selectedProject =
     projects.find((project) => project.projectKickoffId === projectKickoffId) ??
     null;
+  const includedOrderLineCount = selectedProject
+    ? selectedProject.lines.filter(
+        (line) => !excludedOrderLineIds.has(line.orderLineId),
+      ).length
+    : 0;
 
   function selectProject(value: string) {
     setProjectKickoffId(value);
+    // A different order means a different set of lines — start fresh.
+    setExcludedOrderLineIds(new Set());
+  }
+
+  function toggleOrderLineExcluded(orderLineId: string) {
+    setExcludedOrderLineIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderLineId)) next.delete(orderLineId);
+      else next.add(orderLineId);
+      return next;
+    });
   }
 
   async function handleSubmit() {
@@ -133,6 +155,9 @@ export default function NewRfqPage() {
           : {}),
         sequence: i,
       })),
+      ...(projectKickoffId && excludedOrderLineIds.size > 0
+        ? { excludedOrderLineIds: Array.from(excludedOrderLineIds) }
+        : {}),
     };
     try {
       const rfq = await createRfq(input);
@@ -204,23 +229,75 @@ export default function NewRfqPage() {
                     <StatusBadge value={selectedProject.orderStatus} />
                   </div>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {selectedProject.lines.map((line, index) => (
-                      <div
-                        key={`${line.productSku}-${index}`}
-                        className="rounded-md border bg-background p-3 text-sm"
-                      >
-                        <p className="font-medium">{line.productName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {line.productSku} · {line.quantity}{' '}
-                          {line.unitOfMeasure} ·{' '}
-                          {formatINR(line.lineTotal, numberFormatStyle)}
-                        </p>
-                      </div>
-                    ))}
+                    {selectedProject.lines.map((line) => {
+                      const excluded = excludedOrderLineIds.has(
+                        line.orderLineId,
+                      );
+                      const lastIncluded =
+                        !excluded && includedOrderLineCount <= 1;
+                      return (
+                        <div
+                          key={line.orderLineId}
+                          className={`flex items-start justify-between gap-2 rounded-md border bg-background p-3 text-sm ${
+                            excluded ? 'opacity-60' : ''
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <p
+                              className={`font-medium ${
+                                excluded ? 'line-through' : ''
+                              }`}
+                            >
+                              {line.productName}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {line.productSku} · {line.quantity}{' '}
+                              {line.unitOfMeasure} ·{' '}
+                              {formatINR(line.lineTotal, numberFormatStyle)}
+                            </p>
+                            {excluded && (
+                              <p className="mt-1 text-xs font-medium text-muted-foreground">
+                                Excluded from this RFQ
+                              </p>
+                            )}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="shrink-0"
+                            onClick={() =>
+                              toggleOrderLineExcluded(line.orderLineId)
+                            }
+                            disabled={lastIncluded}
+                            aria-label={
+                              excluded
+                                ? 'Include this order line'
+                                : 'Exclude this order line'
+                            }
+                            title={
+                              lastIncluded
+                                ? 'At least one order line must remain'
+                                : excluded
+                                  ? 'Include this line'
+                                  : 'Exclude this line from the RFQ'
+                            }
+                          >
+                            {excluded ? (
+                              <RotateCcw className="size-4" />
+                            ) : (
+                              <Trash2 className="size-4" />
+                            )}
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">
-                    Order information is linked for context. Add the materials
-                    or services being sourced as RFQ line items below.
+                    Order information is linked for context. Remove any lines
+                    this RFQ should not source — the order itself is unaffected.
+                    Add the materials or services being sourced as RFQ line
+                    items below.
                   </p>
                 </div>
               )}

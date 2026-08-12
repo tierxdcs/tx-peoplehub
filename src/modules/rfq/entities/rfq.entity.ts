@@ -51,6 +51,7 @@ export class RfqEntity {
   @ApiProperty({ nullable: true }) orderTotal!: string | null;
   @ApiProperty({ nullable: true }) customerName!: string | null;
   @ApiProperty({ type: [Object] }) orderLines!: Array<{
+    orderLineId: string;
     productSku: string;
     productName: string;
     quantity: string;

@@ -8,7 +8,10 @@ import {
   AlertTriangle,
   Check,
   Copy,
+  Download,
+  FileText,
   Plus,
+  Upload,
   Trash2,
 } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
@@ -23,7 +26,13 @@ import {
   rfqComparison,
   type Rfq,
   type ComparisonColumn,
+  type RfqTechnicalView,
+  getRfqTechnicalDocuments,
+  rfqTechnicalUploadUrl,
+  confirmRfqTechnicalUpload,
+  downloadRfqTechnicalAttachment,
 } from '../../../../lib/rfq';
+import { uploadToPresignedUrl } from '../../../../lib/vault-api';
 import { listSuppliers, type Supplier } from '../../../../lib/scm-supplier';
 import { listVendors, type Vendor } from '../../../../lib/scm';
 import { isQualifiedStatus } from '../../../../lib/stores';
@@ -72,6 +81,9 @@ export default function RfqDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
+  const [technical, setTechnical] = useState<RfqTechnicalView | null>(null);
+  const [drawingLineId, setDrawingLineId] = useState('');
+  const [uploadingDrawing, setUploadingDrawing] = useState(false);
   // Per-invitee quoted totals, keyed by inviteeId. Sealed-bid: these live only
   // in the guarded comparison endpoint and are fetched once quotes are visible
   // (CLOSED / AWARDED) so the detail table can show what each partner quoted.
@@ -108,6 +120,52 @@ export default function RfqDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadTechnical = useCallback(async () => {
+    try {
+      setTechnical(await getRfqTechnicalDocuments(id));
+    } catch {
+      setTechnical(null);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    void loadTechnical();
+  }, [loadTechnical]);
+
+  async function uploadDrawing(file: File) {
+    setUploadingDrawing(true);
+    try {
+      const line = drawingLineId || undefined;
+      const presign = await rfqTechnicalUploadUrl(id, {
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        fileSize: file.size,
+        rfqLineId: line,
+      });
+      await uploadToPresignedUrl(presign.uploadUrl, file);
+      await confirmRfqTechnicalUpload(id, {
+        fileKey: presign.fileKey,
+        fileName: file.name,
+        rfqLineId: line,
+      });
+      toast.success('Technical drawing attached');
+      await loadTechnical();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Drawing upload failed');
+    } finally {
+      setUploadingDrawing(false);
+    }
+  }
+
+  async function downloadDrawing(attachmentId: string) {
+    try {
+      const result = await downloadRfqTechnicalAttachment(id, attachmentId);
+      window.open(result.url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Download failed');
+    }
+  }
 
   // Partner pickers are only needed while a DRAFT can be edited.
   useEffect(() => {
@@ -469,9 +527,9 @@ export default function RfqDetailPage() {
               <div>
                 <p className="mb-2 text-sm font-medium">Order products</p>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {rfq.orderLines.map((line, index) => (
+                  {rfq.orderLines.map((line) => (
                     <div
-                      key={`${line.productSku}-${index}`}
+                      key={line.orderLineId}
                       className="rounded-md border p-3 text-sm"
                     >
                       <p className="font-medium">{line.productName}</p>
@@ -603,6 +661,94 @@ export default function RfqDetailPage() {
               ))}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-base">BOM & technical drawings</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <p className="text-sm text-muted-foreground">
+            BOMs are rendered live from the current released revision. Internal
+            costs are never included. Drawing uploads support files up to 500 MB.
+          </p>
+          {canManage && (
+            <div className="flex flex-wrap items-end gap-2 rounded-md border p-3">
+              <Field label="Attach to">
+                <Select
+                  value={drawingLineId}
+                  onChange={(event) => setDrawingLineId(event.target.value)}
+                  className="min-w-64"
+                >
+                  <option value="">Whole RFQ (general document)</option>
+                  {rfq.lines.map((line) => (
+                    <option key={line.id} value={line.id}>
+                      {line.itemCode} - {line.itemName}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">
+                <Upload className="size-4" />
+                {uploadingDrawing ? 'Uploading...' : 'Attach drawing'}
+                <input
+                  type="file"
+                  className="sr-only"
+                  disabled={uploadingDrawing}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void uploadDrawing(file);
+                    event.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+          )}
+
+          {(technical?.attachments.length ?? 0) > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Attachments</h3>
+              {technical?.attachments.map((file) => {
+                const line = rfq.lines.find((item) => item.id === file.rfqLineId);
+                return (
+                  <div key={file.id} className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium"><FileText className="mr-1 inline size-4" />{file.fileName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {line ? `${line.itemCode} - ${line.itemName}` : 'General RFQ document'} · {(file.fileSize / 1024 / 1024).toFixed(1)} MB
+                      </p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => downloadDrawing(file.id)}>
+                      <Download className="size-4" /> Download
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {rfq.lines.map((line) => {
+              const bom = technical?.lineBoms.find((item) => item.rfqLineId === line.id);
+              return (
+                <details key={line.id} className="rounded-md border p-3">
+                  <summary className="cursor-pointer text-sm font-semibold">
+                    {line.itemCode} - {line.itemName}{' '}
+                    <span className="font-normal text-muted-foreground">
+                      {bom?.revisionNumber ? `· Released BOM Rev ${bom.revisionNumber}` : '· No released BOM'}
+                    </span>
+                  </summary>
+                  {bom && bom.components.length > 0 && (
+                    <Table>
+                      <TableHeader><TableRow><TableHead>Component</TableHead><TableHead className="text-right">Sourcing Qty</TableHead><TableHead>Specification</TableHead></TableRow></TableHeader>
+                      <TableBody>{bom.components.map((component) => <TableRow key={component.itemId}><TableCell>{component.itemCode} - {component.itemName}</TableCell><TableCell className="text-right">{component.quantity} {component.unitOfMeasure}</TableCell><TableCell>{component.specification ?? '—'}</TableCell></TableRow>)}</TableBody>
+                    </Table>
+                  )}
+                </details>
+              );
+            })}
+          </div>
         </CardContent>
       </Card>
 

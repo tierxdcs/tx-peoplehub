@@ -9,6 +9,7 @@ import {
   PublicResolveRfqDto,
   PublicSaveQuoteDto,
   PublicSubmitQuoteDto,
+  PublicTechnicalDownloadDto,
 } from './dto/rfq-public.dto';
 
 /**
@@ -70,5 +71,15 @@ export class RfqPublicController {
     @Body() dto: PublicQuoteAttachmentConfirmDto,
   ) {
     return this.service.attachmentConfirm(token, dto);
+  }
+
+  @Public()
+  @Post(':token/technical-attachment-download')
+  @ApiOperation({ summary: 'Fresh, token-gated drawing download URL' })
+  technicalDownload(
+    @Param('token') token: string,
+    @Body() dto: PublicTechnicalDownloadDto,
+  ) {
+    return this.service.technicalDownload(token, dto);
   }
 }

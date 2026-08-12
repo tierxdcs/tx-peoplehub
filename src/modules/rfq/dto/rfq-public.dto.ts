@@ -71,3 +71,7 @@ export class PublicQuoteAttachmentConfirmDto {
   @ApiProperty() @IsString() @MinLength(1) storageKey!: string;
   @ApiProperty() @IsString() @MinLength(1) name!: string;
 }
+
+export class PublicTechnicalDownloadDto extends PublicResolveRfqDto {
+  @ApiProperty() @IsString() @MinLength(1) attachmentId!: string;
+}

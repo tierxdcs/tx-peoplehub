@@ -29,7 +29,14 @@
       "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npm run build)",
       "Bash(echo \"BUILD_EXIT: $?\")",
       "Bash(echo \"BE_BUILD_EXIT: $?\")",
-      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx jest)"
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx jest)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma migrate dev --name rfq_excluded_order_lines --skip-generate)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma db execute --file prisma/migrations/20260911120000_rfq_excluded_order_lines/migration.sql --schema prisma/schema.prisma)",
+      "Bash(echo \"DB_EXECUTE_EXIT: $?\")",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma migrate resolve --applied 20260911120000_rfq_excluded_order_lines)",
+      "Bash(echo \"RESOLVE_EXIT: $?\")",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx jest rfq)"
     ]
   }
 }

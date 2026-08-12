@@ -43,6 +43,16 @@ export class CreateRfqDto {
   @Type(() => RfqLineInputDto)
   @ArrayMinSize(1)
   lines!: RfqLineInputDto[];
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      "OrderLineItem ids to EXCLUDE from the linked order's context on this " +
+      'RFQ. Omit/empty to include every order line (the default).',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  excludedOrderLineIds?: string[];
 }
 
 /** Edit a DRAFT RFQ. Sending `lines` full-replaces the line set. */
@@ -60,6 +70,14 @@ export class UpdateRfqDto {
   @Type(() => RfqLineInputDto)
   @ArrayMinSize(1)
   lines?: RfqLineInputDto[];
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Replaces the excluded-order-line set. Empty array = include all.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  excludedOrderLineIds?: string[];
 }
 
 /** Add one invitee (a supplier XOR a vendor) to a DRAFT RFQ. */
@@ -104,4 +122,17 @@ export class ComparisonWeightsDto {
   @IsNumber()
   @Min(0)
   qualification?: number;
+}
+
+export class RfqAttachmentUploadUrlDto {
+  @ApiProperty() @IsString() @MinLength(1) fileName!: string;
+  @ApiProperty() @IsString() @MinLength(1) mimeType!: string;
+  @ApiProperty() @Type(() => Number) @IsInt() @Min(0) fileSize!: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() rfqLineId?: string;
+}
+
+export class RfqAttachmentConfirmDto {
+  @ApiProperty() @IsString() @MinLength(1) fileKey!: string;
+  @ApiProperty() @IsString() @MinLength(1) fileName!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() rfqLineId?: string;
 }
