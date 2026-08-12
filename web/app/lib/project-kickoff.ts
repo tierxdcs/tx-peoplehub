@@ -104,6 +104,14 @@ export interface ProjectKickoff {
   actionItems?: KickoffActionItem[];
   risks?: KickoffRisk[];
   deliveryItems?: KickoffDeliveryItem[];
+  priorBidStrategyMeetings?: Array<{
+    id: string;
+    bidId: string;
+    bidNumber: string;
+    meetingDate: string;
+    meetingMode: KickoffMeetingMode;
+    notes: string;
+  }>;
 }
 
 export type ProjectStageState =

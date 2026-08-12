@@ -160,6 +160,15 @@ export class ProjectKickoffEntity {
   risks?: KickoffRiskEntity[];
   @ApiProperty({ type: [KickoffDeliveryItemEntity], required: false })
   deliveryItems?: KickoffDeliveryItemEntity[];
+  @ApiProperty({ required: false, type: [Object] })
+  priorBidStrategyMeetings?: Array<{
+    id: string;
+    bidId: string;
+    bidNumber: string;
+    meetingDate: string;
+    meetingMode: KickoffMeetingMode;
+    notes: string;
+  }>;
 
   constructor(p: Partial<ProjectKickoffEntity>) {
     Object.assign(this, p);

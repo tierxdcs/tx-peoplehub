@@ -203,12 +203,15 @@ export function BidPrintDocument({
   bid,
   customer,
   preparedByName,
+  preparedByEmail,
   generatedOn,
 }: {
   bid: Bid;
   customer: Customer | null;
   /** Name of the rep who created the bid (Prepared By + closing). */
   preparedByName: string | null;
+  /** Email of the rep who created the bid; falls back to the company inbox. */
+  preparedByEmail?: string | null;
   /** Pre-formatted YYYY-MM-DD; passed in so render stays deterministic. */
   generatedOn: string;
 }) {
@@ -375,7 +378,9 @@ export function BidPrintDocument({
                   </div>
                   <div style={{ fontWeight: 700 }}>{COMPANY.name}</div>
                   <div>{preparedBy}</div>
-                  <div style={{ color: '#333' }}>{COMPANY.contactEmail}</div>
+                  <div style={{ color: '#333' }}>
+                    {preparedByEmail ?? COMPANY.contactEmail}
+                  </div>
                   <div style={{ color: '#333' }}>{COMPANY.website}</div>
                 </div>
               </div>

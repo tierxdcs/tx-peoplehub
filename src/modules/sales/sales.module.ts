@@ -27,6 +27,8 @@ import { ConfirmationSheetsService } from './confirmation-sheets.service';
 import { FinanceModule } from '../finance/finance.module';
 import { CustomerBomIntakeController } from './customer-bom-intake.controller';
 import { CustomerBomIntakeService } from './customer-bom-intake.service';
+import { BidStrategyMeetingsController } from './bid-strategy-meetings.controller';
+import { BidStrategyMeetingsService } from './bid-strategy-meetings.service';
 
 /**
  * Sales pipeline: Customer/Product master data → Lead → Opportunity →
@@ -48,6 +50,7 @@ import { CustomerBomIntakeService } from './customer-bom-intake.service';
     OrdersController,
     ConfirmationSheetsController,
     CustomerBomIntakeController,
+    BidStrategyMeetingsController,
   ],
   providers: [
     SalesAccessService,
@@ -64,6 +67,7 @@ import { CustomerBomIntakeService } from './customer-bom-intake.service';
     OrdersService,
     ConfirmationSheetsService,
     CustomerBomIntakeService,
+    BidStrategyMeetingsService,
   ],
   exports: [
     BidsService,

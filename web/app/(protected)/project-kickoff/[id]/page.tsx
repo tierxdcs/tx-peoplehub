@@ -339,6 +339,30 @@ export default function KickoffDetailPage() {
         />
 
         <SignedConfirmationSheetCard kickoffId={kickoff.id} />
+        {!!kickoff.priorBidStrategyMeetings?.length && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Pre-bid Strategy Context</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-0">
+              <p className="text-sm text-muted-foreground">
+                Read-only context from discussions held before this order was won.
+                It does not affect the Project Kickoff workflow.
+              </p>
+              {kickoff.priorBidStrategyMeetings.map((meeting) => (
+                <div key={meeting.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                  <div>
+                    <strong>{new Date(meeting.meetingDate).toLocaleString()}</strong>
+                    <p className="line-clamp-2 text-muted-foreground">{meeting.notes}</p>
+                  </div>
+                  <Button variant="outline" onClick={() => router.push(`/sales/bids/${meeting.bidId}#strategy-meetings`)}>
+                    View {meeting.bidNumber}
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
         <OverviewSection
           kickoff={kickoff}
           canManage={canManage}

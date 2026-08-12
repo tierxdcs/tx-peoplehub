@@ -966,6 +966,21 @@ export class ProjectKickoffService {
       // The linked order's line items drive the Delivery Classification section.
       order: {
         select: {
+          bid: {
+            select: {
+              id: true,
+              bidNumber: true,
+              strategyMeetings: {
+                orderBy: { meetingDate: 'desc' as const },
+                select: {
+                  id: true,
+                  meetingDate: true,
+                  meetingMode: true,
+                  notes: true,
+                },
+              },
+            },
+          },
           lineItems: {
             orderBy: { createdAt: 'asc' as const },
             include: { product: { select: { name: true, sku: true } } },
@@ -1029,6 +1044,16 @@ export class ProjectKickoffService {
       actionItems: row.actionItems.map((i) => this.toActionItem(i)),
       risks: row.risks.map((r) => this.toRisk(r)),
       deliveryItems: row.order.lineItems.map((li) => this.toDeliveryItem(li)),
+      priorBidStrategyMeetings: row.order.bid
+        ? row.order.bid.strategyMeetings.map((meeting) => ({
+            id: meeting.id,
+            bidId: row.order.bid!.id,
+            bidNumber: row.order.bid!.bidNumber,
+            meetingDate: meeting.meetingDate.toISOString(),
+            meetingMode: meeting.meetingMode,
+            notes: meeting.notes,
+          }))
+        : [],
     });
   }
 
@@ -1193,6 +1218,20 @@ type KickoffRow = Prisma.ProjectKickoffGetPayload<{
     };
     order: {
       select: {
+        bid: {
+          select: {
+            id: true;
+            bidNumber: true;
+            strategyMeetings: {
+              select: {
+                id: true;
+                meetingDate: true;
+                meetingMode: true;
+                notes: true;
+              };
+            };
+          };
+        };
         lineItems: {
           include: { product: { select: { name: true; sku: true } } };
         };

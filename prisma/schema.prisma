@@ -557,12 +557,15 @@ model Employee {
   plmUpdatesReported        PlmProductionUpdate[]   @relation("PlmUpdateInternalReporter")
 
   // Project Kickoff back-relations.
-  projectKickoffsCreated  ProjectKickoff[]      @relation("KickoffCreator")
-  resourcePlansGenerated  ProjectResourcePlan[] @relation("ResourcePlanGeneratedBy")
-  kickoffAttendances      KickoffAttendee[]     @relation("KickoffAttendeeEmployee")
-  kickoffMilestonesOwned  KickoffMilestone[]    @relation("KickoffMilestoneOwner")
-  kickoffActionItemsOwned KickoffActionItem[]   @relation("KickoffActionItemOwner")
-  kickoffRisksOwned       KickoffRisk[]         @relation("KickoffRiskOwner")
+  projectKickoffsCreated     ProjectKickoff[]             @relation("KickoffCreator")
+  resourcePlansGenerated     ProjectResourcePlan[]        @relation("ResourcePlanGeneratedBy")
+  kickoffAttendances         KickoffAttendee[]            @relation("KickoffAttendeeEmployee")
+  bidStrategyMeetingsCreated BidStrategyMeeting[]         @relation("BidStrategyMeetingCreator")
+  bidStrategyAttendances     BidStrategyMeetingAttendee[] @relation("BidStrategyAttendeeEmployee")
+  bidStrategyActionsOwned    BidStrategyActionItem[]      @relation("BidStrategyActionOwner")
+  kickoffMilestonesOwned     KickoffMilestone[]           @relation("KickoffMilestoneOwner")
+  kickoffActionItemsOwned    KickoffActionItem[]          @relation("KickoffActionItemOwner")
+  kickoffRisksOwned          KickoffRisk[]                @relation("KickoffRiskOwner")
 
   // Vendor Qualification (SCM) back-relations.
   vendorsCreated         Vendor[]                    @relation("VendorCreator")
@@ -1290,13 +1293,13 @@ model Opportunity {
 /// discountPercent > 10 routes to the creator's manager for approval before
 /// it can be SENT (same escalation guard as leave approvals).
 model Bid {
-  id                            String         @id @default(uuid())
-  bidNumber                     String         @unique
+  id                            String               @id @default(uuid())
+  bidNumber                     String               @unique
   opportunityId                 String
-  opportunity                   Opportunity    @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  opportunity                   Opportunity          @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
   customerId                    String
-  customer                      Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  status                        BidStatus      @default(DRAFT)
+  customer                      Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  status                        BidStatus            @default(DRAFT)
   validUntil                    DateTime
   tenderReferenceNumber         String?
   /// One-line subject for the Techno Commercial Proposal — used verbatim in
@@ -1308,21 +1311,21 @@ model Bid {
   /// Placeholder for a future file-storage module: metadata only
   /// ([{filename, url}]), no upload infrastructure in this phase.
   attachments                   Json?
-  subtotal                      Decimal        @default(0) @db.Decimal(14, 2)
-  discountPercent               Decimal        @default(0) @db.Decimal(5, 2)
-  discountAmount                Decimal        @default(0) @db.Decimal(14, 2)
+  subtotal                      Decimal              @default(0) @db.Decimal(14, 2)
+  discountPercent               Decimal              @default(0) @db.Decimal(5, 2)
+  discountAmount                Decimal              @default(0) @db.Decimal(14, 2)
   taxType                       SalesTaxType?
-  taxRate                       Decimal?       @db.Decimal(5, 2)
-  taxAmount                     Decimal        @default(0) @db.Decimal(14, 2)
-  totalAmount                   Decimal        @default(0) @db.Decimal(14, 2)
+  taxRate                       Decimal?             @db.Decimal(5, 2)
+  taxAmount                     Decimal              @default(0) @db.Decimal(14, 2)
+  totalAmount                   Decimal              @default(0) @db.Decimal(14, 2)
   createdById                   String
-  createdBy                     Employee       @relation("BidCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy                     Employee             @relation("BidCreator", fields: [createdById], references: [id], onDelete: Restrict)
   enquiryCreatorId              String
-  enquiryCreator                Employee       @relation("BidEnquiryCreator", fields: [enquiryCreatorId], references: [id], onDelete: Restrict)
+  enquiryCreator                Employee             @relation("BidEnquiryCreator", fields: [enquiryCreatorId], references: [id], onDelete: Restrict)
   businessUnitId                String
-  businessUnit                  BusinessUnit   @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  businessUnit                  BusinessUnit         @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
   approverId                    String?
-  approver                      Employee?      @relation("BidApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  approver                      Employee?            @relation("BidApprover", fields: [approverId], references: [id], onDelete: SetNull)
   approvedAt                    DateTime?
   approverComments              String?
   /// Snapshot of the approving manager's e-signature at discount-approval time.
@@ -1331,8 +1334,9 @@ model Bid {
   lineItems                     BidLineItem[]
   amcCharges                    BidAmcCharge[]
   orders                        Order[]
-  createdAt                     DateTime       @default(now())
-  updatedAt                     DateTime       @updatedAt
+  strategyMeetings              BidStrategyMeeting[]
+  createdAt                     DateTime             @default(now())
+  updatedAt                     DateTime             @updatedAt
 
   @@index([opportunityId])
   @@index([customerId])
@@ -1389,6 +1393,60 @@ model BidAmcCharge {
   @@unique([bidId, yearNumber])
   @@index([bidId])
   @@map("bid_amc_charges")
+}
+
+enum BidStrategyActionStatus {
+  OPEN
+  DONE
+}
+
+model BidStrategyMeeting {
+  id          String                       @id @default(uuid())
+  bidId       String
+  bid         Bid                          @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  meetingDate DateTime
+  meetingMode KickoffMeetingMode           @default(VIRTUAL)
+  meetingLink String?
+  notes       String                       @db.Text
+  createdById String
+  createdBy   Employee                     @relation("BidStrategyMeetingCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  attendees   BidStrategyMeetingAttendee[]
+  actionItems BidStrategyActionItem[]
+  createdAt   DateTime                     @default(now())
+
+  @@index([bidId, meetingDate])
+  @@map("bid_strategy_meetings")
+}
+
+model BidStrategyMeetingAttendee {
+  id           String             @id @default(uuid())
+  meetingId    String
+  meeting      BidStrategyMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  employeeId   String?
+  employee     Employee?          @relation("BidStrategyAttendeeEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
+  externalName String?
+  createdAt    DateTime           @default(now())
+
+  @@index([meetingId])
+  @@index([employeeId])
+  @@map("bid_strategy_meeting_attendees")
+}
+
+model BidStrategyActionItem {
+  id          String                  @id @default(uuid())
+  meetingId   String
+  meeting     BidStrategyMeeting      @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  description String                  @db.Text
+  ownerId     String
+  owner       Employee                @relation("BidStrategyActionOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  dueDate     DateTime?
+  status      BidStrategyActionStatus @default(OPEN)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  @@index([meetingId])
+  @@index([ownerId])
+  @@map("bid_strategy_action_items")
 }
 
 model Order {
