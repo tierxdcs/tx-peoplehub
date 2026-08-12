@@ -761,13 +761,9 @@ export class RfqService {
         awardJustification: dto.justification?.trim() || null,
       },
     });
-    // Award is an explicit technical-access revocation event. The winning
-    // partner keeps the invite; every non-winner loses all future resolve and
-    // presigned-download capability immediately, independent of token expiry.
-    await this.prisma.rfqInvitee.updateMany({
-      where: { rfqId: id, id: { not: invitee.id }, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
+    // Do not mutate or hide invite history here. Public token validation uses
+    // the persisted award winner to revoke non-winners' technical access while
+    // retaining every invite and quote for the internal audit trail.
     return { rfq: await this.get(id, user), purchaseOrderId: po.id };
   }
 

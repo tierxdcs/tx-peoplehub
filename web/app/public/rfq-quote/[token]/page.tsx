@@ -8,6 +8,7 @@ import {
   publicSaveRfqQuote,
   publicSubmitRfqQuote,
   publicDeclineRfq,
+  publicRfqTechnicalDownload,
   type PublicRfqView,
   type PublicQuoteLineInput,
 } from '../../../lib/rfq';
@@ -194,6 +195,18 @@ export default function PublicRfqQuotePage() {
     }
   }
 
+  async function downloadTechnicalAttachment(attachmentId: string) {
+    const result = await publicRfqTechnicalDownload(token, {
+      password: pwRef.current,
+      attachmentId,
+    });
+    if (result.ok) {
+      window.open(result.data.url, '_blank', 'noopener,noreferrer');
+    } else {
+      setBanner(result.message);
+    }
+  }
+
   // ── Render states ──────────────────────────────────────────────────
   if (loading) {
     return (
@@ -254,6 +267,12 @@ export default function PublicRfqQuotePage() {
             further changes are needed.
           </p>
         </div>
+        {view && (
+          <TechnicalPackage
+            view={view}
+            onDownload={downloadTechnicalAttachment}
+          />
+        )}
       </Shell>
     );
   }
@@ -335,6 +354,11 @@ export default function PublicRfqQuotePage() {
           <Meta label="Payment Terms Requested" value={rfq.paymentTermsRequested ?? '—'} />
         </div>
       </section>
+
+      <TechnicalPackage
+        view={view}
+        onDownload={downloadTechnicalAttachment}
+      />
 
       {/* Line pricing table */}
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
@@ -501,6 +525,96 @@ export default function PublicRfqQuotePage() {
     </Shell>
   );
 }
+
+function TechnicalPackage({
+  view,
+  onDownload,
+}: {
+  view: PublicRfqView;
+  onDownload: (attachmentId: string) => void;
+}) {
+  const { technical, rfq } = view;
+  return (
+    <section
+      style={{
+        marginBottom: 24,
+        padding: 16,
+        border: '1px solid #d8dee8',
+        borderRadius: 6,
+        background: '#fbfcfe',
+      }}
+    >
+      <h3 style={{ fontSize: 15, margin: '0 0 6px', color: INK }}>
+        BOM & Technical Drawings
+      </h3>
+      <p style={{ fontSize: 12.5, color: '#6b7280', margin: '0 0 14px' }}>
+        BOM quantities are rendered live from the current released revision.
+        Internal cost and pricing data are excluded.
+      </p>
+
+      {technical.attachments.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <strong style={{ fontSize: 13, color: INK }}>Documents</strong>
+          {technical.attachments.map((file) => {
+            const line = rfq.lines.find((item) => item.id === file.rfqLineId);
+            return (
+              <div
+                key={file.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  alignItems: 'center',
+                  padding: '8px 0',
+                  borderBottom: '1px solid #e5e7eb',
+                  fontSize: 13,
+                }}
+              >
+                <span>
+                  <strong>{file.fileName}</strong>
+                  <small style={{ display: 'block', color: '#6b7280' }}>
+                    {line ? `${line.itemCode} - ${line.itemName}` : 'General RFQ document'} · {(file.fileSize / 1024 / 1024).toFixed(1)} MB
+                  </small>
+                </span>
+                <button style={btnSecondary} onClick={() => onDownload(file.id)}>
+                  Download
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {rfq.lines.map((line) => {
+        const bom = technical.lineBoms.find((entry) => entry.rfqLineId === line.id);
+        return (
+          <details key={line.id} style={{ marginTop: 8, borderTop: '1px solid #e5e7eb', paddingTop: 8 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 13.5, fontWeight: 600, color: INK }}>
+              {line.itemCode} - {line.itemName}{' '}
+              <span style={{ fontWeight: 400, color: '#6b7280' }}>
+                {bom?.revisionNumber ? `· Released BOM Rev ${bom.revisionNumber}` : '· No released BOM'}
+              </span>
+            </summary>
+            {bom && bom.components.length > 0 && (
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+                <thead><tr><th style={technicalHead}>Component</th><th style={technicalHead}>Sourcing quantity</th><th style={technicalHead}>Specification</th></tr></thead>
+                <tbody>{bom.components.map((component) => <tr key={component.itemId}><td style={cellStyle}>{component.itemCode} - {component.itemName}</td><td style={cellStyle}>{component.quantity} {component.unitOfMeasure}</td><td style={cellStyle}>{component.specification ?? '—'}</td></tr>)}</tbody>
+              </table>
+            )}
+          </details>
+        );
+      })}
+    </section>
+  );
+}
+
+const technicalHead: React.CSSProperties = {
+  padding: '7px 8px',
+  textAlign: 'left',
+  fontSize: 12,
+  color: '#4b5563',
+  borderBottom: '1px solid #d8dee8',
+};
 
 // ── Layout shell (standalone document look) ──────────────────────────
 function Shell({ children }: { children: React.ReactNode }) {
