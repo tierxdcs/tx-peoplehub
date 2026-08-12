@@ -119,6 +119,16 @@ export class RfqController {
     return this.technical.internalDownload(id, attachmentId, user);
   }
 
+  @Delete(':id/technical-attachments/:attachmentId')
+  @ApiOperation({ summary: 'Delete an RFQ technical attachment and its R2 object' })
+  technicalDelete(
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.technical.remove(id, attachmentId, user);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Edit a DRAFT RFQ (SCM Manager+/SA)' })
   update(

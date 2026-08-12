@@ -16,7 +16,11 @@ describe('RfqTechnicalService', () => {
     prisma = {
       rfq: { findUnique: jest.fn() },
       rfqLine: { findFirst: jest.fn() },
-      rfqAttachment: { create: jest.fn(), findFirst: jest.fn() },
+      rfqAttachment: {
+        create: jest.fn(),
+        findFirst: jest.fn(),
+        delete: jest.fn(),
+      },
       bom: { findMany: jest.fn() },
       item: { findMany: jest.fn() },
     };
@@ -24,6 +28,7 @@ describe('RfqTechnicalService', () => {
       createUploadUrl: jest.fn(),
       createDownloadUrl: jest.fn(),
       headObject: jest.fn(),
+      deleteObjectStrict: jest.fn(),
     };
     access = {
       assertCanReadRfqs: jest.fn(),
@@ -132,5 +137,40 @@ describe('RfqTechnicalService', () => {
       NotFoundException,
     );
     expect(storage.createDownloadUrl).not.toHaveBeenCalled();
+  });
+
+  it('deletes the R2 object before removing attachment metadata', async () => {
+    prisma.rfqAttachment.findFirst.mockResolvedValue({
+      id: 'attachment-1',
+      rfqId: 'rfq-1',
+      fileKey: 'rfqs/rfq-1/technical/object',
+    });
+
+    await service.remove('rfq-1', 'attachment-1', user);
+
+    expect(access.assertCanManageRfqs).toHaveBeenCalledWith(user);
+    expect(storage.deleteObjectStrict).toHaveBeenCalledWith(
+      'rfqs/rfq-1/technical/object',
+    );
+    expect(prisma.rfqAttachment.delete).toHaveBeenCalledWith({
+      where: { id: 'attachment-1' },
+    });
+    expect(storage.deleteObjectStrict.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.rfqAttachment.delete.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('retains metadata when R2 deletion fails so deletion can be retried', async () => {
+    prisma.rfqAttachment.findFirst.mockResolvedValue({
+      id: 'attachment-1',
+      rfqId: 'rfq-1',
+      fileKey: 'rfqs/rfq-1/technical/object',
+    });
+    storage.deleteObjectStrict.mockRejectedValue(new Error('R2 unavailable'));
+
+    await expect(
+      service.remove('rfq-1', 'attachment-1', user),
+    ).rejects.toThrow('R2 unavailable');
+    expect(prisma.rfqAttachment.delete).not.toHaveBeenCalled();
   });
 });

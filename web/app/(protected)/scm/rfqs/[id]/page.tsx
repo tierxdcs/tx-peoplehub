@@ -31,6 +31,7 @@ import {
   rfqTechnicalUploadUrl,
   confirmRfqTechnicalUpload,
   downloadRfqTechnicalAttachment,
+  deleteRfqTechnicalAttachment,
 } from '../../../../lib/rfq';
 import { uploadToPresignedUrl } from '../../../../lib/vault-api';
 import { listSuppliers, type Supplier } from '../../../../lib/scm-supplier';
@@ -164,6 +165,23 @@ export default function RfqDetailPage() {
       window.open(result.url, '_blank', 'noopener,noreferrer');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Download failed');
+    }
+  }
+
+  async function deleteDrawing(attachmentId: string, fileName: string) {
+    const approved = await confirm({
+      title: 'Delete technical attachment?',
+      description: `${fileName} will be permanently removed from this RFQ and file storage.`,
+      confirmLabel: 'Delete attachment',
+      destructive: true,
+    });
+    if (!approved) return;
+    try {
+      await deleteRfqTechnicalAttachment(id, attachmentId);
+      toast.success('Technical attachment deleted');
+      await loadTechnical();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Delete failed');
     }
   }
 
@@ -719,9 +737,20 @@ export default function RfqDetailPage() {
                         {line ? `${line.itemCode} - ${line.itemName}` : 'General RFQ document'} · {(file.fileSize / 1024 / 1024).toFixed(1)} MB
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" onClick={() => downloadDrawing(file.id)}>
-                      <Download className="size-4" /> Download
-                    </Button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => downloadDrawing(file.id)}>
+                        <Download className="size-4" /> Download
+                      </Button>
+                      {canManage && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => void deleteDrawing(file.id, file.fileName)}
+                        >
+                          <Trash2 className="size-4" /> Delete
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 );
               })}

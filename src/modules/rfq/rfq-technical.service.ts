@@ -163,6 +163,20 @@ export class RfqTechnicalService {
     return this.download(rfqId, attachmentId);
   }
 
+  async remove(rfqId: string, attachmentId: string, user: AuthenticatedUser) {
+    await this.access.assertCanManageRfqs(user);
+    const file = await this.prisma.rfqAttachment.findFirst({
+      where: { id: attachmentId, rfqId },
+    });
+    if (!file) throw new NotFoundException('RFQ attachment not found');
+
+    // A successful response guarantees that the private R2 object is gone.
+    // Keep the metadata if storage deletion fails so the operation is visible
+    // and retryable instead of silently leaving an orphaned object.
+    await this.storage.deleteObjectStrict(file.fileKey);
+    await this.prisma.rfqAttachment.delete({ where: { id: attachmentId } });
+  }
+
   async download(rfqId: string, attachmentId: string) {
     const file = await this.prisma.rfqAttachment.findFirst({ where: { id: attachmentId, rfqId } });
     if (!file) throw new NotFoundException('RFQ attachment not found');

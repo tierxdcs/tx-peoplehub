@@ -217,6 +217,11 @@ export function downloadRfqTechnicalAttachment(id: string, attachmentId: string)
     { method: 'POST' },
   );
 }
+export function deleteRfqTechnicalAttachment(id: string, attachmentId: string) {
+  return apiFetch<void>(`/rfqs/${id}/technical-attachments/${attachmentId}`, {
+    method: 'DELETE',
+  });
+}
 export function createRfq(input: CreateRfqInput) {
   return apiFetch<Rfq>('/rfqs', {
     method: 'POST',
