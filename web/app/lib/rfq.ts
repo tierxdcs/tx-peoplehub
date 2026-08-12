@@ -88,6 +88,13 @@ export interface Rfq {
   awardJustification: string | null;
   createdById: string;
   createdByName: string | null;
+  // Project Manager approval gate (before invitee links are generated).
+  pmApproved: boolean;
+  pmApprovedByName: string | null;
+  pmApprovedAt: string | null;
+  pmRejectionComment: string | null;
+  pmApproverName: string | null;
+  canApprove: boolean;
   lines: RfqLine[];
   invitees: RfqInvitee[];
   quotesVisible: boolean;
@@ -277,6 +284,15 @@ export function addInvitee(
 export function removeInvitee(id: string, inviteeId: string) {
   return apiFetch<Rfq>(`/rfqs/${id}/invitees/${inviteeId}`, {
     method: 'DELETE',
+  });
+}
+export function approveRfq(id: string) {
+  return apiFetch<Rfq>(`/rfqs/${id}/approve`, { method: 'POST' });
+}
+export function rejectRfq(id: string, comment: string) {
+  return apiFetch<Rfq>(`/rfqs/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ comment }),
   });
 }
 export function issueRfq(id: string) {

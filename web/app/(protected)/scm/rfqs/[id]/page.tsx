@@ -11,8 +11,10 @@ import {
   Download,
   FileText,
   Plus,
+  ShieldCheck,
   Upload,
   Trash2,
+  X,
 } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
@@ -20,6 +22,8 @@ import {
   getRfq,
   addInvitee,
   removeInvitee,
+  approveRfq,
+  rejectRfq,
   issueRfq,
   closeRfq,
   cancelRfq,
@@ -51,8 +55,16 @@ import {
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Select } from '../../../../components/ui/select';
+import { Textarea } from '../../../../components/ui/textarea';
 import { Field } from '../../../../components/ui/field';
 import { Skeleton } from '../../../../components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../../components/ui/dialog';
 import { StatusBadge } from '../../../../components/ui/status-badge';
 import { ProcessFlow } from '../../../../components/ui/process-flow';
 import { rfqFlow } from '../../../../lib/record-flows';
@@ -100,6 +112,7 @@ export default function RfqDetailPage() {
   const [invitePassword, setInvitePassword] = useState('');
   const [inlineWarning, setInlineWarning] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [rejectOpen, setRejectOpen] = useState(false);
 
   const canManage =
     user?.role === 'SUPER_ADMIN' ||
@@ -333,6 +346,45 @@ export default function RfqDetailPage() {
     }
   }
 
+  async function handleApprove() {
+    if (!rfq) return;
+    if (
+      !(await confirm({
+        title: 'Approve RFQ',
+        description: `Approve ${rfq.rfqNumber}? SCM can then generate the invitee quote links and issue the RFQ.`,
+        confirmLabel: 'Approve',
+      }))
+    )
+      return;
+    setActing(true);
+    try {
+      setRfq(await approveRfq(rfq.id));
+      toast.success('RFQ approved');
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to approve RFQ',
+      );
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function handleReject(comment: string) {
+    if (!rfq) return;
+    setActing(true);
+    try {
+      setRfq(await rejectRfq(rfq.id, comment));
+      setRejectOpen(false);
+      toast.success('RFQ rejected — returned to SCM for revision');
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to reject RFQ',
+      );
+    } finally {
+      setActing(false);
+    }
+  }
+
   async function handleClose() {
     if (!rfq) return;
     if (
@@ -445,14 +497,34 @@ export default function RfqDetailPage() {
           <p className="mt-1 text-sm text-muted-foreground">{rfq.title}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {rfq.canApprove && isDraft && (
+            <>
+              <Button
+                variant="outline"
+                onClick={handleApprove}
+                disabled={acting}
+              >
+                <ShieldCheck className="size-4" /> Approve
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => setRejectOpen(true)}
+                disabled={acting}
+              >
+                <X className="size-4" /> Reject
+              </Button>
+            </>
+          )}
           {canManage && isDraft && (
             <Button
               onClick={handleIssue}
-              disabled={acting || !enoughInvitees}
+              disabled={acting || !enoughInvitees || !rfq.pmApproved}
               title={
-                enoughInvitees
-                  ? undefined
-                  : `Add at least ${MIN_INVITEES} invitees to issue`
+                !rfq.pmApproved
+                  ? `Awaiting approval from ${rfq.pmApproverName ?? 'the Project Manager'}`
+                  : !enoughInvitees
+                    ? `Add at least ${MIN_INVITEES} invitees to issue`
+                    : undefined
               }
             >
               Issue RFQ
@@ -486,6 +558,45 @@ export default function RfqDetailPage() {
         className="mb-6"
         {...rfqFlow(rfq.status)}
       />
+
+      {/* PM approval gate — invitee links can't be generated until approved. */}
+      {isDraft &&
+        (rfq.pmApproved ? (
+          <div className="mb-6 flex items-start gap-2 rounded-md border border-success/40 bg-success/10 p-3 text-sm">
+            <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" />
+            <p>
+              Approved by{' '}
+              <span className="font-medium">
+                {rfq.pmApprovedByName ?? 'the Project Manager'}
+              </span>
+              {rfq.pmApprovedAt && <> on {dateOnlyStr(rfq.pmApprovedAt)}</>}. SCM
+              can now generate the invitee links and issue the RFQ.
+            </p>
+          </div>
+        ) : rfq.pmRejectionComment ? (
+          <div className="mb-6 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <div>
+              <p className="font-medium">
+                Rejected by the Project Manager — revise and resubmit for
+                approval.
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                {rfq.pmRejectionComment}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-6 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+            <p>
+              Awaiting Project Manager approval
+              {rfq.pmApproverName ? <> from {rfq.pmApproverName}</> : null}.
+              Invitee quote links cannot be generated until this RFQ is
+              approved.
+            </p>
+          </div>
+        ))}
 
       {rfq.description && (
         <Card className="mb-6">
@@ -1014,7 +1125,79 @@ export default function RfqDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <RejectRfqDialog
+        open={rejectOpen}
+        rfqNumber={rfq.rfqNumber}
+        submitting={acting}
+        onClose={() => setRejectOpen(false)}
+        onReject={handleReject}
+      />
     </PageContainer>
+  );
+}
+
+/** Reject dialog — a comment is required (mirrors the server rule). */
+function RejectRfqDialog({
+  open,
+  rfqNumber,
+  submitting,
+  onClose,
+  onReject,
+}: {
+  open: boolean;
+  rfqNumber: string;
+  submitting: boolean;
+  onClose: () => void;
+  onReject: (comment: string) => void;
+}) {
+  const [comment, setComment] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  function submit() {
+    if (!comment.trim()) {
+      setError('A rejection comment is required.');
+      return;
+    }
+    onReject(comment.trim());
+  }
+
+  if (!open) return null;
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Reject {rfqNumber}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Rejecting returns this RFQ to SCM as an editable draft. The comment
+            below is shown to them so they can revise and resubmit for approval.
+          </p>
+          <Field label="Reason (required)" htmlFor="rfq-reject-reason">
+            <Textarea
+              id="rfq-reject-reason"
+              value={comment}
+              onChange={(e) => {
+                setComment(e.target.value);
+                setError(null);
+              }}
+              rows={3}
+              placeholder="Explain what needs to change before this RFQ can be approved…"
+            />
+          </Field>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={submit} disabled={submitting}>
+            {submitting ? 'Rejecting…' : 'Reject RFQ'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -36,7 +36,12 @@
       "Bash(echo \"DB_EXECUTE_EXIT: $?\")",
       "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma migrate resolve --applied 20260911120000_rfq_excluded_order_lines)",
       "Bash(echo \"RESOLVE_EXIT: $?\")",
-      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx jest rfq)"
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx jest rfq)",
+      "Bash(grep -iA0 \"approv\\\\|reject\")",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma migrate status)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma db execute --file prisma/migrations/20260912120000_rfq_pm_approval/migration.sql --schema prisma/schema.prisma)",
+      "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma migrate resolve --applied 20260912120000_rfq_pm_approval)",
+      "Bash(echo \"NEST_EXIT=$?\")"
     ]
   }
 }

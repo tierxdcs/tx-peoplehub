@@ -72,6 +72,18 @@ export class RfqEntity {
   @ApiProperty() createdById!: string;
   @ApiProperty({ nullable: true }) createdByName!: string | null;
 
+  // ── Project Manager approval gate (before invitee links are generated) ──
+  /** True once a PM (or SUPER_ADMIN) has approved — the issue gate is cleared. */
+  @ApiProperty() pmApproved!: boolean;
+  @ApiProperty({ nullable: true }) pmApprovedByName!: string | null;
+  @ApiProperty({ nullable: true }) pmApprovedAt!: string | null;
+  /** Present after a rejection; cleared on the next approval. */
+  @ApiProperty({ nullable: true }) pmRejectionComment!: string | null;
+  /** Designated Project Manager(s) whose approval the RFQ awaits (for the UI message). */
+  @ApiProperty({ nullable: true }) pmApproverName!: string | null;
+  /** True when the CURRENT viewer may approve/reject this RFQ right now. */
+  @ApiProperty() canApprove!: boolean;
+
   @ApiProperty({ type: [RfqLineEntity] }) lines!: RfqLineEntity[];
   @ApiProperty({ type: [RfqInviteeEntity] }) invitees!: RfqInviteeEntity[];
 

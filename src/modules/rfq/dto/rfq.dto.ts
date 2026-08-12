@@ -80,6 +80,15 @@ export class UpdateRfqDto {
   excludedOrderLineIds?: string[];
 }
 
+/** Reject an RFQ's PM approval. A comment is required (mirrors every other
+ * rejection gate in the system, e.g. BOM/expense-claims). */
+export class RejectRfqDto {
+  @ApiProperty({ description: 'Required non-empty rejection comment' })
+  @IsString()
+  @MinLength(1)
+  comment!: string;
+}
+
 /** Add one invitee (a supplier XOR a vendor) to a DRAFT RFQ. */
 export class AddInviteeDto {
   @ApiPropertyOptional() @IsOptional() @IsString() supplierId?: string;

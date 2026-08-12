@@ -23,6 +23,7 @@ import {
   AwardRfqDto,
   ComparisonWeightsDto,
   CreateRfqDto,
+  RejectRfqDto,
   UpdateRfqDto,
   RfqAttachmentConfirmDto,
   RfqAttachmentUploadUrlDto,
@@ -179,9 +180,32 @@ export class RfqController {
     return this.service.removeInvitee(id, inviteeId, user);
   }
 
+  @Post(':id/approve')
+  @ApiOperation({
+    summary:
+      'Approve a DRAFT RFQ (assigned PM/SA; never its own creator). Clears the issue gate.',
+  })
+  approve(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.approve(id, user);
+  }
+
+  @Post(':id/reject')
+  @ApiOperation({
+    summary:
+      'Reject a DRAFT RFQ with a required comment (returns it to editable state)',
+  })
+  reject(
+    @Param('id') id: string,
+    @Body() dto: RejectRfqDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.reject(id, dto.comment, user);
+  }
+
   @Post(':id/issue')
   @ApiOperation({
-    summary: 'Issue the RFQ (requires ≥3 invitees; generates tokens)',
+    summary:
+      'Issue the RFQ (requires PM approval + ≥3 invitees; generates tokens)',
   })
   issue(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.issue(id, user);

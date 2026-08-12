@@ -79,6 +79,7 @@ const RFQ_INCLUDE = {
   },
   createdBy: { select: { firstName: true, lastName: true } },
   awardDecisionBy: { select: { firstName: true, lastName: true } },
+  pmApprovedBy: { select: { firstName: true, lastName: true } },
   lines: {
     orderBy: { sequence: 'asc' as const },
     include: { item: { select: { itemCode: true, name: true } } },
@@ -93,6 +94,20 @@ const RFQ_INCLUDE = {
 } satisfies Prisma.RfqInclude;
 
 type RfqWithRelations = Prisma.RfqGetPayload<{ include: typeof RFQ_INCLUDE }>;
+
+/**
+ * Per-request PM-approval context, computed once (not per RFQ) so list/detail
+ * reads don't fan out into N queries. `AuthenticatedUser` carries no PM flag, so
+ * approval eligibility must be resolved server-side and folded into each entity.
+ */
+type ApprovalContext = {
+  /** Viewer is SUPER_ADMIN → universal approval override. */
+  isSuperAdmin: boolean;
+  /** Viewer holds the Project Manager designation (Employee.isProjectManager). */
+  isProjectManager: boolean;
+  /** Designated PM name(s) shown in the "awaiting approval from …" message. */
+  pmApproverName: string | null;
+};
 
 /**
  * RFQ Builder. Sealed-bid: quote values are only ever returned once the RFQ is
@@ -185,12 +200,39 @@ export class RfqService {
       include: RFQ_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map((r) => this.toEntity(r, user));
+    const ctx = await this.approvalContext(user);
+    return rows.map((r) => this.toEntity(r, user, ctx));
   }
 
   async get(id: string, user: AuthenticatedUser): Promise<RfqEntity> {
     await this.access.assertCanReadRfqs(user);
-    return this.toEntity(await this.findOrThrow(id), user);
+    const rfq = await this.findOrThrow(id);
+    return this.toEntity(rfq, user, await this.approvalContext(user));
+  }
+
+  /**
+   * Resolve the current viewer's PM-approval standing once per request. Krishna
+   * VR currently holds the Project Manager designation; approval is gated to any
+   * `Employee.isProjectManager` holder (or SUPER_ADMIN), matching the award gate.
+   */
+  private async approvalContext(
+    user: AuthenticatedUser,
+  ): Promise<ApprovalContext> {
+    const isSuperAdmin = this.access.isSuperAdmin(user);
+    const isProjectManager = await this.access.isProjectManager(user);
+    const pms = await this.prisma.employee.findMany({
+      where: { isProjectManager: true },
+      select: { firstName: true, lastName: true },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+    });
+    const names = pms
+      .map((p) => `${p.firstName} ${p.lastName}`.trim())
+      .filter(Boolean);
+    return {
+      isSuperAdmin,
+      isProjectManager,
+      pmApproverName: names.length ? names.join(', ') : null,
+    };
   }
 
   /** Projects available for order-linked RFQ creation, with authoritative order context. */
@@ -477,7 +519,16 @@ export class RfqService {
           ? { paymentTermsRequested: dto.paymentTermsRequested }
           : {}),
         ...(excludedOrderLineIds !== undefined ? { excludedOrderLineIds } : {}),
-        ...(lineData ? { lines: { deleteMany: {}, create: lineData } } : {}),
+        // Editing the line set (including auto-populate from BOM) invalidates any
+        // prior PM approval — the approver signed off on a different scope, so
+        // clear it and require re-approval before the RFQ can be issued.
+        ...(lineData
+          ? {
+              lines: { deleteMany: {}, create: lineData },
+              pmApprovedById: null,
+              pmApprovedAt: null,
+            }
+          : {}),
       },
     });
     return this.get(id, user);
@@ -592,6 +643,62 @@ export class RfqService {
     return this.get(id, user);
   }
 
+  // ── PM approval (gates issuing / invitee-link generation) ────────────
+  /**
+   * Approve a DRAFT RFQ so its invitee links can be generated. Gated to a
+   * Project Manager (Employee.isProjectManager) or SUPER_ADMIN; the RFQ's own
+   * creator can never self-approve (assertCanApprove enforces the fallback to
+   * SUPER_ADMIN). Approving clears any prior rejection comment.
+   */
+  async approve(id: string, user: AuthenticatedUser): Promise<RfqEntity> {
+    const rfq = await this.prisma.rfq.findUnique({ where: { id } });
+    if (!rfq) throw new NotFoundException('RFQ not found');
+    if (rfq.status !== RfqStatus.DRAFT) {
+      throw new BadRequestException('Only a DRAFT RFQ can be approved');
+    }
+    await this.access.assertCanApprove(user, rfq.createdById);
+    await this.prisma.rfq.update({
+      where: { id },
+      data: {
+        pmApprovedById: user.id,
+        pmApprovedAt: new Date(),
+        pmRejectionComment: null,
+      },
+    });
+    return this.get(id, user);
+  }
+
+  /**
+   * Reject a DRAFT RFQ's approval with a required comment. Rejection returns the
+   * RFQ to its editable draft state (clears any prior approval) so SCM can revise
+   * and resubmit; the comment is retained for the SCM creator to see.
+   */
+  async reject(
+    id: string,
+    comment: string,
+    user: AuthenticatedUser,
+  ): Promise<RfqEntity> {
+    const trimmed = comment?.trim();
+    if (!trimmed) {
+      throw new BadRequestException('A rejection comment is required');
+    }
+    const rfq = await this.prisma.rfq.findUnique({ where: { id } });
+    if (!rfq) throw new NotFoundException('RFQ not found');
+    if (rfq.status !== RfqStatus.DRAFT) {
+      throw new BadRequestException('Only a DRAFT RFQ can be rejected');
+    }
+    await this.access.assertCanApprove(user, rfq.createdById);
+    await this.prisma.rfq.update({
+      where: { id },
+      data: {
+        pmApprovedById: null,
+        pmApprovedAt: null,
+        pmRejectionComment: trimmed,
+      },
+    });
+    return this.get(id, user);
+  }
+
   // ── Issue (≥3 invitees, generate tokens) ─────────────────────────────
   async issue(id: string, user: AuthenticatedUser): Promise<RfqEntity> {
     await this.access.assertCanManageRfqs(user);
@@ -616,6 +723,12 @@ export class RfqService {
     if (new Date(rfq.submissionDeadline) <= new Date()) {
       throw new BadRequestException(
         'The submission deadline must be in the future',
+      );
+    }
+    // THE GATE: invitee links are generated here. Block until a PM has approved.
+    if (!rfq.pmApprovedAt) {
+      throw new BadRequestException(
+        'This RFQ is awaiting Project Manager approval before invitee links can be generated',
       );
     }
 
@@ -940,10 +1053,20 @@ export class RfqService {
     }));
   }
 
-  private toEntity(rfq: RfqWithRelations, user: AuthenticatedUser): RfqEntity {
-    void user;
+  private toEntity(
+    rfq: RfqWithRelations,
+    user: AuthenticatedUser,
+    ctx: ApprovalContext,
+  ): RfqEntity {
     const canSeeToken =
       rfq.status === RfqStatus.ISSUED || rfq.status === RfqStatus.CLOSED;
+    // The Approve/Reject action is only meaningful while DRAFT (pre-issue).
+    // SUPER_ADMIN always qualifies; a PM designation-holder qualifies unless
+    // they are the RFQ's own creator (no self-approval → falls back to SA).
+    const canApprove =
+      rfq.status === RfqStatus.DRAFT &&
+      (ctx.isSuperAdmin ||
+        (ctx.isProjectManager && rfq.createdById !== user.id));
     return new RfqEntity({
       id: rfq.id,
       rfqNumber: rfq.rfqNumber,
@@ -991,6 +1114,14 @@ export class RfqService {
       createdByName: rfq.createdBy
         ? `${rfq.createdBy.firstName} ${rfq.createdBy.lastName}`.trim()
         : null,
+      pmApproved: !!rfq.pmApprovedAt,
+      pmApprovedByName: rfq.pmApprovedBy
+        ? `${rfq.pmApprovedBy.firstName} ${rfq.pmApprovedBy.lastName}`.trim()
+        : null,
+      pmApprovedAt: rfq.pmApprovedAt ? rfq.pmApprovedAt.toISOString() : null,
+      pmRejectionComment: rfq.pmRejectionComment,
+      pmApproverName: ctx.pmApproverName,
+      canApprove,
       lines: rfq.lines.map(
         (l) =>
           new RfqLineEntity({
