@@ -7,10 +7,7 @@ import { BomStatus, KickoffStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ItemCostService } from '../bom/item-cost.service';
-import {
-  ExplodableBom,
-  explodeBom,
-} from '../bom/bom-explosion';
+import { ExplodableBom, explodeProcurementBom } from '../bom/bom-explosion';
 import { round } from '../bom/stock-calc';
 import { ScmResourcePlanAccessService } from './scm-resource-plan-access.service';
 import { UpdateResourcePlanLineDto } from './dto/scm-resource-plan.dto';
@@ -111,7 +108,7 @@ export class ScmResourcePlanService {
       if (!releasedByItem.get(topItemId)) continue; // no released BOM
       anyBom = true;
 
-      const leaves = explodeBom(
+      const leaves = explodeProcurementBom(
         topItemId,
         (itemId) => releasedByItem.get(itemId) ?? null,
       );
@@ -454,7 +451,8 @@ export class ScmResourcePlanService {
       benchmarkLineTotal: benchmarkLineTotal.toString(),
       negotiatedLineTotal:
         negotiatedLineTotal !== null ? negotiatedLineTotal.toString() : null,
-      varianceAmount: varianceAmount !== null ? varianceAmount.toString() : null,
+      varianceAmount:
+        varianceAmount !== null ? varianceAmount.toString() : null,
       variancePercent:
         variancePercent !== null ? variancePercent.toString() : null,
     });
@@ -499,16 +497,15 @@ export class ScmResourcePlanService {
       totalNegotiated.minus(totalBenchmark),
     );
     const variancePercent = totalBenchmark.greaterThan(0)
-      ? this.roundPercent(
-          varianceAmount.dividedBy(totalBenchmark).times(100),
-        )
+      ? this.roundPercent(varianceAmount.dividedBy(totalBenchmark).times(100))
       : null;
 
     return new ResourcePlanSummaryEntity({
       totalBenchmarkCost: totalBenchmark.toString(),
       totalNegotiatedCost: totalNegotiated.toString(),
       varianceAmount: varianceAmount.toString(),
-      variancePercent: variancePercent !== null ? variancePercent.toString() : null,
+      variancePercent:
+        variancePercent !== null ? variancePercent.toString() : null,
       lineCount: lines.length,
       negotiatedLineCount,
     });
@@ -531,6 +528,7 @@ export class ScmResourcePlanService {
             quantityPerUnit: true,
             wastagePercent: true,
             unitOfMeasure: true,
+            makeBuy: true,
           },
         },
       },

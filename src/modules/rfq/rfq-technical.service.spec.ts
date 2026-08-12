@@ -133,9 +133,9 @@ describe('RfqTechnicalService', () => {
   it('only signs downloads for attachments belonging to the requested RFQ', async () => {
     prisma.rfqAttachment.findFirst.mockResolvedValue(null);
 
-    await expect(service.download('rfq-1', 'attachment-2')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.download('rfq-1', 'attachment-2'),
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(storage.createDownloadUrl).not.toHaveBeenCalled();
   });
 
@@ -168,9 +168,9 @@ describe('RfqTechnicalService', () => {
     });
     storage.deleteObjectStrict.mockRejectedValue(new Error('R2 unavailable'));
 
-    await expect(
-      service.remove('rfq-1', 'attachment-1', user),
-    ).rejects.toThrow('R2 unavailable');
+    await expect(service.remove('rfq-1', 'attachment-1', user)).rejects.toThrow(
+      'R2 unavailable',
+    );
     expect(prisma.rfqAttachment.delete).not.toHaveBeenCalled();
   });
 });

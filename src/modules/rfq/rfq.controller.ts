@@ -61,6 +61,22 @@ export class RfqController {
     return this.service.projectOptions(user);
   }
 
+  @Get('project-options/:projectKickoffId/sourcing-lines')
+  @ApiOperation({
+    summary: 'Exploded BUY requirements for an order-linked RFQ',
+  })
+  sourcingLines(
+    @Param('projectKickoffId') projectKickoffId: string,
+    @Query('excludedOrderLineIds') excludedOrderLineIds: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.sourcingLines(
+      projectKickoffId,
+      excludedOrderLineIds?.split(',').filter(Boolean) ?? [],
+      user,
+    );
+  }
+
   @Post()
   @ApiOperation({ summary: 'Create a DRAFT RFQ (SCM Manager+/SA)' })
   create(@Body() dto: CreateRfqDto, @CurrentUser() user: AuthenticatedUser) {
@@ -120,7 +136,9 @@ export class RfqController {
   }
 
   @Delete(':id/technical-attachments/:attachmentId')
-  @ApiOperation({ summary: 'Delete an RFQ technical attachment and its R2 object' })
+  @ApiOperation({
+    summary: 'Delete an RFQ technical attachment and its R2 object',
+  })
   technicalDelete(
     @Param('id') id: string,
     @Param('attachmentId') attachmentId: string,

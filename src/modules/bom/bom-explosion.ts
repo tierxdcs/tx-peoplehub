@@ -42,6 +42,78 @@ export interface ExplodableLine {
   quantityPerUnit: Prisma.Decimal;
   wastagePercent: Prisma.Decimal;
   unitOfMeasure: string;
+  /** Optional for legacy/general explosions; required by procurement explosion. */
+  makeBuy?: 'MAKE' | 'BUY';
+}
+
+/**
+ * Procurement-specific multi-level explosion. BUY is an explicit sourcing
+ * boundary even when that child item happens to have its own released BOM.
+ * MAKE is never sourced itself; it is expanded through its released BOM.
+ */
+export function explodeProcurementBom(
+  topItemId: string,
+  getReleasedBom: (itemId: string) => ExplodableBom | null,
+): ExplodedLeaf[] {
+  const leaves: ExplodedLeaf[] = [];
+
+  const walk = (
+    itemId: string,
+    grossMultiplier: Prisma.Decimal,
+    baseMultiplier: Prisma.Decimal,
+    ancestors: string[],
+    trail: string[],
+  ): void => {
+    if (ancestors.includes(itemId)) {
+      throw new BomCycleError([...ancestors, itemId]);
+    }
+    if (ancestors.length >= MAX_EXPLOSION_DEPTH) {
+      throw new BomDepthError([...ancestors, itemId]);
+    }
+    const bom = getReleasedBom(itemId);
+    if (!bom || bom.lines.length === 0) return;
+
+    const nextAncestors = [...ancestors, itemId];
+    for (const line of bom.lines) {
+      const wastageFactor = new Prisma.Decimal(1).plus(
+        line.wastagePercent.dividedBy(100),
+      );
+      const childGross = round(
+        grossMultiplier.times(line.quantityPerUnit).times(wastageFactor),
+      );
+      const childBase = round(baseMultiplier.times(line.quantityPerUnit));
+      const childTrail = [...trail, `${bom.revisionNumber}`];
+
+      // Persisted BOM lines always carry makeBuy. The fallback preserves the
+      // legacy implicit behavior for older fixtures/snapshots.
+      const source =
+        line.makeBuy ??
+        (getReleasedBom(line.itemId)?.lines.length ? 'MAKE' : 'BUY');
+      if (source === 'MAKE') {
+        // A MAKE component is deliberately never surfaced for procurement.
+        // If its released BOM is missing there is nothing safe to source.
+        walk(line.itemId, childGross, childBase, nextAncestors, childTrail);
+      } else {
+        leaves.push({
+          itemId: line.itemId,
+          unitOfMeasure: line.unitOfMeasure,
+          quantityPerTopUnit: childGross,
+          basePerTopUnit: childBase,
+          sourceTrail: childTrail,
+        });
+      }
+    }
+  };
+
+  const one = new Prisma.Decimal(1);
+  walk(
+    topItemId,
+    one,
+    one,
+    [],
+    [`${getReleasedBom(topItemId)?.revisionNumber ?? 0}`],
+  );
+  return leaves;
 }
 
 /** The released BOM for an item (only the fields explosion needs). */

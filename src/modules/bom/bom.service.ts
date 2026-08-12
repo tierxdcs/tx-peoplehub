@@ -32,6 +32,7 @@ import {
   BomDepthError,
   ExplodableBom,
   explodeBom,
+  explodeProcurementBom,
 } from './bom-explosion';
 import { rollUpExplodedCost } from './bom-cost';
 import { ItemCostService } from './item-cost.service';
@@ -540,6 +541,7 @@ export class BomService {
             quantityPerUnit: true,
             wastagePercent: true,
             unitOfMeasure: true,
+            makeBuy: true,
           },
         },
       },
@@ -595,7 +597,7 @@ export class BomService {
         lines: row.lines,
       });
     }
-    const leaves = explodeBom(
+    const leaves = explodeProcurementBom(
       topItemId,
       (itemId) => byItem.get(itemId) ?? null,
     );

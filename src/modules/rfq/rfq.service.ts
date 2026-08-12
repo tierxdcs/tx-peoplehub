@@ -3,12 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, RfqQuoteStatus, RfqStatus } from '@prisma/client';
+import { BomStatus, Prisma, RfqQuoteStatus, RfqStatus } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { SalesNumberingService } from '../sales/common/sales-numbering.service';
 import { PurchaseOrderService } from '../scm-purchasing/purchase-order.service';
 import { StockReportService } from '../bom/stock-report.service';
+import { ExplodableBom, explodeProcurementBom } from '../bom/bom-explosion';
+import { round } from '../bom/stock-calc';
 import {
   generateInviteToken,
   hashInvitePassword,
@@ -242,6 +244,113 @@ export class RfqService {
         lineTotal: line.lineTotal.toString(),
       })),
     }));
+  }
+
+  /**
+   * Live RFQ starting scope for an order. BUY lines are surfaced; MAKE lines
+   * recurse through their released BOM. Results aggregate across every included
+   * order line and are never persisted until SCM submits the editable form.
+   */
+  async sourcingLines(
+    projectKickoffId: string,
+    excludedOrderLineIds: string[],
+    user: AuthenticatedUser,
+  ) {
+    await this.access.assertCanReadRfqs(user);
+    const excluded = await this.resolveExcludedOrderLineIds(
+      projectKickoffId,
+      excludedOrderLineIds,
+    );
+    const excludedSet = new Set(excluded);
+    const kickoff = await this.prisma.projectKickoff.findUnique({
+      where: { id: projectKickoffId },
+      select: {
+        order: {
+          select: {
+            lineItems: {
+              orderBy: { createdAt: 'asc' },
+              select: {
+                id: true,
+                quantity: true,
+                product: { select: { itemId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!kickoff) throw new NotFoundException('Project kickoff not found');
+
+    const released = await this.prisma.bom.findMany({
+      where: { status: BomStatus.RELEASED },
+      orderBy: { revisionNumber: 'desc' },
+      select: {
+        itemId: true,
+        revisionNumber: true,
+        lines: {
+          select: {
+            itemId: true,
+            quantityPerUnit: true,
+            wastagePercent: true,
+            unitOfMeasure: true,
+            makeBuy: true,
+          },
+        },
+      },
+    });
+    const releasedByItem = new Map<string, ExplodableBom>();
+    for (const bom of released) {
+      if (!releasedByItem.has(bom.itemId)) releasedByItem.set(bom.itemId, bom);
+    }
+
+    const aggregate = new Map<
+      string,
+      { itemId: string; quantity: Prisma.Decimal; unitOfMeasure: string }
+    >();
+    for (const orderLine of kickoff.order.lineItems) {
+      if (excludedSet.has(orderLine.id) || !orderLine.product.itemId) continue;
+      if (!releasedByItem.has(orderLine.product.itemId)) continue;
+      const leaves = explodeProcurementBom(
+        orderLine.product.itemId,
+        (itemId) => releasedByItem.get(itemId) ?? null,
+      );
+      for (const leaf of leaves) {
+        const required = round(
+          leaf.quantityPerTopUnit.times(orderLine.quantity),
+        );
+        const current = aggregate.get(leaf.itemId);
+        if (current) current.quantity = round(current.quantity.plus(required));
+        else {
+          aggregate.set(leaf.itemId, {
+            itemId: leaf.itemId,
+            quantity: required,
+            unitOfMeasure: leaf.unitOfMeasure,
+          });
+        }
+      }
+    }
+
+    const items = await this.prisma.item.findMany({
+      where: { id: { in: [...aggregate.keys()] }, isActive: true },
+      select: {
+        id: true,
+        itemCode: true,
+        name: true,
+        baseUnitOfMeasure: true,
+      },
+    });
+    const meta = new Map(items.map((item) => [item.id, item]));
+    return [...aggregate.values()]
+      .filter((line) => meta.has(line.itemId))
+      .map((line) => ({
+        itemId: line.itemId,
+        itemCode: meta.get(line.itemId)!.itemCode,
+        itemName: meta.get(line.itemId)!.name,
+        requiredQuantity: line.quantity.toString(),
+        unitOfMeasure:
+          line.unitOfMeasure || meta.get(line.itemId)!.baseUnitOfMeasure,
+      }))
+      .sort((a, b) => a.itemCode.localeCompare(b.itemCode));
   }
 
   // ── Create / edit ────────────────────────────────────────────────────

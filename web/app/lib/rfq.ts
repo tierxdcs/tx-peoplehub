@@ -117,6 +117,14 @@ export interface RfqProjectOption {
   lines: RfqOrderLine[];
 }
 
+export interface RfqSourcingLine {
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  requiredQuantity: string;
+  unitOfMeasure: string;
+}
+
 export interface RfqLineInput {
   itemId: string;
   quantity: number;
@@ -187,6 +195,17 @@ export function listRfqs(opts: { status?: RfqStatus } = {}) {
 export function listRfqProjectOptions() {
   return apiFetch<RfqProjectOption[]>('/rfqs/project-options');
 }
+export function getRfqSourcingLines(
+  projectKickoffId: string,
+  excludedOrderLineIds: string[] = [],
+) {
+  const query = excludedOrderLineIds.length
+    ? `?excludedOrderLineIds=${encodeURIComponent(excludedOrderLineIds.join(','))}`
+    : '';
+  return apiFetch<RfqSourcingLine[]>(
+    `/rfqs/project-options/${projectKickoffId}/sourcing-lines${query}`,
+  );
+}
 export function getRfq(id: string) {
   return apiFetch<Rfq>(`/rfqs/${id}`);
 }
@@ -195,12 +214,21 @@ export function getRfqTechnicalDocuments(id: string) {
 }
 export function rfqTechnicalUploadUrl(
   id: string,
-  input: { fileName: string; mimeType: string; fileSize: number; rfqLineId?: string },
+  input: {
+    fileName: string;
+    mimeType: string;
+    fileSize: number;
+    rfqLineId?: string;
+  },
 ) {
-  return apiFetch<{ fileKey: string; uploadUrl: string; expiresInSeconds: number }>(
-    `/rfqs/${id}/technical-attachments/upload-url`,
-    { method: 'POST', body: JSON.stringify(input) },
-  );
+  return apiFetch<{
+    fileKey: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+  }>(`/rfqs/${id}/technical-attachments/upload-url`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 export function confirmRfqTechnicalUpload(
   id: string,
@@ -211,7 +239,10 @@ export function confirmRfqTechnicalUpload(
     body: JSON.stringify(input),
   });
 }
-export function downloadRfqTechnicalAttachment(id: string, attachmentId: string) {
+export function downloadRfqTechnicalAttachment(
+  id: string,
+  attachmentId: string,
+) {
   return apiFetch<{ url: string; expiresInSeconds: number; fileName: string }>(
     `/rfqs/${id}/technical-attachments/${attachmentId}/download`,
     { method: 'POST' },

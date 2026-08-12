@@ -153,7 +153,9 @@ export default function RfqDetailPage() {
       toast.success('Technical drawing attached');
       await loadTechnical();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Drawing upload failed');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Drawing upload failed',
+      );
     } finally {
       setUploadingDrawing(false);
     }
@@ -689,7 +691,8 @@ export default function RfqDetailPage() {
         <CardContent className="space-y-5">
           <p className="text-sm text-muted-foreground">
             BOMs are rendered live from the current released revision. Internal
-            costs are never included. Drawing uploads support files up to 500 MB.
+            costs are never included. Drawing uploads support files up to 500
+            MB.
           </p>
           {canManage && (
             <div className="flex flex-wrap items-end gap-2 rounded-md border p-3">
@@ -728,24 +731,41 @@ export default function RfqDetailPage() {
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">Attachments</h3>
               {technical?.attachments.map((file) => {
-                const line = rfq.lines.find((item) => item.id === file.rfqLineId);
+                const line = rfq.lines.find(
+                  (item) => item.id === file.rfqLineId,
+                );
                 return (
-                  <div key={file.id} className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                  <div
+                    key={file.id}
+                    className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
+                  >
                     <div className="min-w-0">
-                      <p className="truncate font-medium"><FileText className="mr-1 inline size-4" />{file.fileName}</p>
+                      <p className="truncate font-medium">
+                        <FileText className="mr-1 inline size-4" />
+                        {file.fileName}
+                      </p>
                       <p className="text-xs text-muted-foreground">
-                        {line ? `${line.itemCode} - ${line.itemName}` : 'General RFQ document'} · {(file.fileSize / 1024 / 1024).toFixed(1)} MB
+                        {line
+                          ? `${line.itemCode} - ${line.itemName}`
+                          : 'General RFQ document'}{' '}
+                        · {(file.fileSize / 1024 / 1024).toFixed(1)} MB
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => downloadDrawing(file.id)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => downloadDrawing(file.id)}
+                      >
                         <Download className="size-4" /> Download
                       </Button>
                       {canManage && (
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => void deleteDrawing(file.id, file.fileName)}
+                          onClick={() =>
+                            void deleteDrawing(file.id, file.fileName)
+                          }
                         >
                           <Trash2 className="size-4" /> Delete
                         </Button>
@@ -759,19 +779,45 @@ export default function RfqDetailPage() {
 
           <div className="space-y-3">
             {rfq.lines.map((line) => {
-              const bom = technical?.lineBoms.find((item) => item.rfqLineId === line.id);
+              const bom = technical?.lineBoms.find(
+                (item) => item.rfqLineId === line.id,
+              );
               return (
                 <details key={line.id} className="rounded-md border p-3">
                   <summary className="cursor-pointer text-sm font-semibold">
                     {line.itemCode} - {line.itemName}{' '}
                     <span className="font-normal text-muted-foreground">
-                      {bom?.revisionNumber ? `· Released BOM Rev ${bom.revisionNumber}` : '· No released BOM'}
+                      {bom?.revisionNumber
+                        ? `· Released BOM Rev ${bom.revisionNumber}`
+                        : '· No released BOM'}
                     </span>
                   </summary>
                   {bom && bom.components.length > 0 && (
                     <Table>
-                      <TableHeader><TableRow><TableHead>Component</TableHead><TableHead className="text-right">Sourcing Qty</TableHead><TableHead>Specification</TableHead></TableRow></TableHeader>
-                      <TableBody>{bom.components.map((component) => <TableRow key={component.itemId}><TableCell>{component.itemCode} - {component.itemName}</TableCell><TableCell className="text-right">{component.quantity} {component.unitOfMeasure}</TableCell><TableCell>{component.specification ?? '—'}</TableCell></TableRow>)}</TableBody>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Component</TableHead>
+                          <TableHead className="text-right">
+                            Sourcing Qty
+                          </TableHead>
+                          <TableHead>Specification</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {bom.components.map((component) => (
+                          <TableRow key={component.itemId}>
+                            <TableCell>
+                              {component.itemCode} - {component.itemName}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {component.quantity} {component.unitOfMeasure}
+                            </TableCell>
+                            <TableCell>
+                              {component.specification ?? '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
                     </Table>
                   )}
                 </details>

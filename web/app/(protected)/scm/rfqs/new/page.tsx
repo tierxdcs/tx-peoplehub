@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, RotateCcw, Trash2 } from 'lucide-react';
@@ -8,6 +8,7 @@ import { ApiError } from '../../../../lib/api';
 import {
   createRfq,
   listRfqProjectOptions,
+  getRfqSourcingLines,
   type CreateRfqInput,
   type RfqProjectOption,
 } from '../../../../lib/rfq';
@@ -66,6 +67,9 @@ export default function NewRfqPage() {
     new Set(),
   );
   const [submitting, setSubmitting] = useState(false);
+  const [loadingSourcingLines, setLoadingSourcingLines] = useState(false);
+  const [noBomRequirements, setNoBomRequirements] = useState(false);
+  const sourcingRequest = useRef(0);
 
   useEffect(() => {
     void (async () => {
@@ -117,19 +121,72 @@ export default function NewRfqPage() {
       ).length
     : 0;
 
+  function applySourcingLines(
+    rows: Awaited<ReturnType<typeof getRfqSourcingLines>>,
+  ) {
+    setNoBomRequirements(rows.length === 0);
+    setLines(
+      rows.length > 0
+        ? rows.map((row) => ({
+            key: lineKeySeq++,
+            itemId: row.itemId,
+            quantity: row.requiredQuantity,
+            specificationNotes: '',
+          }))
+        : [
+            {
+              key: lineKeySeq++,
+              itemId: '',
+              quantity: '',
+              specificationNotes: '',
+            },
+          ],
+    );
+  }
+
+  async function refreshSourcingLines(
+    kickoffId: string,
+    excluded: Set<string>,
+  ) {
+    if (!kickoffId) return;
+    const requestId = ++sourcingRequest.current;
+    setLoadingSourcingLines(true);
+    try {
+      const rows = await getRfqSourcingLines(kickoffId, [...excluded]);
+      if (requestId === sourcingRequest.current) applySourcingLines(rows);
+    } catch (err) {
+      if (requestId === sourcingRequest.current) {
+        toast.error(
+          err instanceof ApiError
+            ? err.message
+            : 'Failed to explode the order BOM',
+        );
+      }
+    } finally {
+      if (requestId === sourcingRequest.current) setLoadingSourcingLines(false);
+    }
+  }
+
   function selectProject(value: string) {
     setProjectKickoffId(value);
     // A different order means a different set of lines — start fresh.
     setExcludedOrderLineIds(new Set());
+    setNoBomRequirements(false);
+    if (value) void refreshSourcingLines(value, new Set());
+    else {
+      sourcingRequest.current += 1;
+      setLoadingSourcingLines(false);
+      applySourcingLines([]);
+      setNoBomRequirements(false);
+    }
   }
 
   function toggleOrderLineExcluded(orderLineId: string) {
-    setExcludedOrderLineIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(orderLineId)) next.delete(orderLineId);
-      else next.add(orderLineId);
-      return next;
-    });
+    const next = new Set(excludedOrderLineIds);
+    if (next.has(orderLineId)) next.delete(orderLineId);
+    else next.add(orderLineId);
+    setExcludedOrderLineIds(next);
+    if (projectKickoffId) void refreshSourcingLines(projectKickoffId, next);
   }
 
   async function handleSubmit() {
@@ -294,10 +351,11 @@ export default function NewRfqPage() {
                     })}
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">
-                    Order information is linked for context. Remove any lines
-                    this RFQ should not source — the order itself is unaffected.
-                    Add the materials or services being sourced as RFQ line
-                    items below.
+                    Included order products are exploded through their released
+                    BOMs. MAKE assemblies recurse; aggregated BUY components
+                    populate the editable RFQ lines below. Excluding a product
+                    removes its material contribution without changing the
+                    order.
                   </p>
                 </div>
               )}
@@ -354,9 +412,36 @@ export default function NewRfqPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Line Items</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">Line Items</CardTitle>
+                {selectedProject && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={loadingSourcingLines}
+                    onClick={() =>
+                      void refreshSourcingLines(
+                        projectKickoffId,
+                        excludedOrderLineIds,
+                      )
+                    }
+                  >
+                    <RotateCcw className="size-4" />
+                    {loadingSourcingLines
+                      ? 'Exploding BOM...'
+                      : 'Reset from BOM'}
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
+              {noBomRequirements && selectedProject && (
+                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                  No released BOM with BUY requirements was found for the
+                  included order products. You can add RFQ lines manually.
+                </div>
+              )}
               {lines.map((line) => {
                 const item = items.find((it) => it.id === line.itemId) ?? null;
                 return (

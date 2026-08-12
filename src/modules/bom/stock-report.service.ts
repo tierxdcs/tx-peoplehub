@@ -25,7 +25,7 @@ import {
   round,
   wastageQuantity,
 } from './stock-calc';
-import { ExplodableBom, explodeBom } from './bom-explosion';
+import { ExplodableBom, explodeProcurementBom } from './bom-explosion';
 
 /**
  * Project-kickoff stock-availability report (§7–9).
@@ -106,7 +106,7 @@ export class StockReportService {
 
         // Explode to leaves (may throw on cycle — released trees are gated at
         // release, but guard here too so a bad graph can't crash the report).
-        const leaves = explodeBom(
+        const leaves = explodeProcurementBom(
           topItemId,
           (itemId) => releasedByItem.get(itemId) ?? null,
         );
@@ -188,6 +188,7 @@ export class StockReportService {
             quantityPerUnit: true,
             wastagePercent: true,
             unitOfMeasure: true,
+            makeBuy: true,
           },
         },
       },

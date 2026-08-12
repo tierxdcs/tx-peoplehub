@@ -4,6 +4,7 @@ import {
   BomDepthError,
   ExplodableBom,
   explodeBom,
+  explodeProcurementBom,
 } from './bom-explosion';
 
 const D = (n: number | string) => new Prisma.Decimal(n);
@@ -93,6 +94,90 @@ describe('explodeBom — multi-level explosion', () => {
   it('returns no requirements when the top item itself has no BOM', () => {
     const get = lookup({});
     expect(explodeBom('LONE', get)).toEqual([]);
+  });
+});
+
+describe('explodeProcurementBom — MAKE/BUY sourcing boundaries', () => {
+  it('recurses through MAKE assemblies and surfaces only their BUY components', () => {
+    const boms = new Map<string, ExplodableBom>([
+      [
+        'FG',
+        {
+          itemId: 'FG',
+          revisionNumber: 1,
+          lines: [
+            {
+              itemId: 'SA',
+              quantityPerUnit: D(2),
+              wastagePercent: D(0),
+              unitOfMeasure: 'ea',
+              makeBuy: 'MAKE',
+            },
+          ],
+        },
+      ],
+      [
+        'SA',
+        {
+          itemId: 'SA',
+          revisionNumber: 3,
+          lines: [
+            {
+              itemId: 'RM',
+              quantityPerUnit: D(4),
+              wastagePercent: D(0),
+              unitOfMeasure: 'kg',
+              makeBuy: 'BUY',
+            },
+          ],
+        },
+      ],
+    ]);
+    const result = explodeProcurementBom('FG', (id) => boms.get(id) ?? null);
+    expect(result.map((line) => line.itemId)).toEqual(['RM']);
+    expect(result[0].quantityPerTopUnit.toString()).toBe('8');
+  });
+
+  it('stops at BUY even when the bought item has its own released BOM', () => {
+    const boms = new Map<string, ExplodableBom>([
+      [
+        'FG',
+        {
+          itemId: 'FG',
+          revisionNumber: 1,
+          lines: [
+            {
+              itemId: 'BOUGHT_SA',
+              quantityPerUnit: D(2),
+              wastagePercent: D(0),
+              unitOfMeasure: 'ea',
+              makeBuy: 'BUY',
+            },
+          ],
+        },
+      ],
+      [
+        'BOUGHT_SA',
+        {
+          itemId: 'BOUGHT_SA',
+          revisionNumber: 1,
+          lines: [
+            {
+              itemId: 'INTERNAL',
+              quantityPerUnit: D(9),
+              wastagePercent: D(0),
+              unitOfMeasure: 'ea',
+              makeBuy: 'BUY',
+            },
+          ],
+        },
+      ],
+    ]);
+    expect(
+      explodeProcurementBom('FG', (id) => boms.get(id) ?? null).map(
+        (line) => line.itemId,
+      ),
+    ).toEqual(['BOUGHT_SA']);
   });
 });
 
