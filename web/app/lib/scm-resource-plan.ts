@@ -15,19 +15,21 @@ export interface ResourcePlanLine {
   itemName: string;
   requiredQuantity: string;
   unitOfMeasure: string;
-  benchmarkCostPerUnit: string;
+  benchmarkCostPerUnit: string | null;
+  isCostComplete: boolean;
   negotiatedPricePerUnit: string | null;
   notes: string | null;
-  benchmarkLineTotal: string;
+  benchmarkLineTotal: string | null;
   negotiatedLineTotal: string | null;
   varianceAmount: string | null;
   variancePercent: string | null;
 }
 
 export interface ResourcePlanSummary {
-  totalBenchmarkCost: string;
-  totalNegotiatedCost: string;
-  varianceAmount: string;
+  isCostComplete: boolean;
+  totalBenchmarkCost: string | null;
+  totalNegotiatedCost: string | null;
+  varianceAmount: string | null;
   variancePercent: string | null;
   lineCount: number;
   negotiatedLineCount: number;
@@ -59,6 +61,7 @@ export interface EligibleProject {
   totalNegotiatedCost: string | null;
   varianceAmount: string | null;
   variancePercent: string | null;
+  isCostComplete: boolean | null;
 }
 
 export interface CrossProjectSummaryRow {
@@ -68,9 +71,10 @@ export interface CrossProjectSummaryRow {
   orderNumber: string;
   customerName: string;
   generatedAt: string;
-  totalBenchmarkCost: string;
-  totalNegotiatedCost: string;
-  varianceAmount: string;
+  isCostComplete: boolean;
+  totalBenchmarkCost: string | null;
+  totalNegotiatedCost: string | null;
+  varianceAmount: string | null;
   variancePercent: string | null;
   lineCount: number;
   negotiatedLineCount: number;

@@ -13,6 +13,7 @@ import { InventoryController } from './inventory.controller';
 import { KickoffStockController } from './kickoff-stock.controller';
 import { FinanceModule } from '../finance/finance.module';
 import { ItemCostService } from './item-cost.service';
+import { BomCostSnapshotService } from './bom-cost-snapshot.service';
 
 /**
  * Bill of Materials + Item Master + Inventory + kickoff stock-availability.
@@ -37,6 +38,7 @@ import { ItemCostService } from './item-cost.service';
     InventoryService,
     StockReportService,
     ItemCostService,
+    BomCostSnapshotService,
   ],
   // Exported so the Purchasing/Stores module (Material Issue) can reuse the
   // single reservation-aware STOCK_OUT implementation and access rules, and so
@@ -46,6 +48,7 @@ import { ItemCostService } from './item-cost.service';
     BomAccessService,
     StockReportService,
     ItemCostService,
+    BomCostSnapshotService,
   ],
 })
 export class BomModule {}

@@ -84,15 +84,19 @@ export function ProductForm({
     user?.role === 'SUPER_ADMIN' ||
     product?.rolledUpCostSnapshot !== undefined ||
     selectedItem?.releasedBomCostSnapshot !== undefined;
+  const isCostComplete =
+    (isEdit && product?.itemId === itemId
+      ? product?.isCostComplete
+      : selectedItem?.releasedBomCostComplete) ?? false;
   const releasedCost = useMemo(() => {
     const raw =
       isEdit && product?.itemId === itemId
         ? product.rolledUpCostSnapshot
         : selectedItem?.releasedBomCostSnapshot;
-    if (raw == null || raw === '') return null;
+    if (!isCostComplete || raw == null || raw === '') return null;
     const parsed = Number(raw);
     return Number.isFinite(parsed) ? parsed : null;
-  }, [isEdit, itemId, product, selectedItem]);
+  }, [isCostComplete, isEdit, itemId, product, selectedItem]);
   const targetMargin = Number(targetMarginPercent);
   const suggestedPrice =
     releasedCost != null &&
@@ -262,190 +266,195 @@ export function ProductForm({
           </button>
         </div>
         <div className="px-5 pt-4">
-        {!isEdit && (
+          {!isEdit && (
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ display: 'block', marginBottom: 4 }}>SKU</label>
+              <input
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                required
+                style={fieldStyle}
+              />
+            </div>
+          )}
           <div style={{ marginBottom: 10 }}>
-            <label style={{ display: 'block', marginBottom: 4 }}>SKU</label>
+            <label style={{ display: 'block', marginBottom: 4 }}>Name</label>
             <input
-              value={sku}
-              onChange={(e) => setSku(e.target.value)}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               required
               style={fieldStyle}
             />
           </div>
-        )}
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Name</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            style={fieldStyle}
-          />
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Description
-          </label>
-          <textarea
-            value={description ?? ''}
-            onChange={(e) => setDescription(e.target.value)}
-            style={{ ...fieldStyle, minHeight: 50 }}
-          />
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: 4,
-            }}
-          >
-            <label>Business unit</label>
-            <BusinessUnitHelp businessUnits={businessUnits} />
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'block', marginBottom: 4 }}>
+              Description
+            </label>
+            <textarea
+              value={description ?? ''}
+              onChange={(e) => setDescription(e.target.value)}
+              style={{ ...fieldStyle, minHeight: 50 }}
+            />
           </div>
-          <select
-            value={businessUnitId}
-            onChange={(e) => onBusinessUnitChange(e.target.value)}
-            required
-            style={fieldStyle}
-          >
-            <option value="">— Select business unit —</option>
-            {businessUnits.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-          {autoAssigned && businessUnitId && (
-            <p className="mt-1 text-xs text-warning">
-              ✨ Auto-selected from product name — change it or save to confirm.
-            </p>
-          )}
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Unit price
-          </label>
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            value={unitPrice}
-            onChange={(e) => {
-              priceManuallyEdited.current = true;
-              setUnitPrice(e.target.value);
-            }}
-            required
-            style={fieldStyle}
-          />
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Unit of measure
-          </label>
-          <input
-            value={unitOfMeasure}
-            onChange={(e) => setUnitOfMeasure(e.target.value)}
-            required
-            style={fieldStyle}
-          />
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            HSN code (optional)
-          </label>
-          <input
-            value={hsnCode ?? ''}
-            onChange={(e) => setHsnCode(e.target.value)}
-            style={fieldStyle}
-          />
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Manufactured item (optional)
-          </label>
-          <ItemPicker
-            items={items}
-            value={itemId}
-            onValueChange={(value) => {
-              priceManuallyEdited.current = false;
-              setItemId(value);
-            }}
-            placeholder="— Not linked —"
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Link to the Item Master item this product is built as. Required for
-            its BOM and the project-kickoff stock-availability report.
-          </p>
-        </div>
-        {canSeeCost && (
-          <div className="mb-3 rounded-md border border-border bg-muted/30 p-3">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Released BOM cost
-                </p>
-                <p className="font-medium">
-                  {releasedCost == null
-                    ? 'Not available'
-                    : formatINR(releasedCost, numberFormatStyle)}
-                </p>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">
-                  Target margin %
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  max={99.99}
-                  step="0.01"
-                  value={targetMarginPercent}
-                  onChange={(e) => {
-                    priceManuallyEdited.current = false;
-                    setTargetMarginPercent(e.target.value);
-                  }}
-                  style={fieldStyle}
-                />
-              </div>
+          <div style={{ marginBottom: 10 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 4,
+              }}
+            >
+              <label>Business unit</label>
+              <BusinessUnitHelp businessUnits={businessUnits} />
             </div>
-            <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Suggested selling price
-                </p>
-                <p className="font-medium">
-                  {suggestedPrice == null
-                    ? '—'
-                    : formatINR(suggestedPrice, numberFormatStyle)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Actual margin</p>
-                <p className="font-medium">
-                  {actualMargin == null ? '—' : `${actualMargin.toFixed(2)}%`}
-                </p>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Suggested price is informational. The unit price remains editable.
-            </p>
+            <select
+              value={businessUnitId}
+              onChange={(e) => onBusinessUnitChange(e.target.value)}
+              required
+              style={fieldStyle}
+            >
+              <option value="">— Select business unit —</option>
+              {businessUnits.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+            {autoAssigned && businessUnitId && (
+              <p className="mt-1 text-xs text-warning">
+                ✨ Auto-selected from product name — change it or save to
+                confirm.
+              </p>
+            )}
           </div>
-        )}
-        <div style={{ marginBottom: 10 }}>
-          <label>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'block', marginBottom: 4 }}>
+              Unit price
+            </label>
             <input
-              type="checkbox"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-            />{' '}
-            Active
-          </label>
-        </div>
+              type="number"
+              min={0}
+              step="0.01"
+              value={unitPrice}
+              onChange={(e) => {
+                priceManuallyEdited.current = true;
+                setUnitPrice(e.target.value);
+              }}
+              required
+              style={fieldStyle}
+            />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'block', marginBottom: 4 }}>
+              Unit of measure
+            </label>
+            <input
+              value={unitOfMeasure}
+              onChange={(e) => setUnitOfMeasure(e.target.value)}
+              required
+              style={fieldStyle}
+            />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'block', marginBottom: 4 }}>
+              HSN code (optional)
+            </label>
+            <input
+              value={hsnCode ?? ''}
+              onChange={(e) => setHsnCode(e.target.value)}
+              style={fieldStyle}
+            />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'block', marginBottom: 4 }}>
+              Manufactured item (optional)
+            </label>
+            <ItemPicker
+              items={items}
+              value={itemId}
+              onValueChange={(value) => {
+                priceManuallyEdited.current = false;
+                setItemId(value);
+              }}
+              placeholder="— Not linked —"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Link to the Item Master item this product is built as. Required
+              for its BOM and the project-kickoff stock-availability report.
+            </p>
+          </div>
+          {canSeeCost && (
+            <div className="mb-3 rounded-md border border-border bg-muted/30 p-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">
+                    Released BOM cost
+                  </p>
+                  <p className="font-medium">
+                    {releasedCost == null
+                      ? isCostComplete
+                        ? 'Not available'
+                        : 'Cost data incomplete'
+                      : formatINR(releasedCost, numberFormatStyle)}
+                  </p>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">
+                    Target margin %
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={99.99}
+                    step="0.01"
+                    value={targetMarginPercent}
+                    onChange={(e) => {
+                      priceManuallyEdited.current = false;
+                      setTargetMarginPercent(e.target.value);
+                    }}
+                    style={fieldStyle}
+                  />
+                </div>
+              </div>
+              <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">
+                    Suggested selling price
+                  </p>
+                  <p className="font-medium">
+                    {suggestedPrice == null
+                      ? isCostComplete
+                        ? '—'
+                        : 'Cost data incomplete'
+                      : formatINR(suggestedPrice, numberFormatStyle)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Actual margin</p>
+                  <p className="font-medium">
+                    {actualMargin == null ? '—' : `${actualMargin.toFixed(2)}%`}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Suggested price is informational. The unit price remains
+                editable.
+              </p>
+            </div>
+          )}
+          <div style={{ marginBottom: 10 }}>
+            <label>
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+              />{' '}
+              Active
+            </label>
+          </div>
 
-        {error && <p className="text-destructive">{error}</p>}
-
+          {error && <p className="text-destructive">{error}</p>}
         </div>
         <div className="sticky bottom-0 z-10 flex gap-2 border-t bg-card px-5 py-4">
           <Button type="submit" disabled={submitting}>

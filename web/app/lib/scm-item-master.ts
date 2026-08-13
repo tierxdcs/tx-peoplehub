@@ -5,11 +5,7 @@ import { apiFetch } from './api';
 /** Item Master client (§2). Read broad; create/update = R&D Head (backend-enforced). */
 
 export type ItemType =
-  | 'RAW_MATERIAL'
-  | 'COMPONENT'
-  | 'SUBASSEMBLY'
-  | 'FINISHED_GOOD'
-  | 'CONSUMABLE';
+  'RAW_MATERIAL' | 'COMPONENT' | 'SUBASSEMBLY' | 'FINISHED_GOOD' | 'CONSUMABLE';
 
 export const ITEM_TYPE_LABEL: Record<ItemType, string> = {
   RAW_MATERIAL: 'Raw Material',
@@ -32,8 +28,10 @@ export interface Item {
   standardLeadTimeDays: number | null;
   manualStandardCost?: string | null;
   currentCost?: string | null;
-  costSource?: 'LATEST_ACCEPTED_GRN' | 'LATEST_AWARDED_QUOTE' | 'MANUAL_STANDARD' | null;
+  costSource?:
+    'LATEST_ACCEPTED_GRN' | 'LATEST_AWARDED_QUOTE' | 'MANUAL_STANDARD' | null;
   releasedBomCostSnapshot?: string | null;
+  releasedBomCostComplete?: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,7 +57,9 @@ export function previewNextItemCode(itemType: ItemType) {
   return apiFetch<string>(`/items/next-code?itemType=${itemType}`);
 }
 
-export function listItems(opts: { search?: string; activeOnly?: boolean } = {}) {
+export function listItems(
+  opts: { search?: string; activeOnly?: boolean } = {},
+) {
   const qs = new URLSearchParams();
   if (opts.search) qs.set('search', opts.search);
   if (opts.activeOnly) qs.set('activeOnly', 'true');
@@ -72,11 +72,17 @@ export function getItem(id: string) {
 }
 
 export function createItem(input: CreateItemInput) {
-  return apiFetch<Item>('/items', { method: 'POST', body: JSON.stringify(input) });
+  return apiFetch<Item>('/items', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 export function updateItem(id: string, input: UpdateItemInput) {
-  return apiFetch<Item>(`/items/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  return apiFetch<Item>(`/items/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
 }
 
 export function updateItemCost(id: string, manualStandardCost: number | null) {

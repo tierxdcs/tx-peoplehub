@@ -3843,6 +3843,7 @@ model Bom {
   /// Immutable cost roll-up captured when this revision is released.
   rolledUpCostSnapshot Decimal?  @db.Decimal(18, 2)
   costSnapshotAt       DateTime?
+  isCostComplete       Boolean   @default(false)
 
   lines             BomLine[]
   events            BomEvent[]
@@ -4103,7 +4104,8 @@ model ProjectResourcePlanLine {
   itemName               String
   requiredQuantity       Decimal             @db.Decimal(14, 4)
   unitOfMeasure          String
-  benchmarkCostPerUnit   Decimal             @db.Decimal(14, 2)
+  benchmarkCostPerUnit   Decimal?            @db.Decimal(14, 2)
+  isCostComplete         Boolean             @default(false)
   negotiatedPricePerUnit Decimal?            @db.Decimal(14, 2)
   notes                  String?             @db.Text
 

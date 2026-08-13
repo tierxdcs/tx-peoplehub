@@ -143,12 +143,12 @@ export class ScmResourcePlanService {
     const aggregates = [...byItem.values()];
     const itemMeta = await this.loadItemMeta(aggregates.map((a) => a.itemId));
 
-    // Benchmark cost snapshot for each required item (null → 0; column is NOT
-    // NULL). Fetched outside the transaction — currentCost only reads.
-    const benchmarkByItem = new Map<string, Prisma.Decimal>();
+    // Missing benchmark data stays null and is explicitly marked incomplete;
+    // zero would look like a genuine free component and understate the plan.
+    const benchmarkByItem = new Map<string, Prisma.Decimal | null>();
     for (const agg of aggregates) {
       const cost = await this.itemCost.currentCost(agg.itemId);
-      benchmarkByItem.set(agg.itemId, cost.amount ?? new Prisma.Decimal(0));
+      benchmarkByItem.set(agg.itemId, cost.amount);
     }
 
     const existingPlan = kickoff.resourcePlan;
@@ -184,8 +184,8 @@ export class ScmResourcePlanService {
             data: {
               requiredQuantity: agg.requiredQuantity,
               unitOfMeasure: agg.unitOfMeasure,
-              benchmarkCostPerUnit:
-                benchmarkByItem.get(agg.itemId) ?? new Prisma.Decimal(0),
+              benchmarkCostPerUnit: benchmarkByItem.get(agg.itemId) ?? null,
+              isCostComplete: benchmarkByItem.get(agg.itemId) != null,
               itemCode: meta?.itemCode ?? agg.itemId,
               itemName: meta?.name ?? 'Unknown item',
             },
@@ -200,8 +200,8 @@ export class ScmResourcePlanService {
               itemName: meta?.name ?? 'Unknown item',
               requiredQuantity: agg.requiredQuantity,
               unitOfMeasure: agg.unitOfMeasure,
-              benchmarkCostPerUnit:
-                benchmarkByItem.get(agg.itemId) ?? new Prisma.Decimal(0),
+              benchmarkCostPerUnit: benchmarkByItem.get(agg.itemId) ?? null,
+              isCostComplete: benchmarkByItem.get(agg.itemId) != null,
             },
           });
         }
@@ -315,6 +315,7 @@ export class ScmResourcePlanService {
           totalNegotiatedCost: null,
           varianceAmount: null,
           variancePercent: null,
+          isCostComplete: null,
         });
       }
       const summary = this.computeSummary(plan.lines);
@@ -331,6 +332,7 @@ export class ScmResourcePlanService {
         totalNegotiatedCost: summary.totalNegotiatedCost,
         varianceAmount: summary.varianceAmount,
         variancePercent: summary.variancePercent,
+        isCostComplete: summary.isCostComplete,
       });
     });
   }
@@ -367,6 +369,7 @@ export class ScmResourcePlanService {
         totalNegotiatedCost: summary.totalNegotiatedCost,
         varianceAmount: summary.varianceAmount,
         variancePercent: summary.variancePercent,
+        isCostComplete: summary.isCostComplete,
         lineCount: summary.lineCount,
         negotiatedLineCount: summary.negotiatedLineCount,
       });
@@ -409,19 +412,20 @@ export class ScmResourcePlanService {
     itemName: string;
     requiredQuantity: Prisma.Decimal;
     unitOfMeasure: string;
-    benchmarkCostPerUnit: Prisma.Decimal;
+    benchmarkCostPerUnit: Prisma.Decimal | null;
+    isCostComplete: boolean;
     negotiatedPricePerUnit: Prisma.Decimal | null;
     notes: string | null;
   }): ResourcePlanLineEntity {
     const qty = line.requiredQuantity;
-    const benchmarkLineTotal = this.roundMoney(
-      line.benchmarkCostPerUnit.times(qty),
-    );
+    const benchmarkLineTotal = line.benchmarkCostPerUnit
+      ? this.roundMoney(line.benchmarkCostPerUnit.times(qty))
+      : null;
 
     let negotiatedLineTotal: Prisma.Decimal | null = null;
     let varianceAmount: Prisma.Decimal | null = null;
     let variancePercent: Prisma.Decimal | null = null;
-    if (line.negotiatedPricePerUnit !== null) {
+    if (line.negotiatedPricePerUnit !== null && benchmarkLineTotal !== null) {
       negotiatedLineTotal = this.roundMoney(
         line.negotiatedPricePerUnit.times(qty),
       );
@@ -442,13 +446,15 @@ export class ScmResourcePlanService {
       itemName: line.itemName,
       requiredQuantity: qty.toString(),
       unitOfMeasure: line.unitOfMeasure,
-      benchmarkCostPerUnit: line.benchmarkCostPerUnit.toString(),
+      benchmarkCostPerUnit: line.benchmarkCostPerUnit?.toString() ?? null,
+      isCostComplete:
+        line.isCostComplete !== false && line.benchmarkCostPerUnit !== null,
       negotiatedPricePerUnit:
         line.negotiatedPricePerUnit !== null
           ? line.negotiatedPricePerUnit.toString()
           : null,
       notes: line.notes,
-      benchmarkLineTotal: benchmarkLineTotal.toString(),
+      benchmarkLineTotal: benchmarkLineTotal?.toString() ?? null,
       negotiatedLineTotal:
         negotiatedLineTotal !== null ? negotiatedLineTotal.toString() : null,
       varianceAmount:
@@ -465,7 +471,8 @@ export class ScmResourcePlanService {
   private computeSummary(
     lines: Array<{
       requiredQuantity: Prisma.Decimal;
-      benchmarkCostPerUnit: Prisma.Decimal;
+      benchmarkCostPerUnit: Prisma.Decimal | null;
+      isCostComplete: boolean;
       negotiatedPricePerUnit: Prisma.Decimal | null;
     }>,
   ): ResourcePlanSummaryEntity {
@@ -474,7 +481,12 @@ export class ScmResourcePlanService {
     let totalNegotiated = zero;
     let negotiatedLineCount = 0;
 
+    const isCostComplete = lines.every(
+      (line) =>
+        line.isCostComplete !== false && line.benchmarkCostPerUnit !== null,
+    );
     for (const line of lines) {
+      if (line.benchmarkCostPerUnit === null) continue;
       const benchmarkTotal = this.roundMoney(
         line.benchmarkCostPerUnit.times(line.requiredQuantity),
       );
@@ -501,11 +513,14 @@ export class ScmResourcePlanService {
       : null;
 
     return new ResourcePlanSummaryEntity({
-      totalBenchmarkCost: totalBenchmark.toString(),
-      totalNegotiatedCost: totalNegotiated.toString(),
-      varianceAmount: varianceAmount.toString(),
+      isCostComplete,
+      totalBenchmarkCost: isCostComplete ? totalBenchmark.toString() : null,
+      totalNegotiatedCost: isCostComplete ? totalNegotiated.toString() : null,
+      varianceAmount: isCostComplete ? varianceAmount.toString() : null,
       variancePercent:
-        variancePercent !== null ? variancePercent.toString() : null,
+        isCostComplete && variancePercent !== null
+          ? variancePercent.toString()
+          : null,
       lineCount: lines.length,
       negotiatedLineCount,
     });

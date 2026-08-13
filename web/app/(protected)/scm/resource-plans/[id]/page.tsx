@@ -129,7 +129,10 @@ export default function ResourcePlanDetailPage() {
     return (
       <PageContainer>
         <p className="mb-4 text-sm text-destructive">{error}</p>
-        <Button variant="outline" onClick={() => router.push('/scm/resource-plans')}>
+        <Button
+          variant="outline"
+          onClick={() => router.push('/scm/resource-plans')}
+        >
           <ArrowLeft className="mr-1 h-4 w-4" /> Back to projects
         </Button>
       </PageContainer>
@@ -143,7 +146,10 @@ export default function ResourcePlanDetailPage() {
           title="No resource plan"
           description="This project does not have a resource plan yet. Generate one from the project list."
         />
-        <Button variant="outline" onClick={() => router.push('/scm/resource-plans')}>
+        <Button
+          variant="outline"
+          onClick={() => router.push('/scm/resource-plans')}
+        >
           <ArrowLeft className="mr-1 h-4 w-4" /> Back to projects
         </Button>
       </PageContainer>
@@ -184,15 +190,30 @@ export default function ResourcePlanDetailPage() {
 
       {/* Project summary */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <SummaryCard label="Total benchmark cost" value={money(s.totalBenchmarkCost)} />
+        <SummaryCard
+          label="Total benchmark cost"
+          value={
+            s.isCostComplete
+              ? money(s.totalBenchmarkCost)
+              : 'Cost data incomplete'
+          }
+        />
         <SummaryCard
           label="Total negotiated cost"
-          value={money(s.totalNegotiatedCost)}
+          value={
+            s.isCostComplete
+              ? money(s.totalNegotiatedCost)
+              : 'Cost data incomplete'
+          }
           hint={`${s.negotiatedLineCount}/${s.lineCount} lines priced`}
         />
         <SummaryCard
           label="Variance"
-          value={signedVariance(s.varianceAmount, money)}
+          value={
+            s.isCostComplete
+              ? signedVariance(s.varianceAmount, money)
+              : 'Cost data incomplete'
+          }
           tone={varianceToneClass(s.varianceAmount)}
           hint={
             s.variancePercent !== null
@@ -292,7 +313,10 @@ function PlanLineRow({
     const trimmed = price.trim();
     const original = line.negotiatedPricePerUnit ?? '';
     if (trimmed === original) return;
-    if (trimmed !== '' && (Number.isNaN(Number(trimmed)) || Number(trimmed) < 0)) {
+    if (
+      trimmed !== '' &&
+      (Number.isNaN(Number(trimmed)) || Number(trimmed) < 0)
+    ) {
       onError('Negotiated price must be a non-negative number.');
       setPrice(original);
       return;
@@ -336,12 +360,19 @@ function PlanLineRow({
       </TableCell>
       <TableCell className="text-right align-top">
         {line.requiredQuantity}
-        <span className="text-xs text-muted-foreground"> {line.unitOfMeasure}</span>
+        <span className="text-xs text-muted-foreground">
+          {' '}
+          {line.unitOfMeasure}
+        </span>
       </TableCell>
       <TableCell className="text-right align-top">
-        {money(line.benchmarkCostPerUnit)}
+        {line.isCostComplete
+          ? money(line.benchmarkCostPerUnit)
+          : 'Cost data incomplete'}
         <div className="text-xs text-muted-foreground">
-          = {money(line.benchmarkLineTotal)}
+          {line.isCostComplete
+            ? `= ${money(line.benchmarkLineTotal)}`
+            : 'Awaiting item cost'}
         </div>
       </TableCell>
       <TableCell className="text-right align-top">
@@ -394,7 +425,9 @@ function PlanLineRow({
             className="h-8 w-48"
           />
         ) : (
-          <span className="text-sm text-muted-foreground">{line.notes ?? '—'}</span>
+          <span className="text-sm text-muted-foreground">
+            {line.notes ?? '—'}
+          </span>
         )}
       </TableCell>
     </TableRow>

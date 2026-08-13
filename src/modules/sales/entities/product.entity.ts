@@ -59,6 +59,8 @@ export class ProductEntity {
   rolledUpCostSnapshot?: string | null;
   @ApiProperty({ nullable: true, required: false })
   costSnapshotAt?: Date | null;
+  @ApiProperty({ required: false })
+  isCostComplete?: boolean;
   @ApiProperty({ nullable: true, required: false })
   suggestedUnitPrice?: string | null;
   @ApiProperty({ nullable: true, required: false })

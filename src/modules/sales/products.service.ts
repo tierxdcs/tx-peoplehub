@@ -32,7 +32,11 @@ const PRODUCT_INCLUDE = {
         where: { status: 'RELEASED' as const },
         orderBy: { revisionNumber: 'desc' as const },
         take: 1,
-        select: { rolledUpCostSnapshot: true, costSnapshotAt: true },
+        select: {
+          rolledUpCostSnapshot: true,
+          costSnapshotAt: true,
+          isCostComplete: true,
+        },
       },
     },
   },
@@ -234,9 +238,16 @@ export class ProductsService {
     includeCost = false,
   ): ProductEntity {
     const snapshot = product.item?.boms[0]?.rolledUpCostSnapshot ?? null;
+    const isCostComplete = product.item?.boms[0]?.isCostComplete ?? false;
     const target = product.targetMarginPercent;
-    const suggested = suggestedSellingPrice(snapshot, target);
-    const actualMargin = actualMarginPercent(snapshot, product.unitPrice);
+    const suggested = suggestedSellingPrice(
+      isCostComplete ? snapshot : null,
+      target,
+    );
+    const actualMargin = actualMarginPercent(
+      isCostComplete ? snapshot : null,
+      product.unitPrice,
+    );
     return new ProductEntity({
       id: product.id,
       sku: product.sku,
@@ -256,6 +267,7 @@ export class ProductsService {
             targetMarginPercent: target?.toString() ?? null,
             rolledUpCostSnapshot: snapshot?.toString() ?? null,
             costSnapshotAt: product.item?.boms[0]?.costSnapshotAt ?? null,
+            isCostComplete,
             suggestedUnitPrice: suggested?.toString() ?? null,
             actualMarginPercent: actualMargin?.toString() ?? null,
           }

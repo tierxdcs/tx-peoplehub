@@ -478,6 +478,7 @@ export interface Product {
   targetMarginPercent?: string | null;
   rolledUpCostSnapshot?: string | null;
   costSnapshotAt?: string | null;
+  isCostComplete?: boolean;
   suggestedUnitPrice?: string | null;
   actualMarginPercent?: string | null;
   createdAt: string;

@@ -19,12 +19,13 @@ export class ResourcePlanLineEntity {
   @ApiProperty() itemName!: string;
   @ApiProperty() requiredQuantity!: string;
   @ApiProperty() unitOfMeasure!: string;
-  @ApiProperty() benchmarkCostPerUnit!: string;
+  @ApiProperty({ nullable: true }) benchmarkCostPerUnit!: string | null;
+  @ApiProperty() isCostComplete!: boolean;
   @ApiProperty({ nullable: true }) negotiatedPricePerUnit!: string | null;
   @ApiProperty({ nullable: true }) notes!: string | null;
 
   @ApiProperty({ description: 'benchmarkCostPerUnit × requiredQuantity' })
-  benchmarkLineTotal!: string;
+  benchmarkLineTotal!: string | null;
   @ApiProperty({
     nullable: true,
     description: 'negotiatedPricePerUnit × requiredQuantity (null if unpriced)',
@@ -38,7 +39,8 @@ export class ResourcePlanLineEntity {
   varianceAmount!: string | null;
   @ApiProperty({
     nullable: true,
-    description: 'varianceAmount as a % of benchmarkLineTotal; null if unpriced',
+    description:
+      'varianceAmount as a % of benchmarkLineTotal; null if unpriced',
   })
   variancePercent!: string | null;
 
@@ -49,20 +51,24 @@ export class ResourcePlanLineEntity {
 
 /** Plan-level totals — computed by summing the lines on read. */
 export class ResourcePlanSummaryEntity {
-  @ApiProperty() totalBenchmarkCost!: string;
+  @ApiProperty() isCostComplete!: boolean;
+  @ApiProperty({ nullable: true }) totalBenchmarkCost!: string | null;
   @ApiProperty({
     nullable: true,
     description:
       'Sum of negotiated line totals. Lines with no negotiated price fall back to their benchmark total so the comparison stays whole-project.',
   })
-  totalNegotiatedCost!: string;
+  totalNegotiatedCost!: string | null;
   @ApiProperty({
-    description: 'totalNegotiatedCost − totalBenchmarkCost (+ increase, − saving)',
+    description:
+      'totalNegotiatedCost − totalBenchmarkCost (+ increase, − saving)',
   })
-  varianceAmount!: string;
+  varianceAmount!: string | null;
   @ApiProperty({ nullable: true }) variancePercent!: string | null;
   @ApiProperty() lineCount!: number;
-  @ApiProperty({ description: 'How many lines have a negotiated price entered' })
+  @ApiProperty({
+    description: 'How many lines have a negotiated price entered',
+  })
   negotiatedLineCount!: number;
 
   constructor(p: Partial<ResourcePlanSummaryEntity>) {
@@ -106,6 +112,7 @@ export class EligibleProjectEntity {
   @ApiProperty({ nullable: true }) totalNegotiatedCost!: string | null;
   @ApiProperty({ nullable: true }) varianceAmount!: string | null;
   @ApiProperty({ nullable: true }) variancePercent!: string | null;
+  @ApiProperty({ nullable: true }) isCostComplete!: boolean | null;
 
   constructor(p: Partial<EligibleProjectEntity>) {
     Object.assign(this, p);
@@ -123,10 +130,11 @@ export class CrossProjectSummaryRowEntity {
   @ApiProperty() orderNumber!: string;
   @ApiProperty() customerName!: string;
   @ApiProperty() generatedAt!: string;
-  @ApiProperty() totalBenchmarkCost!: string;
-  @ApiProperty() totalNegotiatedCost!: string;
-  @ApiProperty() varianceAmount!: string;
+  @ApiProperty({ nullable: true }) totalBenchmarkCost!: string | null;
+  @ApiProperty({ nullable: true }) totalNegotiatedCost!: string | null;
+  @ApiProperty({ nullable: true }) varianceAmount!: string | null;
   @ApiProperty({ nullable: true }) variancePercent!: string | null;
+  @ApiProperty() isCostComplete!: boolean;
   @ApiProperty() lineCount!: number;
   @ApiProperty() negotiatedLineCount!: number;
 

@@ -25,12 +25,11 @@ export class ItemEntity {
   @ApiProperty({ nullable: true, required: false }) currentCost?: string | null;
   @ApiProperty({ nullable: true, required: false })
   costSource?:
-    | 'LATEST_ACCEPTED_GRN'
-    | 'LATEST_AWARDED_QUOTE'
-    | 'MANUAL_STANDARD'
-    | null;
+    'LATEST_ACCEPTED_GRN' | 'LATEST_AWARDED_QUOTE' | 'MANUAL_STANDARD' | null;
   @ApiProperty({ nullable: true, required: false })
   releasedBomCostSnapshot?: string | null;
+  @ApiProperty({ nullable: true, required: false })
+  releasedBomCostComplete?: boolean | null;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
 
@@ -110,6 +109,7 @@ export class BomEntity {
     string | null;
   @ApiProperty({ nullable: true, required: false }) costSnapshotAt?:
     string | null;
+  @ApiProperty({ required: false }) isCostComplete?: boolean;
   @ApiProperty({ nullable: true, required: false })
   customerBomIntake?: {
     id: string;

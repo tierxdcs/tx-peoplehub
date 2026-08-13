@@ -49,10 +49,13 @@ export default function ResourcePlansPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
-  const register = useRegisterList(projects, (project) => `${project.projectName} ${project.orderNumber} ${project.customerName} ${project.hasPlan ? 'plan ready' : 'no plan'}`);
+  const register = useRegisterList(
+    projects,
+    (project) =>
+      `${project.projectName} ${project.orderNumber} ${project.customerName} ${project.hasPlan ? 'plan ready' : 'no plan'}`,
+  );
 
-  const canGenerate =
-    user?.role === 'SUPER_ADMIN' || user?.role === 'MANAGER';
+  const canGenerate = user?.role === 'SUPER_ADMIN' || user?.role === 'MANAGER';
 
   const money = useCallback(
     (v: string | number | null | undefined) => formatINR(v, numberFormatStyle),
@@ -81,7 +84,9 @@ export default function ResourcePlansPage() {
     setGeneratingId(p.projectKickoffId);
     try {
       await generateResourcePlan(p.projectKickoffId);
-      toast.success(`Resource plan ${p.hasPlan ? 'regenerated' : 'generated'}.`);
+      toast.success(
+        `Resource plan ${p.hasPlan ? 'regenerated' : 'generated'}.`,
+      );
       router.push(`/scm/resource-plans/${p.projectKickoffId}`);
     } catch (err) {
       toast.error(
@@ -97,12 +102,20 @@ export default function ResourcePlansPage() {
         title="Resource Planning"
         description="Benchmark vs. negotiated material cost for every completed project. Generate a plan to snapshot required quantities and benchmark costs, then enter negotiated prices."
         action={
-          <Button variant="outline" onClick={() => router.push('/scm/resource-plans/summary')}>
+          <Button
+            variant="outline"
+            onClick={() => router.push('/scm/resource-plans/summary')}
+          >
             Cross-project summary
           </Button>
         }
       />
-      <RegisterToolbar title="Project Resource Plans" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search project, order, customer or plan status" />
+      <RegisterToolbar
+        title="Project Resource Plans"
+        search={register.search}
+        onSearchChange={register.setSearch}
+        searchPlaceholder="Search project, order, customer or plan status"
+      />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -162,13 +175,21 @@ export default function ResourcePlansPage() {
                     <TableCell>{p.orderNumber}</TableCell>
                     <TableCell>{p.customerName}</TableCell>
                     <TableCell className="text-right">
-                      {p.hasPlan ? money(p.totalBenchmarkCost) : '—'}
+                      {p.hasPlan
+                        ? p.isCostComplete
+                          ? money(p.totalBenchmarkCost)
+                          : 'Cost data incomplete'
+                        : '—'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {p.hasPlan ? money(p.totalNegotiatedCost) : '—'}
+                      {p.hasPlan
+                        ? p.isCostComplete
+                          ? money(p.totalNegotiatedCost)
+                          : 'Cost data incomplete'
+                        : '—'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {p.hasPlan ? (
+                      {p.hasPlan && p.isCostComplete ? (
                         <span className={varianceToneClass(p.varianceAmount)}>
                           {signedVariance(p.varianceAmount, money)}
                           {p.variancePercent !== null && (
@@ -226,7 +247,12 @@ export default function ResourcePlansPage() {
           </CardContent>
         </Card>
       )}
-      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
+      <RegisterPagination
+        page={register.page}
+        pageCount={register.pageCount}
+        onPageChange={register.setPage}
+        disabled={loading}
+      />
     </PageContainer>
   );
 }

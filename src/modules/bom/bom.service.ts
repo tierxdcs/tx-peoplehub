@@ -32,10 +32,8 @@ import {
   BomDepthError,
   ExplodableBom,
   explodeBom,
-  explodeProcurementBom,
 } from './bom-explosion';
-import { rollUpExplodedCost } from './bom-cost';
-import { ItemCostService } from './item-cost.service';
+import { BomCostSnapshotService } from './bom-cost-snapshot.service';
 
 /** Supplier statuses that qualify a supplier link for the release hard-gate. */
 const QUALIFIED_SUPPLIER_STATUSES: SupplierStatus[] = [
@@ -98,7 +96,7 @@ export class BomService {
     private readonly prisma: PrismaService,
     private readonly access: BomAccessService,
     private readonly notifications: KanbanNotificationsService,
-    private readonly itemCosts: ItemCostService,
+    private readonly costSnapshots: BomCostSnapshotService,
   ) {}
 
   // ── Reads ────────────────────────────────────────────────────────────
@@ -316,10 +314,7 @@ export class BomService {
     // material remains possible via Item Suppliers, just never required to
     // release a BOM.)
     await this.assertNoReleaseCycle(bom.itemId, id);
-    const rolledUpCostSnapshot = await this.calculateReleaseCost(
-      bom.itemId,
-      id,
-    );
+    const costSnapshot = await this.costSnapshots.calculate(bom.itemId, id);
 
     const signer = await this.prisma.employee.findUnique({
       where: { id: user.id },
@@ -355,7 +350,8 @@ export class BomService {
           approverSignatureTextSnapshot: signer?.signatureText ?? null,
           approverSignatureFontSnapshot: signer?.signatureFont ?? null,
           effectiveDate: bom.effectiveDate ?? new Date(),
-          rolledUpCostSnapshot,
+          rolledUpCostSnapshot: costSnapshot.amount,
+          isCostComplete: costSnapshot.isComplete,
           costSnapshotAt: new Date(),
         },
       });
@@ -583,57 +579,6 @@ export class BomService {
     }
   }
 
-  /** Uses the canonical explosion algorithm; only leaf costing is added here. */
-  private async calculateReleaseCost(
-    topItemId: string,
-    pendingBomId: string,
-  ): Promise<Prisma.Decimal> {
-    const rows = await this.prisma.bom.findMany({
-      where: { OR: [{ status: BomStatus.RELEASED }, { id: pendingBomId }] },
-      select: {
-        id: true,
-        itemId: true,
-        revisionNumber: true,
-        lines: {
-          select: {
-            itemId: true,
-            quantityPerUnit: true,
-            wastagePercent: true,
-            unitOfMeasure: true,
-          },
-        },
-      },
-    });
-    const byItem = new Map<string, ExplodableBom>();
-    for (const row of rows) {
-      if (row.id !== pendingBomId && byItem.has(row.itemId)) continue;
-      byItem.set(row.itemId, {
-        itemId: row.itemId,
-        revisionNumber: row.revisionNumber,
-        lines: row.lines,
-      });
-    }
-    const leaves = explodeProcurementBom(
-      topItemId,
-      (itemId) => byItem.get(itemId) ?? null,
-    );
-    const costs = new Map<string, Prisma.Decimal>();
-    for (const leaf of leaves) {
-      const cost = await this.itemCosts.currentCost(leaf.itemId);
-      if (!cost.amount) {
-        const item = await this.prisma.item.findUnique({
-          where: { id: leaf.itemId },
-          select: { itemCode: true, name: true },
-        });
-        throw new BadRequestException(
-          `Cannot release: ${item?.itemCode ?? leaf.itemId} ${item?.name ?? ''} has no accepted-GRN cost or manual standard cost`,
-        );
-      }
-      costs.set(leaf.itemId, cost.amount);
-    }
-    return rollUpExplodedCost(leaves, costs);
-  }
-
   // ── Item ↔ Supplier links (powers the hard-gate) ─────────────────────
   async listItemSuppliers(
     itemId: string,
@@ -752,6 +697,9 @@ export class BomService {
       rejectionComment: b.rejectionComment,
       approverSignatureTextSnapshot: b.approverSignatureTextSnapshot,
       approverSignatureFontSnapshot: b.approverSignatureFontSnapshot,
+      rolledUpCostSnapshot: b.rolledUpCostSnapshot?.toString() ?? null,
+      costSnapshotAt: b.costSnapshotAt?.toISOString() ?? null,
+      isCostComplete: b.isCostComplete,
       customerBomIntake: b.customerBomIntake
         ? {
             id: b.customerBomIntake.id,

@@ -16,6 +16,7 @@ import {
 } from './dto/bom.dto';
 import { ItemEntity } from './entities/bom.entity';
 import { ItemCostService } from './item-cost.service';
+import { BomCostSnapshotService } from './bom-cost-snapshot.service';
 
 type ItemRow = Prisma.ItemGetPayload<Record<string, never>>;
 
@@ -57,6 +58,7 @@ export class ItemService {
     private readonly access: BomAccessService,
     private readonly numbering: SalesNumberingService,
     private readonly costs: ItemCostService,
+    private readonly costSnapshots?: BomCostSnapshotService,
   ) {}
 
   async list(
@@ -198,6 +200,7 @@ export class ItemService {
             : new Prisma.Decimal(dto.manualStandardCost),
       },
     });
+    await this.costSnapshots?.refreshReleasedSnapshots();
     return this.toEntity(row, true);
   }
 
@@ -289,7 +292,7 @@ export class ItemService {
       ? await this.prisma.bom.findFirst({
           where: { itemId: r.id, status: 'RELEASED' },
           orderBy: { revisionNumber: 'desc' },
-          select: { rolledUpCostSnapshot: true },
+          select: { rolledUpCostSnapshot: true, isCostComplete: true },
         })
       : null;
     return new ItemEntity({
@@ -312,6 +315,7 @@ export class ItemService {
             costSource: current?.source ?? null,
             releasedBomCostSnapshot:
               releasedBom?.rolledUpCostSnapshot?.toString() ?? null,
+            releasedBomCostComplete: releasedBom?.isCostComplete ?? null,
           }
         : {}),
       createdAt: r.createdAt.toISOString(),

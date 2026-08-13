@@ -27,6 +27,7 @@ import {
   OverReceiptWarningEntity,
 } from './entities/goods-receipt-note.entity';
 import { NonConformanceReportEntity } from './entities/non-conformance-report.entity';
+import { BomCostSnapshotService } from '../bom/bom-cost-snapshot.service';
 
 /** GRN statuses that count as "finalized" — their accepted qty is real stock. */
 const FINALIZED: GoodsReceiptNoteStatus[] = [
@@ -87,6 +88,7 @@ export class GoodsReceiptNoteService {
     private readonly prisma: PrismaService,
     private readonly access: GrnAccessService,
     private readonly numbering: SalesNumberingService,
+    private readonly costSnapshots?: BomCostSnapshotService,
   ) {}
 
   // ── Reads (company-wide) ─────────────────────────────────────────────
@@ -438,6 +440,10 @@ export class GoodsReceiptNoteService {
       // Re-derive the parent PO's receipt status from cumulative accepted qty.
       await this.derivePurchaseOrderStatus(tx, grn.purchaseOrderId);
     });
+
+    if (totals.accepted.greaterThan(0)) {
+      await this.costSnapshots?.refreshReleasedSnapshots();
+    }
 
     const entity = await this.get(id);
     entity.overReceiptWarnings = await this.computeOverReceiptWarnings(

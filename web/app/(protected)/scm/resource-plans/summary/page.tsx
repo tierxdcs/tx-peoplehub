@@ -61,7 +61,9 @@ export default function ResourcePlanSummaryPage() {
     try {
       setRows(await crossProjectSummary());
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load summary.');
+      setError(
+        err instanceof ApiError ? err.message : 'Failed to load summary.',
+      );
     } finally {
       setLoading(false);
     }
@@ -98,9 +100,20 @@ export default function ResourcePlanSummaryPage() {
     });
     return copy;
   }, [rows, sortKey, sortDir]);
-  const register = useRegisterList(sorted, (row) => `${row.projectName} ${row.orderNumber} ${row.customerName}`);
+  const register = useRegisterList(
+    sorted,
+    (row) => `${row.projectName} ${row.orderNumber} ${row.customerName}`,
+  );
 
-  const SortHead = ({ label, k, right }: { label: string; k: SortKey; right?: boolean }) => (
+  const SortHead = ({
+    label,
+    k,
+    right,
+  }: {
+    label: string;
+    k: SortKey;
+    right?: boolean;
+  }) => (
     <TableHead className={right ? 'text-right' : undefined}>
       <button
         type="button"
@@ -121,12 +134,20 @@ export default function ResourcePlanSummaryPage() {
         title="Resource Planning — cross-project summary"
         description="Benchmark vs. negotiated total cost and variance for every project with a plan. Click a column to sort."
         action={
-          <Button variant="outline" onClick={() => router.push('/scm/resource-plans')}>
+          <Button
+            variant="outline"
+            onClick={() => router.push('/scm/resource-plans')}
+          >
             <ArrowLeft className="mr-1 h-4 w-4" /> Projects
           </Button>
         }
       />
-      <RegisterToolbar title="Resource Plan Summary" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search project, order or customer" />
+      <RegisterToolbar
+        title="Resource Plan Summary"
+        search={register.search}
+        onSearchChange={register.setSearch}
+        searchPlaceholder="Search project, order or customer"
+      />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -175,14 +196,20 @@ export default function ResourcePlanSummaryPage() {
                     <TableCell>{r.orderNumber}</TableCell>
                     <TableCell>{r.customerName}</TableCell>
                     <TableCell className="text-right">
-                      {money(r.totalBenchmarkCost)}
+                      {r.isCostComplete
+                        ? money(r.totalBenchmarkCost)
+                        : 'Cost data incomplete'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {money(r.totalNegotiatedCost)}
+                      {r.isCostComplete
+                        ? money(r.totalNegotiatedCost)
+                        : 'Cost data incomplete'}
                     </TableCell>
                     <TableCell className="text-right">
                       <span className={varianceToneClass(r.varianceAmount)}>
-                        {signedVariance(r.varianceAmount, money)}
+                        {r.isCostComplete
+                          ? signedVariance(r.varianceAmount, money)
+                          : 'Cost data incomplete'}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
@@ -202,7 +229,12 @@ export default function ResourcePlanSummaryPage() {
           </CardContent>
         </Card>
       )}
-      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
+      <RegisterPagination
+        page={register.page}
+        pageCount={register.pageCount}
+        onPageChange={register.setPage}
+        disabled={loading}
+      />
     </PageContainer>
   );
 }

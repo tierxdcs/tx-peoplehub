@@ -24,12 +24,17 @@ const asUser = (role: Role | null, verticalId: string | null = null): any => ({
 
 // ── Access service ─────────────────────────────────────────────────────
 describe('ScmResourcePlanAccessService — three-tier gate (§6)', () => {
-  const make = (opts: { canViewCost?: boolean; verticalCode?: string | null }) => {
+  const make = (opts: {
+    canViewCost?: boolean;
+    verticalCode?: string | null;
+  }) => {
     const prisma: any = {
       vertical: {
-        findUnique: jest.fn().mockResolvedValue(
-          opts.verticalCode ? { code: opts.verticalCode } : null,
-        ),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue(
+            opts.verticalCode ? { code: opts.verticalCode } : null,
+          ),
       },
     };
     const itemCost: any = {
@@ -40,7 +45,9 @@ describe('ScmResourcePlanAccessService — three-tier gate (§6)', () => {
 
   it('view delegates to ItemCostService.canViewCost', async () => {
     const svc = make({ canViewCost: true });
-    await expect(svc.assertCanView(asUser(Role.EMPLOYEE, 'x'))).resolves.toBeUndefined();
+    await expect(
+      svc.assertCanView(asUser(Role.EMPLOYEE, 'x')),
+    ).resolves.toBeUndefined();
     const denied = make({ canViewCost: false, verticalCode: 'PRODUCTION' });
     await expect(
       denied.assertCanView(asUser(Role.EMPLOYEE, 'prod')),
@@ -114,7 +121,11 @@ describe('ScmResourcePlanService', () => {
     status: KickoffStatus.COMPLETED,
     order: {
       lineItems: [
-        { id: 'oli1', quantity: D(10), product: { id: 'p1', itemId: 'item-fg' } },
+        {
+          id: 'oli1',
+          quantity: D(10),
+          product: { id: 'p1', itemId: 'item-fg' },
+        },
       ],
     },
     resourcePlan: null,
@@ -305,6 +316,42 @@ describe('ScmResourcePlanService', () => {
     expect(plan!.summary.variancePercent).toBe('7.69');
     expect(plan!.summary.negotiatedLineCount).toBe(1);
     expect(plan!.summary.lineCount).toBe(2);
+  });
+
+  it('marks plan totals incomplete instead of treating a missing benchmark as zero', async () => {
+    stubReadReturns([
+      {
+        id: 'line-a',
+        itemId: 'item-a',
+        itemCode: 'RM-00001',
+        itemName: 'Raw A',
+        requiredQuantity: D(20),
+        unitOfMeasure: 'nos',
+        benchmarkCostPerUnit: D('50.00'),
+        isCostComplete: true,
+        negotiatedPricePerUnit: null,
+        notes: null,
+      },
+      {
+        id: 'line-b',
+        itemId: 'item-b',
+        itemCode: 'RM-00002',
+        itemName: 'Raw B',
+        requiredQuantity: D(10),
+        unitOfMeasure: 'nos',
+        benchmarkCostPerUnit: null,
+        isCostComplete: false,
+        negotiatedPricePerUnit: null,
+        notes: null,
+      },
+    ]);
+
+    const plan = await service.read('ko1', asUser(Role.EMPLOYEE, 'scm'));
+    expect(plan!.lines[1].benchmarkCostPerUnit).toBeNull();
+    expect(plan!.lines[1].benchmarkLineTotal).toBeNull();
+    expect(plan!.summary.isCostComplete).toBe(false);
+    expect(plan!.summary.totalBenchmarkCost).toBeNull();
+    expect(plan!.summary.varianceAmount).toBeNull();
   });
 
   it('updateLine clears a negotiated price when passed null', async () => {
