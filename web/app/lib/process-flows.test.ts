@@ -37,4 +37,30 @@ describe('canonical employee process flows', () => {
   it('uses the same canonical Sales data wherever Sales guidance is requested', () => {
     expect(flowForVertical('SALES')).toBe(VERTICAL_FLOWS[0]);
   });
+
+  it('documents the newer pre-bid and sourcing playbooks in the shared source', () => {
+    const strategy = VERTICAL_FLOWS.find((flow) =>
+      flow.codes.includes('BID_STRATEGY'),
+    );
+    const customerBom = VERTICAL_FLOWS.find((flow) =>
+      flow.codes.includes('CUSTOMER_BOM'),
+    );
+    const rfq = VERTICAL_FLOWS.find((flow) =>
+      flow.codes.includes('RFQ_SOURCING'),
+    );
+
+    expect(strategy?.steps.map((step) => step.key)).toEqual(
+      expect.arrayContaining(['record-meeting', 'attendees', 'actions', 'handoff']),
+    );
+    expect(customerBom?.steps.map((step) => step.key)).toEqual(
+      expect.arrayContaining(['resolve', 'create', 'review']),
+    );
+    expect(rfq?.steps.map((step) => step.key)).toEqual(
+      expect.arrayContaining(['explode', 'documents', 'approve', 'award']),
+    );
+    expect(rfq?.steps.find((step) => step.key === 'approve')?.gate).toBe(true);
+    expect(rfq?.steps.find((step) => step.key === 'award')?.detail).toContain(
+      'Draft Purchase Order',
+    );
+  });
 });

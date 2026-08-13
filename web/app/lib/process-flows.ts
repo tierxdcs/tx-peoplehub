@@ -68,6 +68,20 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
         gate: true,
       },
       {
+        key: 'strategy',
+        label: 'Bid strategy',
+        detail:
+          'When a deal needs alignment, Sales records one or more Strategy Meetings on the Bid before any order exists. Add internal employees or external participants, capture the discussion and decisions, and assign lightweight Open or Done follow-ups with owners and due dates. These actions stay with the Bid and do not create a Kanban board; if the deal is won, Project Kickoff can read the earlier meetings as context.',
+        href: '/sales/bids',
+      },
+      {
+        key: 'customer-bom',
+        label: 'Customer BOM intake',
+        detail:
+          'For a custom product, Sales uploads the customer parts list from the Opportunity and transcribes its lines without adding internal costs or engineering classifications. Every line is searched against Item Master and deliberately matched or created as a new Component, producing a real Product and Draft BOM. SCM may source BUY components while quoting, but R&D must review and release the BOM before the accepted Bid can become an Order.',
+        href: '/sales/opportunities',
+      },
+      {
         key: 'bid',
         label: 'Bid',
         detail:
@@ -169,20 +183,33 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
         key: 'need',
         label: 'Material need',
         detail:
-          'A material need is identified — usually from a kickoff stock shortfall, or raised manually by a project. It states which item is short and how much. This is the seed for a sourcing exercise.',
+          'A material need may come from a kickoff stock shortfall, an order’s released BOMs, or a quote-stage customer Draft BOM. When an order or BOM is selected, the system performs the same Make/Buy-aware multi-level explosion used by planning: MAKE assemblies recurse and only BUY components become sourcing lines. Repeated components are aggregated, avoiding manual re-entry and accidental external sourcing of in-house work.',
       },
       {
         key: 'rfq',
         label: 'RFQ',
         detail:
-          'A Request for Quotation is floated to three or more qualified suppliers or vendors to keep sourcing competitive. It lists the items, quantities and the response deadline. Inviting several suppliers is a policy safeguard against single-source bias.',
+          'SCM reviews the auto-populated lines, excludes any order product that is out of scope, and can edit quantities or add and remove materials before saving the Draft RFQ. Link it to the relevant Project/Order where available for internal traceability. Customer identity, order number and commercial order information stay internal and are never shown on the vendor quote form.',
         href: '/scm/rfqs',
+      },
+      {
+        key: 'technical-pack',
+        label: 'BOM & drawings',
+        detail:
+          'For each RFQ line, the vendor sees a live read-only view of the current BOM without internal cost or pricing. SCM can attach private technical drawings either to the whole RFQ or to one line, and can delete a mistaken upload before issue. Downloads use short-lived links available only through that vendor’s valid RFQ invitation; after award, losing vendors lose access while the winner retains it.',
+      },
+      {
+        key: 'pm-approval',
+        label: 'Project Manager approval',
+        detail:
+          'The linked Project Manager reviews the Draft RFQ before vendor invitation links can be generated. Approval unlocks issuing; rejection returns it to SCM with a mandatory explanation so it can be corrected and resubmitted. This gate ensures the sourcing scope matches the project need before external parties see it.',
+        gate: true,
       },
       {
         key: 'quotes',
         label: 'Sealed quotes',
         detail:
-          'Suppliers submit sealed quotes that stay hidden from everyone until the RFQ closes. This prevents early bids from being leaked or shopped around. It keeps the comparison fair for every invitee.',
+          'After approval, SCM adds at least three qualified suppliers or vendors and issues their private invitation links. Invitees see the sourcing requirements, live BOM view and authorised drawings, then save or submit their quote. Quotes stay sealed from internal users until the RFQ closes, preventing early bids from being leaked or shopped around.',
       },
       {
         key: 'compare',
@@ -194,7 +221,7 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
         key: 'award',
         label: 'Award',
         detail:
-          'The buyer awards the RFQ to a supplier; if it is not the lowest quote, a written justification is required. This gate keeps non-lowest awards transparent and auditable. The award then pre-fills the purchase order.',
+          'SCM awards the RFQ to the chosen supplier; selecting a quote other than the lowest requires a written justification. This gate keeps the decision transparent and auditable, revokes technical access for non-winners, and creates a Draft Purchase Order pre-filled from the winning quote for final review.',
         gate: true,
       },
       {
@@ -402,6 +429,145 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
   },
 
   // ── Cross-cutting sub-processes (synthetic codes; Help/Learning only) ────
+  {
+    codes: ['BID_STRATEGY'],
+    title: 'Bid Strategy — Align Before Quoting',
+    summary:
+      'Record pre-bid discussions, decisions and follow-ups while the opportunity is still being pursued.',
+    participants:
+      'Sales employees, Sales Managers, solution stakeholders and invited external participants',
+    steps: [
+      {
+        key: 'open-bid',
+        label: 'Open the Bid',
+        detail:
+          'Open the relevant Bid and find Strategy Meetings. The meeting belongs to the Bid, so it can be held before an Order or Project Kickoff exists. Any user who normally has access to the Bid can use this section.',
+        href: '/sales/bids',
+      },
+      {
+        key: 'record-meeting',
+        label: 'Record the meeting',
+        detail:
+          'Choose New Meeting and enter the date and time, mode, virtual link when applicable, and a clear summary of the approaches discussed and decisions made. A Bid can carry several meetings, so record each meaningful alignment separately instead of overwriting earlier context.',
+      },
+      {
+        key: 'attendees',
+        label: 'Add participants',
+        detail:
+          'Add colleagues by selecting their Employee record and add customers, advisers or other outside participants as external names. Keeping internal and external attendees distinct preserves an honest record of who contributed without creating accounts for guests.',
+      },
+      {
+        key: 'actions',
+        label: 'Assign follow-ups',
+        detail:
+          'Capture each follow-up with an internal owner and optional due date, then move it between Open and Done from the meeting. These are intentionally lightweight Bid actions and do not create Kanban cards or a premature project board.',
+      },
+      {
+        key: 'handoff',
+        label: 'Carry context forward',
+        detail:
+          'If the Bid is won, the resulting Project Kickoff shows a read-only reference to the earlier Strategy Meetings. The Project Manager can understand the commercial and technical thinking without making Kickoff depend on a meeting having taken place.',
+      },
+    ],
+  },
+  {
+    codes: ['CUSTOMER_BOM'],
+    title: 'Customer BOM — Intake to Quote-Stage Sourcing',
+    summary:
+      'Turn a customer parts list into controlled internal records that Sales, SCM and R&D can safely use.',
+    participants: 'Sales employees, SCM, R&D and Design',
+    steps: [
+      {
+        key: 'start',
+        label: 'Start from Opportunity',
+        detail:
+          'Open the Opportunity and choose Customer BOM Intake when the requested product does not yet have a controlled internal BOM. Upload the customer PDF, spreadsheet or CSV and enter the product name, business unit, unit of measure and optional target margin.',
+        href: '/sales/opportunities',
+      },
+      {
+        key: 'transcribe',
+        label: 'Enter customer lines',
+        detail:
+          'Transcribe each customer line with its description, customer part reference, quantity and unit. Keep this faithful to the customer document; Sales should not enter internal cost, sourcing classification or engineering assumptions here.',
+      },
+      {
+        key: 'resolve',
+        label: 'Resolve every item',
+        detail:
+          'Search Item Master for each line and select the correct existing match, or explicitly confirm that a new Component should be created. This deliberate resolution prevents near-duplicate materials from quietly entering the master data.',
+        gate: true,
+      },
+      {
+        key: 'create',
+        label: 'Create Product & Draft BOM',
+        detail:
+          'Submitting creates a real Product, the resolved Item records and a Draft BOM. New lines default to BUY so SCM can request supplier prices during the quote stage. The displayed BOM estimate and suggested selling price remain live as item costs and awarded RFQ prices become available.',
+      },
+      {
+        key: 'review',
+        label: 'R&D reviews and releases',
+        detail:
+          'R&D reviews the customer-derived Draft, corrects classifications or structure, merges duplicates when needed, and follows the normal technical approval and release workflow. Quote-stage sourcing may proceed from the Draft, but Order conversion is blocked until the BOM is Released.',
+        gate: true,
+        href: '/scm/bom',
+      },
+    ],
+  },
+  {
+    codes: ['RFQ_SOURCING'],
+    title: 'RFQ Sourcing — Need to Award',
+    summary:
+      'Build a traceable sourcing package, obtain Project Manager approval and run a fair sealed comparison.',
+    participants:
+      'SCM employees, Project Managers, suppliers, vendors and purchase-order owners',
+    steps: [
+      {
+        key: 'source',
+        label: 'Choose the source',
+        detail:
+          'Create an RFQ and optionally select a Project/Order or a quote-stage Customer BOM. For an order, decide which product lines are in scope. The link is for internal traceability and auto-population only; the public form does not expose the customer or order.',
+        href: '/scm/rfqs',
+      },
+      {
+        key: 'explode',
+        label: 'Review sourcing lines',
+        detail:
+          'The system explodes the selected BOMs through MAKE assemblies, surfaces only BUY materials and aggregates repeated components. Review the item, required quantity and unit, then adjust, remove or add lines as this RFQ requires. With no released BOM, the form stays usable and prompts for manual lines.',
+      },
+      {
+        key: 'documents',
+        label: 'Prepare technical pack',
+        detail:
+          'Check the live, cost-free BOM view and attach drawings to either the whole RFQ or the relevant line. Remove any incorrect upload before issuing. Files remain private and are downloaded only through short-lived links authorised by each RFQ invitation.',
+      },
+      {
+        key: 'approve',
+        label: 'Project Manager approves',
+        detail:
+          'Submit the Draft RFQ to the linked Project Manager. Until they approve, SCM cannot generate vendor quote links or issue the RFQ. A rejection includes the correction needed and returns the RFQ to an editable Draft for resubmission.',
+        gate: true,
+      },
+      {
+        key: 'invite',
+        label: 'Invite and receive quotes',
+        detail:
+          'After approval, add the required qualified suppliers or vendors and issue the RFQ. Each invitee uses their own protected public form to review requirements and submit pricing. Internal users cannot see quote values before closure.',
+      },
+      {
+        key: 'compare',
+        label: 'Compare after close',
+        detail:
+          'At the deadline, or after SCM closes the RFQ, compare responses side by side across price, lead time and commercial terms. Technical content and quote access remain scoped to the invited party throughout the process.',
+      },
+      {
+        key: 'award',
+        label: 'Award and create Draft PO',
+        detail:
+          'Choose the winner and record a mandatory justification when the selected response is not the lowest. Awarding revokes new technical downloads for losing invitees, preserves access for the winner, and creates a Draft Purchase Order from the accepted quote.',
+        gate: true,
+      },
+    ],
+  },
   {
     codes: ['RESOURCE_PLAN'],
     title: 'Resource Planning — Kickoff to Negotiated Cost',

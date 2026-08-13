@@ -67,12 +67,23 @@ export default function LearningPage() {
   const canAuthor =
     user?.role === 'SUPER_ADMIN' ||
     (!!vertical?.ownerId && vertical.ownerId === user?.sub);
-  const hiringRequisitionFlow = VERTICAL_FLOWS.find((item) =>
-    item.codes.includes('RECRUITMENT'),
-  );
   const canRaiseHiringRequest = ['MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(
     user?.role ?? '',
   );
+  const guidedPlaybooks = useMemo(() => {
+    const allowedCodes = new Set<string>();
+    if (vertical?.code === 'SALES' || user?.role === 'SUPER_ADMIN') {
+      allowedCodes.add('BID_STRATEGY');
+      allowedCodes.add('CUSTOMER_BOM');
+    }
+    if (vertical?.code === 'SCM' || user?.role === 'SUPER_ADMIN') {
+      allowedCodes.add('RFQ_SOURCING');
+    }
+    if (canRaiseHiringRequest) allowedCodes.add('RECRUITMENT');
+    return VERTICAL_FLOWS.filter((item) =>
+      allowedCodes.has(item.codes[0]),
+    );
+  }, [canRaiseHiringRequest, user?.role, vertical?.code]);
   const load = useCallback(
     () =>
       listLearningCourses()
@@ -168,38 +179,39 @@ export default function LearningPage() {
         </section>
       )}
 
-      {canRaiseHiringRequest && hiringRequisitionFlow && (
+      {guidedPlaybooks.length > 0 && (
         <section>
           <div className="mb-3">
-            <h2 className="text-xl font-semibold">Owner playbooks</h2>
+            <h2 className="text-xl font-semibold">Guided playbooks</h2>
             <p className="text-sm text-muted-foreground">
-              Guided procedures for managers and accountable process owners.
+              Practical walkthroughs for the workflows you take part in.
             </p>
           </div>
-          <Card className="overflow-hidden">
-            <CardContent className="grid gap-5 p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center">
-              <div className="rounded-xl bg-primary/10 p-3 text-primary">
-                <ClipboardCheck className="size-6" />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-semibold">
-                    How to raise a hiring requisition
-                  </h3>
-                  <Badge variant="secondary">
-                    {hiringRequisitionFlow.steps.length} steps
-                  </Badge>
-                </div>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  Create a headcount request, understand both approval gates and
-                  learn how the approved request is used for an offer letter.
-                </p>
-              </div>
-              <Button onClick={() => setPlayingProcess(hiringRequisitionFlow)}>
-                <Play className="size-4" /> Start walkthrough
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {guidedPlaybooks.map((playbook) => (
+              <Card key={playbook.codes[0]} className="overflow-hidden">
+                <CardContent className="grid gap-5 p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+                  <div className="rounded-xl bg-primary/10 p-3 text-primary">
+                    <ClipboardCheck className="size-6" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold">{playbook.title}</h3>
+                      <Badge variant="secondary">
+                        {playbook.steps.length} steps
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      {playbook.summary}
+                    </p>
+                  </div>
+                  <Button onClick={() => setPlayingProcess(playbook)}>
+                    <Play className="size-4" /> Start walkthrough
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </section>
       )}
 
