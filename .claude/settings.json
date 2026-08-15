@@ -43,7 +43,8 @@
       "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma migrate resolve --applied 20260912120000_rfq_pm_approval)",
       "Bash(echo \"NEST_EXIT=$?\")",
       "Bash(grep -rln \"convert-to-order\\\\|'/orders'\\\\|\\\\`/orders\\\\|fetchOrders\\\\|listOrders\\\\|/orders?\" app/lib/ app/'\\(protected\\)'/sales/)",
-      "Bash(echo \"---BUILD EXIT: $?---\")"
+      "Bash(echo \"---BUILD EXIT: $?---\")",
+      "Bash(awk '/^model Order \\\\{/,/^\\\\}/' prisma/schema.prisma)"
     ]
   }
 }
