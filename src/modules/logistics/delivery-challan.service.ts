@@ -130,6 +130,15 @@ export class DeliveryChallanService {
   ): Promise<DeliveryChallanEntity> {
     await this.access.assertCanDispatch(user);
     const order = await this.loadOrderForDispatch(dto.orderId);
+    // A delivery challan is a customer-facing document keyed to a Customer.
+    // An internal order with no (prospective) customer has no billing party to
+    // raise it against — set a customer or promote the order first.
+    if (!order.customerId) {
+      throw new BadRequestException(
+        'This order has no customer on record — add a customer, or promote the internal order, before raising a delivery challan',
+      );
+    }
+    const customerId = order.customerId;
     const lineData = await this.buildLineData(dto.lines, order);
 
     const created = await this.prisma.$transaction(async (tx) => {
@@ -144,7 +153,7 @@ export class DeliveryChallanService {
           dcNumber,
           status: DeliveryChallanStatus.DRAFT,
           orderId: order.id,
-          customerId: order.customerId,
+          customerId,
           customerPoReference: dto.customerPoReference ?? null,
           dispatchDate: dto.dispatchDate ? new Date(dto.dispatchDate) : new Date(),
           consigneeName: dto.consigneeName,

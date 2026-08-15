@@ -8,6 +8,7 @@ import {
   GstDocumentType,
   GstSubmissionStatus,
   JournalStatus,
+  OrderType,
   Prisma,
   ReceiptStatus,
   SalesInvoiceStatus,
@@ -94,6 +95,12 @@ export class ArService {
       include: { billingMilestones: true },
     });
     if (!order) throw new NotFoundException('Order not found');
+    // Internal orders carry no pricing and never become invoices/revenue, so
+    // they cannot have billing milestones. Once promoted to CUSTOMER they can.
+    if (order.orderType === OrderType.INTERNAL)
+      throw new BadRequestException(
+        'Internal orders cannot have billing milestones',
+      );
     const newAmount =
       dto.fixedAmount ??
       (Number(order.totalAmount) * Number(dto.percentage)) / 100;

@@ -46,6 +46,7 @@ import { ProductCell } from '../../_components/product-cell';
 import { BidPrintDocument } from '../../_components/bid-print-document';
 import { AdHocResolutionCard } from '../../_components/ad-hoc-resolution';
 import { StrategyMeetingsSection } from '../_components/strategy-meetings-section';
+import { PromoteInternalOrderDialog } from '../_components/promote-internal-order-dialog';
 
 export default function BidDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -68,6 +69,7 @@ export default function BidDetailPage() {
   const [acting, setActing] = useState(false);
   const [comments, setComments] = useState('');
   const [hasSignature, setHasSignature] = useState(true);
+  const [promoteOpen, setPromoteOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -318,17 +320,31 @@ export default function BidDetailPage() {
                   View Order
                 </Button>
               ) : (
-                <Button
-                  disabled={acting || hasAdHocLines}
-                  title={
-                    hasAdHocLines
-                      ? 'Resolve all ad-hoc line items before converting'
-                      : undefined
-                  }
-                  onClick={convertToOrder}
-                >
-                  Convert to Order
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    disabled={acting || hasAdHocLines}
+                    title={
+                      hasAdHocLines
+                        ? 'Resolve all ad-hoc line items before promoting'
+                        : 'Attach this won bid to an existing internal order, preserving its kickoff/PLM/Kanban history'
+                    }
+                    onClick={() => setPromoteOpen(true)}
+                  >
+                    Promote Internal Order
+                  </Button>
+                  <Button
+                    disabled={acting || hasAdHocLines}
+                    title={
+                      hasAdHocLines
+                        ? 'Resolve all ad-hoc line items before converting'
+                        : undefined
+                    }
+                    onClick={convertToOrder}
+                  >
+                    Convert to Order
+                  </Button>
+                </>
               ))}
             {(bid.status === 'DRAFT' || bid.status === 'REJECTED') && (
               <Button
@@ -639,6 +655,13 @@ export default function BidDetailPage() {
         )}
         <StrategyMeetingsSection bidId={bid.id} />
       </PageContainer>
+
+      <PromoteInternalOrderDialog
+        bid={bid}
+        open={promoteOpen}
+        onOpenChange={setPromoteOpen}
+        onPromoted={(orderId) => router.push(`/sales/orders/${orderId}`)}
+      />
     </>
   );
 }

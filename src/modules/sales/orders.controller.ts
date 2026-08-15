@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -15,14 +16,16 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { CreateInternalOrderDto } from './dto/create-internal-order.dto';
+import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { OrdersService } from './orders.service';
 
 /**
- * Orders are created only by converting an accepted bid
- * (POST /bids/:id/convert-to-order), so this controller exposes read +
- * status-progression only.
+ * A CUSTOMER order is created only by converting an accepted bid
+ * (POST /bids/:id/convert-to-order). This controller additionally exposes
+ * direct creation of INTERNAL orders (samples / speculative builds with no
+ * bid), plus read + status-progression.
  */
 @ApiTags('orders')
 @ApiBearerAuth()
@@ -32,10 +35,22 @@ import { OrdersService } from './orders.service';
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
+  @Post()
+  @ApiOperation({
+    summary:
+      'Create an INTERNAL order (no bid/OCS/customer commitment). Sales, R&D, or Project Manager staff only.',
+  })
+  createInternal(
+    @Body() dto: CreateInternalOrderDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ordersService.createInternal(dto, user);
+  }
+
   @Get()
   @ApiOperation({ summary: 'List orders visible to the caller' })
   findAll(
-    @Query() query: PaginationQueryDto,
+    @Query() query: ListOrdersQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.ordersService.findAll(query, user);

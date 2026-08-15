@@ -53,7 +53,7 @@ export class ProjectKickoffController {
   @Post()
   @ApiOperation({
     summary:
-      'Create a kickoff (Project Manager / SUPER_ADMIN; Order must be executed)',
+      'Create a kickoff (Project Manager / SUPER_ADMIN; customer order must be executed, internal orders exempt)',
   })
   create(
     @Body() dto: CreateKickoffDto,
@@ -72,7 +72,7 @@ export class ProjectKickoffController {
   @Get('eligible-orders')
   @ApiOperation({
     summary:
-      'Orders eligible for a new kickoff (executed sheet, no kickoff yet) — PM/SUPER_ADMIN',
+      'Orders eligible for a new kickoff (executed sheet or internal, no kickoff yet) — PM/SUPER_ADMIN',
   })
   eligibleOrders(@CurrentUser() user: AuthenticatedUser) {
     return this.service.eligibleOrders(user);

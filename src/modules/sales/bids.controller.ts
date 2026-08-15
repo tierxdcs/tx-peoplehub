@@ -20,6 +20,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { CreateBidDto } from './dto/create-bid.dto';
 import { BidActionDto } from './dto/bid-action.dto';
 import { BidStatusDto } from './dto/bid-status.dto';
+import { PromoteInternalOrderDto } from './dto/promote-internal-order.dto';
 import { ResolveBidLineItemDto } from './dto/resolve-bid-line-item.dto';
 import { BidsService } from './bids.service';
 import { OrdersService } from './orders.service';
@@ -136,5 +137,18 @@ export class BidsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.ordersService.convertFromBid(id, user);
+  }
+
+  @Post(':id/promote-internal-order')
+  @ApiOperation({
+    summary:
+      'Promote an existing INTERNAL order to a CUSTOMER order for this ACCEPTED bid — preserves the internal order’s kickoff/PLM/Kanban history',
+  })
+  promoteInternalOrder(
+    @Param('id') id: string,
+    @Body() dto: PromoteInternalOrderDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ordersService.promoteInternalOrder(id, dto, user);
   }
 }

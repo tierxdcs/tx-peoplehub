@@ -275,7 +275,7 @@ export class RfqService {
       orderNumber: row.order.orderNumber,
       orderStatus: row.order.status,
       orderTotal: row.order.totalAmount.toString(),
-      customerName: row.order.customer.name,
+      customerName: row.order.customer?.name ?? 'Internal',
       lines: row.order.lineItems.map((line) => ({
         orderLineId: line.id,
         productSku: line.product.sku,
@@ -1157,7 +1157,7 @@ export class RfqService {
       orderNumber: rfq.projectKickoff?.order.orderNumber ?? null,
       orderStatus: rfq.projectKickoff?.order.status ?? null,
       orderTotal: rfq.projectKickoff?.order.totalAmount.toString() ?? null,
-      customerName: rfq.projectKickoff?.order.customer.name ?? null,
+      customerName: rfq.projectKickoff?.order.customer?.name ?? null,
       // Curated order context: order lines the creator chose to EXCLUDE are
       // dropped here so they appear nowhere downstream (comparison, quote form,
       // award). Empty exclusion set (the default) shows every line — existing

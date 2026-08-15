@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Order, OrderStatus, PaginatedResult } from '../../../lib/types';
+import { Order, OrderStatus, OrderType, PaginatedResult } from '../../../lib/types';
 import { apiFetch } from '../../../lib/api';
 import { formatINR, prettyEnum } from '../../../lib/sales';
 import { useNumberFormat } from '../../../lib/number-format-context';
 import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
 import { Card, CardContent } from '../../../components/ui/card';
+import { Badge } from '../../../components/ui/badge';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
@@ -17,6 +18,7 @@ import { RegisterPagination } from '../../../components/ui/register-pagination';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { BusinessUnitLabel } from '../../../components/ui/business-unit-label';
 import { useBusinessUnitOptions } from '../../../lib/business-units';
+import { useCanManageInternalOrders } from '../../../lib/use-can-manage-internal-orders';
 import {
   Table,
   TableBody,
@@ -56,8 +58,10 @@ export default function OrdersPage() {
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'' | OrderType>('');
   const [businessUnitFilter, setBusinessUnitFilter] = useState('');
   const { businessUnits } = useBusinessUnitOptions();
+  const { canManage } = useCanManageInternalOrders();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,14 +101,21 @@ export default function OrdersPage() {
     return orders.filter(
       (order) =>
         (!statusFilter || order.status === statusFilter) &&
+        (!typeFilter || order.orderType === typeFilter) &&
         (!businessUnitFilter || order.businessUnitId === businessUnitFilter) &&
         (!q ||
-          `${order.orderNumber} ${order.ownerName}`.toLowerCase().includes(q)),
+          `${order.orderNumber} ${order.ownerName} ${order.customerName ?? ''}`
+            .toLowerCase()
+            .includes(q)),
     );
-  }, [orders, search, statusFilter, businessUnitFilter]);
+  }, [orders, search, statusFilter, typeFilter, businessUnitFilter]);
 
   const summary = useMemo(() => {
-    const active = summaryRows.filter((order) => order.status !== 'CANCELLED');
+    // Booked Value and the operational KPI cards cover committed customer
+    // orders only — internal orders carry no pricing and no commitment.
+    const active = summaryRows.filter(
+      (order) => order.status !== 'CANCELLED' && order.orderType !== 'INTERNAL',
+    );
     return {
       confirmed: active.filter((order) => order.status === 'CONFIRMED').length,
       inProduction: active.filter((order) => order.status === 'IN_PRODUCTION')
@@ -127,6 +138,13 @@ export default function OrdersPage() {
       <PageHeader
         title="Orders"
         description="Sales order register — follow confirmed work through production, shipment and delivery."
+        action={
+          canManage ? (
+            <Button onClick={() => router.push('/sales/orders/new')}>
+              New Internal Order
+            </Button>
+          ) : undefined
+        }
       />
 
       <div className="mb-6 flex flex-wrap gap-3">
@@ -165,6 +183,19 @@ export default function OrdersPage() {
               {prettyEnum(status)}
             </option>
           ))}
+        </Select>
+        <Select
+          aria-label="Order type"
+          className="w-full sm:w-40"
+          value={typeFilter}
+          onChange={(event) => {
+            setTypeFilter(event.target.value as '' | OrderType);
+            setPage(1);
+          }}
+        >
+          <option value="">All types</option>
+          <option value="CUSTOMER">Customer</option>
+          <option value="INTERNAL">Internal</option>
         </Select>
         <Select
           aria-label="Business unit"
@@ -223,15 +254,25 @@ export default function OrdersPage() {
                 filtered.map((order) => (
                   <TableRow key={order.id}>
                     <TableCell className="font-medium">
-                      <button
-                        type="button"
-                        className="hover:text-primary hover:underline"
-                        onClick={() => router.push(`/sales/orders/${order.id}`)}
-                      >
-                        {order.orderNumber}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="hover:text-primary hover:underline"
+                          onClick={() =>
+                            router.push(`/sales/orders/${order.id}`)
+                          }
+                        >
+                          {order.orderNumber}
+                        </button>
+                        {order.orderType === 'INTERNAL' && (
+                          <Badge variant="muted">Internal</Badge>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell>{order.customerName ?? '—'}</TableCell>
+                    <TableCell>
+                      {order.customerName ??
+                        (order.orderType === 'INTERNAL' ? 'Internal' : '—')}
+                    </TableCell>
                     <TableCell>
                       <StatusBadge value={order.status} />
                     </TableCell>

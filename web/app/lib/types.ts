@@ -636,13 +636,23 @@ export interface OrderLineItem {
   quantity: string;
   unitPrice: string;
   lineTotal: string;
+  /**
+   * Whether this line carries in-progress PLM/design work. Only populated by
+   * the single-order fetch (GET /orders/:id); undefined in list responses.
+   * Used by the bid-promotion reconciliation UI to lock such lines.
+   */
+  hasPlmTracker?: boolean;
 }
+
+/** CUSTOMER (bid-converted) vs INTERNAL (sample / speculative, no commitment). */
+export type OrderType = 'CUSTOMER' | 'INTERNAL';
 
 export interface Order {
   id: string;
   orderNumber: string;
+  orderType: OrderType;
   bidId: string | null;
-  customerId: string;
+  customerId: string | null;
   customerName: string | null;
   status: OrderStatus;
   /** Outbound finished-goods final-QC clearance (dispatch precondition). */

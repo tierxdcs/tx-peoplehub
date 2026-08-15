@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
-import { BidStatus, OrderStatus, Prisma, Role } from '@prisma/client';
+import { BidStatus, OrderStatus, OrderType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { OrdersService } from './orders.service';
@@ -32,11 +32,23 @@ describe('OrdersService', () => {
         findMany: jest.fn(),
         count: jest.fn(),
       },
+      orderLineItem: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({}),
+      },
+      product: { findMany: jest.fn() },
+      customer: { findUnique: jest.fn() },
+      businessUnit: { findUnique: jest.fn() },
       $transaction: jest.fn(),
     };
     access = {
       assertSalesAccess: jest.fn().mockResolvedValue(undefined),
       assertCanAccessOwned: jest.fn().mockResolvedValue(undefined),
+      assertCanCreateInternalOrder: jest.fn().mockResolvedValue(undefined),
+      // Default the read-scope gate to full (Sales) access so existing
+      // findAll/findOne tests keep their vertical-wide behavior.
+      hasSalesAccess: jest.fn().mockResolvedValue(true),
       visibleOwnerIds: jest.fn().mockResolvedValue(['emp-1']),
     };
     numbering = { nextNumber: jest.fn().mockResolvedValue('ORD-2026-0001') };
@@ -202,6 +214,274 @@ describe('OrdersService', () => {
       expect(result.ownerId).toBe('emp-1');
       // Booked value includes flat AMC accepted on the quotation.
       expect(result.totalAmount).toBe('62937500');
+    });
+  });
+
+  describe('createInternal', () => {
+    it('creates a zero-priced INTERNAL order (no bid, no committed value)', async () => {
+      prisma.product.findMany.mockResolvedValue([
+        { id: 'prod-1' },
+        { id: 'prod-2' },
+      ]);
+      const orderCreate = jest.fn().mockImplementation(({ data }: any) => ({
+        id: 'order-int',
+        orderNumber: data.orderNumber,
+        orderType: data.orderType,
+        bidId: data.bidId,
+        customerId: data.customerId,
+        status: OrderStatus.CONFIRMED,
+        totalAmount: data.totalAmount,
+        productionRunId: null,
+        shipmentId: null,
+        ownerId: data.ownerId,
+        owner: { firstName: 'Sales', lastName: 'Rep' },
+        enquiryCreatorId: null,
+        businessUnitId: data.businessUnitId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lineItems: data.lineItems.create.map((li: any, i: number) => ({
+          ...li,
+          id: `oli-${i}`,
+          orderId: 'order-int',
+          product: { name: `Product ${li.productId}`, sku: `SKU-${i}` },
+        })),
+      }));
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({ order: { create: orderCreate } }),
+      );
+
+      const result = await service.createInternal(
+        { lineItems: [
+          { productId: 'prod-1', quantity: 5 },
+          { productId: 'prod-2', quantity: 2 },
+        ] },
+        rep,
+      );
+
+      expect(access.assertCanCreateInternalOrder).toHaveBeenCalledWith(rep);
+      expect(result.orderType).toBe(OrderType.INTERNAL);
+      expect(result.bidId).toBeNull();
+      expect(result.totalAmount).toBe('0');
+      expect(result.ownerId).toBe('emp-1');
+      // Every line carries the real product + quantity but no pricing.
+      expect(result.lineItems?.map((li) => li.unitPrice)).toEqual(['0', '0']);
+      expect(result.lineItems?.map((li) => li.lineTotal)).toEqual(['0', '0']);
+      expect(result.lineItems?.map((li) => li.quantity)).toEqual(['5', '2']);
+    });
+
+    it('rejects the same product appearing twice', async () => {
+      await expect(
+        service.createInternal(
+          { lineItems: [
+            { productId: 'prod-1', quantity: 1 },
+            { productId: 'prod-1', quantity: 3 },
+          ] },
+          rep,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects a line referencing a product that does not exist', async () => {
+      prisma.product.findMany.mockResolvedValue([{ id: 'prod-1' }]);
+      await expect(
+        service.createInternal(
+          { lineItems: [
+            { productId: 'prod-1', quantity: 1 },
+            { productId: 'ghost', quantity: 1 },
+          ] },
+          rep,
+        ),
+      ).rejects.toThrow(/do not exist/);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('promoteInternalOrder', () => {
+    // A won bid pricing two products; the internal order it's promoted onto
+    // carries one of them plus two extra internal-only lines (one with design
+    // work, one without).
+    function acceptedBid() {
+      return {
+        id: 'bid-1',
+        status: BidStatus.ACCEPTED,
+        createdById: 'emp-1',
+        customerId: 'cust-1',
+        enquiryCreatorId: 'emp-9',
+        businessUnitId: 'bu-1',
+        totalAmount: new Prisma.Decimal(50000),
+        amcCharges: [{ yearNumber: 2, amount: new Prisma.Decimal(5000) }],
+        lineItems: [
+          {
+            productId: 'prod-1',
+            quantity: new Prisma.Decimal(1),
+            unitPrice: new Prisma.Decimal(100),
+            lineTotal: new Prisma.Decimal(100),
+          },
+          {
+            productId: 'prod-2',
+            quantity: new Prisma.Decimal(1),
+            unitPrice: new Prisma.Decimal(200),
+            lineTotal: new Prisma.Decimal(200),
+          },
+        ],
+      };
+    }
+
+    function internalOrder() {
+      return {
+        id: 'order-int',
+        orderType: OrderType.INTERNAL,
+        bidId: null,
+        lineItems: [
+          // matched to the bid + confirmed → update in place (tracker survives)
+          { id: 'A', productId: 'prod-1', plmTracker: null },
+          // dropped, but has design work → kept untouched
+          { id: 'B', productId: 'prod-3', plmTracker: { id: 'plm-1' } },
+          // dropped, no design work → deleted
+          { id: 'C', productId: 'prod-4', plmTracker: null },
+        ],
+      };
+    }
+
+    function wireTransaction() {
+      const deleteMany = jest.fn().mockResolvedValue({ count: 1 });
+      const lineUpdate = jest.fn().mockResolvedValue({});
+      const lineCreate = jest.fn().mockResolvedValue({});
+      const orderUpdate = jest.fn().mockImplementation(({ data }: any) => ({
+        id: 'order-int',
+        orderNumber: 'ORD-2026-0007',
+        orderType: data.orderType,
+        bidId: data.bidId,
+        customerId: data.customerId,
+        status: OrderStatus.CONFIRMED,
+        totalAmount: data.totalAmount,
+        productionRunId: null,
+        shipmentId: null,
+        ownerId: 'emp-1',
+        owner: { firstName: 'Sales', lastName: 'Rep' },
+        enquiryCreatorId: data.enquiryCreatorId,
+        businessUnitId: data.businessUnitId,
+        customer: { name: 'Acme' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lineItems: [
+          {
+            id: 'A',
+            orderId: 'order-int',
+            productId: 'prod-1',
+            quantity: new Prisma.Decimal(10),
+            unitPrice: new Prisma.Decimal(100),
+            lineTotal: new Prisma.Decimal(1000),
+            product: { name: 'P1', sku: 'S1' },
+          },
+        ],
+      }));
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          orderLineItem: {
+            deleteMany,
+            update: lineUpdate,
+            create: lineCreate,
+          },
+          order: { update: orderUpdate },
+        }),
+      );
+      return { deleteMany, lineUpdate, lineCreate, orderUpdate };
+    }
+
+    it('reconciles lines and flips the order to CUSTOMER with the bid snapshot', async () => {
+      prisma.bid.findUnique.mockResolvedValue(acceptedBid());
+      prisma.order.findFirst.mockResolvedValue(null);
+      prisma.order.findUnique.mockResolvedValue(internalOrder());
+      const tx = wireTransaction();
+
+      const result = await service.promoteInternalOrder(
+        'bid-1',
+        {
+          orderId: 'order-int',
+          lineItems: [
+            { productId: 'prod-1', quantity: 10 }, // matched → update
+            { productId: 'prod-2', quantity: 3 }, // new → create
+          ],
+        },
+        rep,
+      );
+
+      // Only the untracked dropped line (C) is deleted; the tracked drop (B) is kept.
+      expect(tx.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['C'] } },
+      });
+      // Matched line updated in place at the bid price (100 × 10).
+      expect(tx.lineUpdate).toHaveBeenCalledWith({
+        where: { id: 'A' },
+        data: {
+          quantity: new Prisma.Decimal(10),
+          unitPrice: new Prisma.Decimal(100),
+          lineTotal: new Prisma.Decimal(1000),
+        },
+      });
+      // The new bid product is created (200 × 3).
+      expect(tx.lineCreate).toHaveBeenCalledTimes(1);
+      expect(tx.lineCreate).toHaveBeenCalledWith({
+        data: {
+          orderId: 'order-int',
+          productId: 'prod-2',
+          quantity: new Prisma.Decimal(3),
+          unitPrice: new Prisma.Decimal(200),
+          lineTotal: new Prisma.Decimal(600),
+        },
+      });
+      // Order flips to CUSTOMER, adopts the bid's customer, and books the
+      // accepted quotation value incl. flat AMC (50000 + 5000).
+      const updateData = tx.orderUpdate.mock.calls[0][0].data;
+      expect(updateData.orderType).toBe(OrderType.CUSTOMER);
+      expect(updateData.bidId).toBe('bid-1');
+      expect(updateData.customerId).toBe('cust-1');
+      expect(updateData.totalAmount.toString()).toBe('55000');
+      expect(result.orderType).toBe(OrderType.CUSTOMER);
+      expect(result.totalAmount).toBe('55000');
+    });
+
+    it('rejects a confirmed line that is not part of the won bid', async () => {
+      prisma.bid.findUnique.mockResolvedValue(acceptedBid());
+      prisma.order.findFirst.mockResolvedValue(null);
+      prisma.order.findUnique.mockResolvedValue(internalOrder());
+
+      await expect(
+        service.promoteInternalOrder(
+          'bid-1',
+          {
+            orderId: 'order-int',
+            lineItems: [
+              { productId: 'prod-1', quantity: 1 },
+              { productId: 'prod-3', quantity: 1 }, // internal-only, no bid price
+            ],
+          },
+          rep,
+        ),
+      ).rejects.toThrow(/not part of the won bid/);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('refuses to promote an order that is not INTERNAL', async () => {
+      prisma.bid.findUnique.mockResolvedValue(acceptedBid());
+      prisma.order.findFirst.mockResolvedValue(null);
+      prisma.order.findUnique.mockResolvedValue({
+        id: 'order-int',
+        orderType: OrderType.CUSTOMER,
+        bidId: null,
+        lineItems: [],
+      });
+
+      await expect(
+        service.promoteInternalOrder(
+          'bid-1',
+          { orderId: 'order-int', lineItems: [{ productId: 'prod-1', quantity: 1 }] },
+          rep,
+        ),
+      ).rejects.toThrow(/internal order can be promoted/);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
 

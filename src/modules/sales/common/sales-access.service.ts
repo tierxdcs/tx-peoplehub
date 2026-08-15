@@ -43,18 +43,28 @@ export class SalesAccessService {
 
   /** SALES-vertical MANAGER/EMPLOYEE, or SUPER_ADMIN. Throws otherwise. */
   async assertSalesAccess(user: AuthenticatedUser): Promise<void> {
-    if (isSuperAdmin(user)) {
-      return;
-    }
-    if (!(await this.isSalesStaff(user))) {
+    if (!(await this.hasSalesAccess(user))) {
       throw new ForbiddenException(
         'Only Sales-vertical staff may access the Sales module',
       );
     }
   }
 
+  /** Boolean form of {@link assertSalesAccess} — SALES staff or SUPER_ADMIN. */
+  async hasSalesAccess(user: AuthenticatedUser): Promise<boolean> {
+    return isSuperAdmin(user) || (await this.isSalesStaff(user));
+  }
+
   /** Sales staff = MANAGER/EMPLOYEE whose vertical is the one coded 'SALES'. */
   async isSalesStaff(user: AuthenticatedUser): Promise<boolean> {
+    return this.isVerticalStaff(user, 'SALES');
+  }
+
+  /** MANAGER/EMPLOYEE whose vertical has the given code (e.g. 'SALES', 'RND'). */
+  private async isVerticalStaff(
+    user: AuthenticatedUser,
+    code: string,
+  ): Promise<boolean> {
     if (user.role !== Role.MANAGER && user.role !== Role.EMPLOYEE) {
       return false;
     }
@@ -63,8 +73,47 @@ export class SalesAccessService {
     }
     const vertical = await this.prisma.vertical.findUnique({
       where: { id: user.verticalId },
+      select: { code: true },
     });
-    return vertical?.code === 'SALES';
+    return vertical?.code === code;
+  }
+
+  /** Whether the user holds the isProjectManager designation. */
+  private async isProjectManager(user: AuthenticatedUser): Promise<boolean> {
+    const me = await this.prisma.employee.findUnique({
+      where: { id: user.id },
+      select: { isProjectManager: true },
+    });
+    return !!me?.isProjectManager;
+  }
+
+  /**
+   * Who may create and manage INTERNAL orders (sample/speculative builds with
+   * no Bid/OCS/customer): SUPER_ADMIN, SALES- or RND-vertical staff, or any
+   * Project Manager designation holder. This is deliberately broader than
+   * `assertSalesAccess` (which is SALES-only) so R&D and PMs — who are not in
+   * the Sales vertical — can start internal projects and see their orders.
+   */
+  async canManageInternalOrders(user: AuthenticatedUser): Promise<boolean> {
+    if (isSuperAdmin(user)) {
+      return true;
+    }
+    if (await this.isSalesStaff(user)) {
+      return true;
+    }
+    if (await this.isVerticalStaff(user, 'RND')) {
+      return true;
+    }
+    return this.isProjectManager(user);
+  }
+
+  /** Throwing variant of {@link canManageInternalOrders}. */
+  async assertCanCreateInternalOrder(user: AuthenticatedUser): Promise<void> {
+    if (!(await this.canManageInternalOrders(user))) {
+      throw new ForbiddenException(
+        'Only Sales, R&D, or Project Manager staff may create internal orders',
+      );
+    }
   }
 
   /**

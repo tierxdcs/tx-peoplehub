@@ -6,6 +6,7 @@ import {
 import {
   KanbanCardStatus,
   OrderLineDeliveryType,
+  OrderType,
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
@@ -92,18 +93,23 @@ export class ProjectKickoffService {
       throw new NotFoundException('Order not found');
     }
 
-    const executed = await this.confirmationSheets.latestIsExecutedFor(
-      dto.orderId,
-    );
-    if (!executed) {
-      throw new BadRequestException(
-        'A project kickoff can only be created once the order’s Confirmation Sheet is executed',
+    // Internal orders have no bid/OCS, so the executed-Confirmation-Sheet gate
+    // doesn't apply to them — they may kick off straight away. Customer orders
+    // are unchanged: still require the latest OCS to be EXECUTED.
+    if (order.orderType !== OrderType.INTERNAL) {
+      const executed = await this.confirmationSheets.latestIsExecutedFor(
+        dto.orderId,
       );
+      if (!executed) {
+        throw new BadRequestException(
+          'A project kickoff can only be created once the order’s Confirmation Sheet is executed (internal orders are exempt)',
+        );
+      }
     }
 
     const projectName =
       dto.projectName?.trim() ||
-      `${order.customer.name} — ${order.orderNumber}`;
+      `${order.customer?.name ?? 'Internal'} — ${order.orderNumber}`;
     const overview =
       dto.overviewAndScope ??
       order.bid?.quotationSubject ??
@@ -152,26 +158,32 @@ export class ProjectKickoffService {
    */
   async eligibleOrders(
     user: AuthenticatedUser,
-  ): Promise<{ id: string; orderNumber: string; customerName: string }[]> {
+  ): Promise<
+    { id: string; orderNumber: string; customerName: string | null }[]
+  > {
     await this.access.assertCanCreate(user);
 
-    // Confirmed-or-later orders that don't already have a kickoff.
+    // Orders that don't already have a kickoff.
     const orders = await this.prisma.order.findMany({
       where: { projectKickoffs: { none: {} } },
       select: {
         id: true,
         orderNumber: true,
+        orderType: true,
         customer: { select: { name: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    // Keep only those whose latest confirmation sheet is EXECUTED (the same
-    // gate create() enforces). Checked per-order to reuse the one source of truth.
+    // Keep internal orders (exempt from the OCS gate) plus any customer order
+    // whose latest confirmation sheet is EXECUTED (the same gate create()
+    // enforces). Checked per-order to reuse the one source of truth.
     const eligible = await Promise.all(
       orders.map(async (o) => ({
         order: o,
-        ok: await this.confirmationSheets.latestIsExecutedFor(o.id),
+        ok:
+          o.orderType === OrderType.INTERNAL ||
+          (await this.confirmationSheets.latestIsExecutedFor(o.id)),
       })),
     );
     return eligible
@@ -179,7 +191,7 @@ export class ProjectKickoffService {
       .map((e) => ({
         id: e.order.id,
         orderNumber: e.order.orderNumber,
-        customerName: e.order.customer.name,
+        customerName: e.order.customer?.name ?? null,
       }));
   }
 

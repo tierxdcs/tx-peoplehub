@@ -25,6 +25,7 @@ import { Button } from '../../../../components/ui/button';
 import { Select } from '../../../../components/ui/select';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
+import { Badge } from '../../../../components/ui/badge';
 import { BusinessUnitLabel } from '../../../../components/ui/business-unit-label';
 import { ProcessFlow } from '../../../../components/ui/process-flow';
 import { orderFlow } from '../../../../lib/record-flows';
@@ -165,6 +166,9 @@ export default function OrderDetailPage() {
         <h1 className="text-2xl font-semibold tracking-tight">
           {order.orderNumber}
         </h1>
+        {order.orderType === 'INTERNAL' && (
+          <Badge variant="muted">Internal</Badge>
+        )}
         <StatusBadge value={order.status} />
         <BusinessUnitLabel
           name={order.businessUnitName}

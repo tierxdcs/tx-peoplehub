@@ -139,10 +139,16 @@ export default function LeadsPage() {
       (o) => o.stage === 'PROPOSAL' || o.stage === 'NEGOTIATION',
     ).length;
     // Won YTD = sum of Order.totalAmount for orders created this year
-    // (booked revenue — confirmed definition).
+    // (booked revenue — confirmed definition). Excludes cancelled orders and
+    // internal orders (samples/speculative builds carry no pricing).
     const year = new Date().getFullYear();
     const wonYtd = orders
-      .filter((o) => new Date(o.createdAt).getFullYear() === year)
+      .filter(
+        (o) =>
+          new Date(o.createdAt).getFullYear() === year &&
+          o.status !== 'CANCELLED' &&
+          o.orderType !== 'INTERNAL',
+      )
       .reduce((sum, o) => sum + Number(o.totalAmount), 0);
     return { newLeads, qualified, proposals, wonYtd };
   }, [leads, opportunities, orders]);

@@ -388,7 +388,7 @@ export class CustomerOrderProgressService {
       );
     return {
       orderNumber: order.orderNumber,
-      customerName: order.customer.name,
+      customerName: order.customer?.name ?? 'Internal',
       productNames: lines.map((line) => line.productName),
       promisedDeliveryDate: promised?.toISOString() ?? null,
       countdown: deliveryCountdown(promised, orderDelivered),

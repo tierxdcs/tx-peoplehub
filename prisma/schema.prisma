@@ -182,6 +182,17 @@ enum OrderStatus {
   CANCELLED
 }
 
+/// Origin of an Order. CUSTOMER (the default, existing behaviour) is created by
+/// converting an accepted Bid and carries a real commercial commitment.
+/// INTERNAL is created directly (no Bid/OCS/customer required) for samples or
+/// speculative Design-to-Dispatch builds; it is excluded from revenue/booked
+/// aggregation and can later be PROMOTED to CUSTOMER when a Bid is won, which
+/// flips this field and attaches the real customer/bid/pricing.
+enum OrderType {
+  CUSTOMER
+  INTERNAL
+}
+
 /// Type of a configurable Bid/No-Bid assessment question. SELECT uses the
 /// question's `options` JSON; the others ignore it.
 enum BidAssessmentQuestionType {
@@ -1452,10 +1463,14 @@ model BidStrategyActionItem {
 model Order {
   id                      String                        @id @default(uuid())
   orderNumber             String                        @unique
+  /// CUSTOMER (default) vs INTERNAL sample/speculative build — see OrderType.
+  orderType               OrderType                     @default(CUSTOMER)
   bidId                   String?
   bid                     Bid?                          @relation(fields: [bidId], references: [id], onDelete: SetNull)
-  customerId              String
-  customer                Customer                      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  /// Required for CUSTOMER orders (service-enforced); optional on INTERNAL
+  /// orders, where it is at most a non-committal "prospective customer" tag.
+  customerId              String?
+  customer                Customer?                     @relation(fields: [customerId], references: [id], onDelete: Restrict)
   status                  OrderStatus                   @default(CONFIRMED)
   /// Outbound final-QC clearance for finished goods. A dispatch cannot be
   /// created until this is CLEARED (mirrors the inbound GRN→QC gate). Separate

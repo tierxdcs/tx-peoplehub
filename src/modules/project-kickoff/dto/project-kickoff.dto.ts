@@ -23,13 +23,14 @@ import {
 export class CreateKickoffDto {
   @ApiProperty({
     description:
-      'Order this kickoff is for (Confirmation Sheet must be EXECUTED)',
+      'Order this kickoff is for (Confirmation Sheet must be EXECUTED; internal orders are exempt)',
   })
   @IsUUID()
   orderId!: string;
 
   @ApiPropertyOptional({
-    description: 'Defaults to "<Customer> — <Order number>" if omitted',
+    description:
+      'Defaults to "<Customer> — <Order number>" ("Internal — …" when the order has no customer) if omitted',
   })
   @IsOptional()
   @IsString()

@@ -41,7 +41,9 @@
       "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma migrate status)",
       "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma db execute --file prisma/migrations/20260912120000_rfq_pm_approval/migration.sql --schema prisma/schema.prisma)",
       "Bash(CHECKPOINT_DISABLE=1 DO_NOT_TRACK=1 npx prisma migrate resolve --applied 20260912120000_rfq_pm_approval)",
-      "Bash(echo \"NEST_EXIT=$?\")"
+      "Bash(echo \"NEST_EXIT=$?\")",
+      "Bash(grep -rln \"convert-to-order\\\\|'/orders'\\\\|\\\\`/orders\\\\|fetchOrders\\\\|listOrders\\\\|/orders?\" app/lib/ app/'\\(protected\\)'/sales/)",
+      "Bash(echo \"---BUILD EXIT: $?---\")"
     ]
   }
 }

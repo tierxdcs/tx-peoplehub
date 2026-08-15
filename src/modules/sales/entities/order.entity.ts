@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { OrderLineDeliveryType, OrderStatus } from '@prisma/client';
+import { OrderLineDeliveryType, OrderStatus, OrderType } from '@prisma/client';
 
 export class OrderLineItemEntity {
   @ApiProperty()
@@ -45,6 +45,13 @@ export class OrderLineItemEntity {
   @ApiProperty({ nullable: true })
   vendorExpectedLeadTime!: string | null;
 
+  @ApiProperty({
+    required: false,
+    description:
+      'Whether this line carries in-progress PLM/design work. Only populated on the single-order fetch; used by the bid-promotion reconciliation UI to lock such lines.',
+  })
+  hasPlmTracker?: boolean;
+
   constructor(partial: Partial<OrderLineItemEntity>) {
     Object.assign(this, partial);
   }
@@ -57,11 +64,20 @@ export class OrderEntity {
   @ApiProperty()
   orderNumber!: string;
 
+  @ApiProperty({
+    enum: OrderType,
+    description: 'CUSTOMER (bid-converted) vs INTERNAL (sample/speculative)',
+  })
+  orderType!: OrderType;
+
   @ApiProperty({ nullable: true })
   bidId!: string | null;
 
-  @ApiProperty()
-  customerId!: string;
+  @ApiProperty({
+    nullable: true,
+    description: 'Null for an internal order with no prospective customer',
+  })
+  customerId!: string | null;
 
   @ApiProperty({ nullable: true, description: 'Resolved customer name (for display)' })
   customerName!: string | null;

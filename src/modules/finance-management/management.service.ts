@@ -733,7 +733,7 @@ export class ManagementService {
         projectId: p.id,
         projectName: p.projectName,
         orderNumber: p.order.orderNumber,
-        customer: p.order.customer.name,
+        customer: p.order.customer?.name ?? 'Internal',
         revenue: revenue.toDecimalPlaces(2).toString(),
         ledgerCost: ledgerCost.toDecimalPlaces(2).toString(),
         estimatedMaterialCost: materialCost.toDecimalPlaces(2).toString(),
