@@ -518,6 +518,7 @@ export default function NewBidPage() {
                       type="number"
                       min={0}
                       max={500}
+                      step="0.01"
                       value={l.marginPercent}
                       onChange={(e) =>
                         updateLine(i, { marginPercent: e.target.value })
@@ -581,6 +582,7 @@ export default function NewBidPage() {
             type="number"
             min={0}
             max={500}
+            step="0.01"
             value={marginPercent}
             onChange={(e) => setMarginPercent(e.target.value)}
             style={fieldStyle}
