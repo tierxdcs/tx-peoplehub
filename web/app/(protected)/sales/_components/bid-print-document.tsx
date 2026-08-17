@@ -1,6 +1,9 @@
 import { Bid, Customer } from '../../../lib/types';
 import { COMPANY, PROPOSAL_TERMS } from '../../../lib/theme';
-import { formatINR } from '../../../lib/sales';
+import {
+  formatInSelectedCurrency,
+  resolveDisplayCurrency,
+} from '../../../lib/reference-currency';
 import { amountToIndianWords } from '../../../lib/indian-number-words';
 
 /** Palette — restrained: a dark navy for structure, amber accent, muted grey. */
@@ -205,6 +208,7 @@ export function BidPrintDocument({
   preparedByName,
   preparedByEmail,
   generatedOn,
+  numberFormatStyle = 'india',
 }: {
   bid: Bid;
   customer: Customer | null;
@@ -214,6 +218,8 @@ export function BidPrintDocument({
   preparedByEmail?: string | null;
   /** Pre-formatted YYYY-MM-DD; passed in so render stays deterministic. */
   generatedOn: string;
+  /** Digit-grouping style from the number-format toggle (INR only). */
+  numberFormatStyle?: 'india' | 'international';
 }) {
   const primaryContact =
     customer?.contacts?.find((c) => c.isPrimary) ?? customer?.contacts?.[0];
@@ -225,6 +231,18 @@ export function BidPrintDocument({
   const lineItems = bid.lineItems ?? [];
   const amcCharges = bid.amcCharges ?? [];
   const grandTotal = bid.grandTotal ?? bid.totalAmount;
+
+  // The proposal renders a single currency (the one chosen in the number-format
+  // toggle), never "₹X (approx $Y)" — that combined string overflowed the
+  // fixed-width columns and overlapped its neighbour. `displayCurrency` labels
+  // the columns/totals; `money` formats each value in that same currency.
+  const displayCurrency = resolveDisplayCurrency();
+  const money = (value: string | number | null | undefined): string => {
+    if (value === null || value === undefined || value === '') return '—';
+    const n = typeof value === 'number' ? value : Number(value);
+    if (Number.isNaN(n)) return String(value);
+    return formatInSelectedCurrency(n, numberFormatStyle);
+  };
 
   const th: React.CSSProperties = {
     padding: '8px 8px',
@@ -420,8 +438,12 @@ export function BidPrintDocument({
                     <th style={th}>Description</th>
                     <th style={{ ...thR, width: '7%' }}>Qty</th>
                     <th style={{ ...th, width: '9%' }}>Units</th>
-                    <th style={{ ...thR, width: '13%' }}>Unit Price (INR)</th>
-                    <th style={{ ...thR, width: '16%' }}>Total (INR)</th>
+                    <th style={{ ...thR, width: '13%' }}>
+                      Unit Price ({displayCurrency})
+                    </th>
+                    <th style={{ ...thR, width: '16%' }}>
+                      Total ({displayCurrency})
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -443,8 +465,8 @@ export function BidPrintDocument({
                       </td>
                       <td style={tdR}>{li.quantity}</td>
                       <td style={td}>{li.productUnitOfMeasure}</td>
-                      <td style={tdR}>{formatINR(li.unitPrice)}</td>
-                      <td style={tdR}>{formatINR(li.lineTotal)}</td>
+                      <td style={tdR}>{money(li.unitPrice)}</td>
+                      <td style={tdR}>{money(li.lineTotal)}</td>
                     </tr>
                   ))}
                   {amcCharges.length > 0 && (
@@ -458,10 +480,10 @@ export function BidPrintDocument({
                           color: NAVY,
                         }}
                       >
-                        BID TOTAL INCLUDING TAX (INR)
+                        BID TOTAL INCLUDING TAX ({displayCurrency})
                       </td>
                       <td style={{ ...tdR, fontWeight: 600 }}>
-                        {formatINR(bid.totalAmount)}
+                        {money(bid.totalAmount)}
                       </td>
                     </tr>
                   )}
@@ -483,7 +505,7 @@ export function BidPrintDocument({
                             : `${charge.yearNumber}th`}{' '}
                         Year
                       </td>
-                      <td style={tdR}>{formatINR(charge.amount)}</td>
+                      <td style={tdR}>{money(charge.amount)}</td>
                     </tr>
                   ))}
                   {/* Grand total — highlighted */}
@@ -500,7 +522,7 @@ export function BidPrintDocument({
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      GRAND TOTAL (INR)
+                      GRAND TOTAL ({displayCurrency})
                     </td>
                     <td
                       style={{
@@ -512,17 +534,21 @@ export function BidPrintDocument({
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {formatINR(grandTotal)}
+                      {money(grandTotal)}
                     </td>
                   </tr>
                 </tbody>
               </table>
 
-              {/* Amount in words + tax caption */}
+              {/* Amount in words (INR only — the words routine is rupee/paise
+               * specific) + approximate-conversion note for a foreign currency,
+               * then the tax caption. */}
               <p style={{ fontSize: 10.5, color: MUTED, marginBottom: 24 }}>
-                Amount in words: {amountToIndianWords(grandTotal)}. Prices
-                are exclusive of applicable taxes and duties unless stated
-                otherwise.
+                {displayCurrency === 'INR'
+                  ? `Amount in words: ${amountToIndianWords(grandTotal)}. `
+                  : `Amounts shown in ${displayCurrency} are an approximate conversion from INR at prevailing reference rates; INR values remain authoritative. `}
+                Prices are exclusive of applicable taxes and duties unless
+                stated otherwise.
               </p>
 
               {/* General terms & conditions */}

@@ -226,6 +226,7 @@ export default function BidDetailPage() {
         preparedByName={preparedByName}
         preparedByEmail={preparedByEmail}
         generatedOn={todayDateStr()}
+        numberFormatStyle={numberFormatStyle}
       />
 
       <PageContainer>
