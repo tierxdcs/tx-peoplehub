@@ -571,8 +571,14 @@ export interface BidLineItem {
   productDescription: string | null;
   productUnitOfMeasure: string;
   quantity: string;
+  /** Quoted unit price — the base snapshot marked up by any applied margin. */
   unitPrice: string;
   lineDiscountPercent: string | null;
+  /**
+   * Per-line sales margin (markup) %, or null. Internal-only — never shown on
+   * the proposal; its effect is already folded into unitPrice/lineTotal.
+   */
+  marginPercent: string | null;
   lineTotal: string;
 }
 
@@ -597,6 +603,11 @@ export interface Bid {
   attachments: Array<Record<string, unknown>> | null;
   subtotal: string;
   discountPercent: string;
+  /**
+   * Bid-level sales margin (markup) %. Internal-only — never shown on the
+   * proposal; already folded into every line's quoted unit price.
+   */
+  marginPercent: string;
   discountAmount: string;
   taxType: SalesTaxType | null;
   taxRate: string | null;

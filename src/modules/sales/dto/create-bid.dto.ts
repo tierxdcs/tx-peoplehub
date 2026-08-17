@@ -72,6 +72,19 @@ export class BidLineItemDto {
   @Min(0)
   @Max(100)
   lineDiscountPercent?: number;
+
+  @ApiPropertyOptional({
+    example: 15,
+    description:
+      'Per-line sales margin (markup) %. Applied to the base price before the ' +
+      'bid-level margin and any discount. Internal-only — never printed on the ' +
+      'proposal; its effect is folded into the quoted unit price.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(500)
+  marginPercent?: number;
 }
 
 export class BidAmcChargeDto {
@@ -139,6 +152,19 @@ export class CreateBidDto {
   @Min(0)
   @Max(100)
   discountPercent?: number;
+
+  @ApiPropertyOptional({
+    example: 10,
+    description:
+      'Bid-level sales margin (markup) %. Applied on top of each line’s own ' +
+      'margin and folded into every line’s quoted unit price. Internal-only — ' +
+      'never printed on the proposal.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(500)
+  marginPercent?: number;
 
   @ApiProperty({ type: [BidLineItemDto] })
   @IsArray()

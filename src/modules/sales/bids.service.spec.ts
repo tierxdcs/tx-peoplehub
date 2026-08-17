@@ -170,6 +170,57 @@ describe('BidsService', () => {
       expect(result.totalAmount).toBe('1327500');
     });
 
+    it('marks up the unit price by a per-line sales margin', async () => {
+      const result = await service.create(
+        {
+          opportunityId: 'opp-1',
+          customerId: 'cust-1',
+          validUntil: '2026-10-31',
+          lineItems: [{ productId: 'prod-1', quantity: 10, marginPercent: 20 }],
+        },
+        rep,
+      );
+      // 125,000 base × 1.20 margin = 150,000 quoted unit price.
+      expect(result.lineItems?.[0].unitPrice).toBe('150000');
+      expect(result.lineItems?.[0].marginPercent).toBe('20');
+      expect(result.marginPercent).toBe('0');
+      // 10 × 150,000 = 1,500,000 subtotal; 18% tax = 270,000.
+      expect(result.subtotal).toBe('1500000');
+      expect(result.taxAmount).toBe('270000');
+      expect(result.totalAmount).toBe('1770000');
+    });
+
+    it('stacks the bid-level margin on the line margin, then applies discounts', async () => {
+      const result = await service.create(
+        {
+          opportunityId: 'opp-1',
+          customerId: 'cust-1',
+          validUntil: '2026-10-31',
+          marginPercent: 10, // bid-level markup
+          discountPercent: 5, // bid-level discount
+          lineItems: [
+            {
+              productId: 'prod-1',
+              quantity: 2,
+              marginPercent: 20, // per-line markup
+              lineDiscountPercent: 10,
+            },
+          ],
+        },
+        rep,
+      );
+      // Unit: 125,000 × 1.20 (line) × 1.10 (bid) = 165,000.
+      expect(result.lineItems?.[0].unitPrice).toBe('165000');
+      expect(result.lineItems?.[0].marginPercent).toBe('20');
+      expect(result.marginPercent).toBe('10');
+      // gross 330,000; line −10% → 297,000 subtotal.
+      expect(result.subtotal).toBe('297000');
+      // bid −5% → discount 14,850; taxable 282,150; 18% tax = 50,787.
+      expect(result.discountAmount).toBe('14850');
+      expect(result.taxAmount).toBe('50787');
+      expect(result.totalAmount).toBe('332937');
+    });
+
     it('leaves tax at 0 when no TaxConfig is effective', async () => {
       taxConfig.findEffective.mockResolvedValue(null);
       const result = await service.create(
@@ -360,6 +411,30 @@ describe('BidsService', () => {
       // 4 * 2500 = 10,000; no tax config → total equals subtotal.
       expect(line?.lineTotal).toBe('10000');
       expect(result.subtotal).toBe('10000');
+    });
+
+    it('marks up an ad-hoc line and rounds the quoted unit price to 2 dp', async () => {
+      const result = await service.create(
+        {
+          opportunityId: 'opp-1',
+          customerId: 'cust-1',
+          validUntil: '2026-10-31',
+          lineItems: [
+            {
+              adHocProductName: 'Custom bracket',
+              unitPrice: 100.1,
+              quantity: 1,
+              marginPercent: 7,
+            },
+          ],
+        },
+        rep,
+      );
+      const line = result.lineItems?.[0];
+      // 100.10 × 1.07 = 107.107 → ROUND_HALF_UP to 107.11.
+      expect(line?.unitPrice).toBe('107.11');
+      expect(line?.marginPercent).toBe('7');
+      expect(result.subtotal).toBe('107.11');
     });
 
     it('accepts a mix of real-product and ad-hoc lines in one bid', async () => {

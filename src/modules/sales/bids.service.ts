@@ -134,11 +134,13 @@ export class BidsService {
     const priceById = new Map(products.map((p) => [p.id, p.unitPrice]));
 
     const discountPercent = new Prisma.Decimal(dto.discountPercent ?? 0);
+    const marginPercent = new Prisma.Decimal(dto.marginPercent ?? 0);
     const asOf = new Date();
     const { taxType, taxRate } = await this.resolveTax(customer, asOf);
 
+    const HUNDRED = new Prisma.Decimal(100);
     const lineData = dto.lineItems.map((li) => {
-      let unitPrice: Prisma.Decimal;
+      let baseUnitPrice: Prisma.Decimal;
       if (li.productId) {
         const snapshot = priceById.get(li.productId);
         if (!snapshot) {
@@ -146,20 +148,32 @@ export class BidsService {
             `productId ${li.productId} does not reference a product`,
           );
         }
-        unitPrice = snapshot;
+        baseUnitPrice = snapshot;
       } else {
-        unitPrice = new Prisma.Decimal(li.unitPrice as number);
+        baseUnitPrice = new Prisma.Decimal(li.unitPrice as number);
       }
       const quantity = new Prisma.Decimal(li.quantity);
       const lineDiscountPercent =
         li.lineDiscountPercent !== undefined
           ? new Prisma.Decimal(li.lineDiscountPercent)
           : null;
+      const lineMarginPercent =
+        li.marginPercent !== undefined
+          ? new Prisma.Decimal(li.marginPercent)
+          : null;
+      // Sales margin is a markup on the base price: apply the per-line margin
+      // first, then the bid-level margin on top, before quantity and any
+      // discount. The result is the quoted unit price — the margin itself is
+      // internal and is never surfaced to the customer, only its effect on the
+      // price. Round the marked-up unit price to money precision so the printed
+      // proposal reconciles (unit × qty), exactly as a customer would verify.
+      const marginFactor = HUNDRED.plus(lineMarginPercent ?? 0)
+        .dividedBy(HUNDRED)
+        .times(HUNDRED.plus(marginPercent).dividedBy(HUNDRED));
+      const unitPrice = this.money(baseUnitPrice.times(marginFactor));
       const gross = unitPrice.times(quantity);
       const lineTotal = lineDiscountPercent
-        ? gross
-            .times(new Prisma.Decimal(100).minus(lineDiscountPercent))
-            .dividedBy(100)
+        ? gross.times(HUNDRED.minus(lineDiscountPercent)).dividedBy(HUNDRED)
         : gross;
       return {
         productId: li.productId ?? null,
@@ -168,6 +182,7 @@ export class BidsService {
         quantity,
         unitPrice,
         lineDiscountPercent,
+        marginPercent: lineMarginPercent,
         lineTotal: this.money(lineTotal),
       };
     });
@@ -204,6 +219,7 @@ export class BidsService {
             Prisma.InputJsonValue | undefined,
           subtotal: totals.subtotal,
           discountPercent,
+          marginPercent,
           discountAmount: totals.discountAmount,
           taxType,
           taxRate,
@@ -685,6 +701,9 @@ export class BidsService {
       attachments: bid.attachments,
       subtotal: bid.subtotal.toString(),
       discountPercent: bid.discountPercent.toString(),
+      // marginPercent is a NOT-NULL/default-0 column; the `?? '0'` only guards
+      // partial test fixtures, and 0 is exactly the DB default (no margin).
+      marginPercent: bid.marginPercent?.toString() ?? '0',
       discountAmount: bid.discountAmount.toString(),
       taxType: bid.taxType,
       taxRate: bid.taxRate?.toString() ?? null,
@@ -729,6 +748,7 @@ export class BidsService {
             quantity: li.quantity.toString(),
             unitPrice: li.unitPrice.toString(),
             lineDiscountPercent: li.lineDiscountPercent?.toString() ?? null,
+            marginPercent: li.marginPercent?.toString() ?? null,
             lineTotal: li.lineTotal.toString(),
           }),
       ),

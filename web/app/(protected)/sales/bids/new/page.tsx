@@ -26,6 +26,8 @@ interface LineDraft {
   productId: string;
   quantity: string;
   lineDiscountPercent: string;
+  /** Per-line sales margin (markup) %. Internal — never shown to the customer. */
+  marginPercent: string;
   /** True when this is an ad-hoc line typed in without a real Product yet. */
   adHoc: boolean;
   adHocProductName: string;
@@ -42,6 +44,7 @@ function blankLine(): LineDraft {
     productId: '',
     quantity: '',
     lineDiscountPercent: '',
+    marginPercent: '',
     adHoc: false,
     adHocProductName: '',
     adHocDescription: '',
@@ -75,11 +78,28 @@ function amcAmountFor(input: AmcInput, taxableBase: number): number {
   return Math.round(raw * 100) / 100;
 }
 
+/**
+ * The quoted (margin-inclusive) unit price for a line: the base price marked
+ * up by the per-line margin, then the bid-level margin on top. Mirrors the
+ * server's calc so the preview matches what gets saved. Rounded to money
+ * precision so unit × qty reconciles.
+ */
+function effectiveUnitPrice(
+  base: number,
+  lineMarginPercent: number,
+  bidMarginPercent: number,
+) {
+  const marked =
+    base * (1 + lineMarginPercent / 100) * (1 + bidMarginPercent / 100);
+  return Math.round(marked * 100) / 100;
+}
+
 /** Client-side preview of bid totals. Always re-validated server-side on submit. */
 function computeTotals(
   lines: LineDraft[],
   products: Product[],
   discountPercent: number,
+  bidMarginPercent: number,
 ) {
   const priceById = new Map(products.map((p) => [p.id, Number(p.unitPrice)]));
   let subtotal = 0;
@@ -90,7 +110,9 @@ function computeTotals(
     if (price === undefined || Number.isNaN(price) || !l.quantity) continue;
     const qty = Number(l.quantity);
     const lineDisc = l.lineDiscountPercent ? Number(l.lineDiscountPercent) : 0;
-    const gross = price * qty;
+    const lineMargin = l.marginPercent ? Number(l.marginPercent) : 0;
+    const unit = effectiveUnitPrice(price, lineMargin, bidMarginPercent);
+    const gross = unit * qty;
     subtotal += gross * (1 - lineDisc / 100);
   }
   const discountAmount = subtotal * (discountPercent / 100);
@@ -117,6 +139,7 @@ export default function NewBidPage() {
   const [attachmentName, setAttachmentName] = useState('');
   const [attachmentUrl, setAttachmentUrl] = useState('');
   const [discountPercent, setDiscountPercent] = useState('0');
+  const [marginPercent, setMarginPercent] = useState('0');
   const [amcInputs, setAmcInputs] = useState<Record<number, AmcInput>>({
     2: { mode: 'amount', value: '' },
     3: { mode: 'amount', value: '' },
@@ -143,9 +166,10 @@ export default function NewBidPage() {
   const customerId = selectedOpp?.customerId ?? null;
 
   const discountNum = Number(discountPercent) || 0;
+  const marginNum = Number(marginPercent) || 0;
   const totals = useMemo(
-    () => computeTotals(lines, products, discountNum),
-    [lines, products, discountNum],
+    () => computeTotals(lines, products, discountNum, marginNum),
+    [lines, products, discountNum, marginNum],
   );
   const needsApproval = discountNum > 10;
   // Resolve each year to a rupee amount (percentage years use the taxable base),
@@ -231,6 +255,7 @@ export default function NewBidPage() {
           technicalSpecification: technicalSpecification || undefined,
           attachments,
           discountPercent: discountNum,
+          marginPercent: marginNum,
           amcCharges: AMC_YEARS.map(({ yearNumber }) => ({
             yearNumber,
             amount: amcResolved[yearNumber],
@@ -246,6 +271,9 @@ export default function NewBidPage() {
             quantity: Number(l.quantity),
             lineDiscountPercent: l.lineDiscountPercent
               ? Number(l.lineDiscountPercent)
+              : undefined,
+            marginPercent: l.marginPercent
+              ? Number(l.marginPercent)
               : undefined,
           })),
         }),
@@ -374,6 +402,7 @@ export default function NewBidPage() {
               <th>Product</th>
               <th>Unit price</th>
               <th>Qty</th>
+              <th>Margin %</th>
               <th>Line disc %</th>
               <th>Line total</th>
               <th></th>
@@ -389,7 +418,9 @@ export default function NewBidPage() {
                   : 0;
               const qty = Number(l.quantity) || 0;
               const disc = Number(l.lineDiscountPercent) || 0;
-              const lineTotal = unit * qty * (1 - disc / 100);
+              const lineMargin = Number(l.marginPercent) || 0;
+              const quotedUnit = effectiveUnitPrice(unit, lineMargin, marginNum);
+              const lineTotal = quotedUnit * qty * (1 - disc / 100);
               const hasValue = l.adHoc ? l.adHocUnitPrice !== '' : !!product;
               return (
                 <tr key={i} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
@@ -486,6 +517,20 @@ export default function NewBidPage() {
                     <input
                       type="number"
                       min={0}
+                      max={500}
+                      value={l.marginPercent}
+                      onChange={(e) =>
+                        updateLine(i, { marginPercent: e.target.value })
+                      }
+                      placeholder="0"
+                      title="Sales margin (markup) % — internal, not shown to the customer"
+                      style={{ padding: 4, width: 70 }}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      min={0}
                       max={100}
                       value={l.lineDiscountPercent}
                       onChange={(e) =>
@@ -527,6 +572,24 @@ export default function NewBidPage() {
         >
           + Add line
         </Button>
+
+        <div style={{ marginBottom: 12, maxWidth: 300 }}>
+          <label style={{ display: 'block', marginBottom: 4 }}>
+            Bid-level margin %
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={500}
+            value={marginPercent}
+            onChange={(e) => setMarginPercent(e.target.value)}
+            style={fieldStyle}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Your markup on top of each line’s margin. Internal only — it’s built
+            into the quoted prices and never shown on the proposal.
+          </p>
+        </div>
 
         <div style={{ marginBottom: 12, maxWidth: 300 }}>
           <label style={{ display: 'block', marginBottom: 4 }}>

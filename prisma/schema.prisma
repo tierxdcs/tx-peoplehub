@@ -1325,6 +1325,12 @@ model Bid {
   subtotal                      Decimal              @default(0) @db.Decimal(14, 2)
   discountPercent               Decimal              @default(0) @db.Decimal(5, 2)
   discountAmount                Decimal              @default(0) @db.Decimal(14, 2)
+  /// Bid-level sales margin (markup) %. Sales-set, internal-only — never
+  /// printed on the proposal. Applied on top of each line's own margin and
+  /// folded into every line's stored unitPrice/lineTotal at creation, so the
+  /// per-line prices the customer sees already include it (unlike the bid
+  /// discount, which nets down at subtotal). Retained here for audit/reporting.
+  marginPercent                 Decimal              @default(0) @db.Decimal(5, 2)
   taxType                       SalesTaxType?
   taxRate                       Decimal?             @db.Decimal(5, 2)
   taxAmount                     Decimal              @default(0) @db.Decimal(14, 2)
@@ -1375,12 +1381,19 @@ model BidLineItem {
   adHocProductName    String?
   adHocDescription    String?
   quantity            Decimal  @db.Decimal(14, 2)
-  /// Snapshot of Product.unitPrice at bid-creation time — never a live
-  /// reference, so the bid preserves exactly what was proposed. For an ad-hoc
-  /// line this is the price the rep typed; it is preserved verbatim when the
-  /// line is later resolved (the customer was quoted this figure).
+  /// The quoted unit price — snapshotted from Product.unitPrice (or the rep-
+  /// typed price for an ad-hoc line) at bid-creation time and then marked up by
+  /// any applied margin (marginPercent below + the bid-level Bid.marginPercent).
+  /// Never a live reference: the bid preserves exactly what was proposed, so
+  /// this is the figure the customer was quoted and is carried verbatim through
+  /// order conversion and invoicing.
   unitPrice           Decimal  @db.Decimal(14, 2)
   lineDiscountPercent Decimal? @db.Decimal(5, 2)
+  /// Per-line sales margin (markup) %, applied to the base price before the
+  /// bid-level margin and any discount. Internal-only — never printed on the
+  /// proposal; its effect is already baked into unitPrice/lineTotal. Retained
+  /// for audit/reporting. Null means no per-line margin was applied.
+  marginPercent       Decimal? @db.Decimal(5, 2)
   lineTotal           Decimal  @db.Decimal(14, 2)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt

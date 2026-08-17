@@ -58,11 +58,21 @@ export class BidLineItemEntity {
   @ApiProperty({ description: 'Decimal serialized as string' })
   quantity!: string;
 
-  @ApiProperty({ description: 'Snapshot unit price at bid creation' })
+  @ApiProperty({
+    description:
+      'Quoted unit price at bid creation — the base snapshot marked up by any applied margin (line + bid level)',
+  })
   unitPrice!: string;
 
   @ApiProperty({ nullable: true })
   lineDiscountPercent!: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Per-line sales margin (markup) % applied to this line. Internal-only — never printed on the proposal; already folded into unitPrice/lineTotal.',
+  })
+  marginPercent!: string | null;
 
   @ApiProperty()
   lineTotal!: string;
@@ -139,6 +149,12 @@ export class BidEntity {
 
   @ApiProperty()
   discountPercent!: string;
+
+  @ApiProperty({
+    description:
+      'Bid-level sales margin (markup) %. Internal-only — never printed on the proposal; already folded into every line’s quoted unit price.',
+  })
+  marginPercent!: string;
 
   @ApiProperty()
   discountAmount!: string;

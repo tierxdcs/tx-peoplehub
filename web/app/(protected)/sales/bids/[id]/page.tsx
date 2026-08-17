@@ -474,6 +474,7 @@ export default function BidDetailPage() {
                   <TableHead>Product</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
                   <TableHead className="text-right">Unit Price</TableHead>
+                  <TableHead className="text-right">Margin %</TableHead>
                   <TableHead className="text-right">Disc %</TableHead>
                   <TableHead className="text-right">Line Total</TableHead>
                 </TableRow>
@@ -496,6 +497,9 @@ export default function BidDetailPage() {
                       {formatINR(li.unitPrice, numberFormatStyle)}
                     </TableCell>
                     <TableCell className="text-right">
+                      {li.marginPercent ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
                       {li.lineDiscountPercent ?? '—'}
                     </TableCell>
                     <TableCell className="text-right">
@@ -506,7 +510,7 @@ export default function BidDetailPage() {
                 {(bid.lineItems ?? []).length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={6}
                       className="text-center text-muted-foreground"
                     >
                       No line items.
@@ -526,6 +530,12 @@ export default function BidDetailPage() {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>{formatINR(bid.subtotal, numberFormatStyle)}</span>
               </div>
+              {Number(bid.marginPercent) > 0 && (
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Margin (bid-level, {bid.marginPercent}%)</span>
+                  <span>included in prices</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
                   Discount ({bid.discountPercent}%)
