@@ -41,8 +41,12 @@ export class ReferenceRatesService implements OnModuleInit {
 
   async refresh(): Promise<void> {
     try {
+      // Use the maintained canonical host (api.frankfurter.dev). The legacy
+      // api.frankfurter.app host is deprecated and now 301-redirects through
+      // Cloudflare, which is unreliable from datacenter IPs and would leave the
+      // snapshot unavailable (empty rates → every screen shows INR only).
       const response = await fetch(
-        'https://api.frankfurter.app/latest?from=INR&to=USD,CAD,EUR',
+        'https://api.frankfurter.dev/v1/latest?from=INR&to=USD,CAD,EUR',
         { signal: AbortSignal.timeout(5_000) },
       );
       if (!response.ok)
