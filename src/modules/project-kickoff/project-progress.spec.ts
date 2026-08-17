@@ -70,4 +70,52 @@ describe('deriveProjectProgress', () => {
     expect(result.health).toBe('AT_RISK');
     expect(result.healthReason).toContain('due soon');
   });
+
+  it('clamps a downstream stage that completed ahead of upstream ones', () => {
+    // Real prod case (ORD-2026-0006): Final QC was cleared on an order still at
+    // CONFIRMED that never entered production. Quality must NOT show green
+    // ahead of Engineering / Procurement / Production.
+    const result = deriveProjectProgress(
+      input({
+        order: {
+          id: 'order-6',
+          orderNumber: 'ORD-2026-0006',
+          status: 'CONFIRMED',
+          finalQcStatus: 'CLEARED',
+          fulfilmentStatus: 'NOT_DISPATCHED',
+        },
+      }),
+    );
+    const byKey = Object.fromEntries(
+      result.stages.map((stage) => [stage.key, stage]),
+    );
+    expect(byKey.quality.state).toBe('UPCOMING');
+    expect(byKey.quality.detail).toBe('Awaiting final QC');
+    expect(byKey.engineering.state).toBe('IN_PROGRESS');
+    expect(byKey.procurement.state).toBe('UPCOMING');
+    expect(byKey.production.state).toBe('UPCOMING');
+    // Furthest genuinely-active stage is Engineering, not Quality.
+    expect(result.currentStage).toBe('engineering');
+  });
+
+  it('still surfaces a failed inspection even when upstream stages are incomplete', () => {
+    // The clamp applies to COMPLETE only — a genuine failure must never be hidden.
+    const result = deriveProjectProgress(
+      input({
+        order: {
+          id: 'order-x',
+          orderNumber: 'ORD-2026-0099',
+          status: 'CONFIRMED',
+          finalQcStatus: 'PENDING',
+          fulfilmentStatus: 'NOT_DISPATCHED',
+        },
+        inspectionStatuses: ['FAILED'],
+      }),
+    );
+    expect(
+      result.stages.find((stage) => stage.key === 'quality')?.state,
+    ).toBe('ATTENTION');
+    expect(result.currentStage).toBe('quality');
+    expect(result.health).toBe('BLOCKED');
+  });
 });

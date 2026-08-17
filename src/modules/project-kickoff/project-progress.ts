@@ -90,6 +90,41 @@ export function deriveProjectProgress(
       ['DISPATCHED', 'IN_TRANSIT', 'DELIVERED'].includes(s),
     );
 
+  // Monotonic clamp. Each *Complete flag above is derived independently from
+  // its own operational record, so a downstream record can report "done" while
+  // an upstream one hasn't (e.g. an order whose finalQcStatus is CLEARED while
+  // it's still CONFIRMED and never entered production). Left unclamped, that
+  // paints a later lamp green ahead of an earlier one and reads as broken.
+  // Here a stage may only count as COMPLETE if every stage before it is also
+  // COMPLETE. `complete` is the running prefix-AND used for all COMPLETE tests
+  // and details below. Failure / in-progress states are intentionally NOT
+  // clamped — they're computed from their own signals so a genuine problem
+  // (e.g. a failed inspection) always surfaces regardless of upstream state.
+  const STAGE_ORDER = [
+    'order',
+    'kickoff',
+    'engineering',
+    'procurement',
+    'production',
+    'quality',
+    'dispatch',
+  ] as const;
+  const rawComplete: Record<(typeof STAGE_ORDER)[number], boolean> = {
+    order: !cancelled,
+    kickoff: kickoffComplete,
+    engineering: engineeringComplete,
+    procurement: procurementComplete,
+    production: productionComplete,
+    quality: qualityComplete,
+    dispatch: dispatchComplete,
+  };
+  const complete = {} as Record<(typeof STAGE_ORDER)[number], boolean>;
+  let priorAllComplete = true;
+  for (const key of STAGE_ORDER) {
+    complete[key] = priorAllComplete && rawComplete[key];
+    priorAllComplete = complete[key];
+  }
+
   const stages: ProjectProgressStage[] = [
     {
       key: 'order',
@@ -103,23 +138,23 @@ export function deriveProjectProgress(
       label: 'Kickoff',
       state: cancelled
         ? 'UPCOMING'
-        : kickoffComplete
+        : complete.kickoff
           ? 'COMPLETE'
           : 'IN_PROGRESS',
-      detail: kickoffComplete ? 'Kickoff completed' : 'Kickoff in progress',
+      detail: complete.kickoff ? 'Kickoff completed' : 'Kickoff in progress',
       href: `/project-kickoff/${input.kickoffId}`,
     },
     {
       key: 'engineering',
       label: 'Engineering',
-      state: engineeringComplete
+      state: complete.engineering
         ? 'COMPLETE'
-        : kickoffComplete
+        : complete.kickoff
           ? input.designProject?.status === 'ON_HOLD'
             ? 'ATTENTION'
             : 'IN_PROGRESS'
           : 'UPCOMING',
-      detail: engineeringComplete
+      detail: complete.engineering
         ? 'Released for production'
         : input.designProject
           ? input.designProject.status.replaceAll('_', ' ').toLowerCase()
@@ -131,14 +166,14 @@ export function deriveProjectProgress(
     {
       key: 'procurement',
       label: 'Procurement',
-      state: procurementComplete
+      state: complete.procurement
         ? 'COMPLETE'
-        : engineeringComplete
+        : complete.engineering
           ? input.rfqStatuses.some((s) => s === 'CANCELLED')
             ? 'ATTENTION'
             : 'IN_PROGRESS'
           : 'UPCOMING',
-      detail: procurementComplete
+      detail: complete.procurement
         ? 'Material sourcing complete'
         : input.rfqStatuses.length
           ? `${input.rfqStatuses.length} RFQ(s) active`
@@ -148,12 +183,12 @@ export function deriveProjectProgress(
     {
       key: 'production',
       label: 'Production',
-      state: productionComplete
+      state: complete.production
         ? 'COMPLETE'
         : input.order.status === 'IN_PRODUCTION'
           ? 'IN_PROGRESS'
           : 'UPCOMING',
-      detail: productionComplete
+      detail: complete.production
         ? 'Ready to ship'
         : input.order.status === 'IN_PRODUCTION'
           ? 'In production'
@@ -165,14 +200,14 @@ export function deriveProjectProgress(
       label: 'Quality',
       state: qualityFailed
         ? 'ATTENTION'
-        : qualityComplete
+        : complete.quality
           ? 'COMPLETE'
-          : productionComplete
+          : complete.production
             ? 'IN_PROGRESS'
             : 'UPCOMING',
       detail: qualityFailed
         ? 'Inspection failed'
-        : qualityComplete
+        : complete.quality
           ? 'Final QC cleared'
           : 'Awaiting final QC',
       href: `/qms/inspections?orderId=${input.order.id}`,
@@ -180,12 +215,12 @@ export function deriveProjectProgress(
     {
       key: 'dispatch',
       label: 'Dispatch',
-      state: dispatchComplete
+      state: complete.dispatch
         ? 'COMPLETE'
         : dispatchStarted
           ? 'IN_PROGRESS'
           : 'UPCOMING',
-      detail: dispatchComplete
+      detail: complete.dispatch
         ? 'Fully dispatched'
         : dispatchStarted
           ? 'Partially dispatched'

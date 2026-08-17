@@ -44,7 +44,9 @@
       "Bash(echo \"NEST_EXIT=$?\")",
       "Bash(grep -rln \"convert-to-order\\\\|'/orders'\\\\|\\\\`/orders\\\\|fetchOrders\\\\|listOrders\\\\|/orders?\" app/lib/ app/'\\(protected\\)'/sales/)",
       "Bash(echo \"---BUILD EXIT: $?---\")",
-      "Bash(awk '/^model Order \\\\{/,/^\\\\}/' prisma/schema.prisma)"
+      "Bash(awk '/^model Order \\\\{/,/^\\\\}/' prisma/schema.prisma)",
+      "Bash(node checkprog.js)",
+      "Bash(echo \"---EXIT: $?---\")"
     ]
   }
 }
