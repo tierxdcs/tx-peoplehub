@@ -242,7 +242,12 @@ export default function OrderDetailPage() {
               {(order.lineItems ?? []).map((li) => (
                 <TableRow key={li.id}>
                   <TableCell>
-                    <ProductCell name={li.productName} sku={li.productSku} />
+                    <div className="flex items-center gap-2">
+                      <ProductCell name={li.productName} sku={li.productSku} />
+                      {li.isAdHoc && (
+                        <Badge variant="warning">Awaiting setup</Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">{li.quantity}</TableCell>
                   <TableCell className="text-right">

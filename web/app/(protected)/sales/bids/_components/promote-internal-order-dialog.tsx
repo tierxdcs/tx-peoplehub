@@ -128,6 +128,9 @@ export function PromoteInternalOrderDialog({
       ),
     [selectedOrder, bidProductIds],
   );
+  const hasUnresolvedOrderLines = (selectedOrder?.lineItems ?? []).some(
+    (line) => line.isAdHoc,
+  );
 
   function updateLine(productId: string, patch: Partial<ReconLine>) {
     setLines((ls) =>
@@ -137,7 +140,7 @@ export function PromoteInternalOrderDialog({
 
   async function submit() {
     setError(null);
-    if ((selectedOrder?.lineItems ?? []).some((line) => line.isAdHoc)) {
+    if (hasUnresolvedOrderLines) {
       setError('Resolve every ad-hoc internal-order line before promotion');
       return;
     }
@@ -344,7 +347,12 @@ export function PromoteInternalOrderDialog({
           </Button>
           <Button
             onClick={submit}
-            disabled={submitting || !selectedOrder || loadingOrder}
+            disabled={
+              submitting ||
+              !selectedOrder ||
+              loadingOrder ||
+              hasUnresolvedOrderLines
+            }
           >
             {submitting ? 'Promoting…' : 'Promote to Customer Order'}
           </Button>
