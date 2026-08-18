@@ -201,7 +201,9 @@ export default function InspectionDetail() {
                     {r.required ? ' · Required' : ''}
                   </div>
                 </div>
-                {['PASS_FAIL_NA', 'YES_NO_NA'].includes(r.responseType) ? (
+                {['PASS_FAIL_NA', 'YES_NO_NA', 'OK_NOTOK_NA'].includes(
+                  r.responseType,
+                ) ? (
                   <Select
                     required={r.required}
                     value={answers[r.questionKey] ?? ''}
@@ -212,7 +214,9 @@ export default function InspectionDetail() {
                     <option value="">Select</option>
                     {(r.responseType === 'PASS_FAIL_NA'
                       ? ['PASS', 'FAIL', 'NA']
-                      : ['YES', 'NO', 'NA']
+                      : r.responseType === 'YES_NO_NA'
+                        ? ['YES', 'NO', 'NA']
+                        : ['OK', 'NOT OK', 'NA']
                     ).map((x) => (
                       <option key={x}>{x}</option>
                     ))}

@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../../components/ui/dialog';
+import { AdHocResolutionCard } from '../../_components/ad-hoc-resolution';
 
 /** One reconciled bid line the promoter can include/exclude and re-quantify. */
 interface ReconLine {
@@ -28,11 +29,13 @@ export function PromoteInternalOrderDialog({
   open,
   onOpenChange,
   onPromoted,
+  canCreateProduct,
 }: {
   bid: Bid;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPromoted: (orderId: string) => void;
+  canCreateProduct: boolean;
 }) {
   const [internalOrders, setInternalOrders] = useState<Order[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState('');
@@ -61,7 +64,9 @@ export function PromoteInternalOrderDialog({
     if (!open) return;
     setLoadingList(true);
     setError(null);
-    apiFetch<PaginatedResult<Order>>('/orders?orderType=INTERNAL&page=1&limit=100')
+    apiFetch<PaginatedResult<Order>>(
+      '/orders?orderType=INTERNAL&page=1&limit=100',
+    )
       .then((res) => setInternalOrders(res.items))
       .catch(() => setError('Failed to load internal orders'))
       .finally(() => setLoadingList(false));
@@ -104,7 +109,12 @@ export function PromoteInternalOrderDialog({
   }, [selectedOrderId, bidProducts]);
 
   const orderProductIds = useMemo(
-    () => new Set((selectedOrder?.lineItems ?? []).map((li) => li.productId)),
+    () =>
+      new Set(
+        (selectedOrder?.lineItems ?? [])
+          .map((li) => li.productId)
+          .filter((id): id is string => !!id),
+      ),
     [selectedOrder],
   );
 
@@ -114,7 +124,7 @@ export function PromoteInternalOrderDialog({
   const internalOnly = useMemo(
     () =>
       (selectedOrder?.lineItems ?? []).filter(
-        (li) => !bidProductIds.has(li.productId),
+        (li) => !li.productId || !bidProductIds.has(li.productId),
       ),
     [selectedOrder, bidProductIds],
   );
@@ -127,6 +137,10 @@ export function PromoteInternalOrderDialog({
 
   async function submit() {
     setError(null);
+    if ((selectedOrder?.lineItems ?? []).some((line) => line.isAdHoc)) {
+      setError('Resolve every ad-hoc internal-order line before promotion');
+      return;
+    }
     const confirmed = lines.filter((l) => l.include);
     if (confirmed.length === 0) {
       setError('Include at least one line item from the bid');
@@ -154,7 +168,9 @@ export function PromoteInternalOrderDialog({
       onPromoted(order.id);
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : 'Failed to promote internal order',
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to promote internal order',
       );
       setSubmitting(false);
     }
@@ -206,6 +222,16 @@ export function PromoteInternalOrderDialog({
 
           {selectedOrder && !loadingOrder && (
             <>
+              <AdHocResolutionCard
+                order={selectedOrder}
+                canCreateProduct={canCreateProduct}
+                onResolved={async () => {
+                  const refreshed = await apiFetch<Order>(
+                    `/orders/${selectedOrder.id}`,
+                  );
+                  setSelectedOrder(refreshed);
+                }}
+              />
               <div>
                 <h4 className="mb-1 text-sm font-semibold">
                   Bid line items (the won deal)

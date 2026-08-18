@@ -19,6 +19,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { CreateInternalOrderDto } from './dto/create-internal-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { ResolveBidLineItemDto } from './dto/resolve-bid-line-item.dto';
 import { OrdersService } from './orders.service';
 
 /**
@@ -73,5 +74,18 @@ export class OrdersController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.ordersService.updateStatus(id, dto.status, user);
+  }
+
+  @Patch(':id/line-items/:lineItemId/resolve')
+  @ApiOperation({
+    summary: 'Resolve an internal order ad-hoc line to an active Product',
+  })
+  resolveLineItem(
+    @Param('id') id: string,
+    @Param('lineItemId') lineItemId: string,
+    @Body() dto: ResolveBidLineItemDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ordersService.resolveLineItem(id, lineItemId, dto, user);
   }
 }

@@ -6,20 +6,35 @@ import {
   IsNumber,
   IsOptional,
   IsPositive,
+  IsString,
   IsUUID,
   ValidateNested,
 } from 'class-validator';
 
 /**
- * A line on an internal order describes what is being built (real Product +
- * quantity). There is deliberately NO price input — an internal order has no
+ * A line on an internal order describes what is being built (real Product or
+ * an ad-hoc name/description + quantity). There is deliberately NO price input — an internal order has no
  * pricing behind it, so unit price / line total / order total are all zero
  * until (and unless) the order is promoted to a real customer order.
  */
 export class InternalOrderLineItemDto {
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description:
+      'Existing Product. Omit for an ad-hoc line and provide adHocProductName instead.',
+  })
+  @IsOptional()
   @IsUUID()
-  productId!: string;
+  productId?: string;
+
+  @ApiPropertyOptional({ description: 'Unresolved product name.' })
+  @IsOptional()
+  @IsString()
+  adHocProductName?: string;
+
+  @ApiPropertyOptional({ description: 'Optional ad-hoc product description.' })
+  @IsOptional()
+  @IsString()
+  adHocDescription?: string;
 
   @ApiProperty({ example: 10 })
   @IsNumber()

@@ -81,7 +81,11 @@ export function deliveryCountdown(
 ) {
   if (delivered) return { state: 'DELIVERED' as const, days: 0 };
   if (!promisedDeliveryDate) return { state: 'UNKNOWN' as const, days: null };
-  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const today = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
   const due = Date.UTC(
     promisedDeliveryDate.getUTCFullYear(),
     promisedDeliveryDate.getUTCMonth(),
@@ -140,17 +144,14 @@ export class CustomerOrderProgressService {
     return rows.map((row) => this.toInternalLink(row));
   }
 
-  async revokeLink(
-    orderId: string,
-    linkId: string,
-    user: AuthenticatedUser,
-  ) {
+  async revokeLink(orderId: string, linkId: string, user: AuthenticatedUser) {
     await this.assertCanManage(orderId, user);
     const result = await this.prisma.orderCustomerProgressInvite.updateMany({
       where: { id: linkId, orderId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
-    if (!result.count) throw new NotFoundException('Active progress link not found');
+    if (!result.count)
+      throw new NotFoundException('Active progress link not found');
     return { revoked: true };
   }
 
@@ -159,10 +160,7 @@ export class CustomerOrderProgressService {
     // A missing password is a normal page-entry state, not an authorization
     // failure. Still validate revoke/expiry before revealing this challenge.
     if (invite.passwordHash && !password) {
-      await assertInviteUsable(
-        { ...invite, passwordHash: null },
-        undefined,
-      );
+      await assertInviteUsable({ ...invite, passwordHash: null }, undefined);
       return { requiresPassword: true as const };
     }
     await assertInviteUsable(invite, password);
@@ -178,7 +176,9 @@ export class CustomerOrderProgressService {
       );
     }
     if (publicView.signoffSubmitted) {
-      throw new ConflictException('Delivery acknowledgement has already been submitted');
+      throw new ConflictException(
+        'Delivery acknowledgement has already been submitted',
+      );
     }
 
     const submittedAt = new Date();
@@ -220,7 +220,10 @@ export class CustomerOrderProgressService {
       }
       throw error;
     }
-    return { submittedAt: submittedAt.toISOString(), expiresAt: lockedExpiry.toISOString() };
+    return {
+      submittedAt: submittedAt.toISOString(),
+      expiresAt: lockedExpiry.toISOString(),
+    };
   }
 
   private async assertCanManage(orderId: string, user: AuthenticatedUser) {
@@ -231,14 +234,18 @@ export class CustomerOrderProgressService {
     if (!order) throw new NotFoundException('Order not found');
     if (user.role === Role.SUPER_ADMIN || order.ownerId === user.id) return;
     if (!user.verticalId) {
-      throw new ForbiddenException('Only Sales staff or the Order owner may share progress');
+      throw new ForbiddenException(
+        'Only Sales staff or the Order owner may share progress',
+      );
     }
     const vertical = await this.prisma.vertical.findUnique({
       where: { id: user.verticalId },
       select: { code: true },
     });
     if (vertical?.code !== 'SALES') {
-      throw new ForbiddenException('Only Sales staff or the Order owner may share progress');
+      throw new ForbiddenException(
+        'Only Sales staff or the Order owner may share progress',
+      );
     }
   }
 
@@ -278,6 +285,7 @@ export class CustomerOrderProgressService {
           orderBy: { createdAt: 'asc' },
           select: {
             id: true,
+            adHocProductName: true,
             product: { select: { name: true } },
             deliveryChallanLines: {
               where: {
@@ -318,8 +326,11 @@ export class CustomerOrderProgressService {
       // Each line mirrors its own PLM flow (NPD = 9 stages, standard = 6).
       const stageSeq = stagesForFlow(tracker?.flowType);
       const kickoffCompleted = tracker?.kickoff.status === 'COMPLETED';
-      const delivered = signoffSubmitted || line.deliveryChallanLines.length > 0;
-      const trackedIndex = tracker ? stageSeq.indexOf(tracker.currentStage) : -1;
+      const delivered =
+        signoffSubmitted || line.deliveryChallanLines.length > 0;
+      const trackedIndex = tracker
+        ? stageSeq.indexOf(tracker.currentStage)
+        : -1;
       const currentIndex = delivered
         ? stageSeq.length
         : kickoffCompleted
@@ -328,7 +339,10 @@ export class CustomerOrderProgressService {
       const start = tracker?.kickoff.meetingDate ?? tracker?.createdAt ?? null;
       const totalDays =
         start && promised
-          ? Math.max(1, Math.ceil((promised.getTime() - start.getTime()) / DAY_MS))
+          ? Math.max(
+              1,
+              Math.ceil((promised.getTime() - start.getTime()) / DAY_MS),
+            )
           : null;
       const elapsedDays = start
         ? Math.max(0, Math.floor((Date.now() - start.getTime()) / DAY_MS))
@@ -354,7 +368,8 @@ export class CustomerOrderProgressService {
       ];
       return {
         lineId: line.id,
-        productName: line.product.name,
+        productName:
+          line.product?.name ?? line.adHocProductName ?? 'Unnamed product',
         currentStage: publicStages[currentIndex],
         stages: publicStages.map((stage, index) => ({
           ...stage,
@@ -371,7 +386,10 @@ export class CustomerOrderProgressService {
             ? {
                 elapsedDays,
                 totalDays,
-                percent: Math.min(100, Math.round((elapsedDays / totalDays) * 100)),
+                percent: Math.min(
+                  100,
+                  Math.round((elapsedDays / totalDays) * 100),
+                ),
               }
             : null,
       };
@@ -395,7 +413,8 @@ export class CustomerOrderProgressService {
       lines,
       canSignoff,
       signoffSubmitted,
-      signoffSubmittedAt: order.customerSignoff?.submittedAt.toISOString() ?? null,
+      signoffSubmittedAt:
+        order.customerSignoff?.submittedAt.toISOString() ?? null,
     };
   }
 

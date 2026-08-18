@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
-import { Bid, PaginatedResult, Product } from '../../../lib/types';
+import { Bid, Order, PaginatedResult, Product } from '../../../lib/types';
 import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
 import { useToast } from '../../../components/ui/toaster';
@@ -22,10 +22,12 @@ import { ProductForm } from './product-form';
  */
 export function AdHocResolutionCard({
   bid,
+  order,
   canCreateProduct,
   onResolved,
 }: {
-  bid: Bid;
+  bid?: Bid;
+  order?: Order;
   canCreateProduct: boolean;
   onResolved: () => void | Promise<void>;
 }) {
@@ -44,7 +46,9 @@ export function AdHocResolutionCard({
       .catch(() => setProducts([]));
   }, []);
 
-  const adHocLines = (bid.lineItems ?? []).filter((li) => li.isAdHoc);
+  const record = bid ?? order;
+  if (!record) return null;
+  const adHocLines = (record.lineItems ?? []).filter((li) => li.isAdHoc);
   if (adHocLines.length === 0) return null;
 
   async function resolve(lineItemId: string, productId: string) {
@@ -54,7 +58,10 @@ export function AdHocResolutionCard({
     }
     setBusy((b) => ({ ...b, [lineItemId]: true }));
     try {
-      await apiFetch(`/bids/${bid.id}/line-items/${lineItemId}/resolve`, {
+      const endpoint = bid
+        ? `/bids/${bid.id}/line-items/${lineItemId}/resolve`
+        : `/orders/${order!.id}/line-items/${lineItemId}/resolve`;
+      await apiFetch(endpoint, {
         method: 'PATCH',
         body: JSON.stringify({ productId }),
       });
@@ -80,8 +87,9 @@ export function AdHocResolutionCard({
         awaiting product setup
       </p>
       <p className="mb-3 text-xs text-muted-foreground">
-        Each ad-hoc line must be resolved to a real product before this bid can
-        be converted to an order.
+        Each ad-hoc line must be resolved to a real product before this{' '}
+        {bid ? 'bid can be converted' : 'internal order can be promoted'} to a
+        customer order. Existing Kickoff and PLM history stays attached.
       </p>
 
       <div className="space-y-3">
@@ -138,7 +146,9 @@ export function AdHocResolutionCard({
       {creatingLine && (
         <ProductForm
           product={null}
-          initialName={creatingLine.adHocProductName ?? creatingLine.productName}
+          initialName={
+            creatingLine.adHocProductName ?? creatingLine.productName
+          }
           initialDescription={creatingLine.adHocDescription ?? undefined}
           onClose={() => setCreatingFor(null)}
           onSaved={async (product) => {

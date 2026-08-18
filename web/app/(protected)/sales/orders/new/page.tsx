@@ -3,7 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../../../lib/api';
-import { Customer, Order, PaginatedResult, Product } from '../../../../lib/types';
+import {
+  Customer,
+  Order,
+  PaginatedResult,
+  Product,
+} from '../../../../lib/types';
 import { useBusinessUnitOptions } from '../../../../lib/business-units';
 import { useCanManageInternalOrders } from '../../../../lib/use-can-manage-internal-orders';
 import { PageContainer } from '../../../../components/ui/page-container';
@@ -20,11 +25,20 @@ const fieldStyle: React.CSSProperties = {
 
 interface LineDraft {
   productId: string;
+  adHoc: boolean;
+  adHocProductName: string;
+  adHocDescription: string;
   quantity: string;
 }
 
 function blankLine(): LineDraft {
-  return { productId: '', quantity: '' };
+  return {
+    productId: '',
+    adHoc: false,
+    adHocProductName: '',
+    adHocDescription: '',
+    quantity: '',
+  };
 }
 
 export default function NewInternalOrderPage() {
@@ -65,13 +79,17 @@ export default function NewInternalOrderPage() {
     setError(null);
 
     const validLines = lines.filter(
-      (l) => !!l.productId && Number(l.quantity) > 0,
+      (l) =>
+        (l.adHoc ? !!l.adHocProductName.trim() : !!l.productId) &&
+        Number(l.quantity) > 0,
     );
     if (validLines.length === 0) {
       setError('Add at least one line item with a product and quantity');
       return;
     }
-    const productIds = validLines.map((l) => l.productId);
+    const productIds = validLines
+      .filter((l) => !l.adHoc)
+      .map((l) => l.productId);
     if (new Set(productIds).size !== productIds.length) {
       setError('Each product may appear only once');
       return;
@@ -93,7 +111,12 @@ export default function NewInternalOrderPage() {
           customerId: customerId || undefined,
           businessUnitId: businessUnitId || undefined,
           lineItems: validLines.map((l) => ({
-            productId: l.productId,
+            ...(l.adHoc
+              ? {
+                  adHocProductName: l.adHocProductName.trim(),
+                  adHocDescription: l.adHocDescription.trim() || undefined,
+                }
+              : { productId: l.productId }),
             quantity: Number(l.quantity),
           })),
         }),
@@ -101,7 +124,9 @@ export default function NewInternalOrderPage() {
       router.push(`/sales/orders/${order.id}`);
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : 'Failed to create internal order',
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to create internal order',
       );
     } finally {
       setSubmitting(false);
@@ -206,10 +231,16 @@ export default function NewInternalOrderPage() {
                   >
                     <td>
                       <select
-                        value={l.productId}
-                        onChange={(e) =>
-                          updateLine(i, { productId: e.target.value })
-                        }
+                        value={l.adHoc ? '__AD_HOC__' : l.productId}
+                        onChange={(e) => {
+                          const adHoc = e.target.value === '__AD_HOC__';
+                          updateLine(i, {
+                            adHoc,
+                            productId: adHoc ? '' : e.target.value,
+                            adHocProductName: adHoc ? l.adHocProductName : '',
+                            adHocDescription: adHoc ? l.adHocDescription : '',
+                          });
+                        }}
                         style={{ padding: 4, minWidth: 220 }}
                       >
                         <option value="">Select…</option>
@@ -221,7 +252,42 @@ export default function NewInternalOrderPage() {
                               : ''}
                           </option>
                         ))}
+                        <option value="__AD_HOC__">
+                          ➕ Enter a new product (ad-hoc)…
+                        </option>
                       </select>
+                      {l.adHoc && (
+                        <div className="mt-2 space-y-2">
+                          <input
+                            aria-label="Ad-hoc product name"
+                            placeholder="Product name"
+                            value={l.adHocProductName}
+                            onChange={(e) =>
+                              updateLine(i, {
+                                adHocProductName: e.target.value,
+                              })
+                            }
+                            style={{ padding: 6, width: '100%' }}
+                            required
+                          />
+                          <textarea
+                            aria-label="Ad-hoc product description"
+                            placeholder="Description (optional)"
+                            value={l.adHocDescription}
+                            onChange={(e) =>
+                              updateLine(i, {
+                                adHocDescription: e.target.value,
+                              })
+                            }
+                            rows={2}
+                            style={{
+                              padding: 6,
+                              width: '100%',
+                              resize: 'vertical',
+                            }}
+                          />
+                        </div>
+                      )}
                     </td>
                     <td>
                       <input
@@ -262,9 +328,7 @@ export default function NewInternalOrderPage() {
               + Add line
             </Button>
 
-            {error && (
-              <p className="mb-3 text-sm text-destructive">{error}</p>
-            )}
+            {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
 
             <div style={{ display: 'flex', gap: 8 }}>
               <Button type="submit" disabled={submitting}>

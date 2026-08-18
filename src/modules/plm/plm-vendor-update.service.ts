@@ -133,7 +133,10 @@ export class PlmVendorUpdateService {
     if (!photo) throw new NotFoundException('Progress photo not found');
     await this.access.assertCanViewTracker(user, photo.update.trackerId);
     const signed = await this.storage.createDownloadUrl(photo.storageKey);
-    return { downloadUrl: signed.url, expiresInSeconds: signed.expiresInSeconds };
+    return {
+      downloadUrl: signed.url,
+      expiresInSeconds: signed.expiresInSeconds,
+    };
   }
 
   async resolvePublic(token: string, password?: string) {
@@ -162,7 +165,7 @@ export class PlmVendorUpdateService {
       actorId: null,
       type: NotificationType.PLM_PRODUCTION_UPDATE,
       trackerId: tracker.id,
-      message: `${tracker.vendor!.companyName} reported production progress for ${tracker.order.orderNumber} · ${tracker.orderLine.product.name}`,
+      message: `${tracker.vendor!.companyName} reported production progress for ${tracker.order.orderNumber} · ${tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
     });
     return update;
   }
@@ -186,7 +189,7 @@ export class PlmVendorUpdateService {
       actorId: null,
       type: NotificationType.PLM_PRODUCTION_UPDATE,
       trackerId: tracker.id,
-      message: `${tracker.vendor!.companyName} added a production comment for ${tracker.order.orderNumber} · ${tracker.orderLine.product.name}`,
+      message: `${tracker.vendor!.companyName} added a production comment for ${tracker.order.orderNumber} · ${tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
     });
     return update;
   }
@@ -220,14 +223,15 @@ export class PlmVendorUpdateService {
       PlmVendorUpdateType.FULL_PROGRESS,
       PlmUpdateReporterType.INTERNAL_AUDITOR_VISIT,
       user.id,
-      `${employee?.firstName ?? ''} ${employee?.lastName ?? ''}`.trim() || user.email,
+      `${employee?.firstName ?? ''} ${employee?.lastName ?? ''}`.trim() ||
+        user.email,
     );
     await this.notifications.notifyPlm({
       recipientId: tracker.ownerId,
       actorId: user.id,
       type: NotificationType.PLM_PRODUCTION_UPDATE,
       trackerId: tracker.id,
-      message: `Site-visit production update recorded for ${tracker.order.orderNumber} · ${tracker.orderLine.product.name}`,
+      message: `Site-visit production update recorded for ${tracker.order.orderNumber} · ${tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
     });
     return update;
   }
@@ -236,7 +240,9 @@ export class PlmVendorUpdateService {
     assertExtensionAllowed(dto.name);
     assertSizeWithinCap(dto.sizeBytes);
     if (!dto.mimeType.startsWith('image/')) {
-      throw new BadRequestException('Only image files may be uploaded as progress photos');
+      throw new BadRequestException(
+        'Only image files may be uploaded as progress photos',
+      );
     }
     const storageKey = `plm/${trackerId}/updates/${randomBytes(12).toString('hex')}`;
     const signed = await this.storage.createUploadUrl(storageKey, dto.mimeType);
@@ -256,7 +262,9 @@ export class PlmVendorUpdateService {
     reporterDisplayName: string,
   ) {
     if (tracker.flowType !== 'VENDOR' || !tracker.vendor) {
-      throw new BadRequestException('Production updates apply only to Vendor-flow trackers');
+      throw new BadRequestException(
+        'Production updates apply only to Vendor-flow trackers',
+      );
     }
     if (tracker.currentStage !== 'PRODUCTION') {
       throw new BadRequestException(
@@ -275,13 +283,18 @@ export class PlmVendorUpdateService {
         : null;
     for (const photo of progressDto?.photos ?? []) {
       if (!photo.storageKey.startsWith(`plm/${tracker.id}/updates/`)) {
-        throw new BadRequestException('A progress photo does not belong to this tracker');
+        throw new BadRequestException(
+          'A progress photo does not belong to this tracker',
+        );
       }
       const head = await this.storage.headObject(photo.storageKey);
-      if (!head) throw new BadRequestException('A progress photo upload was not found');
+      if (!head)
+        throw new BadRequestException('A progress photo upload was not found');
       assertSizeWithinCap(head.sizeBytes);
       if (!head.contentType?.startsWith('image/')) {
-        throw new BadRequestException('Only image files may be confirmed as progress photos');
+        throw new BadRequestException(
+          'Only image files may be confirmed as progress photos',
+        );
       }
       photos.push({
         storageKey: photo.storageKey,
@@ -364,7 +377,9 @@ export class PlmVendorUpdateService {
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
-        orderLine: { include: { product: { select: { name: true, sku: true } } } },
+        orderLine: {
+          include: { product: { select: { name: true, sku: true } } },
+        },
       },
     });
     if (!tracker) throw new NotFoundException('PLM tracker not found');
@@ -392,13 +407,16 @@ export class PlmVendorUpdateService {
             fileName: photo.fileName,
             sizeBytes: photo.sizeBytes,
             mimeType: photo.mimeType,
-            downloadUrl: (await this.storage.createDownloadUrl(photo.storageKey)).url,
+            downloadUrl: (
+              await this.storage.createDownloadUrl(photo.storageKey)
+            ).url,
           })),
         ),
       })),
     );
     const latest = updates[0]?.createdAt ?? null;
-    const cadenceReference = latest ?? tracker.events[0]?.createdAt ?? tracker.createdAt;
+    const cadenceReference =
+      latest ?? tracker.events[0]?.createdAt ?? tracker.createdAt;
     const cadence = deriveVendorCadence(
       cadenceReference,
       tracker.kickoff.vendorUpdateCadenceDays,

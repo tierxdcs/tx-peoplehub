@@ -18,6 +18,7 @@ import { OrderEntity, OrderLineItemEntity } from './entities/order.entity';
 import { CreateInternalOrderDto } from './dto/create-internal-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { PromoteInternalOrderDto } from './dto/promote-internal-order.dto';
+import { ResolveBidLineItemDto } from './dto/resolve-bid-line-item.dto';
 import { SalesAccessService } from './common/sales-access.service';
 import { SalesNumberingService } from './common/sales-numbering.service';
 import { ConfirmationSheetsService } from './confirmation-sheets.service';
@@ -39,7 +40,7 @@ const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 };
 
 type OrderLineItemWithProduct = OrderLineItem & {
-  product: { name: string; sku: string };
+  product: { name: string; sku: string } | null;
   // Present only when the query included plmTracker (findOne). Lets the entity
   // report whether a line carries in-progress PLM/design work.
   plmTracker?: { id: string } | null;
@@ -187,7 +188,19 @@ export class OrdersService {
   ): Promise<OrderEntity> {
     await this.access.assertCanCreateInternalOrder(user);
 
-    const productIds = dto.lineItems.map((li) => li.productId);
+    for (const li of dto.lineItems) {
+      const hasProduct = !!li.productId;
+      const hasAdHoc = !!li.adHocProductName?.trim();
+      if (hasProduct === hasAdHoc) {
+        throw new BadRequestException(
+          'Each line item must set exactly one of productId or adHocProductName',
+        );
+      }
+    }
+
+    const productIds = dto.lineItems
+      .map((li) => li.productId)
+      .filter((id): id is string => !!id);
     if (new Set(productIds).size !== productIds.length) {
       throw new BadRequestException(
         'Each product may appear only once in an order',
@@ -197,7 +210,7 @@ export class OrdersService {
       where: { id: { in: productIds } },
       select: { id: true },
     });
-    if (products.length !== productIds.length) {
+    if (products.length !== new Set(productIds).size) {
       throw new BadRequestException('One or more products do not exist');
     }
     if (dto.customerId) {
@@ -239,7 +252,13 @@ export class OrdersService {
           totalAmount: new Prisma.Decimal(0),
           lineItems: {
             create: dto.lineItems.map((li) => ({
-              productId: li.productId,
+              productId: li.productId ?? null,
+              adHocProductName: li.productId
+                ? null
+                : li.adHocProductName!.trim(),
+              adHocDescription: li.productId
+                ? null
+                : li.adHocDescription?.trim() || null,
               quantity: new Prisma.Decimal(li.quantity),
               unitPrice: new Prisma.Decimal(0),
               lineTotal: new Prisma.Decimal(0),
@@ -355,6 +374,14 @@ export class OrdersService {
     if (order.bidId) {
       throw new BadRequestException('This order has already been promoted');
     }
+    const unresolvedOrderLines = order.lineItems.filter(
+      (li) => li.productId === null,
+    );
+    if (unresolvedOrderLines.length > 0) {
+      throw new BadRequestException(
+        `This internal order has ${unresolvedOrderLines.length} line item(s) awaiting product setup — resolve them before promotion`,
+      );
+    }
 
     // Pricing source = the won bid's per-product line (guaranteed non-null id).
     const bidLineByProduct = new Map(
@@ -372,7 +399,7 @@ export class OrdersService {
     }
 
     const orderLineByProduct = new Map(
-      order.lineItems.map((li) => [li.productId, li]),
+      order.lineItems.map((li) => [li.productId!, li]),
     );
     const confirmedSet = new Set(confirmedProductIds);
     // Order lines the promoter dropped from the confirmed set are reconciled by
@@ -385,7 +412,7 @@ export class OrdersService {
     //   - without a tracker → deleted (the customer isn't ordering it and no
     //     design work would be lost).
     const dropped = order.lineItems.filter(
-      (li) => !confirmedSet.has(li.productId),
+      (li) => !li.productId || !confirmedSet.has(li.productId),
     );
     const toDelete = dropped.filter((li) => li.plmTracker === null);
 
@@ -541,6 +568,58 @@ export class OrdersService {
     return this.toEntity(updated);
   }
 
+  /** Resolve an INTERNAL order's ad-hoc line in place, preserving its id and
+   * therefore any Kickoff/PLM history already attached to that line. */
+  async resolveLineItem(
+    orderId: string,
+    lineItemId: string,
+    dto: ResolveBidLineItemDto,
+    user: AuthenticatedUser,
+  ): Promise<OrderEntity> {
+    await this.access.assertSalesAccess(user);
+    const order = await this.findRawOrThrow(orderId);
+    if (order.orderType !== OrderType.INTERNAL || order.bidId) {
+      throw new BadRequestException(
+        'Only an unpromoted internal order can resolve ad-hoc products',
+      );
+    }
+    const line = order.lineItems.find((item) => item.id === lineItemId);
+    if (!line) throw new NotFoundException('Line item not found on this order');
+    if (line.productId !== null) {
+      throw new BadRequestException(
+        'This line item is already linked to a product',
+      );
+    }
+    const product = await this.prisma.product.findUnique({
+      where: { id: dto.productId },
+      select: { id: true, isActive: true },
+    });
+    if (!product)
+      throw new NotFoundException('productId does not reference a product');
+    if (!product.isActive) {
+      throw new BadRequestException(
+        'That product is inactive and cannot be used',
+      );
+    }
+    const duplicate = order.lineItems.some(
+      (item) => item.id !== lineItemId && item.productId === product.id,
+    );
+    if (duplicate) {
+      throw new BadRequestException(
+        'That product already exists on this order',
+      );
+    }
+    await this.prisma.orderLineItem.update({
+      where: { id: lineItemId },
+      data: {
+        productId: product.id,
+        adHocProductName: null,
+        adHocDescription: null,
+      },
+    });
+    return this.toEntity(await this.findRawOrThrow(orderId));
+  }
+
   private async findRawOrThrow(id: string): Promise<OrderWithLines> {
     const order = await this.prisma.order.findUnique({
       where: { id },
@@ -592,8 +671,12 @@ export class OrdersService {
             id: li.id,
             orderId: li.orderId,
             productId: li.productId,
-            productName: li.product.name,
-            productSku: li.product.sku,
+            adHocProductName: li.adHocProductName,
+            adHocDescription: li.adHocDescription,
+            isAdHoc: li.productId === null,
+            productName:
+              li.product?.name ?? li.adHocProductName ?? 'Unnamed product',
+            productSku: li.product?.sku ?? 'Ad-hoc',
             quantity: li.quantity.toString(),
             unitPrice: li.unitPrice.toString(),
             lineTotal: li.lineTotal.toString(),

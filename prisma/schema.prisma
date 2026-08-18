@@ -1549,14 +1549,19 @@ enum OrderFulfilmentStatus {
 }
 
 model OrderLineItem {
-  id        String  @id @default(uuid())
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
-  quantity  Decimal @db.Decimal(14, 2)
-  unitPrice Decimal @db.Decimal(14, 2)
-  lineTotal Decimal @db.Decimal(14, 2)
+  id               String   @id @default(uuid())
+  orderId          String
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// Nullable only for unresolved ad-hoc INTERNAL-order lines. Exactly one of
+  /// productId / adHocProductName is enforced by OrdersService. Customer-order
+  /// promotion is the formalization gate that requires every line resolved.
+  productId        String?
+  product          Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+  adHocProductName String?
+  adHocDescription String?
+  quantity         Decimal  @db.Decimal(14, 2)
+  unitPrice        Decimal  @db.Decimal(14, 2)
+  lineTotal        Decimal  @db.Decimal(14, 2)
 
   /// Per-line delivery classification, set at project kickoff. Nullable — an
   /// order line has no classification until a PM assigns one. Additive to the
@@ -4738,6 +4743,7 @@ enum QmsTemplateType {
 enum QmsResponseType {
   YES_NO_NA
   PASS_FAIL_NA
+  OK_NOTOK_NA
   TEXT
   NUMBER
   MEASUREMENT

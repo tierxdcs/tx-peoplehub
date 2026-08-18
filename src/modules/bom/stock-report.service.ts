@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -98,6 +97,7 @@ export class StockReportService {
         data: { kickoffId, quantityPrecision: QTY_PRECISION },
       });
       for (const li of lineItems) {
+        if (!li.product || !li.productId) continue;
         const topItemId = li.product.itemId;
         if (!topItemId) continue; // product not linked to an Item → no BOM
         const topBom = releasedByItem.get(topItemId);

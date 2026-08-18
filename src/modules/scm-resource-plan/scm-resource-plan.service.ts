@@ -103,6 +103,7 @@ export class ScmResourcePlanService {
     let anyBom = false;
 
     for (const li of lineItems) {
+      if (!li.product) continue;
       const topItemId = li.product.itemId;
       if (!topItemId) continue; // product not linked to an Item → no BOM
       if (!releasedByItem.get(topItemId)) continue; // no released BOM

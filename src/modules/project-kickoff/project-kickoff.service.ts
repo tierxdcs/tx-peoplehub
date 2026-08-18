@@ -1072,8 +1072,8 @@ export class ProjectKickoffService {
   private toDeliveryItem(li: DeliveryItemRow): KickoffDeliveryItemEntity {
     return new KickoffDeliveryItemEntity({
       id: li.id,
-      productName: li.product.name,
-      productSku: li.product.sku,
+      productName: li.product?.name ?? li.adHocProductName ?? 'Unnamed product',
+      productSku: li.product?.sku ?? 'Ad-hoc',
       quantity: li.quantity.toString(),
       deliveryType: li.deliveryType,
       vendorId: li.vendorId,

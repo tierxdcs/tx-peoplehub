@@ -8,8 +8,17 @@ export class OrderLineItemEntity {
   @ApiProperty()
   orderId!: string;
 
-  @ApiProperty()
-  productId!: string;
+  @ApiProperty({ nullable: true })
+  productId!: string | null;
+
+  @ApiProperty({ nullable: true })
+  adHocProductName!: string | null;
+
+  @ApiProperty({ nullable: true })
+  adHocDescription!: string | null;
+
+  @ApiProperty({ description: 'Whether this line still awaits Product setup' })
+  isAdHoc!: boolean;
 
   @ApiProperty({ description: 'Resolved product name (for display)' })
   productName!: string;
@@ -79,7 +88,10 @@ export class OrderEntity {
   })
   customerId!: string | null;
 
-  @ApiProperty({ nullable: true, description: 'Resolved customer name (for display)' })
+  @ApiProperty({
+    nullable: true,
+    description: 'Resolved customer name (for display)',
+  })
   customerName!: string | null;
 
   @ApiProperty({ enum: OrderStatus })

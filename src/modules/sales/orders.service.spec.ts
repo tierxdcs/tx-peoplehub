@@ -1,6 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
-import { BidStatus, OrderStatus, OrderType, Prisma, Role } from '@prisma/client';
+import {
+  BidStatus,
+  OrderStatus,
+  OrderType,
+  Prisma,
+  Role,
+} from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { OrdersService } from './orders.service';
@@ -37,7 +43,7 @@ describe('OrdersService', () => {
         update: jest.fn().mockResolvedValue({}),
         create: jest.fn().mockResolvedValue({}),
       },
-      product: { findMany: jest.fn() },
+      product: { findMany: jest.fn(), findUnique: jest.fn() },
       customer: { findUnique: jest.fn() },
       businessUnit: { findUnique: jest.fn() },
       $transaction: jest.fn(),
@@ -251,10 +257,12 @@ describe('OrdersService', () => {
       );
 
       const result = await service.createInternal(
-        { lineItems: [
-          { productId: 'prod-1', quantity: 5 },
-          { productId: 'prod-2', quantity: 2 },
-        ] },
+        {
+          lineItems: [
+            { productId: 'prod-1', quantity: 5 },
+            { productId: 'prod-2', quantity: 2 },
+          ],
+        },
         rep,
       );
 
@@ -272,10 +280,12 @@ describe('OrdersService', () => {
     it('rejects the same product appearing twice', async () => {
       await expect(
         service.createInternal(
-          { lineItems: [
-            { productId: 'prod-1', quantity: 1 },
-            { productId: 'prod-1', quantity: 3 },
-          ] },
+          {
+            lineItems: [
+              { productId: 'prod-1', quantity: 1 },
+              { productId: 'prod-1', quantity: 3 },
+            ],
+          },
           rep,
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -286,14 +296,88 @@ describe('OrdersService', () => {
       prisma.product.findMany.mockResolvedValue([{ id: 'prod-1' }]);
       await expect(
         service.createInternal(
-          { lineItems: [
-            { productId: 'prod-1', quantity: 1 },
-            { productId: 'ghost', quantity: 1 },
-          ] },
+          {
+            lineItems: [
+              { productId: 'prod-1', quantity: 1 },
+              { productId: 'ghost', quantity: 1 },
+            ],
+          },
           rep,
         ),
       ).rejects.toThrow(/do not exist/);
       expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('creates an unresolved ad-hoc line with zero pricing', async () => {
+      prisma.product.findMany.mockResolvedValue([]);
+      const orderCreate = jest.fn().mockImplementation(({ data }: any) => ({
+        id: 'order-int',
+        orderNumber: data.orderNumber,
+        orderType: data.orderType,
+        bidId: null,
+        customerId: null,
+        status: OrderStatus.CONFIRMED,
+        totalAmount: data.totalAmount,
+        productionRunId: null,
+        shipmentId: null,
+        ownerId: data.ownerId,
+        owner: { firstName: 'Sales', lastName: 'Rep' },
+        enquiryCreatorId: null,
+        businessUnitId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lineItems: data.lineItems.create.map((line: any) => ({
+          ...line,
+          id: 'line-ad-hoc',
+          orderId: 'order-int',
+          product: null,
+        })),
+      }));
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({ order: { create: orderCreate } }),
+      );
+
+      const result = await service.createInternal(
+        {
+          lineItems: [
+            {
+              adHocProductName: 'Prototype enclosure',
+              adHocDescription: 'First sample for design validation',
+              quantity: 2,
+            },
+          ],
+        },
+        rep,
+      );
+
+      expect(result.lineItems?.[0]).toMatchObject({
+        productId: null,
+        productName: 'Prototype enclosure',
+        productSku: 'Ad-hoc',
+        isAdHoc: true,
+        unitPrice: '0',
+        lineTotal: '0',
+      });
+    });
+
+    it('enforces exactly one of productId or adHocProductName', async () => {
+      await expect(
+        service.createInternal(
+          {
+            lineItems: [
+              {
+                productId: 'prod-1',
+                adHocProductName: 'Conflicting placeholder',
+                quantity: 1,
+              },
+            ],
+          },
+          rep,
+        ),
+      ).rejects.toThrow(/exactly one of productId or adHocProductName/);
+      await expect(
+        service.createInternal({ lineItems: [{ quantity: 1 }] }, rep),
+      ).rejects.toThrow(/exactly one of productId or adHocProductName/);
     });
   });
 
@@ -477,11 +561,111 @@ describe('OrdersService', () => {
       await expect(
         service.promoteInternalOrder(
           'bid-1',
-          { orderId: 'order-int', lineItems: [{ productId: 'prod-1', quantity: 1 }] },
+          {
+            orderId: 'order-int',
+            lineItems: [{ productId: 'prod-1', quantity: 1 }],
+          },
           rep,
         ),
       ).rejects.toThrow(/internal order can be promoted/);
       expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('blocks promotion while an internal-order ad-hoc line is unresolved', async () => {
+      prisma.bid.findUnique.mockResolvedValue(acceptedBid());
+      prisma.order.findFirst.mockResolvedValue(null);
+      prisma.order.findUnique.mockResolvedValue({
+        ...internalOrder(),
+        lineItems: [
+          ...internalOrder().lineItems,
+          {
+            id: 'D',
+            productId: null,
+            adHocProductName: 'Prototype',
+            plmTracker: { id: 'plm-2' },
+          },
+        ],
+      });
+
+      await expect(
+        service.promoteInternalOrder(
+          'bid-1',
+          {
+            orderId: 'order-int',
+            lineItems: [{ productId: 'prod-1', quantity: 1 }],
+          },
+          rep,
+        ),
+      ).rejects.toThrow(/awaiting product setup/);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resolveLineItem', () => {
+    it('resolves an ad-hoc internal-order line in place', async () => {
+      prisma.order.findUnique
+        .mockResolvedValueOnce({
+          id: 'order-int',
+          orderType: OrderType.INTERNAL,
+          bidId: null,
+          lineItems: [
+            { id: 'line-1', productId: null, adHocProductName: 'Prototype' },
+          ],
+          owner: { firstName: 'Sales', lastName: 'Rep' },
+        })
+        .mockResolvedValueOnce({
+          id: 'order-int',
+          orderNumber: 'ORD-2026-0001',
+          orderType: OrderType.INTERNAL,
+          bidId: null,
+          customerId: null,
+          status: OrderStatus.CONFIRMED,
+          totalAmount: new Prisma.Decimal(0),
+          productionRunId: null,
+          shipmentId: null,
+          ownerId: 'emp-1',
+          owner: { firstName: 'Sales', lastName: 'Rep' },
+          enquiryCreatorId: null,
+          businessUnitId: null,
+          lineItems: [
+            {
+              id: 'line-1',
+              orderId: 'order-int',
+              productId: 'prod-1',
+              product: { name: 'Formal product', sku: 'FG-001' },
+              adHocProductName: null,
+              adHocDescription: null,
+              quantity: new Prisma.Decimal(1),
+              unitPrice: new Prisma.Decimal(0),
+              lineTotal: new Prisma.Decimal(0),
+              plmTracker: { id: 'plm-1' },
+            },
+          ],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      prisma.product.findUnique.mockResolvedValue({
+        id: 'prod-1',
+        isActive: true,
+      });
+
+      const result = await service.resolveLineItem(
+        'order-int',
+        'line-1',
+        { productId: 'prod-1' },
+        rep,
+      );
+
+      expect(prisma.orderLineItem.update).toHaveBeenCalledWith({
+        where: { id: 'line-1' },
+        data: {
+          productId: 'prod-1',
+          adHocProductName: null,
+          adHocDescription: null,
+        },
+      });
+      expect(result.lineItems?.[0].hasPlmTracker).toBe(true);
+      expect(result.lineItems?.[0].isAdHoc).toBe(false);
     });
   });
 

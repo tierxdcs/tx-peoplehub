@@ -641,7 +641,10 @@ export interface Bid {
 export interface OrderLineItem {
   id: string;
   orderId: string;
-  productId: string;
+  productId: string | null;
+  adHocProductName: string | null;
+  adHocDescription: string | null;
+  isAdHoc: boolean;
   productName: string;
   productSku: string;
   quantity: string;

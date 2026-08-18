@@ -191,15 +191,17 @@ export class PlmService {
         if (!blocker && derived.derived.vendorCadence?.status === 'RED') {
           blocker = `Vendor update overdue (expected every ${derived.derived.vendorCadence.cadenceDays} day(s))`;
         }
-        const cadenceAtRisk =
-          derived.derived.vendorCadence?.status === 'AMBER';
+        const cadenceAtRisk = derived.derived.vendorCadence?.status === 'AMBER';
         return {
           trackerId: tracker.id,
           orderId: tracker.orderId,
           orderNumber: tracker.order.orderNumber,
           customerName: tracker.order.customer?.name ?? null,
-          productName: tracker.orderLine.product.name,
-          productSku: tracker.orderLine.product.sku,
+          productName:
+            tracker.orderLine.product?.name ??
+            tracker.orderLine.adHocProductName ??
+            'Unnamed product',
+          productSku: tracker.orderLine.product?.sku ?? 'Ad-hoc',
           flowType: tracker.flowType,
           currentStage: tracker.currentStage,
           ownerName:
@@ -258,7 +260,7 @@ export class PlmService {
       actorId: user.id,
       type: NotificationType.PLM_STAGE_ADVANCED,
       trackerId: tracker.id,
-      message: `${tracker.order.orderNumber} · ${tracker.orderLine.product.name} advanced to ${to.replaceAll('_', ' ')}`,
+      message: `${tracker.order.orderNumber} · ${tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'} advanced to ${to.replaceAll('_', ' ')}`,
     });
     return updated;
   }
@@ -312,7 +314,7 @@ export class PlmService {
           actorId: user.id,
           type: NotificationType.PLM_DESIGN_REVIEW_REQUESTED,
           trackerId: tracker.id,
-          message: `Design Review requested for ${tracker.order.orderNumber} · ${tracker.orderLine.product.name}`,
+          message: `Design Review requested for ${tracker.order.orderNumber} · ${tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
         }),
       ),
     );
@@ -416,7 +418,10 @@ export class PlmService {
           'Design Review requires Production Head approval',
         );
       case PlmStage.DRAWING_RELEASE:
-        if (!tracker.orderLine.product.item?.boms.length) {
+        if (
+          tracker.orderLine.product &&
+          !tracker.orderLine.product.item?.boms.length
+        ) {
           throw new BadRequestException(
             'Drawing Release is not satisfied: the line item has no RELEASED BOM',
           );
@@ -425,6 +430,10 @@ export class PlmService {
       case PlmStage.RELEASE_TO_SCM:
         return PlmStage.MATERIAL_PLANNING;
       case PlmStage.MATERIAL_PLANNING: {
+        // An unresolved internal-order prototype has no catalog Item/BOM yet.
+        // Its PLM work may proceed; formal Product resolution is enforced only
+        // when the internal order is promoted to a customer order.
+        if (!tracker.orderLine.product) return PlmStage.PRODUCTION;
         // Material supply is out of scope for this project (e.g. a vendor is
         // supplying the finished item under a turnkey arrangement) — the
         // Kickoff Stock Availability Report never runs, so there is nothing
@@ -537,7 +546,7 @@ export class PlmService {
           actorId: user.id,
           type: NotificationType.PLM_DESIGN_REVIEW_DECIDED,
           trackerId: tracker.id,
-          message: `Design Review ${decision} for ${tracker.order.orderNumber} · ${tracker.orderLine.product.name}`,
+          message: `Design Review ${decision} for ${tracker.order.orderNumber} · ${tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
         }),
       ),
     );
@@ -631,7 +640,7 @@ export class PlmService {
     const production = deriveProductionProgress(tracker.productionCards);
     const latestVendorUpdateAt =
       tracker.flowType === OrderLineDeliveryType.VENDOR
-        ? tracker.productionUpdates[0]?.createdAt ?? null
+        ? (tracker.productionUpdates[0]?.createdAt ?? null)
         : null;
     const productionStartedAt = [...tracker.events]
       .reverse()
@@ -651,7 +660,9 @@ export class PlmService {
     return {
       ...tracker,
       derived: {
-        drawingReleased: !!tracker.orderLine.product.item?.boms.length,
+        drawingReleased:
+          !tracker.orderLine.product ||
+          !!tracker.orderLine.product.item?.boms.length,
         qcPassed: tracker.orderLine.qmsInspections.some((inspection) =>
           ['PASSED', 'CONDITIONAL_PASS'].includes(inspection.status),
         ),

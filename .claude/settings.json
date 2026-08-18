@@ -53,7 +53,12 @@
       "Bash(curl -sS -m 8 -w \"\\\\nHTTP %{http_code}\\\\n\" \"https://api.frankfurter.dev/latest?base=INR&symbols=USD,CAD,EUR\")",
       "Bash(curl -sS -m 8 -o /dev/null -w \"final=%{url_effective} HTTP=%{http_code}\\\\n\" -L \"https://api.frankfurter.app/latest?from=INR&to=USD,CAD,EUR\")",
       "Bash(node -e ' *)",
-      "Bash(curl -sS -m 5 -w \"\\\\nHTTP %{http_code}\\\\n\" \"http://localhost:3000/reference-rates\")"
+      "Bash(curl -sS -m 5 -w \"\\\\nHTTP %{http_code}\\\\n\" \"http://localhost:3000/reference-rates\")",
+      "Bash(grep -on \"submitInspection\\([^\\)]*\\)[^}]\\\\{0,400\\\\}\" src/modules/qms/qms.service.ts)",
+      "Bash(git mv *)",
+      "Bash(echo \"EXIT CODE: $?\")",
+      "Bash(echo \"BACKEND tsc EXIT=$?\")",
+      "Bash(echo \"FRONTEND tsc EXIT=$?\")"
     ]
   }
 }

@@ -65,6 +65,7 @@ const RFQ_INCLUDE = {
             orderBy: { createdAt: 'asc' as const },
             select: {
               id: true,
+              adHocProductName: true,
               quantity: true,
               unitPrice: true,
               lineTotal: true,
@@ -254,6 +255,7 @@ export class RfqService {
               orderBy: { createdAt: 'asc' },
               select: {
                 id: true,
+                adHocProductName: true,
                 quantity: true,
                 unitPrice: true,
                 lineTotal: true,
@@ -278,10 +280,11 @@ export class RfqService {
       customerName: row.order.customer?.name ?? 'Internal',
       lines: row.order.lineItems.map((line) => ({
         orderLineId: line.id,
-        productSku: line.product.sku,
-        productName: line.product.name,
+        productSku: line.product?.sku ?? 'Ad-hoc',
+        productName:
+          line.product?.name ?? line.adHocProductName ?? 'Unnamed product',
         quantity: line.quantity.toString(),
-        unitOfMeasure: line.product.unitOfMeasure,
+        unitOfMeasure: line.product?.unitOfMeasure ?? 'each',
         unitPrice: line.unitPrice.toString(),
         lineTotal: line.lineTotal.toString(),
       })),
@@ -350,7 +353,7 @@ export class RfqService {
       { itemId: string; quantity: Prisma.Decimal; unitOfMeasure: string }
     >();
     for (const orderLine of kickoff.order.lineItems) {
-      if (excludedSet.has(orderLine.id) || !orderLine.product.itemId) continue;
+      if (excludedSet.has(orderLine.id) || !orderLine.product?.itemId) continue;
       if (!releasedByItem.has(orderLine.product.itemId)) continue;
       const leaves = explodeProcurementBom(
         orderLine.product.itemId,
@@ -417,7 +420,12 @@ export class RfqService {
       where: { id: intakeId },
       select: { finishedGoodItemId: true, bomId: true, status: true },
     });
-    if (!intake || intake.status !== 'CREATED' || !intake.finishedGoodItemId || !intake.bomId) {
+    if (
+      !intake ||
+      intake.status !== 'CREATED' ||
+      !intake.finishedGoodItemId ||
+      !intake.bomId
+    ) {
       throw new NotFoundException('Quote-stage customer BOM not found');
     }
     const boms = await this.prisma.bom.findMany({
@@ -427,18 +435,40 @@ export class RfqService {
         id: true,
         itemId: true,
         revisionNumber: true,
-        lines: { select: { itemId: true, quantityPerUnit: true, wastagePercent: true, unitOfMeasure: true, makeBuy: true } },
+        lines: {
+          select: {
+            itemId: true,
+            quantityPerUnit: true,
+            wastagePercent: true,
+            unitOfMeasure: true,
+            makeBuy: true,
+          },
+        },
       },
     });
     const byItem = new Map<string, ExplodableBom>();
     for (const bom of boms) {
-      if (bom.id === intake.bomId || !byItem.has(bom.itemId)) byItem.set(bom.itemId, bom);
+      if (bom.id === intake.bomId || !byItem.has(bom.itemId))
+        byItem.set(bom.itemId, bom);
     }
-    const aggregate = new Map<string, { quantity: Prisma.Decimal; unitOfMeasure: string }>();
-    for (const leaf of explodeProcurementBom(intake.finishedGoodItemId, (id) => byItem.get(id) ?? null)) {
+    const aggregate = new Map<
+      string,
+      { quantity: Prisma.Decimal; unitOfMeasure: string }
+    >();
+    for (const leaf of explodeProcurementBom(
+      intake.finishedGoodItemId,
+      (id) => byItem.get(id) ?? null,
+    )) {
       const current = aggregate.get(leaf.itemId);
-      if (current) current.quantity = round(current.quantity.plus(leaf.quantityPerTopUnit));
-      else aggregate.set(leaf.itemId, { quantity: leaf.quantityPerTopUnit, unitOfMeasure: leaf.unitOfMeasure });
+      if (current)
+        current.quantity = round(
+          current.quantity.plus(leaf.quantityPerTopUnit),
+        );
+      else
+        aggregate.set(leaf.itemId, {
+          quantity: leaf.quantityPerTopUnit,
+          unitOfMeasure: leaf.unitOfMeasure,
+        });
     }
     const items = await this.prisma.item.findMany({
       where: { id: { in: [...aggregate.keys()] }, isActive: true },
@@ -457,7 +487,9 @@ export class RfqService {
   async create(dto: CreateRfqDto, user: AuthenticatedUser): Promise<RfqEntity> {
     await this.access.assertCanManageRfqs(user);
     if (dto.projectKickoffId && dto.customerBomIntakeId) {
-      throw new BadRequestException('Link an RFQ to either an order or a quote-stage BOM, not both');
+      throw new BadRequestException(
+        'Link an RFQ to either an order or a quote-stage BOM, not both',
+      );
     }
     const lines = await this.buildLineData(dto.lines);
     const excludedOrderLineIds = await this.resolveExcludedOrderLineIds(
@@ -1167,10 +1199,11 @@ export class RfqService {
           .filter((line) => !rfq.excludedOrderLineIds.includes(line.id))
           .map((line) => ({
             orderLineId: line.id,
-            productSku: line.product.sku,
-            productName: line.product.name,
+            productSku: line.product?.sku ?? 'Ad-hoc',
+            productName:
+              line.product?.name ?? line.adHocProductName ?? 'Unnamed product',
             quantity: line.quantity.toString(),
-            unitOfMeasure: line.product.unitOfMeasure,
+            unitOfMeasure: line.product?.unitOfMeasure ?? 'each',
             unitPrice: line.unitPrice.toString(),
             lineTotal: line.lineTotal.toString(),
           })) ?? [],

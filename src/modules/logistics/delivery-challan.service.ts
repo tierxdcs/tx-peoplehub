@@ -107,10 +107,14 @@ export class DeliveryChallanService {
   // ── Outbound final-QC clearance (the dispatch gate) ──────────────────
   async clearFinalQc(orderId: string, user: AuthenticatedUser) {
     await this.access.assertCanClearFinalQc(user);
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order) throw new NotFoundException('Order not found');
     if (order.finalQcStatus === OrderFinalQcStatus.CLEARED) {
-      throw new BadRequestException('Final QC is already cleared for this order');
+      throw new BadRequestException(
+        'Final QC is already cleared for this order',
+      );
     }
     await this.prisma.order.update({
       where: { id: orderId },
@@ -145,7 +149,10 @@ export class DeliveryChallanService {
       const dcNumber = await this.numbering.nextNumber(
         'DC',
         'delivery_challan',
-        (dto.dispatchDate ? new Date(dto.dispatchDate) : new Date()).getUTCFullYear(),
+        (dto.dispatchDate
+          ? new Date(dto.dispatchDate)
+          : new Date()
+        ).getUTCFullYear(),
         tx,
       );
       return tx.deliveryChallan.create({
@@ -155,7 +162,9 @@ export class DeliveryChallanService {
           orderId: order.id,
           customerId,
           customerPoReference: dto.customerPoReference ?? null,
-          dispatchDate: dto.dispatchDate ? new Date(dto.dispatchDate) : new Date(),
+          dispatchDate: dto.dispatchDate
+            ? new Date(dto.dispatchDate)
+            : new Date(),
           consigneeName: dto.consigneeName,
           consigneeAddress: dto.consigneeAddress,
           consigneeGstin: dto.consigneeGstin ?? null,
@@ -166,8 +175,8 @@ export class DeliveryChallanService {
           driverName: dto.driverName ?? null,
           driverPhone: dto.driverPhone ?? null,
           specialDeliveryInstructions: dto.specialDeliveryInstructions ?? null,
-          documentsIncluded: (dto.documentsIncluded ??
-            undefined) as Prisma.InputJsonValue | undefined,
+          documentsIncluded: (dto.documentsIncluded ?? undefined) as
+            Prisma.InputJsonValue | undefined,
           promisedDeliveryDate: dto.promisedDeliveryDate
             ? new Date(dto.promisedDeliveryDate)
             : null,
@@ -177,7 +186,9 @@ export class DeliveryChallanService {
       });
     });
     const entity = await this.get(created.id);
-    entity.overDispatchWarnings = await this.computeOverDispatchWarnings(order.id);
+    entity.overDispatchWarnings = await this.computeOverDispatchWarnings(
+      order.id,
+    );
     return entity;
   }
 
@@ -195,8 +206,7 @@ export class DeliveryChallanService {
       );
     }
     let lineData:
-      | Prisma.DeliveryChallanLineCreateWithoutDeliveryChallanInput[]
-      | undefined;
+      Prisma.DeliveryChallanLineCreateWithoutDeliveryChallanInput[] | undefined;
     if (dto.lines) {
       const order = await this.loadOrderForDispatch(dc.orderId);
       lineData = await this.buildLineData(dto.lines, order);
@@ -205,12 +215,18 @@ export class DeliveryChallanService {
       where: { id },
       data: {
         ...(dto.dispatchDate !== undefined
-          ? { dispatchDate: dto.dispatchDate ? new Date(dto.dispatchDate) : new Date() }
+          ? {
+              dispatchDate: dto.dispatchDate
+                ? new Date(dto.dispatchDate)
+                : new Date(),
+            }
           : {}),
         ...(dto.customerPoReference !== undefined
           ? { customerPoReference: dto.customerPoReference || null }
           : {}),
-        ...(dto.consigneeName !== undefined ? { consigneeName: dto.consigneeName } : {}),
+        ...(dto.consigneeName !== undefined
+          ? { consigneeName: dto.consigneeName }
+          : {}),
         ...(dto.consigneeAddress !== undefined
           ? { consigneeAddress: dto.consigneeAddress }
           : {}),
@@ -220,20 +236,31 @@ export class DeliveryChallanService {
         ...(dto.consigneeStateCode !== undefined
           ? { consigneeStateCode: dto.consigneeStateCode }
           : {}),
-        ...(dto.transportMode !== undefined ? { transportMode: dto.transportMode } : {}),
+        ...(dto.transportMode !== undefined
+          ? { transportMode: dto.transportMode }
+          : {}),
         ...(dto.transporterName !== undefined
           ? { transporterName: dto.transporterName || null }
           : {}),
         ...(dto.vehicleOrAwbNumber !== undefined
           ? { vehicleOrAwbNumber: dto.vehicleOrAwbNumber || null }
           : {}),
-        ...(dto.driverName !== undefined ? { driverName: dto.driverName || null } : {}),
-        ...(dto.driverPhone !== undefined ? { driverPhone: dto.driverPhone || null } : {}),
+        ...(dto.driverName !== undefined
+          ? { driverName: dto.driverName || null }
+          : {}),
+        ...(dto.driverPhone !== undefined
+          ? { driverPhone: dto.driverPhone || null }
+          : {}),
         ...(dto.specialDeliveryInstructions !== undefined
-          ? { specialDeliveryInstructions: dto.specialDeliveryInstructions || null }
+          ? {
+              specialDeliveryInstructions:
+                dto.specialDeliveryInstructions || null,
+            }
           : {}),
         ...(dto.documentsIncluded !== undefined
-          ? { documentsIncluded: dto.documentsIncluded as Prisma.InputJsonValue }
+          ? {
+              documentsIncluded: dto.documentsIncluded as Prisma.InputJsonValue,
+            }
           : {}),
         ...(dto.promisedDeliveryDate !== undefined
           ? {
@@ -246,11 +273,16 @@ export class DeliveryChallanService {
       },
     });
     const entity = await this.get(id);
-    entity.overDispatchWarnings = await this.computeOverDispatchWarnings(dc.orderId);
+    entity.overDispatchWarnings = await this.computeOverDispatchWarnings(
+      dc.orderId,
+    );
     return entity;
   }
 
-  async cancel(id: string, user: AuthenticatedUser): Promise<DeliveryChallanEntity> {
+  async cancel(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<DeliveryChallanEntity> {
     await this.access.assertCanDispatch(user);
     const dc = await this.prisma.deliveryChallan.findUnique({ where: { id } });
     if (!dc) throw new NotFoundException('Delivery challan not found');
@@ -267,7 +299,10 @@ export class DeliveryChallanService {
   }
 
   // ── Dispatch: STOCK_OUT + draft invoice (the core action) ────────────
-  async dispatch(id: string, user: AuthenticatedUser): Promise<DeliveryChallanEntity> {
+  async dispatch(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<DeliveryChallanEntity> {
     await this.access.assertCanDispatch(user);
     const dc = await this.findOrThrow(id);
     if (dc.status !== DeliveryChallanStatus.DRAFT) {
@@ -276,7 +311,9 @@ export class DeliveryChallanService {
       );
     }
     if (dc.lines.length === 0) {
-      throw new BadRequestException('Cannot dispatch a delivery challan with no lines');
+      throw new BadRequestException(
+        'Cannot dispatch a delivery challan with no lines',
+      );
     }
 
     // QC gate — the order's finished goods must have passed final QC.
@@ -296,7 +333,9 @@ export class DeliveryChallanService {
       select: { id: true },
     });
     if (!store) {
-      throw new BadRequestException('No store location configured to dispatch from');
+      throw new BadRequestException(
+        'No store location configured to dispatch from',
+      );
     }
 
     // Seed the place-of-supply from the consignee state; GST rates are best-effort
@@ -360,7 +399,9 @@ export class DeliveryChallanService {
     });
 
     const entity = await this.get(id);
-    entity.overDispatchWarnings = await this.computeOverDispatchWarnings(dc.orderId);
+    entity.overDispatchWarnings = await this.computeOverDispatchWarnings(
+      dc.orderId,
+    );
     return entity;
   }
 
@@ -401,11 +442,16 @@ export class DeliveryChallanService {
     const dc = await this.prisma.deliveryChallan.findUnique({ where: { id } });
     if (!dc) throw new NotFoundException('Delivery challan not found');
     const allowed: Record<string, DeliveryChallanStatus[]> = {
-      [DeliveryChallanStatus.DISPATCHED]: [DeliveryChallanStatus.IN_TRANSIT, DeliveryChallanStatus.DELIVERED],
+      [DeliveryChallanStatus.DISPATCHED]: [
+        DeliveryChallanStatus.IN_TRANSIT,
+        DeliveryChallanStatus.DELIVERED,
+      ],
       [DeliveryChallanStatus.IN_TRANSIT]: [DeliveryChallanStatus.DELIVERED],
     };
     if (!allowed[dc.status]?.includes(status as DeliveryChallanStatus)) {
-      throw new BadRequestException(`Cannot move a delivery challan from ${dc.status} to ${status}`);
+      throw new BadRequestException(
+        `Cannot move a delivery challan from ${dc.status} to ${status}`,
+      );
     }
     await this.prisma.deliveryChallan.update({
       where: { id },
@@ -427,7 +473,11 @@ export class DeliveryChallanService {
     if (!dc) throw new NotFoundException('Delivery challan not found');
     const storageKey = `logistics/pod/${id}/${Date.now()}-${fileName}`;
     const signed = await this.storage.createUploadUrl(storageKey, contentType);
-    return { storageKey, uploadUrl: signed.url, expiresInSeconds: signed.expiresInSeconds };
+    return {
+      storageKey,
+      uploadUrl: signed.url,
+      expiresInSeconds: signed.expiresInSeconds,
+    };
   }
 
   async confirmPod(
@@ -443,7 +493,8 @@ export class DeliveryChallanService {
     if (!dc) throw new NotFoundException('Delivery challan not found');
     // Verify the object really landed in R2 before recording it.
     const head = await this.storage.headObject(storageKey);
-    if (!head) throw new BadRequestException('POD upload was not found in storage');
+    if (!head)
+      throw new BadRequestException('POD upload was not found in storage');
     await this.prisma.deliveryChallan.update({
       where: { id },
       data: {
@@ -462,7 +513,8 @@ export class DeliveryChallanService {
   async podDownloadUrl(id: string, user: AuthenticatedUser) {
     void user; // company-wide read
     const dc = await this.prisma.deliveryChallan.findUnique({ where: { id } });
-    if (!dc?.podFileKey) throw new NotFoundException('No proof of delivery on file');
+    if (!dc?.podFileKey)
+      throw new NotFoundException('No proof of delivery on file');
     return this.storage.createDownloadUrl(dc.podFileKey);
   }
 
@@ -481,13 +533,24 @@ export class DeliveryChallanService {
       where: { id: orderId },
       include: {
         lineItems: {
-          include: { product: { select: { name: true, hsnCode: true, itemId: true, unitOfMeasure: true } } },
+          include: {
+            product: {
+              select: {
+                name: true,
+                hsnCode: true,
+                itemId: true,
+                unitOfMeasure: true,
+              },
+            },
+          },
         },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
     if (order.status === 'CANCELLED') {
-      throw new BadRequestException('Cannot dispatch against a cancelled order');
+      throw new BadRequestException(
+        'Cannot dispatch against a cancelled order',
+      );
     }
     return order;
   }
@@ -499,7 +562,12 @@ export class DeliveryChallanService {
         lineItems: {
           include: {
             product: {
-              select: { name: true; hsnCode: true; itemId: true; unitOfMeasure: true };
+              select: {
+                name: true;
+                hsnCode: true;
+                itemId: true;
+                unitOfMeasure: true;
+              };
             };
           };
         };
@@ -512,6 +580,11 @@ export class DeliveryChallanService {
       if (!orderLine) {
         throw new BadRequestException(
           `Line references an order line (${l.orderLineId}) not on order ${order.id}`,
+        );
+      }
+      if (!orderLine.product) {
+        throw new BadRequestException(
+          `Ad-hoc product "${orderLine.adHocProductName ?? 'Unnamed product'}" must be resolved before dispatch`,
         );
       }
       if (!orderLine.product.itemId) {
@@ -580,7 +653,10 @@ export class DeliveryChallanService {
         ? OrderFulfilmentStatus.PARTIALLY_DISPATCHED
         : OrderFulfilmentStatus.NOT_DISPATCHED;
     if (derived !== order.fulfilmentStatus) {
-      await tx.order.update({ where: { id: orderId }, data: { fulfilmentStatus: derived } });
+      await tx.order.update({
+        where: { id: orderId },
+        data: { fulfilmentStatus: derived },
+      });
     }
   }
 
@@ -589,10 +665,15 @@ export class DeliveryChallanService {
   ): Promise<OverDispatchWarningEntity[]> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: { lineItems: { include: { product: { select: { name: true } } } } },
+      include: {
+        lineItems: { include: { product: { select: { name: true } } } },
+      },
     });
     if (!order) return [];
-    const dispatched = await this.cumulativeDispatchedByOrderLine(this.prisma, orderId);
+    const dispatched = await this.cumulativeDispatchedByOrderLine(
+      this.prisma,
+      orderId,
+    );
     const warnings: OverDispatchWarningEntity[] = [];
     for (const line of order.lineItems) {
       const got = dispatched.get(line.id) ?? new Prisma.Decimal(0);
@@ -600,10 +681,11 @@ export class DeliveryChallanService {
         warnings.push(
           new OverDispatchWarningEntity({
             orderLineId: line.id,
-            description: line.product.name,
+            description:
+              line.product?.name ?? line.adHocProductName ?? 'Unnamed product',
             orderedQuantity: line.quantity.toString(),
             cumulativeDispatched: got.toString(),
-            message: `Over-dispatch: ${got} dispatched against ${line.quantity} ordered for ${line.product.name}.`,
+            message: `Over-dispatch: ${got} dispatched against ${line.quantity} ordered for ${line.product?.name ?? line.adHocProductName ?? 'Unnamed product'}.`,
           }),
         );
       }

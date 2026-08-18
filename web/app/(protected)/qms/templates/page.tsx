@@ -38,6 +38,7 @@ const blank = (): Q => ({
 const kinds = [
   'PASS_FAIL_NA',
   'YES_NO_NA',
+  'OK_NOTOK_NA',
   'TEXT',
   'NUMBER',
   'MEASUREMENT',

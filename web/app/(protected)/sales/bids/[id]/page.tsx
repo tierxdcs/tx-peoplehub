@@ -484,7 +484,10 @@ export default function BidDetailPage() {
                   <TableRow key={li.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <ProductCell name={li.productName} sku={li.productSku} />
+                        <ProductCell
+                          name={li.productName}
+                          sku={li.productSku}
+                        />
                         {li.isAdHoc && (
                           <span className="inline-flex items-center rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-warning">
                             Awaiting setup
@@ -672,6 +675,7 @@ export default function BidDetailPage() {
         open={promoteOpen}
         onOpenChange={setPromoteOpen}
         onPromoted={(orderId) => router.push(`/sales/orders/${orderId}`)}
+        canCreateProduct={canCreateProduct}
       />
     </>
   );
