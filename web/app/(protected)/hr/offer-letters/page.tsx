@@ -1,7 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Clock, FileText, Printer, Send, XCircle } from 'lucide-react';
+import {
+  CheckCircle2,
+  Clock,
+  FileText,
+  Printer,
+  Send,
+  XCircle,
+} from 'lucide-react';
 import { ApiError, apiFetch } from '../../../lib/api';
 import { Employee, EmployeeRoster, PaginatedResult } from '../../../lib/types';
 import { PageContainer } from '../../../components/ui/page-container';
@@ -16,7 +23,14 @@ import { useToast } from '../../../components/ui/toaster';
 import { RegisterToolbar } from '../../../components/ui/register-toolbar';
 import { RegisterPagination } from '../../../components/ui/register-pagination';
 import { EmptyState } from '../../../components/ui/empty-state';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../components/ui/table';
 import { useRegisterList } from '../../../lib/use-register-list';
 import {
   OfferLetterDocument,
@@ -32,6 +46,8 @@ type AvailableRequisition = {
   requisitionNumber: string;
   positionTitle: string;
   employmentType: string;
+  keyResponsibilities: string | null;
+  keyPerformanceIndicators: string | null;
   superAdminApprovedAt: string | null;
 };
 
@@ -56,7 +72,11 @@ export default function OfferLettersPage() {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const register = useRegisterList(employees, (employee) => `${employee.employeeId} ${employee.firstName} ${employee.lastName} ${employee.designation ?? ''} ${employee.accessStatus}`);
+  const register = useRegisterList(
+    employees,
+    (employee) =>
+      `${employee.employeeId} ${employee.firstName} ${employee.lastName} ${employee.designation ?? ''} ${employee.accessStatus}`,
+  );
 
   const status: OfferLetterStatus | null = offer?.status ?? null;
 
@@ -116,10 +136,24 @@ export default function OfferLettersPage() {
         `/candidate-requisitions/available?employeeId=${encodeURIComponent(id)}`,
       );
       setRequisitions(available);
-      if (available.length === 1) setCandidateRequisitionId(available[0].id);
+      if (available.length === 1) {
+        selectRequisition(available[0].id, available);
+      }
     } catch {
       setRequisitions([]);
     }
+  }
+
+  function selectRequisition(id: string, availableRequisitions = requisitions) {
+    setCandidateRequisitionId(id);
+    if (!id || offer) return;
+    const requisition = availableRequisitions.find((item) => item.id === id);
+    if (!requisition) return;
+
+    // These are approved role expectations authored by the requisition
+    // requester. They seed a new Offer Letter, but remain editable by HR.
+    setResponsibilities(requisition.keyResponsibilities ?? '');
+    setKpis(requisition.keyPerformanceIndicators ?? '');
   }
 
   /** Persist authored content (+ reporting manager). Returns the saved offer. */
@@ -164,8 +198,7 @@ export default function OfferLettersPage() {
   async function save() {
     setSaving(true);
     setError(null);
-    const wasGated =
-      status === 'PENDING_APPROVAL' || status === 'APPROVED';
+    const wasGated = status === 'PENDING_APPROVAL' || status === 'APPROVED';
     try {
       const fresh = await persist();
       if (fresh) {
@@ -225,12 +258,68 @@ export default function OfferLettersPage() {
           title="Offer Letters"
           description="Author the letter, submit it to the vertical owner for approval, and download it once approved."
         />
-        <RegisterToolbar title="Employee Offer Register" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search employee, designation or status" />
-        <Card className="mb-6"><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Designation</TableHead><TableHead>Access status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader><TableBody>
-          {register.visibleItems.map((employee) => <TableRow key={employee.id}><TableCell className="font-medium">{employee.firstName} {employee.lastName}<span className="block text-xs text-muted-foreground">{employee.employeeId}</span></TableCell><TableCell>{employee.designation ?? '—'}</TableCell><TableCell><StatusBadge value={employee.accessStatus} /></TableCell><TableCell className="text-right"><Button size="sm" variant={employee.id === employeeId ? 'secondary' : 'outline'} onClick={() => void selectEmployee(employee.id)}>{employee.id === employeeId ? 'Selected' : 'Open offer'}</Button></TableCell></TableRow>)}
-          {!register.visibleItems.length && <TableRow><TableCell colSpan={4} className="p-0"><EmptyState icon={FileText} title="No employees match your search" /></TableCell></TableRow>}
-        </TableBody></Table></CardContent></Card>
-        <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} />
+        <RegisterToolbar
+          title="Employee Offer Register"
+          search={register.search}
+          onSearchChange={register.setSearch}
+          searchPlaceholder="Search employee, designation or status"
+        />
+        <Card className="mb-6">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Employee</TableHead>
+                  <TableHead>Designation</TableHead>
+                  <TableHead>Access status</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {register.visibleItems.map((employee) => (
+                  <TableRow key={employee.id}>
+                    <TableCell className="font-medium">
+                      {employee.firstName} {employee.lastName}
+                      <span className="block text-xs text-muted-foreground">
+                        {employee.employeeId}
+                      </span>
+                    </TableCell>
+                    <TableCell>{employee.designation ?? '—'}</TableCell>
+                    <TableCell>
+                      <StatusBadge value={employee.accessStatus} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant={
+                          employee.id === employeeId ? 'secondary' : 'outline'
+                        }
+                        onClick={() => void selectEmployee(employee.id)}
+                      >
+                        {employee.id === employeeId ? 'Selected' : 'Open offer'}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!register.visibleItems.length && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="p-0">
+                      <EmptyState
+                        icon={FileText}
+                        title="No employees match your search"
+                      />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+        <RegisterPagination
+          page={register.page}
+          pageCount={register.pageCount}
+          onPageChange={register.setPage}
+        />
         <Card>
           <CardContent className="space-y-5 p-6">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -256,7 +345,7 @@ export default function OfferLettersPage() {
                 >
                   <Select
                     value={candidateRequisitionId}
-                    onChange={(e) => setCandidateRequisitionId(e.target.value)}
+                    onChange={(e) => selectRequisition(e.target.value)}
                     disabled={!employeeId}
                   >
                     <option value="">Select an approved requisition…</option>
@@ -268,7 +357,8 @@ export default function OfferLettersPage() {
                   </Select>
                   {employeeId && requisitions.length === 0 && (
                     <p className="mt-1 text-xs text-destructive">
-                      No approved, unconsumed requisition matches this employee’s vertical and designation.
+                      No approved, unconsumed requisition matches this
+                      employee’s vertical and designation.
                     </p>
                   )}
                 </Field>
@@ -316,6 +406,12 @@ export default function OfferLettersPage() {
                 onChange={(e) => setResponsibilities(e.target.value)}
                 placeholder="Develop and execute…"
               />
+              {!offer && candidateRequisitionId && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Pre-filled from the approved requisition. HR can edit it
+                  before saving or submitting the Offer Letter.
+                </p>
+              )}
             </Field>
             <Field
               label="Key Performance Indicators (KPIs)"
@@ -328,6 +424,12 @@ export default function OfferLettersPage() {
                 onChange={(e) => setKpis(e.target.value)}
                 placeholder="Revenue achievement…"
               />
+              {!offer && candidateRequisitionId && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Pre-filled from the approved requisition. HR can edit it
+                  before saving or submitting the Offer Letter.
+                </p>
+              )}
             </Field>
 
             {(status === 'PENDING_APPROVAL' || status === 'APPROVED') && (
@@ -416,22 +518,21 @@ function StatusPanel({ offer }: { offer: OfferLetterDocument }) {
         {offer.status === 'DRAFT' && (
           <p className="text-muted-foreground">
             This letter is a draft. Submit it for approval
-            {owner ? ` to ${owner} (vertical owner)` : ' to the CEO'} —
-            it can be downloaded only once approved.
+            {owner ? ` to ${owner} (vertical owner)` : ' to the CEO'} — it can
+            be downloaded only once approved.
           </p>
         )}
         {offer.status === 'PENDING_APPROVAL' && (
           <p className="text-muted-foreground">
             Awaiting approval
-            {approver ? ` from ${approver}` : ' from the CEO'}. The
-            document is locked to what was submitted and can’t be downloaded
-            until approved.
+            {approver ? ` from ${approver}` : ' from the CEO'}. The document is
+            locked to what was submitted and can’t be downloaded until approved.
           </p>
         )}
         {offer.status === 'APPROVED' && (
           <p className="text-muted-foreground">
-            Approved{approver ? ` by ${approver}` : ''}. You can now download the
-            offer letter.
+            Approved{approver ? ` by ${approver}` : ''}. You can now download
+            the offer letter.
           </p>
         )}
         {offer.status === 'REJECTED' && (

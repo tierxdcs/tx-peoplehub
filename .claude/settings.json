@@ -58,7 +58,10 @@
       "Bash(git mv *)",
       "Bash(echo \"EXIT CODE: $?\")",
       "Bash(echo \"BACKEND tsc EXIT=$?\")",
-      "Bash(echo \"FRONTEND tsc EXIT=$?\")"
+      "Bash(echo \"FRONTEND tsc EXIT=$?\")",
+      "Bash(awk '/model CandidateRequisition[ {]/,/^}/' prisma/schema.prisma)",
+      "Bash(psql \"postgresql://localhost:5432/peoplehub\" -c \"SELECT column_name FROM information_schema.columns WHERE table_name='candidate_requisitions' AND column_name IN \\('keyResponsibilities','keyPerformanceIndicators'\\);\")",
+      "Bash(grep -iA4 \"not yet\\\\|up to date\\\\|following\")"
     ]
   }
 }

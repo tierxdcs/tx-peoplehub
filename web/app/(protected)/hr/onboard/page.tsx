@@ -43,6 +43,27 @@ const WORK_LOCATIONS = ['Unit 1 - Peenya', 'Unit 2 - Dabaspet', 'Hybrid'];
 
 const OFFICIAL_EMAIL_DOMAIN = 'phaze-dynamics.com';
 
+type OnboardingRequisitionOption = {
+  id: string;
+  requisitionNumber: string;
+  offerReferenceNumber: string | null;
+  hasApprovedOffer: boolean;
+  selectedCandidateName: string;
+  designation: string | null;
+  employmentType: EmploymentType | null;
+  vertical: { id: string; name: string } | null;
+  dateOfJoining: string | null;
+  workLocation: string | null;
+  territory: string | null;
+  compensation: {
+    basicSalary: string | null;
+    hra: string | null;
+    specialAllowance: string | null;
+    variablePay: string | null;
+    effectiveDate: string | null;
+  } | null;
+};
+
 function suggestedOfficialEmail(firstName: string, lastName: string) {
   const normalize = (value: string) =>
     value.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -63,6 +84,10 @@ const STEPS = [
 export default function OnboardEmployeePage() {
   const { style: numberFormatStyle } = useNumberFormat();
   const [verticals, setVerticals] = useState<Vertical[]>([]);
+  const [requisitionOptions, setRequisitionOptions] = useState<
+    OnboardingRequisitionOption[]
+  >([]);
+  const [candidateRequisitionId, setCandidateRequisitionId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<Employee | null>(null);
@@ -127,7 +152,59 @@ export default function OnboardEmployeePage() {
 
   useEffect(() => {
     apiFetch<Vertical[]>('/verticals').then(setVerticals);
+    apiFetch<OnboardingRequisitionOption[]>(
+      '/candidate-requisitions/onboarding-options',
+    )
+      .then(setRequisitionOptions)
+      .catch(() => setError('Failed to load approved hiring requisitions'));
   }, []);
+
+  function selectRequisition(id: string) {
+    setCandidateRequisitionId(id);
+    if (!id) return;
+    const option = requisitionOptions.find((item) => item.id === id);
+    if (!option) return;
+
+    const [candidateFirstName = '', ...candidateLastNameParts] =
+      option.selectedCandidateName.trim().split(/\s+/);
+    setFirstName(candidateFirstName);
+    setLastName(candidateLastNameParts.join(' '));
+
+    // Never carry terms from a previously selected requisition. A fulfilled
+    // requisition without an approved Offer Letter is still eligible, but only
+    // its confirmed candidate name is safe to prefill.
+    setDesignation('');
+    setEmploymentType('FULL_TIME_PERMANENT');
+    setVerticalId('');
+    setDateOfJoining('');
+    setWorkLocation('');
+    setTerritory('');
+    setBasicSalary('');
+    setHra('');
+    setSpecialAllowance('');
+    setVariablePay('');
+    setEffectiveDate('');
+
+    if (!option.hasApprovedOffer) {
+      setError(null);
+      return;
+    }
+    setDesignation(option.designation ?? '');
+    setEmploymentType(option.employmentType ?? 'FULL_TIME_PERMANENT');
+    setVerticalId(option.vertical?.id ?? '');
+    if (option.dateOfJoining)
+      setDateOfJoining(option.dateOfJoining.slice(0, 10));
+    if (option.workLocation) setWorkLocation(option.workLocation);
+    if (option.territory) setTerritory(option.territory);
+    setBasicSalary(option.compensation?.basicSalary ?? '');
+    setHra(option.compensation?.hra ?? '');
+    setSpecialAllowance(option.compensation?.specialAllowance ?? '');
+    setVariablePay(option.compensation?.variablePay ?? '');
+    if (option.compensation?.effectiveDate) {
+      setEffectiveDate(option.compensation.effectiveDate.slice(0, 10));
+    }
+    setError(null);
+  }
 
   // Required fields per step — gate "Next" so a step can't be left incomplete.
   // ESIC is the only optional field; everything else on a step is required.
@@ -216,6 +293,7 @@ export default function OnboardEmployeePage() {
       const employee = await apiFetch<Employee>('/employees/onboard', {
         method: 'POST',
         body: JSON.stringify({
+          ...(candidateRequisitionId ? { candidateRequisitionId } : {}),
           firstName,
           lastName,
           ...(officialEmailEdited
@@ -253,6 +331,11 @@ export default function OnboardEmployeePage() {
           bankDetails: { bankAccountNumber, ifscCode },
         }),
       });
+      if (candidateRequisitionId) {
+        setRequisitionOptions((options) =>
+          options.filter((option) => option.id !== candidateRequisitionId),
+        );
+      }
       setCreated(employee);
     } catch (err) {
       setError(
@@ -297,6 +380,7 @@ export default function OnboardEmployeePage() {
               onClick={() => {
                 setCreated(null);
                 setStep(0);
+                setCandidateRequisitionId('');
               }}
             >
               Onboard another
@@ -315,6 +399,30 @@ export default function OnboardEmployeePage() {
         title="Onboard Employee"
         description="Fill each section, then move to the next. Sensitive PII is stored encrypted."
       />
+
+      <Card className="mb-6">
+        <CardContent className="p-6">
+          <Field label="Link to a Candidate Requisition (optional)">
+            <Select
+              value={candidateRequisitionId}
+              onChange={(event) => selectRequisition(event.target.value)}
+            >
+              <option value="">No requisition — exception onboarding</option>
+              {requisitionOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.requisitionNumber} — {option.selectedCandidateName} —{' '}
+                  {option.designation ?? 'Terms to be entered'}
+                </option>
+              ))}
+            </Select>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Approved and Fulfilled requisitions appear. The confirmed
+              candidate name is always filled; approved Offer Letter terms are
+              added when available. Every field remains editable for HR review.
+            </p>
+          </Field>
+        </CardContent>
+      </Card>
 
       {/* Stepper — click a completed/earlier step to jump back. */}
       <ol className="mb-6 flex items-center gap-2">

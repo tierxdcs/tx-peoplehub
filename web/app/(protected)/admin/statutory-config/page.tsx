@@ -65,6 +65,7 @@ export default function StatutoryConfigPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [viewing, setViewing] = useState<StatutoryConfig | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,6 +128,7 @@ export default function StatutoryConfigPage() {
                   <TableHead>Effective From</TableHead>
                   <TableHead>Effective To</TableHead>
                   <TableHead>Source Note</TableHead>
+                  <TableHead className="text-right">Values</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -140,6 +142,15 @@ export default function StatutoryConfigPage() {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {c.sourceNote}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setViewing(c)}
+                      >
+                        View
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -158,7 +169,134 @@ export default function StatutoryConfigPage() {
           }}
         />
       )}
+
+      {viewing && (
+        <ViewConfigDialog config={viewing} onClose={() => setViewing(null)} />
+      )}
     </PageContainer>
+  );
+}
+
+/** camelCase / snake_case → "Title Case" for readable value labels. */
+function humanizeKey(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+/** Render a stored value exactly (no rate→% conversion — reviewers need the
+ * literal value they'll compliance-check), with light formatting. */
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+/** Read-only view of a config version's actual values. Splits out any `slabs`
+ * array into a table; renders remaining top-level entries as label/value rows;
+ * always exposes the raw JSON for full fidelity. */
+function ViewConfigDialog({
+  config,
+  onClose,
+}: {
+  config: StatutoryConfig;
+  onClose: () => void;
+}) {
+  const entries = Object.entries(config.configData);
+  const slabsEntry = entries.find(
+    ([, v]) => Array.isArray(v) && v.every((s) => s && typeof s === 'object'),
+  );
+  const slabs = (slabsEntry?.[1] as Record<string, unknown>[] | undefined) ?? [];
+  const slabKey = slabsEntry?.[0];
+  const scalarEntries = entries.filter(([k]) => k !== slabKey);
+  const slabColumns = Array.from(
+    new Set(slabs.flatMap((s) => Object.keys(s))),
+  );
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            {config.configType}
+            {config.state ? ` · ${config.state}` : ''}
+          </DialogTitle>
+          <DialogDescription>
+            Effective {config.effectiveFrom.slice(0, 10)} —{' '}
+            {config.effectiveTo ? config.effectiveTo.slice(0, 10) : 'open-ended'}
+            {config.sourceNote ? ` · ${config.sourceNote}` : ''}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {scalarEntries.length > 0 && (
+            <dl className="rounded-md border">
+              {scalarEntries.map(([k, v]) => (
+                <div
+                  key={k}
+                  className="flex justify-between gap-4 border-b px-3 py-2 text-sm last:border-0"
+                >
+                  <dt className="text-muted-foreground">{humanizeKey(k)}</dt>
+                  <dd className="font-medium tabular-nums">{formatValue(v)}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+
+          {slabKey && slabs.length > 0 && (
+            <div>
+              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {humanizeKey(slabKey)}
+              </p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {slabColumns.map((col) => (
+                      <TableHead key={col}>{humanizeKey(col)}</TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {slabs.map((s, i) => (
+                    <TableRow key={i}>
+                      {slabColumns.map((col) => (
+                        <TableCell key={col} className="tabular-nums">
+                          {formatValue(s[col])}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {entries.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No values recorded for this config.
+            </p>
+          )}
+
+          <details className="rounded-md border bg-muted/30 p-3 text-xs">
+            <summary className="cursor-pointer text-muted-foreground">
+              Raw JSON
+            </summary>
+            <pre className="mt-2 overflow-x-auto font-mono">
+              {JSON.stringify(config.configData, null, 2)}
+            </pre>
+          </details>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

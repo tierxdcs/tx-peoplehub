@@ -85,6 +85,14 @@ export class OnboardBankDetailsDto {
 }
 
 export class OnboardEmployeeDto {
+  @ApiPropertyOptional({
+    description:
+      'Approved-offer requisition to link to this onboarding. Optional for exception hires.',
+  })
+  @IsOptional()
+  @IsUUID()
+  candidateRequisitionId?: string;
+
   @ApiProperty({ example: 'Jane' })
   @IsString()
   firstName!: string;

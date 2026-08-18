@@ -244,6 +244,17 @@ enum CandidateRequisitionStatus {
   REJECTED
   PENDING_SUPERADMIN_APPROVAL
   APPROVED
+  CANCELLED
+}
+
+/// Post-authorization recruiting progress, maintained only by HR. Kept
+/// separate from CandidateRequisitionStatus so the sequential approval audit
+/// trail remains stable after the requisition is approved.
+enum CandidateHiringStage {
+  JOB_POSTED
+  INTERVIEWING
+  OFFER_EXTENDED
+  CANDIDATE_SELECTED
 }
 
 /// Intra-state (CGST+SGST) vs inter-state (IGST). This phase applies one
@@ -497,6 +508,7 @@ model Employee {
   salaryStructures                        SalaryStructure[]      @relation("SalaryStructureOwner")
   salaryStructuresEntered                 SalaryStructure[]      @relation("SalaryStructureEnteredBy")
   offerLetter                             OfferLetter?           @relation("OfferLetterEmployee")
+  onboardingCandidateRequisition          CandidateRequisition?  @relation("CandidateRequisitionOnboardedEmployee")
   offerLettersCreated                     OfferLetter[]          @relation("OfferLetterCreator")
   offerLettersToApprove                   OfferLetter[]          @relation("OfferLetterApprover")
   provisioningRequests                    ProvisioningRequest[]  @relation("ProvisioningEmployee")
@@ -764,40 +776,50 @@ model OfferLetter {
 }
 
 model CandidateRequisition {
-  id                     String                     @id @default(uuid())
-  requisitionNumber      String                     @unique
-  requestedById          String
-  requestedBy            Employee                   @relation("CandidateRequisitionRequester", fields: [requestedById], references: [id], onDelete: Restrict)
-  verticalId             String
-  vertical               Vertical                   @relation(fields: [verticalId], references: [id], onDelete: Restrict)
-  positionTitle          String
-  employmentType         EmploymentType
-  justification          String                     @db.Text
+  id                       String                     @id @default(uuid())
+  requisitionNumber        String                     @unique
+  requestedById            String
+  requestedBy              Employee                   @relation("CandidateRequisitionRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  verticalId               String
+  vertical                 Vertical                   @relation(fields: [verticalId], references: [id], onDelete: Restrict)
+  positionTitle            String
+  employmentType           EmploymentType
+  justification            String                     @db.Text
+  /// Key responsibilities and KPIs for the role. Nullable in DB so the columns
+  /// can be added to existing rows, but REQUIRED in the create DTO for every new
+  /// requisition (same convention as budgetAnnualCtc below).
+  keyResponsibilities      String?                    @db.Text
+  keyPerformanceIndicators String?                    @db.Text
   /// Annual CTC hiring budget (INR). Nullable in DB so the column can be added
   /// to existing rows, but REQUIRED in the create DTO for every new requisition
   /// (cf. Product.businessUnitId — the repo enforces such invariants in the DTO/
   /// service, not with DB constraints).
-  budgetAnnualCtc        Decimal?                   @db.Decimal(14, 2)
-  targetJoiningDate      DateTime?                  @db.Date
-  status                 CandidateRequisitionStatus @default(PENDING_VERTICAL_APPROVAL)
-  verticalApprovedById   String?
-  verticalApprovedBy     Employee?                  @relation("CandidateRequisitionVerticalApprover", fields: [verticalApprovedById], references: [id], onDelete: SetNull)
-  verticalApprovedAt     DateTime?
-  superAdminApprovedById String?
-  superAdminApprovedBy   Employee?                  @relation("CandidateRequisitionSuperAdminApprover", fields: [superAdminApprovedById], references: [id], onDelete: SetNull)
-  superAdminApprovedAt   DateTime?
-  rejectedById           String?
-  rejectedBy             Employee?                  @relation("CandidateRequisitionRejector", fields: [rejectedById], references: [id], onDelete: SetNull)
-  rejectedAt             DateTime?
-  rejectionComment       String?                    @db.Text
-  consumedAt             DateTime?
-  offerLetter            OfferLetter?
-  createdAt              DateTime                   @default(now())
-  updatedAt              DateTime                   @updatedAt
+  budgetAnnualCtc          Decimal?                   @db.Decimal(14, 2)
+  targetJoiningDate        DateTime?                  @db.Date
+  status                   CandidateRequisitionStatus @default(PENDING_VERTICAL_APPROVAL)
+  hiringStage              CandidateHiringStage?
+  selectedCandidateName    String?
+  verticalApprovedById     String?
+  verticalApprovedBy       Employee?                  @relation("CandidateRequisitionVerticalApprover", fields: [verticalApprovedById], references: [id], onDelete: SetNull)
+  verticalApprovedAt       DateTime?
+  superAdminApprovedById   String?
+  superAdminApprovedBy     Employee?                  @relation("CandidateRequisitionSuperAdminApprover", fields: [superAdminApprovedById], references: [id], onDelete: SetNull)
+  superAdminApprovedAt     DateTime?
+  rejectedById             String?
+  rejectedBy               Employee?                  @relation("CandidateRequisitionRejector", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedAt               DateTime?
+  rejectionComment         String?                    @db.Text
+  consumedAt               DateTime?
+  offerLetter              OfferLetter?
+  onboardedEmployeeId      String?                    @unique
+  onboardedEmployee        Employee?                  @relation("CandidateRequisitionOnboardedEmployee", fields: [onboardedEmployeeId], references: [id], onDelete: Restrict)
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
 
   @@index([requestedById, status])
   @@index([verticalId, status])
   @@index([status, createdAt])
+  @@index([hiringStage])
   @@map("candidate_requisitions")
 }
 

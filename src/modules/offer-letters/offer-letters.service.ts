@@ -4,7 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OfferLetterStatus, Prisma, Role } from '@prisma/client';
+import {
+  CandidateHiringStage,
+  OfferLetterStatus,
+  Prisma,
+  Role,
+} from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../core/database/prisma.service';
 import { PayrollComputationService } from '../payroll/payroll-computation.service';
@@ -33,7 +38,9 @@ const documentEmployeeInclude = {
 const approvalContextInclude = {
   employee: { include: documentEmployeeInclude },
   approver: { select: { firstName: true, lastName: true } },
-  candidateRequisition: { select: { id: true, requisitionNumber: true, positionTitle: true } },
+  candidateRequisition: {
+    select: { id: true, requisitionNumber: true, positionTitle: true },
+  },
 } satisfies Prisma.OfferLetterInclude;
 
 type OfferWithApprovalContext = Prisma.OfferLetterGetPayload<{
@@ -99,7 +106,12 @@ export class OfferLettersService {
     await this.assertAccess(user);
     const employee = await this.prisma.employee.findUnique({
       where: { id: dto.employeeId },
-      select: { id: true, designation: true, territory: true, verticalId: true },
+      select: {
+        id: true,
+        designation: true,
+        territory: true,
+        verticalId: true,
+      },
     });
     if (!employee) throw new NotFoundException('Employee not found');
 
@@ -148,14 +160,28 @@ export class OfferLettersService {
         where: { id: dto.candidateRequisitionId },
         include: { offerLetter: { select: { id: true } } },
       });
-      if (!requisition || requisition.status !== 'APPROVED' || requisition.consumedAt || requisition.offerLetter) {
-        throw new BadRequestException('The selected candidate requisition is not approved and available');
+      if (
+        !requisition ||
+        requisition.status !== 'APPROVED' ||
+        requisition.consumedAt ||
+        requisition.offerLetter
+      ) {
+        throw new BadRequestException(
+          'The selected candidate requisition is not approved and available',
+        );
       }
       if (requisition.verticalId !== employee.verticalId) {
-        throw new BadRequestException('The requisition vertical does not match the employee vertical');
+        throw new BadRequestException(
+          'The requisition vertical does not match the employee vertical',
+        );
       }
-      if (requisition.positionTitle.trim().toLocaleLowerCase() !== (employee.designation ?? '').trim().toLocaleLowerCase()) {
-        throw new BadRequestException('The requisition position does not match the employee designation');
+      if (
+        requisition.positionTitle.trim().toLocaleLowerCase() !==
+        (employee.designation ?? '').trim().toLocaleLowerCase()
+      ) {
+        throw new BadRequestException(
+          'The requisition position does not match the employee designation',
+        );
       }
       const offer = await tx.offerLetter.create({
         data: {
@@ -167,7 +193,17 @@ export class OfferLettersService {
           createdById: user.id,
         },
       });
-      await tx.candidateRequisition.update({ where: { id: requisition.id }, data: { consumedAt: new Date() } });
+      await tx.candidateRequisition.update({
+        where: { id: requisition.id },
+        data: {
+          consumedAt: new Date(),
+          ...(!requisition.hiringStage ||
+          requisition.hiringStage === CandidateHiringStage.JOB_POSTED ||
+          requisition.hiringStage === CandidateHiringStage.INTERVIEWING
+            ? { hiringStage: CandidateHiringStage.OFFER_EXTENDED }
+            : {}),
+        },
+      });
       return offer;
     });
   }
@@ -219,7 +255,7 @@ export class OfferLettersService {
       ? (offer.snapshotData as unknown as RenderedOfferDocument)
       : this.assembleDocument(
           offer,
-          await this.payroll.computeCtcBreakdown(offer.employeeId),
+          await this.computeOfferCompensation(offer.employeeId),
         );
 
     return {
@@ -238,6 +274,38 @@ export class OfferLettersService {
           }
         : null,
     };
+  }
+
+  /**
+   * Compensation for an offer letter is forward-looking: the letter is authored
+   * before the hire starts, so we evaluate the CTC as of the joining date rather
+   * than "today". A salary structure effective from the start date therefore
+   * applies and its effective date never blocks the offer's release. If the
+   * earliest structure on file starts even later than the joining date, we use
+   * that date instead so any structure on record is still picked up. Only a
+   * genuine absence of any salary structure remains an error (nothing to render).
+   */
+  private async computeOfferCompensation(
+    employeeId: string,
+  ): Promise<CtcBreakdownEntity> {
+    const [employee, earliest] = await Promise.all([
+      this.prisma.employee.findUnique({
+        where: { id: employeeId },
+        select: { dateOfJoining: true },
+      }),
+      this.prisma.salaryStructure.findFirst({
+        where: { employeeId },
+        orderBy: { effectiveFrom: 'asc' },
+        select: { effectiveFrom: true },
+      }),
+    ]);
+    const candidates = [employee?.dateOfJoining, earliest?.effectiveFrom].filter(
+      (date): date is Date => date != null,
+    );
+    const asOf = candidates.length
+      ? new Date(Math.max(...candidates.map((date) => date.getTime())))
+      : new Date();
+    return this.payroll.computeCtcBreakdown(employeeId, asOf);
   }
 
   /**
@@ -265,7 +333,7 @@ export class OfferLettersService {
       );
     }
 
-    const compensation = await this.payroll.computeCtcBreakdown(employeeId);
+    const compensation = await this.computeOfferCompensation(employeeId);
     const snapshot = this.assembleDocument(offer, compensation);
     const approverId = this.resolveApproverId(offer);
 
@@ -290,7 +358,11 @@ export class OfferLettersService {
   }
 
   /** Vertical owner (or SuperAdmin) signs off the frozen snapshot as-is. */
-  async approve(id: string, dto: OfferLetterDecisionDto, user: AuthenticatedUser) {
+  async approve(
+    id: string,
+    dto: OfferLetterDecisionDto,
+    user: AuthenticatedUser,
+  ) {
     const offer = await this.findWithApprovalContext(id);
     this.assertCanDecide(offer, user);
     if (offer.status !== OfferLetterStatus.PENDING_APPROVAL) {
@@ -319,7 +391,11 @@ export class OfferLettersService {
    * revisable state (REJECTED) with the snapshot discarded, so HR edits against
    * live data and resubmits for a fresh approval.
    */
-  async reject(id: string, dto: OfferLetterDecisionDto, user: AuthenticatedUser) {
+  async reject(
+    id: string,
+    dto: OfferLetterDecisionDto,
+    user: AuthenticatedUser,
+  ) {
     const offer = await this.findWithApprovalContext(id);
     this.assertCanDecide(offer, user);
     if (offer.status !== OfferLetterStatus.PENDING_APPROVAL) {

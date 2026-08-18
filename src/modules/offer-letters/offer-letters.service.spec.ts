@@ -1,5 +1,5 @@
 import { ForbiddenException, BadRequestException } from '@nestjs/common';
-import { OfferLetterStatus, Role } from '@prisma/client';
+import { CandidateHiringStage, OfferLetterStatus, Role } from '@prisma/client';
 import { OfferLettersService } from './offer-letters.service';
 
 describe('OfferLettersService', () => {
@@ -16,6 +16,7 @@ describe('OfferLettersService', () => {
   beforeEach(() => {
     prisma = {
       employee: { findUnique: jest.fn() },
+      salaryStructure: { findFirst: jest.fn() },
       offerLetter: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
@@ -41,6 +42,7 @@ describe('OfferLettersService', () => {
     prisma.candidateRequisition.findUnique.mockResolvedValue({
       id: '11111111-1111-4111-8111-111111111111',
       status: 'APPROVED',
+      hiringStage: null,
       consumedAt: null,
       offerLetter: null,
       verticalId: 'sales-v',
@@ -73,7 +75,13 @@ describe('OfferLettersService', () => {
       }),
     );
     expect(prisma.candidateRequisition.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: '11111111-1111-4111-8111-111111111111' } }),
+      expect.objectContaining({
+        where: { id: '11111111-1111-4111-8111-111111111111' },
+        data: expect.objectContaining({
+          consumedAt: expect.any(Date),
+          hiringStage: CandidateHiringStage.OFFER_EXTENDED,
+        }),
+      }),
     );
 
     prisma.offerLetter.findUnique.mockReset();
@@ -121,10 +129,22 @@ describe('OfferLettersService', () => {
 
   it('blocks a new offer letter when no approved requisition is selected', async () => {
     prisma.employee.findUnique.mockResolvedValue({
-      id: 'employee-1', designation: 'Engineer', territory: null, verticalId: 'rnd',
+      id: 'employee-1',
+      designation: 'Engineer',
+      territory: null,
+      verticalId: 'rnd',
     });
     prisma.offerLetter.findUnique.mockResolvedValue(null);
-    await expect(service.save({ employeeId: 'employee-1', keyResponsibilities: 'Build', kpis: 'Quality' }, user)).rejects.toThrow(
+    await expect(
+      service.save(
+        {
+          employeeId: 'employee-1',
+          keyResponsibilities: 'Build',
+          kpis: 'Quality',
+        },
+        user,
+      ),
+    ).rejects.toThrow(
       'An approved, unconsumed candidate requisition is required',
     );
     expect(prisma.offerLetter.create).not.toHaveBeenCalled();
@@ -189,7 +209,10 @@ describe('OfferLettersService', () => {
   it('submit falls back to SuperAdmin-only (null approver) when the vertical has no owner', async () => {
     prisma.offerLetter.findUnique.mockResolvedValue(
       draftOffer({
-        employee: { ...draftOffer().employee, vertical: { name: 'Sales', owner: null } },
+        employee: {
+          ...draftOffer().employee,
+          vertical: { name: 'Sales', owner: null },
+        },
       }),
     );
     payroll.computeCtcBreakdown.mockResolvedValue(compensation);
@@ -197,7 +220,9 @@ describe('OfferLettersService', () => {
 
     await service.submit('employee-1', user);
 
-    expect(prisma.offerLetter.update.mock.calls[0][0].data.approverId).toBeNull();
+    expect(
+      prisma.offerLetter.update.mock.calls[0][0].data.approverId,
+    ).toBeNull();
   });
 
   it('submit falls back to SuperAdmin when the owner would be the submitter (self-approval)', async () => {
@@ -211,7 +236,9 @@ describe('OfferLettersService', () => {
 
     await service.submit('employee-1', user);
 
-    expect(prisma.offerLetter.update.mock.calls[0][0].data.approverId).toBeNull();
+    expect(
+      prisma.offerLetter.update.mock.calls[0][0].data.approverId,
+    ).toBeNull();
   });
 
   it('submit rejects an offer letter that is not DRAFT/REJECTED', async () => {
@@ -224,9 +251,17 @@ describe('OfferLettersService', () => {
   });
 
   it('approve moves PENDING_APPROVAL to APPROVED and stamps the approver', async () => {
-    const owner = { id: 'owner-1', email: 'o@x.com', role: Role.MANAGER, verticalId: 'v1' };
+    const owner = {
+      id: 'owner-1',
+      email: 'o@x.com',
+      role: Role.MANAGER,
+      verticalId: 'v1',
+    };
     prisma.offerLetter.findUnique.mockResolvedValue(
-      draftOffer({ status: OfferLetterStatus.PENDING_APPROVAL, approverId: 'owner-1' }),
+      draftOffer({
+        status: OfferLetterStatus.PENDING_APPROVAL,
+        approverId: 'owner-1',
+      }),
     );
     payroll.computeCtcBreakdown.mockResolvedValue(compensation);
     prisma.offerLetter.update.mockResolvedValue({});
@@ -240,9 +275,17 @@ describe('OfferLettersService', () => {
   });
 
   it('reject requires a comment', async () => {
-    const owner = { id: 'owner-1', email: 'o@x.com', role: Role.MANAGER, verticalId: 'v1' };
+    const owner = {
+      id: 'owner-1',
+      email: 'o@x.com',
+      role: Role.MANAGER,
+      verticalId: 'v1',
+    };
     prisma.offerLetter.findUnique.mockResolvedValue(
-      draftOffer({ status: OfferLetterStatus.PENDING_APPROVAL, approverId: 'owner-1' }),
+      draftOffer({
+        status: OfferLetterStatus.PENDING_APPROVAL,
+        approverId: 'owner-1',
+      }),
     );
 
     await expect(
@@ -252,9 +295,17 @@ describe('OfferLettersService', () => {
   });
 
   it('reject with a comment moves to REJECTED and discards the snapshot', async () => {
-    const owner = { id: 'owner-1', email: 'o@x.com', role: Role.MANAGER, verticalId: 'v1' };
+    const owner = {
+      id: 'owner-1',
+      email: 'o@x.com',
+      role: Role.MANAGER,
+      verticalId: 'v1',
+    };
     prisma.offerLetter.findUnique.mockResolvedValue(
-      draftOffer({ status: OfferLetterStatus.PENDING_APPROVAL, approverId: 'owner-1' }),
+      draftOffer({
+        status: OfferLetterStatus.PENDING_APPROVAL,
+        approverId: 'owner-1',
+      }),
     );
     prisma.offerLetter.update.mockResolvedValue({});
 
@@ -279,9 +330,17 @@ describe('OfferLettersService', () => {
   });
 
   it('blocks the submitter from approving their own submission', async () => {
-    const submitter = { id: 'hr-1', email: 'hr@x.com', role: Role.MANAGER, verticalId: 'v1' };
+    const submitter = {
+      id: 'hr-1',
+      email: 'hr@x.com',
+      role: Role.MANAGER,
+      verticalId: 'v1',
+    };
     prisma.offerLetter.findUnique.mockResolvedValue(
-      draftOffer({ status: OfferLetterStatus.PENDING_APPROVAL, createdById: 'hr-1' }),
+      draftOffer({
+        status: OfferLetterStatus.PENDING_APPROVAL,
+        createdById: 'hr-1',
+      }),
     );
     await expect(
       service.approve('offer-1', {}, submitter),
@@ -308,9 +367,17 @@ describe('OfferLettersService', () => {
   });
 
   it('blocks a manager who is neither the routed owner nor a SuperAdmin', async () => {
-    const stranger = { id: 'mgr-9', email: 'm@x.com', role: Role.MANAGER, verticalId: 'v9' };
+    const stranger = {
+      id: 'mgr-9',
+      email: 'm@x.com',
+      role: Role.MANAGER,
+      verticalId: 'v9',
+    };
     prisma.offerLetter.findUnique.mockResolvedValue(
-      draftOffer({ status: OfferLetterStatus.PENDING_APPROVAL, approverId: 'owner-1' }),
+      draftOffer({
+        status: OfferLetterStatus.PENDING_APPROVAL,
+        approverId: 'owner-1',
+      }),
     );
     await expect(
       service.approve('offer-1', {}, stranger),
@@ -368,7 +435,9 @@ describe('OfferLettersService', () => {
         referenceNumber: 'PD/HR/2026/RSM',
         compensation: { grandTotal: { perAnnum: '999999.00' } },
       },
-      employee: { vertical: { owner: { firstName: 'Vera', lastName: 'Owner' } } },
+      employee: {
+        vertical: { owner: { firstName: 'Vera', lastName: 'Owner' } },
+      },
     });
 
     const doc = await service.getForEmployee('employee-1', user);
@@ -380,7 +449,12 @@ describe('OfferLettersService', () => {
   });
 
   it('scopes the pending-approval list to the owner for a non-SuperAdmin caller', async () => {
-    const owner = { id: 'owner-1', email: 'o@x.com', role: Role.MANAGER, verticalId: 'v1' };
+    const owner = {
+      id: 'owner-1',
+      email: 'o@x.com',
+      role: Role.MANAGER,
+      verticalId: 'v1',
+    };
     prisma.offerLetter.findMany.mockResolvedValue([]);
 
     await service.listPendingApproval(owner);

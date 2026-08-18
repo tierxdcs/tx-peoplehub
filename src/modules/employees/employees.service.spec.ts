@@ -5,7 +5,12 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { AccessStatus, EmployeeStatus, Role } from '@prisma/client';
+import {
+  AccessStatus,
+  CandidateHiringStage,
+  EmployeeStatus,
+  Role,
+} from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { EncryptionService } from '../../core/crypto/encryption.service';
 import { VaultStorageService } from '../vault/vault-storage.service';
@@ -96,7 +101,9 @@ describe('EmployeesService', () => {
         EmployeesService,
         {
           provide: ProvisioningService,
-          useValue: { createForEmployee: jest.fn().mockResolvedValue(undefined) },
+          useValue: {
+            createForEmployee: jest.fn().mockResolvedValue(undefined),
+          },
         },
         { provide: PrismaService, useValue: prisma },
         {
@@ -616,6 +623,91 @@ describe('EmployeesService', () => {
       expect(prisma.$transaction).toHaveBeenCalled();
     });
 
+    it('atomically links a valid Approved and Fulfilled requisition without requiring an Offer Letter', async () => {
+      prisma.vertical.findUnique.mockResolvedValueOnce(hrVertical);
+      prisma.vertical.findUnique.mockResolvedValueOnce(salesVertical);
+      const created = {
+        ...employee,
+        id: 'new-emp-linked',
+        firstName: 'John',
+        lastName: 'Doe',
+      };
+      const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          $queryRaw: jest.fn().mockResolvedValue([{ lastValue: 9 }]),
+          employee: {
+            create: jest.fn().mockResolvedValue(created),
+            findUnique: jest.fn().mockResolvedValue(null),
+          },
+          candidateRequisition: {
+            findUnique: jest.fn().mockResolvedValue({
+              status: 'APPROVED',
+              hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
+              onboardedEmployeeId: null,
+            }),
+            updateMany,
+          },
+          salaryStructure: { create: jest.fn().mockResolvedValue({}) },
+          employeeStatutoryInfo: { create: jest.fn().mockResolvedValue({}) },
+          employeeBankDetails: { create: jest.fn().mockResolvedValue({}) },
+          vaultFolder: { create: jest.fn().mockResolvedValue({}) },
+        }),
+      );
+
+      await service.onboard(
+        {
+          ...onboardDto,
+          candidateRequisitionId: '11111111-1111-4111-8111-111111111111',
+        },
+        hrStaffUser,
+      );
+
+      expect(updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: '11111111-1111-4111-8111-111111111111',
+            status: 'APPROVED',
+            hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
+            onboardedEmployeeId: null,
+          }),
+          data: {
+            onboardedEmployeeId: 'new-emp-linked',
+            selectedCandidateName: 'John Doe',
+            hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
+          },
+        }),
+      );
+    });
+
+    it('rejects a linked onboarding while the requisition is only at Offer Extended', async () => {
+      prisma.vertical.findUnique.mockResolvedValueOnce(hrVertical);
+      prisma.vertical.findUnique.mockResolvedValueOnce(salesVertical);
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          candidateRequisition: {
+            findUnique: jest.fn().mockResolvedValue({
+              status: 'APPROVED',
+              hiringStage: CandidateHiringStage.OFFER_EXTENDED,
+              onboardedEmployeeId: null,
+            }),
+          },
+        }),
+      );
+
+      await expect(
+        service.onboard(
+          {
+            ...onboardDto,
+            candidateRequisitionId: '11111111-1111-4111-8111-111111111111',
+          },
+          hrStaffUser,
+        ),
+      ).rejects.toThrow(
+        'The selected requisition must be Approved and Fulfilled',
+      );
+    });
+
     it('uses a normalized HR-supplied official email when provided', async () => {
       prisma.vertical.findUnique.mockResolvedValueOnce(hrVertical);
       prisma.vertical.findUnique.mockResolvedValueOnce(salesVertical);
@@ -789,7 +881,9 @@ describe('EmployeesService', () => {
     };
 
     it('assigns role, sets password, activates login, and promotes officialEmail to email', async () => {
-      prisma.$transaction.mockImplementationOnce((callback: any) => callback(prisma));
+      prisma.$transaction.mockImplementationOnce((callback: any) =>
+        callback(prisma),
+      );
       prisma.employee.findUnique.mockResolvedValueOnce(pendingEmployee); // findRawOrThrow
       prisma.vertical.findUnique.mockResolvedValue(vertical);
       prisma.employee.findUnique.mockResolvedValueOnce(manager); // manager active-check

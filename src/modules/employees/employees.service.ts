@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import {
   AccessStatus,
+  CandidateHiringStage,
   Employee,
   EmployeeStatus,
   Prisma,
@@ -544,6 +545,31 @@ export class EmployeesService {
       : null;
 
     const employee = await this.prisma.$transaction(async (tx) => {
+      if (dto.candidateRequisitionId) {
+        const requisition = await tx.candidateRequisition.findUnique({
+          where: { id: dto.candidateRequisitionId },
+          select: {
+            status: true,
+            hiringStage: true,
+            onboardedEmployeeId: true,
+          },
+        });
+        if (
+          !requisition ||
+          requisition.status !== 'APPROVED' ||
+          requisition.hiringStage !== CandidateHiringStage.CANDIDATE_SELECTED
+        ) {
+          throw new BadRequestException(
+            'The selected requisition must be Approved and Fulfilled',
+          );
+        }
+        if (requisition.onboardedEmployeeId) {
+          throw new ConflictException(
+            'The selected requisition is already linked to a completed onboarding',
+          );
+        }
+      }
+
       const employeeId = await this.nextEmployeeCode(
         tx,
         new Date().getFullYear(),
@@ -633,6 +659,31 @@ export class EmployeesService {
           visibilityScope: 'PRIVATE',
         },
       });
+
+      if (dto.candidateRequisitionId) {
+        // Claim and fulfil inside the employee transaction. updateMany gives us
+        // a race-safe compare-and-set: concurrent submissions cannot consume
+        // the same approved requisition twice.
+        const claimed = await tx.candidateRequisition.updateMany({
+          where: {
+            id: dto.candidateRequisitionId,
+            status: 'APPROVED',
+            hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
+            onboardedEmployeeId: null,
+          },
+          data: {
+            onboardedEmployeeId: created.id,
+            selectedCandidateName:
+              `${created.firstName} ${created.lastName}`.trim(),
+            hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
+          },
+        });
+        if (claimed.count !== 1) {
+          throw new ConflictException(
+            'The selected requisition is no longer available for onboarding',
+          );
+        }
+      }
 
       return created;
     });
