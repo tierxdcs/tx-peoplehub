@@ -22,6 +22,13 @@ const REQUIRED_FIELDS: Record<StatutoryConfigType, string[]> = {
   [StatutoryConfigType.PROFESSIONAL_TAX]: ['slabs'],
   [StatutoryConfigType.TDS_SLAB]: ['slabs'],
   [StatutoryConfigType.STANDARD_DEDUCTION]: ['amount'],
+  [StatutoryConfigType.SALARY_STRUCTURE]: [
+    'basicGrossRate',
+    'hraGrossRate',
+    'conveyanceMonthly',
+    'annualInsurance',
+    'incentiveGrossMonths',
+  ],
 };
 
 @Injectable()

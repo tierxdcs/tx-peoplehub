@@ -45,6 +45,7 @@ import { EmployeeSearchResultEntity } from './entities/employee-search-result.en
 import { EmployeeStatutoryEntity } from './entities/employee-statutory.entity';
 import { EmployeeBankDetailsEntity } from './entities/employee-bank-details.entity';
 import { VaultStorageService } from '../vault/vault-storage.service';
+import { OnboardingCompensationService } from '../payroll/onboarding-compensation.service';
 import {
   assertExtensionAllowed,
   assertSizeWithinCap,
@@ -70,7 +71,26 @@ export class EmployeesService {
     private readonly encryption: EncryptionService,
     private readonly storage: VaultStorageService,
     private readonly provisioning: ProvisioningService,
+    private readonly compensationCalculator: OnboardingCompensationService,
   ) {}
+
+  async previewOnboardingCompensation(
+    monthlyCtc: number,
+    effectiveDate: string,
+    currentUser: AuthenticatedUser,
+  ) {
+    const isAdmin =
+      currentUser.role === Role.ADMIN || currentUser.role === Role.SUPER_ADMIN;
+    if (!isAdmin && !(await this.isHrStaff(currentUser))) {
+      throw new ForbiddenException(
+        'Only HR-vertical staff or Admins may calculate onboarding compensation',
+      );
+    }
+    return this.compensationCalculator.calculate(
+      monthlyCtc,
+      new Date(effectiveDate),
+    );
+  }
 
   /**
    * Allocate the next human-readable employee code, e.g. `PHB26-001`.
@@ -450,7 +470,25 @@ export class EmployeesService {
       );
     }
 
-    await this.prisma.employee.delete({ where: { id } });
+    // The pre-check above names the common blockers for a friendly message,
+    // but the employee is referenced by ~30 other Restrict relations (offer
+    // letters, requisitions, kickoffs, PLM, and every finance/procurement
+    // "createdBy"). Enumerating them all is unmaintainable, so we let the
+    // delete run and translate the foreign-key violation into the same
+    // "deactivate instead" guidance rather than leaking a raw 500.
+    try {
+      await this.prisma.employee.delete({ where: { id } });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new ConflictException(
+          'Cannot permanently delete this employee — they still own or authored business records (e.g. offer letters, requisitions, project kickoffs, or finance/procurement documents). Deactivate them instead to preserve this history.',
+        );
+      }
+      throw error;
+    }
   }
 
   /**
@@ -544,6 +582,13 @@ export class EmployeesService {
       ? await this.verifyPhotoUpload(dto.photoStorageKey)
       : null;
 
+    // Calculate before opening the write transaction: all config reads use one
+    // effective date, and the transaction only persists the verified result.
+    const calculatedCompensation = await this.compensationCalculator.calculate(
+      dto.compensation.monthlyCtc,
+      new Date(dto.compensation.effectiveDate),
+    );
+
     const employee = await this.prisma.$transaction(async (tx) => {
       if (dto.candidateRequisitionId) {
         const requisition = await tx.candidateRequisition.findUnique({
@@ -603,28 +648,20 @@ export class EmployeesService {
         },
       });
 
-      // CTC = (monthly earning components × 12) + annual variable pay.
-      // basic/hra/specialAllowance are MONTHLY; variablePay is ANNUAL (an
-      // indirect component the payroll engine never reads — see the
-      // SalaryStructure.variablePay schema comment). otherAllowances is not
-      // captured at onboarding; it's set later via POST /salary-structures.
-      const specialAllowance = dto.compensation.specialAllowance ?? 0;
-      const variablePay = dto.compensation.variablePay ?? 0;
-      const ctcAnnual =
-        (dto.compensation.basicSalary +
-          dto.compensation.hra +
-          specialAllowance) *
-          12 +
-        variablePay;
+      // Recalculate server-side from effective statutory configuration. The
+      // browser submits only target CTC, never trusted component amounts.
       await tx.salaryStructure.create({
         data: {
           employeeId: created.id,
           effectiveFrom: new Date(dto.compensation.effectiveDate),
-          basic: dto.compensation.basicSalary,
-          hra: dto.compensation.hra,
-          specialAllowance,
-          variablePay: variablePay || null,
-          ctcAnnual,
+          basic: calculatedCompensation.basicMonthly,
+          hra: calculatedCompensation.hraMonthly,
+          // Existing schema's Special Allowance slot represents the separately
+          // displayed fixed Conveyance component for CTC-created structures.
+          specialAllowance: calculatedCompensation.conveyanceMonthly,
+          otherAllowances: calculatedCompensation.otherAllowanceMonthly,
+          variablePay: calculatedCompensation.incentiveAnnual,
+          ctcAnnual: calculatedCompensation.annualCtc,
           createdById: currentUser.id,
         },
       });
@@ -686,6 +723,24 @@ export class EmployeesService {
       }
 
       return created;
+    }).catch((error) => {
+      // Defense-in-depth: the email pre-checks above should catch collisions,
+      // but a concurrent onboarding (or a value that raced past them) can still
+      // trip a unique constraint. Surface a clean 409 instead of an opaque 500 —
+      // same pattern as the P2003 backstop in hardDelete.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const target = error.meta?.target;
+        const fields = Array.isArray(target)
+          ? target.join(', ')
+          : 'official email';
+        throw new ConflictException(
+          `Onboarding failed: an existing employee already uses the same ${fields}. Review the official email before onboarding.`,
+        );
+      }
+      throw error;
     });
 
     return this.toEntity(employee);
@@ -1406,8 +1461,16 @@ export class EmployeesService {
 
     let candidate = `${base}@${OFFICIAL_EMAIL_DOMAIN}`;
     let suffix = 2;
+    // The generated address is written to BOTH `email` (login identifier) and
+    // `officialEmail`, so it must be free across both columns. A seeded/legacy
+    // account can hold the address in `email` with a null `officialEmail` (e.g.
+    // the first Super Admin) — checking `officialEmail` alone would miss that
+    // and the insert would then hit the DB unique constraint on `email`.
     while (
-      await tx.employee.findUnique({ where: { officialEmail: candidate } })
+      await tx.employee.findFirst({
+        where: { OR: [{ officialEmail: candidate }, { email: candidate }] },
+        select: { id: true },
+      })
     ) {
       candidate = `${base}${suffix}@${OFFICIAL_EMAIL_DOMAIN}`;
       suffix += 1;

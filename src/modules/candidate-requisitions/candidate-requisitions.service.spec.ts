@@ -478,7 +478,7 @@ describe('CandidateRequisitionsService', () => {
     );
   });
 
-  it('keeps a fulfilled requisition selectable without an Offer Letter and returns name-only enrichment', async () => {
+  it('keeps a fulfilled requisition selectable without an Offer Letter and prefills its role facts (compensation stays offer-gated)', async () => {
     prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'HR' } });
     prisma.candidateRequisition.findMany.mockResolvedValue([
       {
@@ -502,9 +502,11 @@ describe('CandidateRequisitionsService', () => {
       expect.objectContaining({
         selectedCandidateName: 'Arun Kumar',
         hasApprovedOffer: false,
-        designation: null,
-        employmentType: null,
-        vertical: null,
+        // Role facts prefill from the requisition even without an Offer Letter.
+        designation: 'Technician',
+        employmentType: 'CONTRACT',
+        vertical: { id: 'production', name: 'Production' },
+        // Compensation stays gated on an approved Offer Letter.
         compensation: null,
       }),
     );
@@ -548,9 +550,11 @@ describe('CandidateRequisitionsService', () => {
         offerLetterId: null,
         offerReferenceNumber: null,
         hasApprovedOffer: false,
-        designation: null,
-        employmentType: null,
-        vertical: null,
+        // Draft offer terms are ignored; role facts come from the requisition
+        // (designation is the positionTitle, not the draft's snapshot value).
+        designation: 'Manager',
+        employmentType: 'FULL_TIME_PERMANENT',
+        vertical: { id: 'sales', name: 'Sales' },
         compensation: null,
       }),
     );

@@ -208,7 +208,12 @@ export interface CtcBreakdown {
 }
 
 export type StatutoryConfigType =
-  'PF' | 'ESI' | 'PROFESSIONAL_TAX' | 'TDS_SLAB' | 'STANDARD_DEDUCTION';
+  | 'PF'
+  | 'ESI'
+  | 'PROFESSIONAL_TAX'
+  | 'TDS_SLAB'
+  | 'STANDARD_DEDUCTION'
+  | 'SALARY_STRUCTURE';
 
 export interface StatutoryConfig {
   id: string;

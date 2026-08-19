@@ -34,6 +34,7 @@ import {
   SetEmployeePhotoDto,
 } from './dto/employee-photo.dto';
 import { EmployeesService } from './employees.service';
+import { CtcPreviewDto } from '../payroll/dto/ctc-preview.dto';
 
 /**
  * Reference module controller for the access-control backbone. Guarded
@@ -61,6 +62,20 @@ export class EmployeesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.employeesService.onboard(dto, user);
+  }
+
+  @Post('onboard/compensation-preview')
+  @Roles(Role.MANAGER, Role.EMPLOYEE, Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Calculate the read-only salary breakdown from monthly CTC' })
+  previewOnboardingCompensation(
+    @Body() dto: CtcPreviewDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.employeesService.previewOnboardingCompensation(
+      dto.monthlyCtc,
+      dto.effectiveDate,
+      user,
+    );
   }
 
   @Get('roster')

@@ -46,7 +46,6 @@ export default function SalaryStructuresPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [search, setSearch] = useState('');
   const [employeeId, setEmployeeId] = useState('');
-  const [current, setCurrent] = useState<SalaryStructure | null>(null);
   const [history, setHistory] = useState<SalaryStructure[]>([]);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,18 +70,15 @@ export default function SalaryStructuresPage() {
 
   async function loadFor(id: string) {
     if (!id) {
-      setCurrent(null);
       setHistory([]);
       return;
     }
     setLoadingRecord(true);
     setError(null);
     try {
-      const [currentRes, historyRes] = await Promise.all([
-        apiFetch<SalaryStructure | null>(`/salary-structures/${id}/current`),
-        apiFetch<SalaryStructure[]>(`/salary-structures/${id}/history`),
-      ]);
-      setCurrent(currentRes);
+      const historyRes = await apiFetch<SalaryStructure[]>(
+        `/salary-structures/${id}/history`,
+      );
       setHistory(historyRes);
     } catch {
       setError('Failed to load salary structure');
@@ -97,6 +93,13 @@ export default function SalaryStructuresPage() {
   }, [employeeId]);
 
   const selectedEmployee = employees.find((e) => e.id === employeeId);
+  // History is ordered newest-first, so the latest revision is the one to show
+  // as the "current" structure. A revision effective in the future (e.g. comp
+  // dated to a future joining date) is still shown here, flagged as upcoming,
+  // rather than leaving the card reading "none on file".
+  const latest = history[0] ?? null;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const latestIsUpcoming = !!latest && latest.effectiveFrom.slice(0, 10) > todayStr;
 
   return (
     <PageContainer className="max-w-4xl">
@@ -153,9 +156,16 @@ export default function SalaryStructuresPage() {
           <Card className="mb-6">
             <CardContent className="p-6">
               <div className="mb-4 flex items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold">Current structure</h2>
                 <div className="flex items-center gap-2">
-                  {current && (
+                  <h2 className="text-lg font-semibold">Current structure</h2>
+                  {latestIsUpcoming && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-200">
+                      Upcoming
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {latest && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -169,16 +179,25 @@ export default function SalaryStructuresPage() {
                   </Button>
                 </div>
               </div>
-              {current ? (
-                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
-                  <StatItem label="Effective from" value={current.effectiveFrom.slice(0, 10)} />
-                  <StatItem label="Basic" value={formatINR(current.basic, numberFormatStyle)} />
-                  <StatItem label="HRA" value={formatINR(current.hra, numberFormatStyle)} />
-                  <StatItem label="Special allowance" value={formatINR(current.specialAllowance, numberFormatStyle)} />
-                  <StatItem label="Other allowances" value={current.otherAllowances ? formatINR(current.otherAllowances, numberFormatStyle) : '—'} />
-                  <StatItem label="Variable pay (annual)" value={current.variablePay ? formatINR(current.variablePay, numberFormatStyle) : '—'} />
-                  <StatItem label="Annual CTC" value={formatINR(current.ctcAnnual, numberFormatStyle)} emphasize />
-                </dl>
+              {latest ? (
+                <>
+                  {latestIsUpcoming && (
+                    <p className="mb-3 text-sm text-muted-foreground">
+                      This revision takes effect on{' '}
+                      {latest.effectiveFrom.slice(0, 10)} and isn&apos;t in
+                      effect for payroll yet.
+                    </p>
+                  )}
+                  <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+                    <StatItem label="Effective from" value={latest.effectiveFrom.slice(0, 10)} />
+                    <StatItem label="Basic" value={formatINR(latest.basic, numberFormatStyle)} />
+                    <StatItem label="HRA" value={formatINR(latest.hra, numberFormatStyle)} />
+                    <StatItem label="Special allowance" value={formatINR(latest.specialAllowance, numberFormatStyle)} />
+                    <StatItem label="Other allowances" value={latest.otherAllowances ? formatINR(latest.otherAllowances, numberFormatStyle) : '—'} />
+                    <StatItem label="Variable pay (annual)" value={latest.variablePay ? formatINR(latest.variablePay, numberFormatStyle) : '—'} />
+                    <StatItem label="Annual CTC" value={formatINR(latest.ctcAnnual, numberFormatStyle)} emphasize />
+                  </dl>
+                </>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   No salary structure on file for this employee yet.
@@ -245,6 +264,7 @@ export default function SalaryStructuresPage() {
         <CtcBreakdownDialog
           employeeName={`${selectedEmployee.firstName} ${selectedEmployee.lastName}`}
           employeeId={employeeId}
+          asOf={latest?.effectiveFrom.slice(0, 10)}
           onClose={() => setShowBreakdown(false)}
         />
       )}
@@ -276,10 +296,12 @@ function StatItem({
 function CtcBreakdownDialog({
   employeeName,
   employeeId,
+  asOf,
   onClose,
 }: {
   employeeName: string;
   employeeId: string;
+  asOf?: string;
   onClose: () => void;
 }) {
   const { style: numberFormatStyle } = useNumberFormat();
@@ -291,7 +313,10 @@ function CtcBreakdownDialog({
     let active = true;
     setLoading(true);
     setError(null);
-    apiFetch<CtcBreakdown>(`/salary-structures/${employeeId}/ctc-breakdown`)
+    const url = asOf
+      ? `/salary-structures/${employeeId}/ctc-breakdown?asOf=${asOf}`
+      : `/salary-structures/${employeeId}/ctc-breakdown`;
+    apiFetch<CtcBreakdown>(url)
       .then((res) => {
         if (active) setData(res);
       })
@@ -308,7 +333,7 @@ function CtcBreakdownDialog({
     return () => {
       active = false;
     };
-  }, [employeeId]);
+  }, [employeeId, asOf]);
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -450,6 +475,29 @@ function BreakdownSection({
   );
 }
 
+/** Reverse-solved breakdown from POST /salary-structures/preview-ctc. */
+type CompensationPreview = {
+  branch: 'PF_CAPPED' | 'PF_UNCAPPED';
+  monthlyCtc: string;
+  annualCtc: string;
+  grossMonthly: string;
+  basicMonthly: string;
+  hraMonthly: string;
+  conveyanceMonthly: string;
+  otherAllowanceMonthly: string;
+  professionalTaxMonthly: string;
+  employeePfMonthly: string;
+  employeeEsiMonthly: string | null;
+  employerPfAnnual: string;
+  totalDeductionsMonthly: string;
+  netSalaryMonthly: string;
+  totalAnnualisedSalary: string;
+  insuranceAnnual: string;
+  incentiveAnnual: string;
+  totalCompanyContributionsAnnual: string;
+  totalEmolumentsAnnual: string;
+};
+
 function UpdateStructureForm({
   employeeName,
   employeeId,
@@ -461,36 +509,69 @@ function UpdateStructureForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { style: numberFormatStyle } = useNumberFormat();
   const [effectiveFrom, setEffectiveFrom] = useState('');
-  const [basic, setBasic] = useState('');
-  const [hra, setHra] = useState('');
-  const [specialAllowance, setSpecialAllowance] = useState('');
-  const [otherAllowances, setOtherAllowances] = useState('');
-  const [variablePay, setVariablePay] = useState('');
-  const [ctcAnnual, setCtcAnnual] = useState('');
+  const [monthlyCtc, setMonthlyCtc] = useState('');
+  const [preview, setPreview] = useState<CompensationPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Live reverse-solve preview — the exact same calculation the server runs on
+  // save, so what's shown is what gets stored.
+  useEffect(() => {
+    if (!monthlyCtc || Number(monthlyCtc) <= 0 || !effectiveFrom) {
+      setPreview(null);
+      setPreviewError(null);
+      return;
+    }
+    let active = true;
+    const handle = setTimeout(() => {
+      apiFetch<CompensationPreview>('/salary-structures/preview-ctc', {
+        method: 'POST',
+        body: JSON.stringify({
+          monthlyCtc: Number(monthlyCtc),
+          effectiveDate: effectiveFrom,
+        }),
+      })
+        .then((res) => {
+          if (!active) return;
+          setPreview(res);
+          setPreviewError(null);
+        })
+        .catch((err) => {
+          if (!active) return;
+          setPreview(null);
+          setPreviewError(
+            err instanceof ApiError ? err.message : 'Failed to calculate',
+          );
+        });
+    }, 350);
+    return () => {
+      active = false;
+      clearTimeout(handle);
+    };
+  }, [monthlyCtc, effectiveFrom]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!effectiveFrom || !basic || !hra || !ctcAnnual) {
-      setError('Effective date, basic, HRA, and annual CTC are required');
+    if (!effectiveFrom || !monthlyCtc || Number(monthlyCtc) <= 0) {
+      setError('Effective date and a positive monthly CTC are required');
+      return;
+    }
+    if (!preview) {
+      setError('Wait for the calculated breakdown before saving');
       return;
     }
     setSubmitting(true);
     try {
-      await apiFetch('/salary-structures', {
+      await apiFetch('/salary-structures/from-ctc', {
         method: 'POST',
         body: JSON.stringify({
           employeeId,
-          effectiveFrom,
-          basic: Number(basic),
-          hra: Number(hra),
-          specialAllowance: specialAllowance ? Number(specialAllowance) : 0,
-          otherAllowances: otherAllowances ? Number(otherAllowances) : undefined,
-          variablePay: variablePay ? Number(variablePay) : undefined,
-          ctcAnnual: Number(ctcAnnual),
+          monthlyCtc: Number(monthlyCtc),
+          effectiveDate: effectiveFrom,
         }),
       });
       onSaved();
@@ -505,49 +586,132 @@ function UpdateStructureForm({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Update structure — {employeeName}</DialogTitle>
           <DialogDescription>
-            Creates a new effective-dated entry; it does not overwrite existing
-            history.
+            Enter the new monthly CTC — the full breakdown is recalculated
+            automatically (same engine as onboarding). Saving appends a new
+            effective-dated entry; it never overwrites history.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Field label="Effective from" required>
-            <Input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
-          </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Basic" required>
-              <Input type="number" min={0} value={basic} onChange={(e) => setBasic(e.target.value)} />
+            <Field label="Effective from" required>
+              <Input
+                type="date"
+                value={effectiveFrom}
+                onChange={(e) => setEffectiveFrom(e.target.value)}
+              />
             </Field>
-            <Field label="HRA" required>
-              <Input type="number" min={0} value={hra} onChange={(e) => setHra(e.target.value)} />
-            </Field>
-            <Field label="Special allowance">
-              <Input type="number" min={0} value={specialAllowance} onChange={(e) => setSpecialAllowance(e.target.value)} />
-            </Field>
-            <Field label="Other allowances">
-              <Input type="number" min={0} value={otherAllowances} onChange={(e) => setOtherAllowances(e.target.value)} />
-            </Field>
-            <Field label="Variable pay" hint="Per year (indirect component)">
-              <Input type="number" min={0} value={variablePay} onChange={(e) => setVariablePay(e.target.value)} />
+            <Field label="Monthly CTC" required>
+              <Input
+                type="number"
+                min={0}
+                value={monthlyCtc}
+                onChange={(e) => setMonthlyCtc(e.target.value)}
+              />
             </Field>
           </div>
-          <Field label="Annual CTC" required>
-            <Input type="number" min={0} value={ctcAnnual} onChange={(e) => setCtcAnnual(e.target.value)} />
-          </Field>
+
+          {previewError && (
+            <p className="text-sm text-destructive">{previewError}</p>
+          )}
+
+          {preview && (
+            <div className="space-y-4 rounded-md border bg-muted/40 p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  System-calculated salary structure
+                </div>
+                <div className="font-semibold">
+                  Annual CTC{' '}
+                  {formatINR(Number(preview.annualCtc), numberFormatStyle)}
+                </div>
+              </div>
+              <PreviewSection
+                title="Monthly earnings"
+                rows={[
+                  ['Basic', preview.basicMonthly],
+                  ['HRA', preview.hraMonthly],
+                  ['Conveyance', preview.conveyanceMonthly],
+                  ['Other Allowance', preview.otherAllowanceMonthly],
+                  ['Total Monthly Salary', preview.grossMonthly],
+                ]}
+                numberFormatStyle={numberFormatStyle}
+              />
+              <PreviewSection
+                title="Monthly deductions"
+                rows={[
+                  ['Professional Tax (PT)', preview.professionalTaxMonthly],
+                  ['Employee PF', preview.employeePfMonthly],
+                  ['Employee ESI', preview.employeeEsiMonthly],
+                  ['Total Deductions', preview.totalDeductionsMonthly],
+                  ['Net Salary', preview.netSalaryMonthly],
+                ]}
+                numberFormatStyle={numberFormatStyle}
+              />
+              <PreviewSection
+                title="Annual company contributions"
+                rows={[
+                  ['Total Annualised Salary', preview.totalAnnualisedSalary],
+                  ['Employer PF', preview.employerPfAnnual],
+                  ['Insurance (PA)', preview.insuranceAnnual],
+                  ['Incentive', preview.incentiveAnnual],
+                  [
+                    'Total Company Contributions',
+                    preview.totalCompanyContributionsAnnual,
+                  ],
+                  ['Total Emoluments per Annum', preview.totalEmolumentsAnnual],
+                ]}
+                numberFormatStyle={numberFormatStyle}
+              />
+              <p className="text-xs text-muted-foreground">
+                ESI is shown only when applicable. TDS remains “as applicable”
+                and is calculated during payroll.
+              </p>
+            </div>
+          )}
+
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting || !preview}>
               {submitting ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PreviewSection({
+  title,
+  rows,
+  numberFormatStyle,
+}: {
+  title: string;
+  rows: Array<[string, string | null]>;
+  numberFormatStyle: NumberFormatStyle;
+}) {
+  return (
+    <div>
+      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h3>
+      <dl className="space-y-1">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-center justify-between text-sm">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="font-medium">
+              {value ? formatINR(Number(value), numberFormatStyle) : '—'}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }

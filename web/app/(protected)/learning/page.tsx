@@ -79,10 +79,18 @@ export default function LearningPage() {
     if (vertical?.code === 'SCM' || user?.role === 'SUPER_ADMIN') {
       allowedCodes.add('RFQ_SOURCING');
     }
-    if (canRaiseHiringRequest) allowedCodes.add('RECRUITMENT');
-    return VERTICAL_FLOWS.filter((item) =>
-      allowedCodes.has(item.codes[0]),
-    );
+    if (
+      canRaiseHiringRequest ||
+      vertical?.code === 'HR' ||
+      user?.role === 'SUPER_ADMIN'
+    ) {
+      allowedCodes.add('RECRUITMENT');
+    }
+    if (vertical?.code === 'HR' || user?.role === 'SUPER_ADMIN') {
+      allowedCodes.add('OFFER_LETTER');
+      allowedCodes.add('PROVISIONING');
+    }
+    return VERTICAL_FLOWS.filter((item) => allowedCodes.has(item.codes[0]));
   }, [canRaiseHiringRequest, user?.role, vertical?.code]);
   const load = useCallback(
     () =>

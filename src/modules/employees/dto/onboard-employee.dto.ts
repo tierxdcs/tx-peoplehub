@@ -15,36 +15,10 @@ import {
 } from 'class-validator';
 
 export class OnboardCompensationDto {
-  @ApiProperty({ example: 50000, description: 'Monthly basic salary' })
+  @ApiProperty({ example: 35195, description: 'Target monthly CTC in INR' })
   @IsNumber()
-  @Min(0)
-  basicSalary!: number;
-
-  @ApiProperty({ example: 10000, description: 'Monthly HRA' })
-  @IsNumber()
-  @Min(0)
-  hra!: number;
-
-  @ApiPropertyOptional({
-    example: 8000,
-    default: 0,
-    description: 'Monthly special allowance',
-  })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  specialAllowance?: number;
-
-  @ApiPropertyOptional({
-    example: 60000,
-    default: 0,
-    description:
-      'Annual variable/performance pay — an indirect CTC component, not a monthly earning',
-  })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  variablePay?: number;
+  @Min(1)
+  monthlyCtc!: number;
 
   @ApiProperty({ example: '2026-07-05' })
   @IsDateString()

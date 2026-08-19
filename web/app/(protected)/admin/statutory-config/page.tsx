@@ -37,12 +37,13 @@ const CONFIG_TYPES: StatutoryConfigType[] = [
   'PROFESSIONAL_TAX',
   'TDS_SLAB',
   'STANDARD_DEDUCTION',
+  'SALARY_STRUCTURE',
 ];
 
 /** Placeholder configData JSON per type — matches StatutoryConfigService's REQUIRED_FIELDS. */
 const CONFIG_DATA_PLACEHOLDER: Record<StatutoryConfigType, string> = {
   PF: JSON.stringify(
-    { employeeRate: 0.12, employerRate: 0.12, epsRate: 0.0833, wageCeiling: 15000, adminCharge: 0.005 },
+    { employeeRate: 0.12, employerRate: 0.13, epsRate: 0.0833, wageCeiling: 15000, adminCharge: 0.005 },
     null, 2,
   ),
   ESI: JSON.stringify(
@@ -58,6 +59,17 @@ const CONFIG_DATA_PLACEHOLDER: Record<StatutoryConfigType, string> = {
     null, 2,
   ),
   STANDARD_DEDUCTION: JSON.stringify({ amount: 50000 }, null, 2),
+  SALARY_STRUCTURE: JSON.stringify(
+    {
+      basicGrossRate: 0.6,
+      hraGrossRate: 0.32,
+      conveyanceMonthly: 500,
+      annualInsurance: 8940,
+      incentiveGrossMonths: 1,
+    },
+    null,
+    2,
+  ),
 };
 
 export default function StatutoryConfigPage() {
@@ -87,7 +99,7 @@ export default function StatutoryConfigPage() {
     <PageContainer className="max-w-4xl">
       <PageHeader
         title="Statutory Config"
-        description="Effective-dated PF / ESI / PT / TDS / standard-deduction rates used by payroll processing."
+        description="Effective-dated salary structure, PF, ESI, PT, TDS and deduction rules used by onboarding and payroll."
         action={<Button onClick={() => setShowForm(true)}>Add Config Version</Button>}
       />
 

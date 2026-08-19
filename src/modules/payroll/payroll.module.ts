@@ -8,6 +8,7 @@ import { PayrollRunsController } from './payroll-runs.controller';
 import { PayrollRunsService } from './payroll-runs.service';
 import { PayslipsController } from './payslips.controller';
 import { PayslipsService } from './payslips.service';
+import { OnboardingCompensationService } from './onboarding-compensation.service';
 
 @Module({
   controllers: [
@@ -22,7 +23,12 @@ import { PayslipsService } from './payslips.service';
     PayrollComputationService,
     PayrollRunsService,
     PayslipsService,
+    OnboardingCompensationService,
   ],
-  exports: [SalaryStructuresService, PayrollComputationService],
+  exports: [
+    SalaryStructuresService,
+    PayrollComputationService,
+    OnboardingCompensationService,
+  ],
 })
 export class PayrollModule {}

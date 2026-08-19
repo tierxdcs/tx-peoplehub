@@ -393,25 +393,55 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
   },
   {
     codes: ['HR'],
-    title: 'HR — Onboarding to Payroll',
+    title: 'HR — Hiring Request to Payroll',
     summary:
-      'Bring a new employee into the company, enable their work and support their ongoing people operations.',
+      'Authorise a hire, track recruitment, issue the approved offer, onboard the confirmed candidate and support their ongoing employment.',
     participants:
       'HR employees, hiring Managers, vertical owners, SuperAdmin and the employee',
     steps: [
       {
-        key: 'onboard',
-        label: 'Onboarding',
+        key: 'requisition',
+        label: 'Hiring requisition',
         detail:
-          'A new employee’s personnel record is created with their role, vertical and joining details. This is the master record everything else hangs off. Good data here drives payroll, access and reporting.',
+          'A Manager or above requests one position for their own vertical, including the role, employment type, CTC budget, business justification, Key Responsibilities and KPIs. The requester’s vertical owner approves first, followed by the CEO; an ownerless vertical routes directly to the CEO. Approval authorises one hire and does not by itself mean a candidate has been selected.',
+        href: '/hr/candidate-requisitions',
+        gate: true,
+      },
+      {
+        key: 'recruitment',
+        label: 'Recruitment progress',
+        detail:
+          'After approval, HR owns the hiring lifecycle and updates it through Job Posted, Interviewing and Offer Extended. The requester, vertical owner and CEO can follow progress read-only in the Requisition Register. When a person is confirmed, HR records the selected candidate’s name and the requisition becomes Candidate Selected, shown as Fulfilled.',
+        href: '/hr/candidate-requisitions',
+      },
+      {
+        key: 'offer',
+        label: 'Offer Letter',
+        detail:
+          'HR creates the Offer Letter from an approved, unconsumed requisition that matches the employee’s vertical and designation. Key Responsibilities and KPIs are pre-filled from the approved request and remain editable; compensation and employee data come from their current records. Submitting freezes the exact document for the vertical owner’s approval, with the CEO as fallback when no owner is assigned.',
+        href: '/hr/offer-letters',
+        gate: true,
+      },
+      {
+        key: 'onboard',
+        label: 'Employee onboarding',
+        detail:
+          'HR creates the employee master record with personal, employment, compensation, statutory and bank details. A linked requisition is optional and appears when it is Approved and Candidate Selected; selecting it always fills the confirmed name and adds approved Offer Letter terms when available. HR reviews every value before completion, and the same requisition cannot be linked to a second onboarding.',
         href: '/hr/onboard',
       },
       {
         key: 'access',
         label: 'Access granted',
         detail:
-          'A login and role are assigned, and system access is provisioned — often needing a SuperAdmin or vertical owner to approve. This gate controls who can see and do what. Access is granted deliberately, not by default.',
+          'The onboarded employee starts with Pending Access. An authorised administrator assigns the role, vertical and reporting manager, activates the official email login and sets the initial password. Activation also creates the configured provisioning requests, so access is granted deliberately and the joining checklist begins from one real event.',
         gate: true,
+      },
+      {
+        key: 'provisioning',
+        label: 'Joining provisions',
+        detail:
+          'Laptop, Email ID, ID Card, Business Card, Joining Kit and any future active item types are routed to their configured approver. Digital actions complete with the approver; approved physical items move to SCM for fulfilment. HR follows the employee’s checklist until every required item reaches its final state.',
+        href: '/hr/provisioning-approvals',
       },
       {
         key: 'leave',
@@ -618,9 +648,9 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
   },
   {
     codes: ['RECRUITMENT'],
-    title: 'Recruitment — Requisition to Approval',
+    title: 'Recruitment — Requisition to Candidate Selection',
     summary:
-      'Raise a headcount requisition and route it through vertical and executive approval before hiring begins.',
+      'Raise and approve one position, then let HR track the search through to a confirmed candidate.',
     participants: 'Hiring Managers, vertical owners, HR and SUPER_ADMIN',
     steps: [
       {
@@ -634,13 +664,13 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
         key: 'budget',
         label: 'Complete the hiring request',
         detail:
-          'Under Request a position, enter the position title, employment type, optional target joining date, annual CTC budget and a clear business justification. The CTC must be greater than zero. Explain the need, expected outcome and urgency so both approvers have enough context to decide.',
+          'Under Request a position, enter the position title, employment type, optional target joining date, annual CTC budget, business justification, Key Responsibilities and KPIs. The CTC must be greater than zero. Responsibilities and KPIs become the approved role expectations and later pre-fill the Offer Letter, so make them specific and measurable.',
       },
       {
         key: 'vertical',
         label: 'Submit to the vertical owner',
         detail:
-          'Select Submit requisition. The system creates a unique REQ number and sends it to the owner of the requester’s vertical with status Pending Vertical Approval. The requester can follow it under My requisitions. The owner approves it to continue, or rejects it with a mandatory reason; rejection ends this request.',
+          'Select Submit requisition. The system creates a unique REQ number and sends it to the owner of the requester’s vertical with status Pending Vertical Approval. The owner approves it to continue, or rejects it with a mandatory reason; rejection ends this request. If no vertical owner is configured, the request routes directly to the CEO instead of becoming stuck.',
         gate: true,
       },
       {
@@ -651,11 +681,18 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
         gate: true,
       },
       {
-        key: 'approved',
-        label: 'Use it for one offer letter',
+        key: 'recruit',
+        label: 'HR runs recruitment',
         detail:
-          'After both approvals, the status becomes Approved. HR selects this requisition while creating the candidate’s Offer Letter. One approved requisition authorises one position: once linked to an offer it is consumed and cannot be reused for another candidate. Existing historical offers remain unaffected.',
-        href: '/hr/offer-letters',
+          'After final approval, only HR edits the hiring stage: Job Posted, Interviewing and Offer Extended. The requester, vertical owner and CEO can see the current stage but cannot change it. Creating an Offer Letter automatically moves the stage to at least Offer Extended so HR does not maintain two disconnected trackers.',
+        href: '/hr/candidate-requisitions',
+      },
+      {
+        key: 'selected',
+        label: 'Confirm the candidate',
+        detail:
+          'When the person is confirmed, HR enters the selected candidate’s name. This sets Candidate Selected and displays the requisition as Fulfilled in the shared register. A fulfilled requisition can then be linked during onboarding, while the audit trail continues to show who requested and approved the hire.',
+        href: '/hr/candidate-requisitions',
       },
     ],
   },
@@ -670,7 +707,7 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
         key: 'draft',
         label: 'Draft offer',
         detail:
-          'HR drafts an offer letter for a candidate, choosing the role, salary structure and terms. While in draft the document renders live, recomputing as HR edits it. Nothing is committed yet.',
+          'HR selects the employee and an approved, unconsumed requisition whose vertical and position exactly match that employee. The requisition’s approved Key Responsibilities and KPIs pre-fill the editor, but HR can refine them before saving. One requisition authorises one Offer Letter and is consumed when that letter is created.',
         href: '/hr/offer-letters',
       },
       {
@@ -689,7 +726,7 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
         key: 'approve',
         label: 'Vertical owner approves',
         detail:
-          'The vertical owner reviews and approves the frozen offer, or rejects it back to HR with feedback. This gate ensures an accountable sign-off before anything reaches the candidate. Approval stamps who signed and when.',
+          'The employee’s vertical owner reviews and approves the frozen offer, or rejects it back to HR with feedback. If that vertical has no owner, the CEO is the fallback approver. This gate ensures an accountable sign-off before anything reaches the candidate and records who signed and when.',
         gate: true,
       },
       {
@@ -821,23 +858,23 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
     steps: [
       {
         key: 'request',
-        label: 'Request raised',
+        label: 'Requests created',
         detail:
-          'A provisioning request is raised for the assets and access an employee needs — hardware, tools or system access. It names what is required and for whom. This is the formal ask that starts the chain.',
+          'When the new employee’s system access is activated, the application creates one request for every active provisioning item type. The default set covers Laptop, Email ID Creation, ID Card, Business Card and Joining Kit. HR can see the complete checklist on the employee record rather than raising each standard item manually.',
         href: '/hr/provisioning-approvals',
       },
       {
         key: 'approve',
         label: 'Approval',
         detail:
-          'The request is approved by the accountable authority — a vertical owner or SUPER_ADMIN, depending on the approver type. This gate controls cost and access before anything is committed. A rejection stops the request with the reason recorded.',
+          'Each request goes to its configured authority: SuperAdmin or the owner of the configured vertical. A rejection requires a reason. Approved digital actions such as Email ID Creation complete directly with the approver, while physical items continue to SCM instead of taking an unnecessary fulfilment step for every request.',
         gate: true,
       },
       {
         key: 'scm',
         label: 'Sent to SCM',
         detail:
-          'An approved request is routed to SCM to source or allocate what was asked for. Ownership passes from the approver to the fulfilling team. The request is now a procurement/allocation task.',
+          'Only approved physical requests are routed to SCM to source or allocate what was asked for. Ownership passes from the approver to the fulfilling team, and SCM marks the item Fulfilled once it is actually provided. This workflow records delivery without making an inventory deduction.',
         href: '/scm/provisioning',
       },
       {
@@ -847,10 +884,10 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
           'SCM fulfils the request by providing the assets or arranging the access. Fulfilment is recorded against the original request for traceability. The employee now has what they need to work.',
       },
       {
-        key: 'completed',
-        label: 'Completed',
+        key: 'checklist',
+        label: 'Checklist monitored',
         detail:
-          'The request is closed once everything requested has been delivered and confirmed. The record stands as proof of what was provisioned and when. This ties assets and access back to an approved decision.',
+          'HR reviews the Provisioning Checklist on the employee record to see pending approvals, rejections, completed digital actions and fulfilled physical items together. The records show what was approved, who acted and when, closing the loop on joining readiness.',
       },
     ],
   },

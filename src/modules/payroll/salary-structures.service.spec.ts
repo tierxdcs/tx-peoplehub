@@ -3,10 +3,12 @@ import { NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { SalaryStructuresService } from './salary-structures.service';
+import { OnboardingCompensationService } from './onboarding-compensation.service';
 
 describe('SalaryStructuresService', () => {
   let service: SalaryStructuresService;
   let prisma: any;
+  let onboardingCompensation: { calculate: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -17,11 +19,16 @@ describe('SalaryStructuresService', () => {
         findMany: jest.fn(),
       },
     };
+    onboardingCompensation = { calculate: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SalaryStructuresService,
         { provide: PrismaService, useValue: prisma },
+        {
+          provide: OnboardingCompensationService,
+          useValue: onboardingCompensation,
+        },
       ],
     }).compile();
 
@@ -140,6 +147,73 @@ describe('SalaryStructuresService', () => {
         }),
       );
       expect(result.variablePay).toBeNull();
+    });
+  });
+
+  describe('createFromCtc', () => {
+    it('throws NotFoundException for a non-existent employee', async () => {
+      prisma.employee.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.createFromCtc(
+          {
+            employeeId: 'nope',
+            monthlyCtc: 100000,
+            effectiveDate: '2026-09-01',
+          },
+          'admin-1',
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(onboardingCompensation.calculate).not.toHaveBeenCalled();
+    });
+
+    it('reverse-solves the CTC and maps conveyance→special, incentive→variable into a new row', async () => {
+      prisma.employee.findUnique.mockResolvedValue({ id: 'emp-1' });
+      onboardingCompensation.calculate.mockResolvedValue({
+        basicMonthly: '53975.08',
+        hraMonthly: '28786.71',
+        conveyanceMonthly: '500.00',
+        otherAllowanceMonthly: '6696.67',
+        incentiveAnnual: '89958.46',
+        annualCtc: '1200000.00',
+      });
+      prisma.salaryStructure.create.mockImplementation(({ data }: any) => ({
+        id: 'hike-row',
+        ...data,
+        basic: new Prisma.Decimal(data.basic),
+        hra: new Prisma.Decimal(data.hra),
+        specialAllowance: new Prisma.Decimal(data.specialAllowance),
+        otherAllowances: new Prisma.Decimal(data.otherAllowances),
+        variablePay: new Prisma.Decimal(data.variablePay),
+        ctcAnnual: new Prisma.Decimal(data.ctcAnnual),
+      }));
+
+      const result = await service.createFromCtc(
+        { employeeId: 'emp-1', monthlyCtc: 100000, effectiveDate: '2026-09-01' },
+        'admin-1',
+      );
+
+      expect(onboardingCompensation.calculate).toHaveBeenCalledWith(
+        100000,
+        new Date('2026-09-01'),
+      );
+      expect(prisma.salaryStructure.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            employeeId: 'emp-1',
+            effectiveFrom: new Date('2026-09-01'),
+            basic: '53975.08',
+            hra: '28786.71',
+            specialAllowance: '500.00', // conveyance lands in the Special slot
+            otherAllowances: '6696.67',
+            variablePay: '89958.46', // annual incentive
+            ctcAnnual: '1200000.00',
+            createdById: 'admin-1',
+          }),
+        }),
+      );
+      expect(result.id).toBe('hike-row');
+      expect(result.ctcAnnual).toBe('1200000');
     });
   });
 

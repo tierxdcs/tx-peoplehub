@@ -61,7 +61,16 @@
       "Bash(echo \"FRONTEND tsc EXIT=$?\")",
       "Bash(awk '/model CandidateRequisition[ {]/,/^}/' prisma/schema.prisma)",
       "Bash(psql \"postgresql://localhost:5432/peoplehub\" -c \"SELECT column_name FROM information_schema.columns WHERE table_name='candidate_requisitions' AND column_name IN \\('keyResponsibilities','keyPerformanceIndicators'\\);\")",
-      "Bash(grep -iA4 \"not yet\\\\|up to date\\\\|following\")"
+      "Bash(grep -iA4 \"not yet\\\\|up to date\\\\|following\")",
+      "Bash(psql \"postgresql://localhost:5432/peoplehub\" -tAc \"SELECT enumlabel FROM pg_enum e JOIN pg_type t ON e.enumtypid=t.oid WHERE t.typname='StatutoryConfigType' ORDER BY e.enumsortorder;\")",
+      "Bash(echo \"=== exit: $? ===\")",
+      "Bash(echo \"=== eslint exit: $? ===\")",
+      "Bash(node -e 'const{PrismaClient}=require\\('\\\\''@prisma/client'\\\\''\\);const p=new PrismaClient\\(\\);\\(async\\(\\)=>{const a=await p.candidateApplication.count\\(\\);const i=await p.candidateApplicationInvite.count\\(\\);console.log\\('\\\\''candidate_applications rows:'\\\\'',a\\);console.log\\('\\\\''candidate_application_invites rows:'\\\\'',i\\);await p.$disconnect\\(\\);}\\)\\(\\).catch\\(e=>{console.error\\('\\\\''FAIL:'\\\\'',e.message\\);process.exit\\(1\\);}\\)')",
+      "Bash(node -e 'const{PrismaClient}=require\\('\\\\''@prisma/client'\\\\''\\);const p=new PrismaClient\\(\\);\\(async\\(\\)=>{const rows=await p.employee.findMany\\({where:{OR:[{email:{contains:'\\\\''nithin.gangadhar'\\\\'',mode:'\\\\''insensitive'\\\\''}},{officialEmail:{contains:'\\\\''nithin.gangadhar'\\\\'',mode:'\\\\''insensitive'\\\\''}},{personalEmail:{contains:'\\\\''nithin.gangadhar'\\\\'',mode:'\\\\''insensitive'\\\\''}}]},select:{id:true,employeeId:true,firstName:true,lastName:true,email:true,officialEmail:true,personalEmail:true,status:true}}\\);console.log\\(JSON.stringify\\(rows,null,2\\)\\);await p.$disconnect\\(\\);}\\)\\(\\).catch\\(e=>{console.error\\('\\\\''FAIL:'\\\\'',e.message\\);process.exit\\(1\\);}\\)')",
+      "Bash(awk '/^model Employee /{f=1} f&&/@unique/{print NR\": \"$0} f&&/^}/{exit}' prisma/schema.prisma)",
+      "Bash(echo \"---BACKEND TSC EXIT: $?---\")",
+      "Bash(echo \"---FRONTEND TSC EXIT: $?---\")",
+      "Bash(grep -n 'findFirst\\\\|findUnique\\\\|employee:\\\\s*{\\\\|employee: {\\\\|$transaction\\\\|txClient\\\\|const tx\\\\b' src/modules/employees/employees.service.spec.ts)"
     ]
   }
 }

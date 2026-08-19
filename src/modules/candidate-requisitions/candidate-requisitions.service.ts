@@ -235,6 +235,7 @@ export class CandidateRequisitionsService {
       const indirect = Array.isArray(compensation.indirectBenefits)
         ? compensation.indirectBenefits
         : [];
+      const grandTotal = (compensation.grandTotal ?? {}) as Record<string, any>;
       const amount = (
         rows: Array<Record<string, any>>,
         label: string,
@@ -248,18 +249,24 @@ export class CandidateRequisitionsService {
         offerReferenceNumber: approvedOffer?.referenceNumber ?? null,
         hasApprovedOffer: !!approvedOffer,
         selectedCandidateName: requisition.selectedCandidateName ?? '',
+        // Role facts come straight from the approved requisition, so they
+        // prefill even before an Offer Letter exists. An approved Offer Letter,
+        // when present, can still override the designation/type it snapshotted.
+        // (Compensation and joining details below stay offer-gated — those are
+        // never safe to guess without an approved offer.)
         designation: approvedOffer
           ? (employee.designation ?? requisition.positionTitle)
-          : null,
+          : requisition.positionTitle,
         employmentType: approvedOffer
           ? (employee.employmentType ?? requisition.employmentType)
-          : null,
-        vertical: approvedOffer ? requisition.vertical : null,
+          : requisition.employmentType,
+        vertical: requisition.vertical,
         dateOfJoining: approvedOffer ? (employee.dateOfJoining ?? null) : null,
         workLocation: approvedOffer ? (employee.workLocation ?? null) : null,
         territory: approvedOffer ? (employee.territory ?? null) : null,
         compensation: approvedOffer
           ? {
+              monthlyCtc: grandTotal.perMonth ?? null,
               basicSalary: amount(direct, 'Basic Salary'),
               hra: amount(direct, 'House Rent Allowance (HRA)'),
               specialAllowance: amount(direct, 'Special Allowance'),

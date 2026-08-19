@@ -2,11 +2,19 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { SalaryStructure } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { CreateSalaryStructureDto } from './dto/create-salary-structure.dto';
+import { CreateSalaryStructureFromCtcDto } from './dto/create-salary-structure-from-ctc.dto';
 import { SalaryStructureEntity } from './entities/salary-structure.entity';
+import {
+  OnboardingCompensationBreakdown,
+  OnboardingCompensationService,
+} from './onboarding-compensation.service';
 
 @Injectable()
 export class SalaryStructuresService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly onboardingCompensation: OnboardingCompensationService,
+  ) {}
 
   /**
    * Effective-dated history is append-only — a change creates a new row
@@ -34,6 +42,61 @@ export class SalaryStructuresService {
         otherAllowances: dto.otherAllowances ?? null,
         variablePay: dto.variablePay ?? null,
         ctcAnnual: dto.ctcAnnual,
+        createdById,
+      },
+    });
+    return this.toEntity(created);
+  }
+
+  /**
+   * Read-only reverse-solve of a target monthly CTC into its full component
+   * breakdown, for a live preview before saving a revision. Delegates to the
+   * SAME calculator onboarding uses — there is no second implementation.
+   */
+  previewCtc(
+    monthlyCtc: number,
+    effectiveDate: string,
+  ): Promise<OnboardingCompensationBreakdown> {
+    return this.onboardingCompensation.calculate(
+      monthlyCtc,
+      new Date(effectiveDate),
+    );
+  }
+
+  /**
+   * Salary hike/promotion via CTC-only input. Reverse-solves the target CTC
+   * server-side (never trusting client-sent component amounts) and appends a
+   * new effective-dated row — history is preserved exactly as `create` does.
+   * The calc→column mapping mirrors onboarding (employees.service onboard):
+   * the Special Allowance slot carries the fixed Conveyance component and
+   * variablePay carries the annual incentive.
+   */
+  async createFromCtc(
+    dto: CreateSalaryStructureFromCtcDto,
+    createdById: string,
+  ): Promise<SalaryStructureEntity> {
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: dto.employeeId },
+    });
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    const calc = await this.onboardingCompensation.calculate(
+      dto.monthlyCtc,
+      new Date(dto.effectiveDate),
+    );
+
+    const created = await this.prisma.salaryStructure.create({
+      data: {
+        employeeId: dto.employeeId,
+        effectiveFrom: new Date(dto.effectiveDate),
+        basic: calc.basicMonthly,
+        hra: calc.hraMonthly,
+        specialAllowance: calc.conveyanceMonthly,
+        otherAllowances: calc.otherAllowanceMonthly,
+        variablePay: calc.incentiveAnnual,
+        ctcAnnual: calc.annualCtc,
         createdById,
       },
     });

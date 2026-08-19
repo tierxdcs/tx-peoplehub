@@ -111,6 +111,7 @@ enum StatutoryConfigType {
   PROFESSIONAL_TAX
   TDS_SLAB
   STANDARD_DEDUCTION
+  SALARY_STRUCTURE
 }
 
 enum PayrollRunStatus {
@@ -255,6 +256,14 @@ enum CandidateHiringStage {
   INTERVIEWING
   OFFER_EXTENDED
   CANDIDATE_SELECTED
+}
+
+enum CandidateApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  INTERVIEW_SCHEDULED
+  SELECTED
+  REJECTED
 }
 
 /// Intra-state (CGST+SGST) vs inter-state (IGST). This phase applies one
@@ -813,6 +822,8 @@ model CandidateRequisition {
   offerLetter              OfferLetter?
   onboardedEmployeeId      String?                    @unique
   onboardedEmployee        Employee?                  @relation("CandidateRequisitionOnboardedEmployee", fields: [onboardedEmployeeId], references: [id], onDelete: Restrict)
+  applicationInvites       CandidateApplicationInvite[]
+  applications             CandidateApplication[]
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt
 
@@ -821,6 +832,48 @@ model CandidateRequisition {
   @@index([status, createdAt])
   @@index([hiringStage])
   @@map("candidate_requisitions")
+}
+
+/// Reusable public application link. Unlike supplier/RFQ invite rows, one
+/// valid token intentionally accepts many independent candidate submissions.
+model CandidateApplicationInvite {
+  id            String               @id @default(uuid())
+  requisitionId String
+  requisition   CandidateRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  token         String               @unique
+  passwordHash  String?
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  createdById   String
+  createdAt     DateTime             @default(now())
+
+  @@index([requisitionId, revokedAt])
+  @@map("candidate_application_invites")
+}
+
+model CandidateApplication {
+  id                      String                     @id @default(uuid())
+  requisitionId           String
+  requisition             CandidateRequisition       @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  name                    String
+  contact                 String
+  areaOfExpertise         String
+  totalExperienceYears    Decimal                    @db.Decimal(5, 2)
+  relevantExperienceYears Decimal                    @db.Decimal(5, 2)
+  currentCtc              Decimal?                   @db.Decimal(14, 2)
+  expectedCtc             Decimal?                   @db.Decimal(14, 2)
+  aboutExperience         String                     @db.Text
+  projects                String?                    @db.Text
+  resumeFileKey           String
+  resumeFileName          String
+  resumeFileSize          Int
+  resumeMimeType          String
+  status                  CandidateApplicationStatus @default(SUBMITTED)
+  submittedAt             DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+
+  @@index([requisitionId, status, submittedAt])
+  @@map("candidate_applications")
 }
 
 /// Admin-managed onboarding checklist definition. Deactivation affects only

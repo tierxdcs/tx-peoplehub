@@ -3,6 +3,7 @@ import { EmployeesController } from './employees.controller';
 import { EmployeesService } from './employees.service';
 import { VaultStorageService } from '../vault/vault-storage.service';
 import { ProvisioningModule } from '../provisioning/provisioning.module';
+import { PayrollModule } from '../payroll/payroll.module';
 
 /**
  * VaultStorageService (a thin, stateless R2 presigner depending only on the
@@ -11,7 +12,7 @@ import { ProvisioningModule } from '../provisioning/provisioning.module';
  * back would create a module cycle. It powers employee-photo uploads.
  */
 @Module({
-  imports: [ProvisioningModule],
+  imports: [ProvisioningModule, PayrollModule],
   controllers: [EmployeesController],
   providers: [EmployeesService, VaultStorageService],
   exports: [EmployeesService],

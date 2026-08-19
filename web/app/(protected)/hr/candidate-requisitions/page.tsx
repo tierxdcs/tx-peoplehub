@@ -76,6 +76,31 @@ type Requisition = {
   vertical: { name: string; ownerId: string | null };
 };
 
+type ApplicationLink = {
+  id: string;
+  token: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  hasPassword: boolean;
+};
+
+type CandidateApplication = {
+  id: string;
+  name: string;
+  contact: string;
+  areaOfExpertise: string;
+  totalExperienceYears: string;
+  relevantExperienceYears: string;
+  currentCtc: string | null;
+  expectedCtc: string | null;
+  aboutExperience: string;
+  projects: string | null;
+  resumeFileName: string;
+  resumeFileSize: number;
+  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'INTERVIEW_SCHEDULED' | 'SELECTED' | 'REJECTED';
+  submittedAt: string;
+};
+
 const STAGES: { value: HiringStage; label: string }[] = [
   { value: 'JOB_POSTED', label: 'Job Posted' },
   { value: 'INTERVIEWING', label: 'Interviewing' },
@@ -522,11 +547,106 @@ function RequisitionDetailsDialog({
   const [stage, setStage] = useState<HiringStage>('JOB_POSTED');
   const [candidateName, setCandidateName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [applications, setApplications] = useState<CandidateApplication[]>([]);
+  const [applicationLinks, setApplicationLinks] = useState<ApplicationLink[]>([]);
+  const [applicationPassword, setApplicationPassword] = useState('');
 
   useEffect(() => {
     setStage(requisition?.hiringStage ?? 'JOB_POSTED');
     setCandidateName(requisition?.selectedCandidateName ?? '');
   }, [requisition]);
+
+  useEffect(() => {
+    if (!requisition) {
+      setApplications([]);
+      setApplicationLinks([]);
+      return;
+    }
+    Promise.all([
+      apiFetch<CandidateApplication[]>(
+        `/candidate-requisitions/${requisition.id}/applications`,
+      ),
+      apiFetch<ApplicationLink[]>(
+        `/candidate-requisitions/${requisition.id}/application-links`,
+      ),
+    ])
+      .then(([nextApplications, nextLinks]) => {
+        setApplications(nextApplications);
+        setApplicationLinks(nextLinks);
+      })
+      .catch(() => toast.error('Failed to load candidate applications'));
+  }, [requisition, toast]);
+
+  async function generateApplicationLink() {
+    if (!requisition) return;
+    try {
+      const link = await apiFetch<ApplicationLink>(
+        `/candidate-requisitions/${requisition.id}/application-links`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            password: applicationPassword.trim() || undefined,
+          }),
+        },
+      );
+      setApplicationLinks((items) => [link, ...items]);
+      setApplicationPassword('');
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/public/job-applications/${link.token}`,
+      );
+      toast.success('Application link created and copied');
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Link creation failed');
+    }
+  }
+
+  async function revokeApplicationLink(linkId: string) {
+    try {
+      await apiFetch(`/candidate-requisitions/application-links/${linkId}/revoke`, {
+        method: 'POST',
+      });
+      setApplicationLinks((items) =>
+        items.map((item) =>
+          item.id === linkId ? { ...item, revokedAt: new Date().toISOString() } : item,
+        ),
+      );
+      toast.success('Application link revoked');
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Revoke failed');
+    }
+  }
+
+  async function updateApplicationStatus(
+    application: CandidateApplication,
+    status: CandidateApplication['status'],
+  ) {
+    try {
+      await apiFetch(
+        `/candidate-requisitions/applications/${application.id}/status`,
+        { method: 'PATCH', body: JSON.stringify({ status }) },
+      );
+      setApplications((items) =>
+        items.map((item) =>
+          item.id === application.id ? { ...item, status } : item,
+        ),
+      );
+      if (status === 'SELECTED') await onUpdated();
+      toast.success(status === 'SELECTED' ? 'Candidate selected; requisition fulfilled' : 'Application updated');
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Update failed');
+    }
+  }
+
+  async function downloadResume(application: CandidateApplication) {
+    try {
+      const result = await apiFetch<{ downloadUrl: string }>(
+        `/candidate-requisitions/applications/${application.id}/resume`,
+      );
+      window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Resume download failed');
+    }
+  }
 
   async function saveLifecycle() {
     if (!requisition) return;
@@ -565,6 +685,7 @@ function RequisitionDetailsDialog({
     canEditLifecycle &&
     requisition?.status === 'APPROVED' &&
     requisition.hiringStage !== 'CANDIDATE_SELECTED';
+  const publicOrigin = typeof window === 'undefined' ? '' : window.location.origin;
 
   return (
     <Dialog
@@ -573,7 +694,7 @@ function RequisitionDetailsDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         {requisition && (
           <>
             <DialogHeader>
@@ -688,6 +809,84 @@ function RequisitionDetailsDialog({
                   </CardContent>
                 </Card>
               )}
+              {requisition.status === 'APPROVED' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Public application link</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {canEditLifecycle && requisition.hiringStage !== 'CANDIDATE_SELECTED' && (
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Input
+                          type="password"
+                          placeholder="Optional link password"
+                          value={applicationPassword}
+                          onChange={(event) => setApplicationPassword(event.target.value)}
+                        />
+                        <Button onClick={generateApplicationLink}>Generate link</Button>
+                      </div>
+                    )}
+                    {applicationLinks.map((link) => {
+                      const url = `${publicOrigin}/public/job-applications/${link.token}`;
+                      return (
+                        <div key={link.id} className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{url}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Expires {new Date(link.expiresAt).toLocaleDateString()}
+                              {link.hasPassword ? ' · Password protected' : ' · No password'}
+                              {link.revokedAt ? ' · Revoked' : ''}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            {!link.revokedAt && <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(url)}>Copy</Button>}
+                            {canEditLifecycle && !link.revokedAt && <Button size="sm" variant="destructive" onClick={() => revokeApplicationLink(link.id)}>Revoke</Button>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {!applicationLinks.length && <p className="text-sm text-muted-foreground">No application link has been generated.</p>}
+                  </CardContent>
+                </Card>
+              )}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Candidate applications ({applications.length})</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {applications.map((application) => (
+                    <div key={application.id} className="rounded-md border p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="font-semibold">{application.name}</p>
+                          <p className="text-muted-foreground">{application.contact} · {application.areaOfExpertise}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {application.totalExperienceYears} years total · {application.relevantExperienceYears} years relevant · Submitted {new Date(application.submittedAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" onClick={() => downloadResume(application)}>Resume</Button>
+                          {canEditLifecycle ? (
+                            <Select value={application.status} onChange={(event) => updateApplicationStatus(application, event.target.value as CandidateApplication['status'])}>
+                              <option value="SUBMITTED">Submitted</option>
+                              <option value="UNDER_REVIEW">Under review</option>
+                              <option value="INTERVIEW_SCHEDULED">Interview scheduled</option>
+                              <option value="SELECTED">Selected</option>
+                              <option value="REJECTED">Rejected</option>
+                            </Select>
+                          ) : <Badge variant="secondary">{application.status.replaceAll('_', ' ')}</Badge>}
+                        </div>
+                      </div>
+                      <p className="mt-3 whitespace-pre-wrap">{application.aboutExperience}</p>
+                      {application.projects && <p className="mt-2 whitespace-pre-wrap text-muted-foreground"><strong>Projects:</strong> {application.projects}</p>}
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Current CTC: {application.currentCtc ? formatINR(application.currentCtc, numberFormatStyle) : '—'} · Expected CTC: {application.expectedCtc ? formatINR(application.expectedCtc, numberFormatStyle) : '—'}
+                      </p>
+                    </div>
+                  ))}
+                  {!applications.length && <p className="text-sm text-muted-foreground">No applications received yet.</p>}
+                </CardContent>
+              </Card>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={onClose}>

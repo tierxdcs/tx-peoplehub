@@ -50,7 +50,12 @@ describe('canonical employee process flows', () => {
     );
 
     expect(strategy?.steps.map((step) => step.key)).toEqual(
-      expect.arrayContaining(['record-meeting', 'attendees', 'actions', 'handoff']),
+      expect.arrayContaining([
+        'record-meeting',
+        'attendees',
+        'actions',
+        'handoff',
+      ]),
     );
     expect(customerBom?.steps.map((step) => step.key)).toEqual(
       expect.arrayContaining(['resolve', 'create', 'review']),
@@ -61,6 +66,36 @@ describe('canonical employee process flows', () => {
     expect(rfq?.steps.find((step) => step.key === 'approve')?.gate).toBe(true);
     expect(rfq?.steps.find((step) => step.key === 'award')?.detail).toContain(
       'Draft Purchase Order',
+    );
+  });
+
+  it('documents the current HR requisition, offer, onboarding and provisioning lifecycle', () => {
+    const hr = flowForVertical('HR');
+    const recruitment = VERTICAL_FLOWS.find((flow) =>
+      flow.codes.includes('RECRUITMENT'),
+    );
+    const offer = VERTICAL_FLOWS.find((flow) =>
+      flow.codes.includes('OFFER_LETTER'),
+    );
+
+    expect(hr?.steps.map((step) => step.key)).toEqual(
+      expect.arrayContaining([
+        'requisition',
+        'recruitment',
+        'offer',
+        'onboard',
+        'access',
+        'provisioning',
+      ]),
+    );
+    expect(
+      recruitment?.steps.find((step) => step.key === 'budget')?.detail,
+    ).toContain('Key Responsibilities and KPIs');
+    expect(
+      recruitment?.steps.find((step) => step.key === 'selected')?.detail,
+    ).toContain('Candidate Selected');
+    expect(offer?.steps.find((step) => step.key === 'draft')?.detail).toContain(
+      'pre-fill',
     );
   });
 });

@@ -17,6 +17,7 @@ import { VaultStorageService } from '../vault/vault-storage.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { EmployeesService } from './employees.service';
 import { ProvisioningService } from '../provisioning/provisioning.service';
+import { OnboardingCompensationService } from '../payroll/onboarding-compensation.service';
 
 /**
  * Unit test for EmployeesService with a mocked PrismaService. Demonstrates
@@ -99,6 +100,19 @@ describe('EmployeesService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmployeesService,
+        {
+          provide: OnboardingCompensationService,
+          useValue: {
+            calculate: jest.fn().mockResolvedValue({
+              basicMonthly: '18000',
+              hraMonthly: '9600',
+              conveyanceMonthly: '500',
+              otherAllowanceMonthly: '1900',
+              incentiveAnnual: '30000',
+              annualCtc: '422340',
+            }),
+          },
+        },
         {
           provide: ProvisioningService,
           useValue: {
@@ -571,8 +585,7 @@ describe('EmployeesService', () => {
       emergencyContactRelation: 'Spouse',
       emergencyContactPhone: '+91 9876500000',
       compensation: {
-        basicSalary: 50000,
-        hra: 10000,
+        monthlyCtc: 35195,
         effectiveDate: '2026-07-05',
       },
       statutoryInfo: {
@@ -593,6 +606,7 @@ describe('EmployeesService', () => {
           employee: {
             create: jest.fn().mockResolvedValue(createdEmployee),
             findUnique: jest.fn().mockResolvedValue(null), // official-email collision check: no collision
+            findFirst: jest.fn().mockResolvedValue(null), // generated-email uniqueness scan (email + officialEmail)
           },
           salaryStructure: { create: jest.fn().mockResolvedValue({}) },
           employeeStatutoryInfo: { create: jest.fn().mockResolvedValue({}) },
@@ -639,6 +653,7 @@ describe('EmployeesService', () => {
           employee: {
             create: jest.fn().mockResolvedValue(created),
             findUnique: jest.fn().mockResolvedValue(null),
+            findFirst: jest.fn().mockResolvedValue(null),
           },
           candidateRequisition: {
             findUnique: jest.fn().mockResolvedValue({
@@ -766,6 +781,7 @@ describe('EmployeesService', () => {
           employee: {
             create: jest.fn().mockResolvedValue(created),
             findUnique: jest.fn().mockResolvedValue(null),
+            findFirst: jest.fn().mockResolvedValue(null),
           },
           salaryStructure: { create: jest.fn().mockResolvedValue({}) },
           employeeStatutoryInfo: {
@@ -791,7 +807,7 @@ describe('EmployeesService', () => {
       expect(capturedBank.bankAccountNumber).toBe('enc:000123456789');
     });
 
-    it('computes ctcAnnual from monthly earnings × 12 plus annual variable pay', async () => {
+    it('stores the server-calculated structure from the submitted monthly CTC', async () => {
       prisma.vertical.findUnique.mockResolvedValueOnce(hrVertical);
       prisma.vertical.findUnique.mockResolvedValueOnce(salesVertical);
       const created = { ...employee, id: 'new-emp-3' };
@@ -803,6 +819,7 @@ describe('EmployeesService', () => {
           employee: {
             create: jest.fn().mockResolvedValue(created),
             findUnique: jest.fn().mockResolvedValue(null),
+            findFirst: jest.fn().mockResolvedValue(null),
           },
           salaryStructure: {
             create: jest.fn((args: any) => {
@@ -820,23 +837,22 @@ describe('EmployeesService', () => {
         {
           ...onboardDto,
           compensation: {
-            basicSalary: 50000,
-            hra: 10000,
-            specialAllowance: 8000,
-            variablePay: 60000,
+            monthlyCtc: 35195,
             effectiveDate: '2026-07-05',
           },
         },
         hrStaffUser,
       );
 
-      expect(capturedSalary.specialAllowance).toBe(8000);
-      expect(capturedSalary.variablePay).toBe(60000);
-      // (50000 + 10000 + 8000) * 12 + 60000 = 816000 + 60000 = 876000
-      expect(capturedSalary.ctcAnnual).toBe(876000);
+      expect(capturedSalary.basic).toBe('18000');
+      expect(capturedSalary.hra).toBe('9600');
+      expect(capturedSalary.specialAllowance).toBe('500');
+      expect(capturedSalary.otherAllowances).toBe('1900');
+      expect(capturedSalary.variablePay).toBe('30000');
+      expect(capturedSalary.ctcAnnual).toBe('422340');
     });
 
-    it('defaults special/variable to 0 and stores variablePay null when compensation omits them', async () => {
+    it('does not accept client-entered component values', async () => {
       prisma.vertical.findUnique.mockResolvedValueOnce(hrVertical);
       prisma.vertical.findUnique.mockResolvedValueOnce(salesVertical);
       const created = { ...employee, id: 'new-emp-4' };
@@ -848,6 +864,7 @@ describe('EmployeesService', () => {
           employee: {
             create: jest.fn().mockResolvedValue(created),
             findUnique: jest.fn().mockResolvedValue(null),
+            findFirst: jest.fn().mockResolvedValue(null),
           },
           salaryStructure: {
             create: jest.fn((args: any) => {
@@ -863,10 +880,9 @@ describe('EmployeesService', () => {
 
       await service.onboard(onboardDto, hrStaffUser);
 
-      expect(capturedSalary.specialAllowance).toBe(0);
-      expect(capturedSalary.variablePay).toBeNull();
-      // (50000 + 10000 + 0) * 12 + 0 = 720000
-      expect(capturedSalary.ctcAnnual).toBe(720000);
+      expect(capturedSalary.basic).toBe('18000');
+      expect(capturedSalary.hra).toBe('9600');
+      expect(capturedSalary.ctcAnnual).toBe('422340');
     });
   });
 

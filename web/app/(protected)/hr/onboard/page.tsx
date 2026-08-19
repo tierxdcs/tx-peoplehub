@@ -14,6 +14,7 @@ import { Field } from '../../../components/ui/field';
 import { EmployeePhotoField } from '../../../components/ui/employee-photo-field';
 import { formatINR } from '../../../lib/sales';
 import { useNumberFormat } from '../../../lib/number-format-context';
+import type { NumberFormatStyle } from '../../../lib/number-format-context';
 import { cn } from '../../../lib/utils';
 
 const EMPLOYMENT_TYPES: { value: EmploymentType; label: string }[] = [
@@ -56,6 +57,7 @@ type OnboardingRequisitionOption = {
   workLocation: string | null;
   territory: string | null;
   compensation: {
+    monthlyCtc: string | null;
     basicSalary: string | null;
     hra: string | null;
     specialAllowance: string | null;
@@ -63,6 +65,58 @@ type OnboardingRequisitionOption = {
     effectiveDate: string | null;
   } | null;
 };
+
+type CompensationPreview = {
+  branch: 'PF_CAPPED' | 'PF_UNCAPPED';
+  monthlyCtc: string;
+  annualCtc: string;
+  grossMonthly: string;
+  basicMonthly: string;
+  hraMonthly: string;
+  conveyanceMonthly: string;
+  otherAllowanceMonthly: string;
+  professionalTaxMonthly: string;
+  employeePfMonthly: string;
+  employeeEsiMonthly: string | null;
+  employerPfMonthly: string;
+  employerEsiMonthly: string | null;
+  totalDeductionsMonthly: string;
+  netSalaryMonthly: string;
+  totalAnnualisedSalary: string;
+  insuranceAnnual: string;
+  incentiveAnnual: string;
+  employerPfAnnual: string;
+  totalCompanyContributionsAnnual: string;
+  totalEmolumentsAnnual: string;
+};
+
+function SalarySection({
+  title,
+  rows,
+  numberFormatStyle,
+}: {
+  title: string;
+  rows: Array<[string, string | null]>;
+  numberFormatStyle: NumberFormatStyle;
+}) {
+  return (
+    <div>
+      <h3 className="mb-2 text-sm font-medium">{title}</h3>
+      <dl className="grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex justify-between gap-4 border-b py-1.5 last:border-b-0">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="whitespace-nowrap font-medium">
+              {value === null
+                ? 'Not applicable'
+                : formatINR(Number(value), numberFormatStyle)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
 
 function suggestedOfficialEmail(firstName: string, lastName: string) {
   const normalize = (value: string) =>
@@ -123,22 +177,14 @@ export default function OnboardEmployeePage() {
     ? officialEmail
     : suggestedOfficialEmail(firstName, lastName);
 
-  // Compensation. basic/hra/specialAllowance are MONTHLY; variablePay is
-  // ANNUAL (an indirect CTC component the payroll engine never reads).
-  const [basicSalary, setBasicSalary] = useState('');
-  const [hra, setHra] = useState('');
-  const [specialAllowance, setSpecialAllowance] = useState('');
-  const [variablePay, setVariablePay] = useState('');
+  // Compensation is entered only as target Monthly CTC. The server derives
+  // every component from the effective Statutory Config.
+  const [monthlyCtc, setMonthlyCtc] = useState('');
   const [effectiveDate, setEffectiveDate] = useState('');
-
-  // Live earning-side CTC preview. Statutory deductions (PF/ESI/PT/TDS and
-  // employer contributions) are deliberately NOT shown here — those are
-  // computed at payroll-run time from StatutoryConfig, never at onboarding.
-  const monthlyGross =
-    (Number(basicSalary) || 0) +
-    (Number(hra) || 0) +
-    (Number(specialAllowance) || 0);
-  const annualCtc = monthlyGross * 12 + (Number(variablePay) || 0);
+  const [compensationPreview, setCompensationPreview] =
+    useState<CompensationPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   // Statutory
   const [panNumber, setPanNumber] = useState('');
@@ -159,6 +205,38 @@ export default function OnboardEmployeePage() {
       .catch(() => setError('Failed to load approved hiring requisitions'));
   }, []);
 
+  useEffect(() => {
+    setCompensationPreview(null);
+    setPreviewError(null);
+    if (!monthlyCtc || Number(monthlyCtc) <= 0 || !effectiveDate) return;
+    const timer = window.setTimeout(async () => {
+      setPreviewLoading(true);
+      try {
+        setCompensationPreview(
+          await apiFetch<CompensationPreview>(
+            '/employees/onboard/compensation-preview',
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                monthlyCtc: Number(monthlyCtc),
+                effectiveDate,
+              }),
+            },
+          ),
+        );
+      } catch (err) {
+        setPreviewError(
+          err instanceof ApiError
+            ? err.message
+            : 'Unable to calculate salary structure',
+        );
+      } finally {
+        setPreviewLoading(false);
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [monthlyCtc, effectiveDate]);
+
   function selectRequisition(id: string) {
     setCandidateRequisitionId(id);
     if (!id) return;
@@ -170,36 +248,29 @@ export default function OnboardEmployeePage() {
     setFirstName(candidateFirstName);
     setLastName(candidateLastNameParts.join(' '));
 
-    // Never carry terms from a previously selected requisition. A fulfilled
-    // requisition without an approved Offer Letter is still eligible, but only
-    // its confirmed candidate name is safe to prefill.
-    setDesignation('');
-    setEmploymentType('FULL_TIME_PERMANENT');
-    setVerticalId('');
+    // Role facts (designation, employment type, vertical) come from the
+    // approved requisition itself, so prefill them whether or not an Offer
+    // Letter exists. Compensation and joining details are only prefilled from
+    // an approved Offer Letter — those are never safe to guess. Never carry
+    // terms from a previously selected requisition, so reset the rest.
+    setDesignation(option.designation ?? '');
+    setEmploymentType(option.employmentType ?? 'FULL_TIME_PERMANENT');
+    setVerticalId(option.vertical?.id ?? '');
     setDateOfJoining('');
     setWorkLocation('');
     setTerritory('');
-    setBasicSalary('');
-    setHra('');
-    setSpecialAllowance('');
-    setVariablePay('');
+    setMonthlyCtc('');
     setEffectiveDate('');
 
     if (!option.hasApprovedOffer) {
       setError(null);
       return;
     }
-    setDesignation(option.designation ?? '');
-    setEmploymentType(option.employmentType ?? 'FULL_TIME_PERMANENT');
-    setVerticalId(option.vertical?.id ?? '');
     if (option.dateOfJoining)
       setDateOfJoining(option.dateOfJoining.slice(0, 10));
     if (option.workLocation) setWorkLocation(option.workLocation);
     if (option.territory) setTerritory(option.territory);
-    setBasicSalary(option.compensation?.basicSalary ?? '');
-    setHra(option.compensation?.hra ?? '');
-    setSpecialAllowance(option.compensation?.specialAllowance ?? '');
-    setVariablePay(option.compensation?.variablePay ?? '');
+    setMonthlyCtc(option.compensation?.monthlyCtc ?? '');
     if (option.compensation?.effectiveDate) {
       setEffectiveDate(option.compensation.effectiveDate.slice(0, 10));
     }
@@ -232,7 +303,7 @@ export default function OnboardEmployeePage() {
         displayedOfficialEmail
       ),
       // Compensation
-      !!(basicSalary && hra && effectiveDate),
+      !!(monthlyCtc && effectiveDate && compensationPreview),
       // Statutory
       !!(panNumber && aadhaarLast4.length === 4 && pfAccountNumber),
       // Banking
@@ -254,9 +325,9 @@ export default function OnboardEmployeePage() {
     dateOfJoining,
     workLocation,
     displayedOfficialEmail,
-    basicSalary,
-    hra,
+    monthlyCtc,
     effectiveDate,
+    compensationPreview,
     panNumber,
     aadhaarLast4,
     pfAccountNumber,
@@ -314,12 +385,7 @@ export default function OnboardEmployeePage() {
           emergencyContactPhone,
           ...(photoStorageKey ? { photoStorageKey } : {}),
           compensation: {
-            basicSalary: Number(basicSalary),
-            hra: Number(hra),
-            ...(specialAllowance
-              ? { specialAllowance: Number(specialAllowance) }
-              : {}),
-            ...(variablePay ? { variablePay: Number(variablePay) } : {}),
+            monthlyCtc: Number(monthlyCtc),
             effectiveDate,
           },
           statutoryInfo: {
@@ -411,14 +477,17 @@ export default function OnboardEmployeePage() {
               {requisitionOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.requisitionNumber} — {option.selectedCandidateName} —{' '}
-                  {option.designation ?? 'Terms to be entered'}
+                  {option.designation ?? 'Role TBD'}
+                  {option.hasApprovedOffer ? '' : ' (terms pending)'}
                 </option>
               ))}
             </Select>
             <p className="mt-2 text-xs text-muted-foreground">
-              Approved and Fulfilled requisitions appear. The confirmed
-              candidate name is always filled; approved Offer Letter terms are
-              added when available. Every field remains editable for HR review.
+              Approved and Fulfilled requisitions appear. The candidate name,
+              vertical, designation, and employment type are filled from the
+              requisition; approved Offer Letter terms (compensation, joining
+              date) are added when available. Every field remains editable for
+              HR review.
             </p>
           </Field>
         </CardContent>
@@ -666,37 +735,13 @@ export default function OnboardEmployeePage() {
 
           {step === 2 && (
             <div className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Field label="Basic salary" hint="Per month">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Monthly CTC" hint="INR — annual CTC is derived">
                   <Input
                     type="number"
-                    min={0}
-                    value={basicSalary}
-                    onChange={(e) => setBasicSalary(e.target.value)}
-                  />
-                </Field>
-                <Field label="HRA" hint="Per month">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={hra}
-                    onChange={(e) => setHra(e.target.value)}
-                  />
-                </Field>
-                <Field label="Special allowance" hint="Per month (optional)">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={specialAllowance}
-                    onChange={(e) => setSpecialAllowance(e.target.value)}
-                  />
-                </Field>
-                <Field label="Variable pay" hint="Per year (optional)">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={variablePay}
-                    onChange={(e) => setVariablePay(e.target.value)}
+                    min={1}
+                    value={monthlyCtc}
+                    onChange={(e) => setMonthlyCtc(e.target.value)}
                   />
                 </Field>
                 <Field label="Effective date">
@@ -708,43 +753,65 @@ export default function OnboardEmployeePage() {
                 </Field>
               </div>
 
-              {/* Earning-side CTC preview. Statutory deductions (PF/ESI/PT/TDS
-                  + employer contributions) are computed at payroll-run time
-                  from StatutoryConfig — never fabricated here — so they are
-                  intentionally omitted. */}
-              <div className="rounded-md border bg-muted/40 p-4">
-                <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  CTC preview (earning components)
+              {previewLoading && (
+                <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
+                  Calculating from effective Statutory Config…
                 </div>
-                <dl className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm sm:grid-cols-3">
-                  <div className="flex justify-between sm:block">
-                    <dt className="text-muted-foreground">Monthly gross</dt>
-                    <dd className="font-medium">
-                      {formatINR(monthlyGross, numberFormatStyle)}
-                    </dd>
+              )}
+              {previewError && (
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+                  {previewError}
+                </div>
+              )}
+              {compensationPreview && (
+                <div className="space-y-4 rounded-md border bg-muted/40 p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      System-calculated salary structure
+                    </div>
+                    <div className="font-semibold">
+                      Annual CTC {formatINR(Number(compensationPreview.annualCtc), numberFormatStyle)}
+                    </div>
                   </div>
-                  <div className="flex justify-between sm:block">
-                    <dt className="text-muted-foreground">
-                      Annual variable pay
-                    </dt>
-                    <dd className="font-medium">
-                      {formatINR(Number(variablePay) || 0, numberFormatStyle)}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between sm:block">
-                    <dt className="text-muted-foreground">Annual CTC</dt>
-                    <dd className="text-base font-semibold">
-                      {formatINR(annualCtc, numberFormatStyle)}
-                    </dd>
-                  </div>
-                </dl>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Statutory deductions (PF, ESI, Professional Tax, TDS) and
-                  employer contributions are calculated during payroll
-                  processing from the configured statutory rates — they are not
-                  set at onboarding.
-                </p>
-              </div>
+                  <SalarySection
+                    title="Monthly earnings"
+                    rows={[
+                      ['Basic', compensationPreview.basicMonthly],
+                      ['HRA', compensationPreview.hraMonthly],
+                      ['Conveyance', compensationPreview.conveyanceMonthly],
+                      ['Other Allowance', compensationPreview.otherAllowanceMonthly],
+                      ['Total Monthly Salary', compensationPreview.grossMonthly],
+                    ]}
+                    numberFormatStyle={numberFormatStyle}
+                  />
+                  <SalarySection
+                    title="Monthly deductions"
+                    rows={[
+                      ['Professional Tax (PT)', compensationPreview.professionalTaxMonthly],
+                      ['Employee PF', compensationPreview.employeePfMonthly],
+                      ['Employee ESI', compensationPreview.employeeEsiMonthly],
+                      ['Total Deductions', compensationPreview.totalDeductionsMonthly],
+                      ['Net Salary', compensationPreview.netSalaryMonthly],
+                    ]}
+                    numberFormatStyle={numberFormatStyle}
+                  />
+                  <SalarySection
+                    title="Annual company contributions"
+                    rows={[
+                      ['Total Annualised Salary', compensationPreview.totalAnnualisedSalary],
+                      ['Employer PF', compensationPreview.employerPfAnnual],
+                      ['Insurance (PA)', compensationPreview.insuranceAnnual],
+                      ['Incentive', compensationPreview.incentiveAnnual],
+                      ['Total Company Contributions', compensationPreview.totalCompanyContributionsAnnual],
+                      ['Total Emoluments per Annum', compensationPreview.totalEmolumentsAnnual],
+                    ]}
+                    numberFormatStyle={numberFormatStyle}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    ESI is shown only when applicable. TDS remains “as applicable” and is calculated during payroll.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
