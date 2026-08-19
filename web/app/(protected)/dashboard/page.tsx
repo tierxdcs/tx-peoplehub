@@ -30,6 +30,8 @@ import { ProcessFlowModal } from './_components/process-flow-modal';
 import { ProjectProgressCard } from './_components/project-progress-card';
 import { getMyPlmWork, type PlmDashboardItem } from '../../lib/plm';
 import { PlmWorkCard } from './_components/plm-work-card';
+import { PingPanel } from './_components/ping-panel';
+import { getReceivedPings, getSentPings, pingAgeHours, type ReceivedPing, type SentPing } from '../../lib/pings';
 
 const TASK_CAP = 8;
 const DAY_MS = 86_400_000;
@@ -58,6 +60,8 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<ProjectProgress[]>([]);
   const [plmWork, setPlmWork] = useState<PlmDashboardItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [receivedPings, setReceivedPings] = useState<ReceivedPing[]>([]);
+  const [sentPings, setSentPings] = useState<SentPing[]>([]);
 
   // A single "now" per render pass keeps greeting/quote/chips consistent.
   const now = useMemo(() => new Date(), []);
@@ -72,12 +76,16 @@ export default function DashboardPage() {
       myCards(),
       listProjectProgress(),
       getMyPlmWork(),
-    ]).then(([emp, cardsRes, projectsRes, plmRes]) => {
+      getReceivedPings(),
+      getSentPings(),
+    ]).then(([emp, cardsRes, projectsRes, plmRes, receivedRes, sentRes]) => {
       if (!alive) return;
       if (emp.status === 'fulfilled') setFirstName(emp.value.firstName);
       setCards(cardsRes.status === 'fulfilled' ? cardsRes.value : []);
       setProjects(projectsRes.status === 'fulfilled' ? projectsRes.value : []);
       setPlmWork(plmRes.status === 'fulfilled' ? plmRes.value : []);
+      setReceivedPings(receivedRes.status === 'fulfilled' ? receivedRes.value : []);
+      setSentPings(sentRes.status === 'fulfilled' ? sentRes.value : []);
       if (cardsRes.status === 'fulfilled')
         window.sessionStorage.removeItem('kanban-dashboard-dirty');
       setLoading(false);
@@ -153,6 +161,13 @@ export default function DashboardPage() {
     () => tasks.find((t) => t.isOverdue) ?? null,
     [tasks],
   );
+  const mostOverduePing = useMemo(
+    () => receivedPings.find((r) => r.status === 'PENDING' && pingAgeHours(r.ping.createdAt, now) >= 24) ?? null,
+    [receivedPings, now],
+  );
+  const overduePingWins = mostOverduePing && (!mostUrgentOverdue ||
+    new Date(mostOverduePing.ping.createdAt).getTime() + DAY_MS < new Date(mostUrgentOverdue.dueDate!).getTime());
+  const refreshPings = () => Promise.all([getReceivedPings(), getSentPings()]).then(([received, sent]) => { setReceivedPings(received); setSentPings(sent); });
 
   const flow = flowForVertical(vertical?.code);
 
@@ -184,7 +199,11 @@ export default function DashboardPage() {
 
       {/* "What's blocking me" — name the single most urgent overdue item so the
           user doesn't have to scan (spec §8). Only shown when it applies. */}
-      {mostUrgentOverdue && (
+      {overduePingWins ? (
+        <Link href="/my-pings?status=pending" className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive transition-colors hover:bg-destructive/10">
+          <AlertCircle className="size-4 shrink-0" /><span><span className="font-medium">{mostOverduePing.ping.message}</span> — your most overdue ping ({pingAgeHours(mostOverduePing.ping.createdAt, now) - 24}h overdue).</span>
+        </Link>
+      ) : mostUrgentOverdue ? (
         <Link
           href={`/kanban/cards/${mostUrgentOverdue.id}`}
           className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive transition-colors hover:bg-destructive/10"
@@ -196,7 +215,7 @@ export default function DashboardPage() {
             your most urgent task.
           </span>
         </Link>
-      )}
+      ) : null}
 
       {/* Task analytics — 4 stat cards. */}
       <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
@@ -229,6 +248,8 @@ export default function DashboardPage() {
         />
       </section>
 
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="min-w-0 space-y-6 md:space-y-8">
       {/* My Tasks */}
       <section>
         <div className="mb-3 flex items-center justify-between">
@@ -335,6 +356,9 @@ export default function DashboardPage() {
           <ProcessFlowModal flow={flow} />
         </section>
       )}
+      </div>
+      <PingPanel received={receivedPings} sent={sentPings} onChanged={refreshPings} />
+      </div>
     </PageContainer>
   );
 }

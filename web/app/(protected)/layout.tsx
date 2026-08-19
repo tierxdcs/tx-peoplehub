@@ -24,6 +24,7 @@ import {
 import { AppTopBar } from '../components/shell/app-top-bar';
 import { Sidebar } from '../components/shell/sidebar';
 import { ResetPasswordDialog } from '../components/shell/reset-password-dialog';
+import { PingWidget } from '../components/shell/ping-widget';
 
 export default function ProtectedLayout({
   children,
@@ -166,6 +167,7 @@ export default function ProtectedLayout({
         <main className="min-w-0 flex-1 overflow-x-hidden p-4 md:p-6">
           {children}
         </main>
+        <PingWidget />
       </div>
     </div>
   );

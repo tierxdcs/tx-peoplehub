@@ -1,0 +1,68 @@
+import { apiFetch } from './api';
+
+export type PingStatus = 'PENDING' | 'ACKNOWLEDGED' | 'RESOLVED';
+export type PingEmployee = { id: string; fullName: string; email: string; employeeId: string };
+export type ReceivedPing = {
+  id: string;
+  status: PingStatus;
+  respondedAt: string | null;
+  ping: { id: string; message: string; linkedRecordType: string | null; linkedRecordId: string | null; createdAt: string; fromEmployee: PingEmployee };
+};
+export type SentPing = {
+  id: string;
+  message: string;
+  linkedRecordType: string | null;
+  linkedRecordId: string | null;
+  createdAt: string;
+  recipients: Array<{ id: string; status: PingStatus; respondedAt: string | null; employee: PingEmployee }>;
+};
+
+export const getReceivedPings = () => apiFetch<ReceivedPing[]>('/pings/received');
+export const getSentPings = () => apiFetch<SentPing[]>('/pings/sent');
+export const respondToPing = (id: string, status: Exclude<PingStatus, 'PENDING'>) =>
+  apiFetch(`/pings/received/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+export const createPing = (body: { message: string; recipientIds: string[]; linkedRecordType?: string; linkedRecordId?: string }) =>
+  apiFetch('/pings', { method: 'POST', body: JSON.stringify(body) });
+export const createContextPing = (body: { message: string; recipientIds: string[]; linkedRecordType: string; linkedRecordId: string; verticalCode?: string }) =>
+  apiFetch('/pings/contextual', { method: 'POST', body: JSON.stringify(body) });
+export const getContextPingRecipients = (params: { verticalCode?: string; linkedRecordType?: string; linkedRecordId?: string }) => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => value && query.set(key, value));
+  return apiFetch<PingEmployee[]>(`/pings/recipients?${query.toString()}`);
+};
+
+export function pingAgeHours(createdAt: string, now = new Date()) {
+  return Math.max(0, Math.floor((now.getTime() - new Date(createdAt).getTime()) / 3_600_000));
+}
+
+export function linkedPingHref(type: string | null, id: string | null): string | null {
+  if (!type || !id) return null;
+  const routes: Record<string, string> = {
+    KANBAN_CARD: `/kanban/cards/${id}`,
+    ORDER: `/sales/orders/${id}`,
+    BID: `/sales/bids/${id}`,
+    PROJECT_KICKOFF: `/project-kickoff/${id}`,
+    PLM_TRACKER: `/plm/trackers/${id}`,
+    RFQ: `/scm/rfqs/${id}`,
+    KANBAN_BOARD: `/kanban/boards/${id}`,
+    PAGE: id.startsWith('/') && !id.startsWith('//') ? id : '',
+  };
+  return routes[type] || null;
+}
+
+export type PingPageContext = { verticalCode?: string; linkedRecordType: string; linkedRecordId: string; label: string };
+export function pingContextForPath(pathname: string): PingPageContext {
+  const segments = pathname.split('/').filter(Boolean);
+  const dynamic: Array<[RegExp, string, string]> = [
+    [/^\/kanban\/boards\/([^/]+)/, 'KANBAN_BOARD', 'Kanban board'],
+    [/^\/kanban\/cards\/([^/]+)/, 'KANBAN_CARD', 'Kanban card'],
+    [/^\/sales\/orders\/([^/]+)/, 'ORDER', 'Order'],
+    [/^\/sales\/bids\/([^/]+)/, 'BID', 'Bid'],
+    [/^\/project-kickoff\/([^/]+)/, 'PROJECT_KICKOFF', 'Project kickoff'],
+    [/^\/plm\/trackers\/([^/]+)/, 'PLM_TRACKER', 'PLM tracker'],
+    [/^\/scm\/rfqs\/([^/]+)/, 'RFQ', 'RFQ'],
+  ];
+  const verticalByRoot: Record<string, string> = { sales: 'SALES', scm: 'SCM', stores: 'PRODUCTION', logistics: 'PRODUCTION', qms: 'QUALITY', design: 'DESIGN', hr: 'HR', finance: 'ACCOUNTS' };
+  for (const [pattern, type, label] of dynamic) { const match = pathname.match(pattern); if (match) return { verticalCode: verticalByRoot[segments[0]], linkedRecordType: type, linkedRecordId: match[1], label }; }
+  return { verticalCode: verticalByRoot[segments[0]], linkedRecordType: 'PAGE', linkedRecordId: pathname, label: 'Current page' };
+}

@@ -57,6 +57,7 @@ import { ReferenceRatesModule } from './modules/reference-rates/reference-rates.
 import { ScmResourcePlanModule } from './modules/scm-resource-plan/scm-resource-plan.module';
 import { LearningModule } from './modules/learning/learning.module';
 import { ExpenseClaimsModule } from './modules/expense-claims/expense-claims.module';
+import { PingsModule } from './modules/pings/pings.module';
 
 @Module({
   imports: [
@@ -107,6 +108,7 @@ import { ExpenseClaimsModule } from './modules/expense-claims/expense-claims.mod
     LogisticsModule,
     RfqModule,
     ExpenseClaimsModule,
+    PingsModule,
     HealthModule,
   ],
   providers: [

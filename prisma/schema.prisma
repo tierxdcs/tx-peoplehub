@@ -533,6 +533,8 @@ model Employee {
   learningCoursesCreated                  LearningCourse[]       @relation("LearningCourseCreator")
   learningCoursesUpdated                  LearningCourse[]       @relation("LearningCourseUpdater")
   learningProgress                        LearningProgress[]
+  pingsSent                               Ping[]                 @relation("PingSender")
+  pingRecipients                          PingRecipient[]        @relation("PingRecipientEmployee")
 
   leaveBalances          LeaveBalance[]
   leaveRequestsSubmitted LeaveRequest[] @relation("LeaveRequester")
@@ -785,47 +787,47 @@ model OfferLetter {
 }
 
 model CandidateRequisition {
-  id                       String                     @id @default(uuid())
-  requisitionNumber        String                     @unique
+  id                       String                       @id @default(uuid())
+  requisitionNumber        String                       @unique
   requestedById            String
-  requestedBy              Employee                   @relation("CandidateRequisitionRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  requestedBy              Employee                     @relation("CandidateRequisitionRequester", fields: [requestedById], references: [id], onDelete: Restrict)
   verticalId               String
-  vertical                 Vertical                   @relation(fields: [verticalId], references: [id], onDelete: Restrict)
+  vertical                 Vertical                     @relation(fields: [verticalId], references: [id], onDelete: Restrict)
   positionTitle            String
   employmentType           EmploymentType
-  justification            String                     @db.Text
+  justification            String                       @db.Text
   /// Key responsibilities and KPIs for the role. Nullable in DB so the columns
   /// can be added to existing rows, but REQUIRED in the create DTO for every new
   /// requisition (same convention as budgetAnnualCtc below).
-  keyResponsibilities      String?                    @db.Text
-  keyPerformanceIndicators String?                    @db.Text
+  keyResponsibilities      String?                      @db.Text
+  keyPerformanceIndicators String?                      @db.Text
   /// Annual CTC hiring budget (INR). Nullable in DB so the column can be added
   /// to existing rows, but REQUIRED in the create DTO for every new requisition
   /// (cf. Product.businessUnitId — the repo enforces such invariants in the DTO/
   /// service, not with DB constraints).
-  budgetAnnualCtc          Decimal?                   @db.Decimal(14, 2)
-  targetJoiningDate        DateTime?                  @db.Date
-  status                   CandidateRequisitionStatus @default(PENDING_VERTICAL_APPROVAL)
+  budgetAnnualCtc          Decimal?                     @db.Decimal(14, 2)
+  targetJoiningDate        DateTime?                    @db.Date
+  status                   CandidateRequisitionStatus   @default(PENDING_VERTICAL_APPROVAL)
   hiringStage              CandidateHiringStage?
   selectedCandidateName    String?
   verticalApprovedById     String?
-  verticalApprovedBy       Employee?                  @relation("CandidateRequisitionVerticalApprover", fields: [verticalApprovedById], references: [id], onDelete: SetNull)
+  verticalApprovedBy       Employee?                    @relation("CandidateRequisitionVerticalApprover", fields: [verticalApprovedById], references: [id], onDelete: SetNull)
   verticalApprovedAt       DateTime?
   superAdminApprovedById   String?
-  superAdminApprovedBy     Employee?                  @relation("CandidateRequisitionSuperAdminApprover", fields: [superAdminApprovedById], references: [id], onDelete: SetNull)
+  superAdminApprovedBy     Employee?                    @relation("CandidateRequisitionSuperAdminApprover", fields: [superAdminApprovedById], references: [id], onDelete: SetNull)
   superAdminApprovedAt     DateTime?
   rejectedById             String?
-  rejectedBy               Employee?                  @relation("CandidateRequisitionRejector", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedBy               Employee?                    @relation("CandidateRequisitionRejector", fields: [rejectedById], references: [id], onDelete: SetNull)
   rejectedAt               DateTime?
-  rejectionComment         String?                    @db.Text
+  rejectionComment         String?                      @db.Text
   consumedAt               DateTime?
   offerLetter              OfferLetter?
-  onboardedEmployeeId      String?                    @unique
-  onboardedEmployee        Employee?                  @relation("CandidateRequisitionOnboardedEmployee", fields: [onboardedEmployeeId], references: [id], onDelete: Restrict)
+  onboardedEmployeeId      String?                      @unique
+  onboardedEmployee        Employee?                    @relation("CandidateRequisitionOnboardedEmployee", fields: [onboardedEmployeeId], references: [id], onDelete: Restrict)
   applicationInvites       CandidateApplicationInvite[]
   applications             CandidateApplication[]
-  createdAt                DateTime                   @default(now())
-  updatedAt                DateTime                   @updatedAt
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
 
   @@index([requestedById, status])
   @@index([verticalId, status])
@@ -7424,4 +7426,38 @@ model ExpenseClaimReceipt {
 
   @@index([uploadedById, status])
   @@map("expense_claim_receipts")
+}
+
+enum PingRecipientStatus {
+  PENDING
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+model Ping {
+  id               String          @id @default(uuid())
+  fromEmployeeId   String
+  fromEmployee     Employee        @relation("PingSender", fields: [fromEmployeeId], references: [id], onDelete: Restrict)
+  message          String          @db.VarChar(500)
+  linkedRecordType String?         @db.VarChar(60)
+  linkedRecordId   String?         @db.VarChar(120)
+  recipients       PingRecipient[]
+  createdAt        DateTime        @default(now())
+
+  @@index([fromEmployeeId, createdAt])
+  @@map("pings")
+}
+
+model PingRecipient {
+  id          String              @id @default(uuid())
+  pingId      String
+  ping        Ping                @relation(fields: [pingId], references: [id], onDelete: Cascade)
+  employeeId  String
+  employee    Employee            @relation("PingRecipientEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  status      PingRecipientStatus @default(PENDING)
+  respondedAt DateTime?
+
+  @@unique([pingId, employeeId])
+  @@index([employeeId, status])
+  @@map("ping_recipients")
 }

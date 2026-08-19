@@ -71,7 +71,11 @@
       "Bash(echo \"---BACKEND TSC EXIT: $?---\")",
       "Bash(echo \"---FRONTEND TSC EXIT: $?---\")",
       "Bash(grep -n 'findFirst\\\\|findUnique\\\\|employee:\\\\s*{\\\\|employee: {\\\\|$transaction\\\\|txClient\\\\|const tx\\\\b' src/modules/employees/employees.service.spec.ts)",
-      "Bash(echo \"=== NEST BUILD EXIT: $? ===\")"
+      "Bash(echo \"=== NEST BUILD EXIT: $? ===\")",
+      "Bash(echo \"WEB BUILD EXIT: $?\")",
+      "Bash(echo \"NEST BUILD EXIT: $?\")",
+      "Bash(echo \"=== DEPLOY EXIT: $? ===\")",
+      "Bash(echo \"GENERATE EXIT: $?\")"
     ]
   }
 }

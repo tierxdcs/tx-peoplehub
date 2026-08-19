@@ -55,6 +55,12 @@
   --info-foreground: 0 0% 100%;
 }
 
+@keyframes ping-gentle { 0%, 100% { box-shadow: inset 3px 0 0 hsl(var(--destructive) / .45); } 50% { box-shadow: inset 3px 0 0 hsl(var(--destructive) / .8); } }
+@keyframes ping-overdue { 0%, 100% { box-shadow: inset 4px 0 0 hsl(var(--destructive) / .7); } 50% { box-shadow: inset 4px 0 0 hsl(var(--destructive)); } }
+.ping-new { animation: ping-gentle 2.8s ease-in-out infinite; }
+.ping-overdue { animation: ping-overdue 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .ping-new, .ping-overdue { animation: none; } }
+
 .dark {
   --background: 0 0% 10%;
   --foreground: 43 24% 93%;
