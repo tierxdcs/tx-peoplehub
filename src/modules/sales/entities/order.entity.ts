@@ -1,5 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { OrderLineDeliveryType, OrderStatus, OrderType } from '@prisma/client';
+import {
+  OrderFinalQcStatus,
+  OrderLineDeliveryType,
+  OrderStatus,
+  OrderType,
+} from '@prisma/client';
 
 export class OrderLineItemEntity {
   @ApiProperty()
@@ -96,6 +101,12 @@ export class OrderEntity {
 
   @ApiProperty({ enum: OrderStatus })
   status!: OrderStatus;
+
+  @ApiProperty({
+    enum: OrderFinalQcStatus,
+    description: 'Outbound final-QC clearance used by the dispatch gate',
+  })
+  finalQcStatus!: OrderFinalQcStatus;
 
   @ApiProperty({ description: 'Booked value, snapshot of the bid total' })
   totalAmount!: string;

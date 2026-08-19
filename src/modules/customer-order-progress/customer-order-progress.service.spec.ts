@@ -71,7 +71,7 @@ describe('CustomerOrderProgressService', () => {
               id: 'line-1',
               product: { name: 'Rack System' },
               deliveryChallanLines: [],
-              plmTracker: {
+              plmTrackers: [{
                 currentStage: PlmStage.PRODUCTION,
                 flowType: 'VENDOR',
                 createdAt: new Date('2026-07-01T00:00:00Z'),
@@ -93,7 +93,7 @@ describe('CustomerOrderProgressService', () => {
                   { list: { isDoneList: true } },
                   { list: { isDoneList: false } },
                 ],
-              },
+              }],
             },
           ],
         }),
@@ -164,7 +164,7 @@ describe('CustomerOrderProgressService', () => {
               id: 'line-1',
               product: { name: 'New Rack' },
               deliveryChallanLines: [],
-              plmTracker: {
+              plmTrackers: [{
                 currentStage: PlmStage.DESIGN_REVIEW,
                 flowType: 'NPD',
                 createdAt: new Date('2026-07-01T00:00:00Z'),
@@ -183,7 +183,7 @@ describe('CustomerOrderProgressService', () => {
                   },
                 ],
                 productionCards: [],
-              },
+              }],
             },
           ],
         }),
@@ -212,5 +212,70 @@ describe('CustomerOrderProgressService', () => {
     expect(response.lines[0].stages[1].state).toBe('DONE');
     expect(response.lines[0].stages[2].state).toBe('CURRENT');
     expect(response.lines[0].stages[3].state).toBe('UPCOMING');
+  });
+
+  it('represents a split line by its least-advanced vendor tracker', async () => {
+    const prisma = {
+      orderCustomerProgressInvite: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'invite-1',
+          orderId: 'order-1',
+          revokedAt: null,
+          expiresAt: new Date('2027-07-28T00:00:00.000Z'),
+          passwordHash: null,
+          order: { ownerId: 'owner-1', orderNumber: 'ORD-2026-0003' },
+        }),
+      },
+      order: {
+        findUnique: jest.fn().mockResolvedValue({
+          orderNumber: 'ORD-2026-0003',
+          customer: { name: 'Customer LMN' },
+          customerSignoff: null,
+          confirmationSheets: [],
+          lineItems: [
+            {
+              id: 'line-1',
+              product: { name: 'Split Rack' },
+              deliveryChallanLines: [],
+              // Same line, two vendor splits at different stages. The line is
+              // only as far along as its slowest vendor portion.
+              plmTrackers: [
+                {
+                  currentStage: PlmStage.DISPATCH,
+                  flowType: 'VENDOR',
+                  createdAt: new Date('2026-07-01T00:00:00Z'),
+                  kickoff: {
+                    meetingDate: new Date('2026-07-01T10:30:00Z'),
+                    status: 'COMPLETED',
+                  },
+                  events: [],
+                  productionCards: [],
+                },
+                {
+                  currentStage: PlmStage.RELEASE_TO_SCM,
+                  flowType: 'VENDOR',
+                  createdAt: new Date('2026-07-01T00:00:00Z'),
+                  kickoff: {
+                    meetingDate: new Date('2026-07-01T10:30:00Z'),
+                    status: 'COMPLETED',
+                  },
+                  events: [],
+                  productionCards: [],
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    };
+    const service = new CustomerOrderProgressService(prisma as never);
+    const response = await service.resolvePublic('opaque-token');
+    if ('requiresPassword' in response) {
+      throw new Error('Unexpected password challenge');
+    }
+    // Least-advanced split is at Release to SCM, so the whole line reads there
+    // — not at the further-along Dispatch split.
+    expect(response.lines[0].currentStage.label).toBe('Release to SCM');
+    expect(response.canSignoff).toBe(false);
   });
 });

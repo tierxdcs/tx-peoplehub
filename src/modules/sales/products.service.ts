@@ -148,7 +148,18 @@ export class ProductsService {
         'Only CEO/SuperAdmin or Finance may set target margin',
       );
     }
-    await this.findRawOrThrow(id);
+    const existingProduct = await this.findRawOrThrow(id);
+    if (dto.sku !== undefined && dto.sku !== existingProduct.sku) {
+      const skuOwner = await this.prisma.product.findUnique({
+        where: { sku: dto.sku },
+        select: { id: true },
+      });
+      if (skuOwner) {
+        throw new ConflictException(
+          `A product with SKU ${dto.sku} already exists`,
+        );
+      }
+    }
     if (dto.itemId) await this.assertItemExists(dto.itemId);
     // A businessUnitId in the payload is a deliberate manual choice: validate it
     // (allowing an already-active unit) and clear the auto-assigned flag so
@@ -159,6 +170,7 @@ export class ProductsService {
     const updated = await this.prisma.product.update({
       where: { id },
       data: {
+        sku: dto.sku,
         name: dto.name,
         description: dto.description,
         unitPrice:

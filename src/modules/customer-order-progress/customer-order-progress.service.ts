@@ -295,7 +295,9 @@ export class CustomerOrderProgressService {
               },
               select: { id: true },
             },
-            plmTracker: {
+            // One tracker per vendor delivery split. The line is represented by
+            // its least-advanced split below.
+            plmTrackers: {
               select: {
                 currentStage: true,
                 flowType: true,
@@ -322,10 +324,24 @@ export class CustomerOrderProgressService {
     const promised = order.confirmationSheets[0]?.deliveryDate ?? null;
     const signoffSubmitted = !!order.customerSignoff;
     const lines = order.lineItems.map((line) => {
-      const tracker = line.plmTracker;
-      // Each line mirrors its own PLM flow (NPD = 9 stages, standard = 6).
-      const stageSeq = stagesForFlow(tracker?.flowType);
-      const kickoffCompleted = tracker?.kickoff.status === 'COMPLETED';
+      // A line now carries one tracker per vendor delivery split. Represent it
+      // by its LEAST-ADVANCED split — the line isn't done until every vendor
+      // portion is — comparing progress as a fraction of each split's own flow
+      // (NPD = 9 stages, standard = 6, plus the leading Project Kickoff stage).
+      const representative = line.plmTrackers
+        .map((t) => {
+          const seq = stagesForFlow(t.flowType);
+          const completed = t.kickoff.status === 'COMPLETED';
+          const index = completed
+            ? Math.max(1, seq.indexOf(t.currentStage) + 1)
+            : 0;
+          return { tracker: t, seq, completed, fraction: index / (seq.length + 1) };
+        })
+        .sort((a, b) => a.fraction - b.fraction)[0];
+      const tracker = representative?.tracker ?? null;
+      // Each line mirrors its representative split's PLM flow.
+      const stageSeq = representative?.seq ?? stagesForFlow(undefined);
+      const kickoffCompleted = representative?.completed ?? false;
       const delivered =
         signoffSubmitted || line.deliveryChallanLines.length > 0;
       const trackedIndex = tracker

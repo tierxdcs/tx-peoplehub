@@ -25,8 +25,9 @@ function makeService(opts: {
           ? null
           : {
               order: {
+                // Delivery types now live on per-vendor splits under each line.
                 lineItems: opts.deliveryTypes.map((deliveryType) => ({
-                  deliveryType,
+                  deliverySplits: [{ deliveryType }],
                 })),
               },
             },

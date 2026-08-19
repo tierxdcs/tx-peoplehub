@@ -70,7 +70,8 @@
       "Bash(awk '/^model Employee /{f=1} f&&/@unique/{print NR\": \"$0} f&&/^}/{exit}' prisma/schema.prisma)",
       "Bash(echo \"---BACKEND TSC EXIT: $?---\")",
       "Bash(echo \"---FRONTEND TSC EXIT: $?---\")",
-      "Bash(grep -n 'findFirst\\\\|findUnique\\\\|employee:\\\\s*{\\\\|employee: {\\\\|$transaction\\\\|txClient\\\\|const tx\\\\b' src/modules/employees/employees.service.spec.ts)"
+      "Bash(grep -n 'findFirst\\\\|findUnique\\\\|employee:\\\\s*{\\\\|employee: {\\\\|$transaction\\\\|txClient\\\\|const tx\\\\b' src/modules/employees/employees.service.spec.ts)",
+      "Bash(echo \"=== NEST BUILD EXIT: $? ===\")"
     ]
   }
 }

@@ -32,12 +32,16 @@ import {
   KickoffAttendeeEntity,
   KickoffConfirmationSheetEntity,
   KickoffDeliveryItemEntity,
+  KickoffDeliverySplitEntity,
   KickoffMilestoneEntity,
   KickoffMilestoneTemplateEntity,
   KickoffRiskEntity,
   ProjectKickoffEntity,
 } from './entities/project-kickoff.entity';
-import { UpdateDeliveryItemDto } from './dto/project-kickoff.dto';
+import {
+  DeliverySplitInputDto,
+  UpdateDeliveryItemDto,
+} from './dto/project-kickoff.dto';
 import {
   deriveProjectProgress,
   type ProjectProgressView,
@@ -600,7 +604,13 @@ export class ProjectKickoffService {
     const kickoff = await this.prisma.projectKickoff.findUnique({
       where: { id: kickoffId },
       select: {
-        order: { select: { lineItems: { select: { deliveryType: true } } } },
+        order: {
+          select: {
+            lineItems: {
+              select: { deliverySplits: { select: { deliveryType: true } } },
+            },
+          },
+        },
       },
     });
     if (!kickoff) throw new NotFoundException('Kickoff not found');
@@ -608,7 +618,8 @@ export class ProjectKickoffService {
     const flowTypes = [
       ...new Set(
         kickoff.order.lineItems
-          .map((li) => li.deliveryType)
+          .flatMap((li) => li.deliverySplits)
+          .map((s) => s.deliveryType)
           .filter((t): t is OrderLineDeliveryType => t !== null),
       ),
     ];
@@ -842,19 +853,26 @@ export class ProjectKickoffService {
 
   // ── Delivery classification (on the linked order's line items) ──────
   /**
-   * Set a line item's delivery type + vendor placeholder fields. Gated by
+   * Replace the full set of vendor delivery splits for one order line. Gated by
    * assertCanManage (Project Manager/SUPER_ADMIN, same as every other kickoff
    * edit). The line item must belong to THIS kickoff's order — we resolve the
    * kickoff's orderId and match on it, so a caller can't edit an arbitrary
    * order's lines.
    *
-   * Vendor-field rules on a type change:
+   * A line's quantity can be sourced from more than one vendor; each split is a
+   * portion tracked independently through PLM. Invariants enforced here:
+   *   - Split quantities must sum to EXACTLY the line quantity.
+   *   - A split with a live PLM tracker cannot be removed (that would
+   *     cascade-destroy the tracker) or have its delivery type changed.
+   *
+   * Per-split vendor rules on a type change (same as the former single-vendor
+   * path, now applied per split):
    *   - VENDOR   → cleared, ready for manual entry.
    *   - IN_HOUSE → vendorName auto-set to the fixed manufacturing partner
    *                (override), contact/lead-time cleared; all remain editable.
    *   - NPD      → cleared (no vendor).
-   * An explicit vendorName/contact/lead-time in the SAME request still wins
-   * (the manual-override path), applied after the type-driven defaults.
+   * An explicit vendorName/contact/lead-time on the same split still wins (the
+   * manual-override path), applied after the type-driven defaults.
    */
   async updateDeliveryItem(
     kickoffId: string,
@@ -867,8 +885,14 @@ export class ProjectKickoffService {
       where: { id: lineItemId, orderId: kickoff.orderId },
       select: {
         id: true,
-        deliveryType: true,
-        plmTracker: { select: { id: true } },
+        quantity: true,
+        deliverySplits: {
+          select: {
+            id: true,
+            deliveryType: true,
+            plmTracker: { select: { id: true } },
+          },
+        },
       },
     });
     if (!line) {
@@ -876,46 +900,130 @@ export class ProjectKickoffService {
         'Line item not found on this kickoff’s order',
       );
     }
-    if (
-      line.plmTracker &&
-      dto.deliveryType !== undefined &&
-      dto.deliveryType !== line.deliveryType
-    ) {
+
+    // The vendor portions must fully allocate the line quantity — exact decimal
+    // match, never a JS-float comparison.
+    const allocated = dto.splits.reduce(
+      (sum, s) => sum.plus(new Prisma.Decimal(s.quantity)),
+      new Prisma.Decimal(0),
+    );
+    if (!allocated.equals(line.quantity)) {
       throw new BadRequestException(
-        'Delivery type cannot change after PLM tracking has started',
+        `Split quantities must add up to exactly the line quantity (${line.quantity.toString()})`,
       );
     }
 
-    const data: Prisma.OrderLineItemUpdateInput = {};
-    if (dto.deliveryType !== undefined) {
-      data.deliveryType = dto.deliveryType;
-      if (dto.deliveryType === 'IN_HOUSE') {
-        // In-House always means the fixed manufacturing partner — override the
-        // name; drop stale contact/lead-time from any prior VENDOR entry.
-        data.vendorName = IN_HOUSE_VENDOR_NAME;
-        data.vendorContactInfo = null;
-        data.vendorExpectedLeadTime = null;
-        data.vendor = { disconnect: true };
-      } else if (dto.deliveryType === 'VENDOR') {
-        // Fresh manual entry — clear anything carried over (e.g. from IN_HOUSE).
-        data.vendorName = null;
-        data.vendorContactInfo = null;
-        data.vendorExpectedLeadTime = null;
-        data.vendor = { disconnect: true };
-      } else {
-        // NPD (or any future non-vendor type) — no vendor at all.
-        data.vendorName = null;
-        data.vendorContactInfo = null;
-        data.vendorExpectedLeadTime = null;
-        data.vendor = { disconnect: true };
+    const existingById = new Map(line.deliverySplits.map((s) => [s.id, s]));
+    const keptIds = new Set<string>();
+    for (const input of dto.splits) {
+      if (!input.id) continue;
+      const existing = existingById.get(input.id);
+      if (!existing) {
+        throw new BadRequestException(
+          'A referenced split does not belong to this line item',
+        );
+      }
+      keptIds.add(input.id);
+      if (
+        existing.plmTracker &&
+        input.deliveryType !== undefined &&
+        input.deliveryType !== existing.deliveryType
+      ) {
+        throw new BadRequestException(
+          'Delivery type cannot change after PLM tracking has started',
+        );
       }
     }
-    if (dto.vendorId !== undefined) {
-      if (dto.vendorId === null) {
-        data.vendor = { disconnect: true };
+    // Removing a split that already has a PLM tracker would cascade-destroy the
+    // tracker + its events/cards — refuse it.
+    const removed = line.deliverySplits.filter((s) => !keptIds.has(s.id));
+    if (removed.some((s) => s.plmTracker)) {
+      throw new BadRequestException(
+        'A vendor split with PLM tracking in progress cannot be removed',
+      );
+    }
+
+    // Resolve vendor lookups (async, approval-gated) before opening the tx.
+    const resolved = await Promise.all(
+      dto.splits.map((input) => this.resolveSplitData(input)),
+    );
+
+    await this.prisma.$transaction(async (tx) => {
+      if (removed.length > 0) {
+        await tx.orderLineDeliverySplit.deleteMany({
+          where: { id: { in: removed.map((s) => s.id) } },
+        });
+      }
+      for (let i = 0; i < dto.splits.length; i++) {
+        const input = dto.splits[i];
+        const data = resolved[i];
+        if (input.id) {
+          await tx.orderLineDeliverySplit.update({
+            where: { id: input.id },
+            data,
+          });
+        } else {
+          await tx.orderLineDeliverySplit.create({
+            data: { ...data, orderLineId: line.id },
+          });
+        }
+      }
+    });
+
+    await this.plm.provisionForKickoff(kickoffId);
+
+    const refreshed = await this.prisma.orderLineItem.findUniqueOrThrow({
+      where: { id: lineItemId },
+      include: {
+        product: { select: { name: true, sku: true } },
+        deliverySplits: {
+          orderBy: { createdAt: 'asc' },
+          include: { plmTracker: { select: { id: true } } },
+        },
+      },
+    });
+    return this.toDeliveryItem(refreshed);
+  }
+
+  /**
+   * Build the persisted column values for one split input, applying the
+   * type-driven vendor defaults then the explicit manual overrides. `vendorId`
+   * is written as a scalar FK (works for both create and update, unlike the
+   * relation connect/disconnect form).
+   */
+  private async resolveSplitData(input: DeliverySplitInputDto): Promise<{
+    quantity: Prisma.Decimal;
+    deliveryType?: OrderLineDeliveryType | null;
+    vendorId?: string | null;
+    vendorName?: string | null;
+    vendorContactInfo?: string | null;
+    vendorExpectedLeadTime?: string | null;
+  }> {
+    const data: {
+      quantity: Prisma.Decimal;
+      deliveryType?: OrderLineDeliveryType | null;
+      vendorId?: string | null;
+      vendorName?: string | null;
+      vendorContactInfo?: string | null;
+      vendorExpectedLeadTime?: string | null;
+    } = { quantity: new Prisma.Decimal(input.quantity) };
+
+    if (input.deliveryType !== undefined) {
+      data.deliveryType = input.deliveryType;
+      // In-House pins the fixed manufacturing partner; VENDOR/NPD clear any
+      // vendor carried over from a prior type. Contact/lead-time always reset.
+      data.vendorName =
+        input.deliveryType === 'IN_HOUSE' ? IN_HOUSE_VENDOR_NAME : null;
+      data.vendorContactInfo = null;
+      data.vendorExpectedLeadTime = null;
+      data.vendorId = null;
+    }
+    if (input.vendorId !== undefined) {
+      if (input.vendorId === null) {
+        data.vendorId = null;
       } else {
         const vendor = await this.prisma.vendor.findUnique({
-          where: { id: dto.vendorId },
+          where: { id: input.vendorId },
           select: { id: true, companyName: true, status: true },
         });
         if (
@@ -926,25 +1034,18 @@ export class ProjectKickoffService {
             'Select an approved Vendor Master record',
           );
         }
-        data.vendor = { connect: { id: vendor.id } };
-        if (dto.vendorName === undefined) data.vendorName = vendor.companyName;
+        data.vendorId = vendor.id;
+        if (input.vendorName === undefined) data.vendorName = vendor.companyName;
       }
     }
-    // Explicit fields in the same request win over the type-driven default
-    // (manual override, e.g. an In-House line at a different internal facility).
-    if (dto.vendorName !== undefined) data.vendorName = dto.vendorName;
-    if (dto.vendorContactInfo !== undefined)
-      data.vendorContactInfo = dto.vendorContactInfo;
-    if (dto.vendorExpectedLeadTime !== undefined)
-      data.vendorExpectedLeadTime = dto.vendorExpectedLeadTime;
+    // Explicit fields win over the type-driven default (manual override).
+    if (input.vendorName !== undefined) data.vendorName = input.vendorName;
+    if (input.vendorContactInfo !== undefined)
+      data.vendorContactInfo = input.vendorContactInfo;
+    if (input.vendorExpectedLeadTime !== undefined)
+      data.vendorExpectedLeadTime = input.vendorExpectedLeadTime;
 
-    const updated = await this.prisma.orderLineItem.update({
-      where: { id: lineItemId },
-      data,
-      include: { product: { select: { name: true, sku: true } } },
-    });
-    await this.plm.provisionForKickoff(kickoffId);
-    return this.toDeliveryItem(updated);
+    return data;
   }
 
   // ── internals ──────────────────────────────────────────────────────
@@ -995,7 +1096,13 @@ export class ProjectKickoffService {
           },
           lineItems: {
             orderBy: { createdAt: 'asc' as const },
-            include: { product: { select: { name: true, sku: true } } },
+            include: {
+              product: { select: { name: true, sku: true } },
+              deliverySplits: {
+                orderBy: { createdAt: 'asc' as const },
+                include: { plmTracker: { select: { id: true } } },
+              },
+            },
           },
         },
       },
@@ -1075,11 +1182,19 @@ export class ProjectKickoffService {
       productName: li.product?.name ?? li.adHocProductName ?? 'Unnamed product',
       productSku: li.product?.sku ?? 'Ad-hoc',
       quantity: li.quantity.toString(),
-      deliveryType: li.deliveryType,
-      vendorId: li.vendorId,
-      vendorName: li.vendorName,
-      vendorContactInfo: li.vendorContactInfo,
-      vendorExpectedLeadTime: li.vendorExpectedLeadTime,
+      splits: li.deliverySplits.map(
+        (s) =>
+          new KickoffDeliverySplitEntity({
+            id: s.id,
+            quantity: s.quantity.toString(),
+            deliveryType: s.deliveryType,
+            vendorId: s.vendorId,
+            vendorName: s.vendorName,
+            vendorContactInfo: s.vendorContactInfo,
+            vendorExpectedLeadTime: s.vendorExpectedLeadTime,
+            hasPlmTracker: s.plmTracker !== null,
+          }),
+      ),
     });
   }
 
@@ -1195,7 +1310,12 @@ type RiskRow = Prisma.KickoffRiskGetPayload<{
   include: { owner: { select: { firstName: true; lastName: true } } };
 }>;
 type DeliveryItemRow = Prisma.OrderLineItemGetPayload<{
-  include: { product: { select: { name: true; sku: true } } };
+  include: {
+    product: { select: { name: true; sku: true } };
+    deliverySplits: {
+      include: { plmTracker: { select: { id: true } } };
+    };
+  };
 }>;
 type KickoffRow = Prisma.ProjectKickoffGetPayload<{
   include: {
@@ -1245,7 +1365,12 @@ type KickoffRow = Prisma.ProjectKickoffGetPayload<{
           };
         };
         lineItems: {
-          include: { product: { select: { name: true; sku: true } } };
+          include: {
+            product: { select: { name: true; sku: true } };
+            deliverySplits: {
+              include: { plmTracker: { select: { id: true } } };
+            };
+          };
         };
       };
     };

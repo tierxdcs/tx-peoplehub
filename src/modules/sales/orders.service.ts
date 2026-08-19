@@ -41,9 +41,10 @@ const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 
 type OrderLineItemWithProduct = OrderLineItem & {
   product: { name: string; sku: string } | null;
-  // Present only when the query included plmTracker (findOne). Lets the entity
-  // report whether a line carries in-progress PLM/design work.
-  plmTracker?: { id: string } | null;
+  // Present only when the query included plmTrackers (findOne). A line now has
+  // one tracker per delivery split, so this is an array; the entity reports
+  // whether ANY split carries in-progress PLM/design work.
+  plmTrackers?: { id: string }[];
 };
 type OrderWithLines = Order & {
   lineItems: OrderLineItemWithProduct[];
@@ -362,7 +363,7 @@ export class OrdersService {
     const order = await this.prisma.order.findUnique({
       where: { id: dto.orderId },
       include: {
-        lineItems: { include: { plmTracker: { select: { id: true } } } },
+        lineItems: { include: { plmTrackers: { select: { id: true } } } },
       },
     });
     if (!order) {
@@ -403,18 +404,18 @@ export class OrdersService {
     );
     const confirmedSet = new Set(confirmedProductIds);
     // Order lines the promoter dropped from the confirmed set are reconciled by
-    // whether they carry PLM/design work:
-    //   - with a tracker → KEPT untouched (deleting the line would
-    //     onDelete: Cascade-destroy the tracker + its events/cards). It stays
-    //     at its existing zero pricing — an R&D artifact carried forward. This
-    //     is why an internal-only product (never in the bid, so unpriceable)
-    //     with design work is still promotable: it is kept, not removed.
-    //   - without a tracker → deleted (the customer isn't ordering it and no
-    //     design work would be lost).
+    // whether any of their delivery splits carry PLM/design work:
+    //   - any split with a tracker → line KEPT untouched (deleting it would
+    //     onDelete: Cascade-destroy the split's tracker + its events/cards). It
+    //     stays at its existing zero pricing — an R&D artifact carried forward.
+    //     This is why an internal-only product (never in the bid, so
+    //     unpriceable) with design work is still promotable: it is kept.
+    //   - no split with a tracker → deleted (the customer isn't ordering it and
+    //     no design work would be lost).
     const dropped = order.lineItems.filter(
       (li) => !li.productId || !confirmedSet.has(li.productId),
     );
-    const toDelete = dropped.filter((li) => li.plmTracker === null);
+    const toDelete = dropped.filter((li) => (li.plmTrackers?.length ?? 0) === 0);
 
     const amcTotal = (bid.amcCharges ?? []).reduce(
       (sum, charge) => sum.plus(charge.amount),
@@ -628,8 +629,9 @@ export class OrdersService {
           include: {
             product: true,
             // Drives OrderLineItemEntity.hasPlmTracker — used by the bid
-            // promotion reconciliation UI to lock lines with design work.
-            plmTracker: { select: { id: true } },
+            // promotion reconciliation UI to lock lines with design work. A line
+            // has one tracker per delivery split, so this is an array.
+            plmTrackers: { select: { id: true } },
           },
         },
         customer: { select: { name: true } },
@@ -653,6 +655,7 @@ export class OrdersService {
       customerId: order.customerId,
       customerName: order.customer?.name ?? null,
       status: order.status,
+      finalQcStatus: order.finalQcStatus,
       totalAmount: order.totalAmount.toString(),
       productionRunId: order.productionRunId,
       shipmentId: order.shipmentId,
@@ -684,10 +687,13 @@ export class OrdersService {
             vendorName: li.vendorName,
             vendorContactInfo: li.vendorContactInfo,
             vendorExpectedLeadTime: li.vendorExpectedLeadTime,
-            // Only populated when the fetch included plmTracker (findOne);
-            // undefined elsewhere so list paths stay cheap.
+            // Only populated when the fetch included plmTrackers (findOne);
+            // undefined elsewhere so list paths stay cheap. True when any of the
+            // line's delivery splits has a tracker.
             hasPlmTracker:
-              li.plmTracker === undefined ? undefined : li.plmTracker !== null,
+              li.plmTrackers === undefined
+                ? undefined
+                : li.plmTrackers.length > 0,
           }),
       ),
       createdAt: order.createdAt,

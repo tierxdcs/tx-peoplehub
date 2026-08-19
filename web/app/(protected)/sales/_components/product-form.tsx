@@ -152,8 +152,8 @@ export function ProductForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!name || !unitOfMeasure || unitPrice === '') {
-      setError('Name, unit price and unit of measure are required');
+    if (!sku.trim() || !name || !unitOfMeasure || unitPrice === '') {
+      setError('SKU, name, unit price and unit of measure are required');
       return;
     }
     if (!businessUnitId) {
@@ -167,6 +167,7 @@ export function ProductForm({
         saved = await apiFetch<Product>(`/products/${product!.id}`, {
           method: 'PATCH',
           body: JSON.stringify({
+            sku: sku.trim(),
             name,
             description: description || undefined,
             unitPrice: Number(unitPrice),
@@ -193,7 +194,7 @@ export function ProductForm({
         saved = await apiFetch<Product>('/products', {
           method: 'POST',
           body: JSON.stringify({
-            sku,
+            sku: sku.trim(),
             name,
             description: description || undefined,
             unitPrice: Number(unitPrice),
@@ -266,17 +267,20 @@ export function ProductForm({
           </button>
         </div>
         <div className="px-5 pt-4">
-          {!isEdit && (
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ display: 'block', marginBottom: 4 }}>SKU</label>
-              <input
-                value={sku}
-                onChange={(e) => setSku(e.target.value)}
-                required
-                style={fieldStyle}
-              />
-            </div>
-          )}
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'block', marginBottom: 4 }}>SKU</label>
+            <input
+              value={sku}
+              onChange={(e) => setSku(e.target.value)}
+              required
+              style={fieldStyle}
+            />
+            {isEdit && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                SKU must be unique across the product catalog.
+              </p>
+            )}
+          </div>
           <div style={{ marginBottom: 10 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>Name</label>
             <input

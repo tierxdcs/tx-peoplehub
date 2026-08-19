@@ -13,6 +13,13 @@ export interface MyCard {
   isOverdue: boolean;
 }
 
+export type TaskFilter =
+  | 'all'
+  | 'assigned'
+  | 'completed'
+  | 'due-soon'
+  | 'overdue';
+
 const DAY_MS = 86_400_000;
 
 function daysUntil(dueDate: string, now: Date): number {
@@ -28,17 +35,35 @@ function daysUntil(dueDate: string, now: Date): number {
 
 /** Dashboard totals derived solely from the server's done-list classification. */
 export function taskStats(cards: MyCard[], now: Date) {
-  const assigned = cards.filter((card) => !card.isDone);
   return {
-    assigned: assigned.length,
-    completed: cards.filter((card) => card.isDone).length,
-    dueSoon: assigned.filter((card) => {
-      if (!card.dueDate || card.isOverdue) return false;
-      const days = daysUntil(card.dueDate, now);
-      return days >= 0 && days <= 3;
-    }).length,
-    overdue: assigned.filter((card) => card.isOverdue).length,
+    assigned: filterMyCards(cards, 'assigned', now).length,
+    completed: filterMyCards(cards, 'completed', now).length,
+    dueSoon: filterMyCards(cards, 'due-soon', now).length,
+    overdue: filterMyCards(cards, 'overdue', now).length,
   };
+}
+
+/**
+ * Canonical category logic shared by the dashboard counters and My Tasks.
+ * Keeping this in one function prevents a filter count from drifting from the
+ * stat card that links to it.
+ */
+export function filterMyCards(
+  cards: MyCard[],
+  filter: TaskFilter,
+  now: Date,
+): MyCard[] {
+  if (filter === 'all') return cards;
+  if (filter === 'completed') return cards.filter((card) => card.isDone);
+
+  const assigned = cards.filter((card) => !card.isDone);
+  if (filter === 'assigned') return assigned;
+  if (filter === 'overdue') return assigned.filter((card) => card.isOverdue);
+  return assigned.filter((card) => {
+    if (!card.dueDate || card.isOverdue) return false;
+    const days = daysUntil(card.dueDate, now);
+    return days >= 0 && days <= 3;
+  });
 }
 
 /** Active cards assigned to the current user, across all boards. */

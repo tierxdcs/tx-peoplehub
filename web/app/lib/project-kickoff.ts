@@ -66,16 +66,30 @@ export interface KickoffRisk {
 
 export type DeliveryType = 'NPD' | 'IN_HOUSE' | 'VENDOR';
 
-export interface KickoffDeliveryItem {
+/**
+ * One vendor portion of an order line: its share of the line quantity, delivery
+ * classification, and vendor. A single-vendor line has one split holding the
+ * whole quantity; splitting across vendors yields several that must sum to it.
+ * Each split is tracked independently through PLM once the kickoff completes —
+ * `hasPlmTracker` then locks its delivery type and blocks removal.
+ */
+export interface KickoffDeliverySplit {
   id: string;
-  productName: string;
-  productSku: string;
   quantity: string;
   deliveryType: DeliveryType | null;
   vendorId: string | null;
   vendorName: string | null;
   vendorContactInfo: string | null;
   vendorExpectedLeadTime: string | null;
+  hasPlmTracker: boolean;
+}
+
+export interface KickoffDeliveryItem {
+  id: string;
+  productName: string;
+  productSku: string;
+  quantity: string;
+  splits: KickoffDeliverySplit[];
 }
 
 export interface ProjectKickoff {
@@ -362,12 +376,25 @@ export function removeRisk(kickoffId: string, riskId: string) {
 }
 
 // ── Delivery classification (per order line item) ────────────────────
-export interface UpdateDeliveryItemInput {
-  deliveryType?: DeliveryType;
+/**
+ * One vendor portion in an update payload. `id` present ⇒ update that existing
+ * split; absent ⇒ create a new one. Splits omitted from the array are removed
+ * (server refuses removing/retyping a split that already has a PLM tracker).
+ * `quantity` is required on every split and the set must sum to exactly the
+ * line quantity.
+ */
+export interface DeliverySplitInput {
+  id?: string;
+  quantity: number;
+  deliveryType?: DeliveryType | null;
   vendorId?: string | null;
   vendorName?: string | null;
   vendorContactInfo?: string | null;
   vendorExpectedLeadTime?: string | null;
+}
+
+export interface UpdateDeliveryItemInput {
+  splits: DeliverySplitInput[];
 }
 
 export function updateDeliveryItem(

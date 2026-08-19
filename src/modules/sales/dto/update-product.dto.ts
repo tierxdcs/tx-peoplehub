@@ -11,6 +11,12 @@ import {
 } from 'class-validator';
 
 export class UpdateProductDto {
+  @ApiPropertyOptional({ example: 'LC25-500' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  sku?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

@@ -112,9 +112,10 @@ export class DeliveryChallanService {
     });
     if (!order) throw new NotFoundException('Order not found');
     if (order.finalQcStatus === OrderFinalQcStatus.CLEARED) {
-      throw new BadRequestException(
-        'Final QC is already cleared for this order',
-      );
+      // Idempotent success: a stale client may still display PENDING after a
+      // previous request succeeded. Returning the current state lets it reload
+      // instead of trapping the user behind an "already cleared" error.
+      return { orderId, finalQcStatus: OrderFinalQcStatus.CLEARED };
     }
     await this.prisma.order.update({
       where: { id: orderId },

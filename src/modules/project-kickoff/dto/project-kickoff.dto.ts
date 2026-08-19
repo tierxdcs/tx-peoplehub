@@ -9,15 +9,19 @@ import {
   OrderLineDeliveryType,
 } from '@prisma/client';
 import {
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   MinLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 export class CreateKickoffDto {
@@ -301,7 +305,28 @@ export class UpdateRiskDto {
 }
 
 // ── Delivery classification (per order line item) ────────────────────
-export class UpdateDeliveryItemDto {
+/**
+ * One vendor portion of an order line. A single-vendor line has one split
+ * holding the whole quantity; splitting across vendors adds more, and their
+ * quantities must sum to exactly the line quantity (enforced server-side).
+ */
+export class DeliverySplitInputDto {
+  @ApiPropertyOptional({
+    description:
+      'Existing split id — present updates that split in place (preserving its PLM tracker); absent creates a new split.',
+  })
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
+  @ApiProperty({
+    example: 100,
+    description: 'This vendor portion of the line quantity (up to 2 decimals).',
+  })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  quantity!: number;
+
   @ApiPropertyOptional({ enum: OrderLineDeliveryType, nullable: true })
   @IsOptional()
   @IsEnum(OrderLineDeliveryType)
@@ -333,4 +358,17 @@ export class UpdateDeliveryItemDto {
   @IsOptional()
   @IsString()
   vendorExpectedLeadTime?: string | null;
+}
+
+export class UpdateDeliveryItemDto {
+  @ApiProperty({
+    type: [DeliverySplitInputDto],
+    description:
+      'The full set of vendor splits for this line. Quantities must sum to exactly the line quantity. Splits with a live PLM tracker cannot be removed or re-typed.',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => DeliverySplitInputDto)
+  splits!: DeliverySplitInputDto[];
 }

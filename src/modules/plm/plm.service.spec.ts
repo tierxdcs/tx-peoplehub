@@ -77,14 +77,32 @@ describe('PlmService', () => {
       order: {
         ownerId: 'order-owner',
         lineItems: [
-          { id: 'npd', deliveryType: 'NPD', vendorId: null, vendorName: null },
+          {
+            id: 'npd',
+            deliverySplits: [
+              {
+                id: 'npd-s1',
+                deliveryType: 'NPD',
+                vendorId: null,
+                vendorName: null,
+              },
+            ],
+          },
           {
             id: 'internal',
-            deliveryType: 'IN_HOUSE',
-            vendorId: null,
-            vendorName: null,
+            deliverySplits: [
+              {
+                id: 'internal-s1',
+                deliveryType: 'IN_HOUSE',
+                vendorId: null,
+                vendorName: null,
+              },
+            ],
           },
-          { id: 'unclassified', deliveryType: null },
+          {
+            id: 'unclassified',
+            deliverySplits: [{ id: 'unclass-s1', deliveryType: null }],
+          },
         ],
       },
     });
@@ -98,7 +116,11 @@ describe('PlmService', () => {
     expect(prisma.plmTracker.upsert).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
+        // Anchored on the split, with the line id kept denormalized.
+        where: { splitId: 'npd-s1' },
         create: expect.objectContaining({
+          splitId: 'npd-s1',
+          orderLineId: 'npd',
           orderId: 'order-1',
           ownerId: 'order-owner',
           currentStage: PlmStage.DESIGN,
@@ -108,8 +130,71 @@ describe('PlmService', () => {
     expect(prisma.plmTracker.upsert).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
+        where: { splitId: 'internal-s1' },
         create: expect.objectContaining({
           currentStage: PlmStage.RELEASE_TO_SCM,
+        }),
+      }),
+    );
+  });
+
+  it('provisions one tracker per split when a line is sourced from multiple vendors', async () => {
+    const { service, prisma } = setup();
+    prisma.projectKickoff.findUnique.mockResolvedValue({
+      id: 'kickoff-1',
+      orderId: 'order-1',
+      kanbanBoardId: 'board-1',
+      status: 'COMPLETED',
+      order: {
+        ownerId: 'order-owner',
+        lineItems: [
+          {
+            id: 'split-line',
+            deliverySplits: [
+              {
+                id: 'split-a',
+                deliveryType: 'VENDOR',
+                vendorId: 'vendor-a',
+                vendorName: null,
+              },
+              {
+                id: 'split-b',
+                deliveryType: 'VENDOR',
+                vendorId: 'vendor-b',
+                vendorName: null,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    prisma.plmTracker.upsert.mockResolvedValue({
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+    });
+
+    await expect(service.provisionForKickoff('kickoff-1')).resolves.toBe(2);
+    expect(prisma.plmTracker.upsert).toHaveBeenCalledTimes(2);
+    // Both trackers share the line id but anchor on their own split + vendor.
+    expect(prisma.plmTracker.upsert).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: { splitId: 'split-a' },
+        create: expect.objectContaining({
+          splitId: 'split-a',
+          orderLineId: 'split-line',
+          vendorId: 'vendor-a',
+        }),
+      }),
+    );
+    expect(prisma.plmTracker.upsert).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { splitId: 'split-b' },
+        create: expect.objectContaining({
+          splitId: 'split-b',
+          orderLineId: 'split-line',
+          vendorId: 'vendor-b',
         }),
       }),
     );
@@ -127,9 +212,14 @@ describe('PlmService', () => {
         lineItems: [
           {
             id: 'vendor-line',
-            deliveryType: 'VENDOR',
-            vendorId: 'vendor-7',
-            vendorName: null,
+            deliverySplits: [
+              {
+                id: 'vendor-split',
+                deliveryType: 'VENDOR',
+                vendorId: 'vendor-7',
+                vendorName: null,
+              },
+            ],
           },
         ],
       },
@@ -143,7 +233,7 @@ describe('PlmService', () => {
 
     expect(prisma.plmTracker.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { orderLineId: 'vendor-line' },
+        where: { splitId: 'vendor-split' },
         update: { vendorId: 'vendor-7' },
         create: expect.objectContaining({ vendorId: 'vendor-7' }),
       }),
@@ -162,9 +252,14 @@ describe('PlmService', () => {
         lineItems: [
           {
             id: 'vendor-line',
-            deliveryType: 'VENDOR',
-            vendorId: null,
-            vendorName: null,
+            deliverySplits: [
+              {
+                id: 'vendor-split',
+                deliveryType: 'VENDOR',
+                vendorId: null,
+                vendorName: null,
+              },
+            ],
           },
         ],
       },

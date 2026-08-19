@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
-import { OrderType, Role } from '@prisma/client';
+import { OrderType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ConfirmationSheetsService } from '../sales/confirmation-sheets.service';
@@ -141,5 +141,269 @@ describe('ProjectKickoffService — internal-order gate', () => {
         'o-int',
       );
     });
+  });
+});
+
+describe('ProjectKickoffService — delivery splits', () => {
+  let service: ProjectKickoffService;
+  let prisma: any;
+  let access: any;
+  let plm: { provisionForKickoff: jest.Mock };
+  let tx: any;
+
+  const pm: AuthenticatedUser = {
+    id: 'emp-pm',
+    email: 'pm@x.com',
+    role: Role.EMPLOYEE,
+    verticalId: 'v-eng',
+  };
+
+  /** A refreshed line for the post-save read; its shape drives toDeliveryItem. */
+  function refreshedLine(splits: any[] = []) {
+    return {
+      id: 'line-1',
+      product: { name: 'Platform Emergency Kiosk', sku: 'PEK-1' },
+      adHocProductName: null,
+      quantity: new Prisma.Decimal(212),
+      deliverySplits: splits,
+    };
+  }
+
+  beforeEach(async () => {
+    tx = {
+      orderLineDeliverySplit: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({}),
+      },
+    };
+    prisma = {
+      orderLineItem: {
+        findFirst: jest.fn(),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(refreshedLine()),
+      },
+      vendor: { findUnique: jest.fn() },
+      $transaction: jest.fn().mockImplementation((cb: any) => cb(tx)),
+    };
+    access = {
+      assertCanManage: jest
+        .fn()
+        .mockResolvedValue({ id: 'ko-1', orderId: 'order-1' }),
+    };
+    plm = { provisionForKickoff: jest.fn().mockResolvedValue(1) };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ProjectKickoffService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: ProjectKickoffAccessService, useValue: access },
+        { provide: ConfirmationSheetsService, useValue: {} },
+        { provide: KanbanBoardsService, useValue: {} },
+        { provide: PlmService, useValue: plm },
+      ],
+    }).compile();
+
+    service = module.get(ProjectKickoffService);
+  });
+
+  it('rejects a split set that does not fully allocate the line quantity', async () => {
+    prisma.orderLineItem.findFirst.mockResolvedValue({
+      id: 'line-1',
+      quantity: new Prisma.Decimal(212),
+      deliverySplits: [{ id: 's1', deliveryType: null, plmTracker: null }],
+    });
+
+    await expect(
+      service.updateDeliveryItem(
+        'ko-1',
+        'line-1',
+        { splits: [{ id: 's1', quantity: 100 }, { quantity: 50 }] } as any,
+        pm,
+      ),
+    ).rejects.toThrow(/add up to exactly the line quantity \(212\)/);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(plm.provisionForKickoff).not.toHaveBeenCalled();
+  });
+
+  it('reconciles splits: updates a kept split, creates a new one, deletes the missing one', async () => {
+    prisma.orderLineItem.findFirst.mockResolvedValue({
+      id: 'line-1',
+      quantity: new Prisma.Decimal(212),
+      deliverySplits: [
+        { id: 's1', deliveryType: 'VENDOR', plmTracker: null },
+        { id: 's2', deliveryType: 'VENDOR', plmTracker: null },
+      ],
+    });
+
+    await service.updateDeliveryItem(
+      'ko-1',
+      'line-1',
+      {
+        splits: [
+          {
+            id: 's1',
+            quantity: 100,
+            deliveryType: 'VENDOR',
+            vendorName: 'Vendor A',
+          },
+          { quantity: 112, deliveryType: 'VENDOR', vendorName: 'Vendor B' },
+        ],
+      } as any,
+      pm,
+    );
+
+    // s2 dropped from the payload → deleted; s1 updated; one new split created.
+    expect(tx.orderLineDeliverySplit.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['s2'] } },
+    });
+    expect(tx.orderLineDeliverySplit.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 's1' } }),
+    );
+    expect(tx.orderLineDeliverySplit.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ orderLineId: 'line-1' }),
+      }),
+    );
+    // Provisioning fires so any newly-typed split gets its own tracker.
+    expect(plm.provisionForKickoff).toHaveBeenCalledWith('ko-1');
+  });
+
+  it('refuses to remove a split that already has a PLM tracker', async () => {
+    prisma.orderLineItem.findFirst.mockResolvedValue({
+      id: 'line-1',
+      quantity: new Prisma.Decimal(100),
+      deliverySplits: [
+        { id: 's1', deliveryType: 'VENDOR', plmTracker: { id: 'plm-1' } },
+      ],
+    });
+
+    await expect(
+      service.updateDeliveryItem(
+        'ko-1',
+        'line-1',
+        // No id on the sole split → it would remove the tracked s1.
+        { splits: [{ quantity: 100, deliveryType: 'VENDOR' }] } as any,
+        pm,
+      ),
+    ).rejects.toThrow(/cannot be removed/);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('refuses to change the delivery type of a tracked split', async () => {
+    prisma.orderLineItem.findFirst.mockResolvedValue({
+      id: 'line-1',
+      quantity: new Prisma.Decimal(100),
+      deliverySplits: [
+        { id: 's1', deliveryType: 'VENDOR', plmTracker: { id: 'plm-1' } },
+      ],
+    });
+
+    await expect(
+      service.updateDeliveryItem(
+        'ko-1',
+        'line-1',
+        {
+          splits: [{ id: 's1', quantity: 100, deliveryType: 'IN_HOUSE' }],
+        } as any,
+        pm,
+      ),
+    ).rejects.toThrow(/Delivery type cannot change/);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('auto-fills the fixed manufacturing partner when a split is set to IN_HOUSE', async () => {
+    prisma.orderLineItem.findFirst.mockResolvedValue({
+      id: 'line-1',
+      quantity: new Prisma.Decimal(100),
+      deliverySplits: [{ id: 's1', deliveryType: null, plmTracker: null }],
+    });
+
+    await service.updateDeliveryItem(
+      'ko-1',
+      'line-1',
+      { splits: [{ id: 's1', quantity: 100, deliveryType: 'IN_HOUSE' }] } as any,
+      pm,
+    );
+
+    expect(tx.orderLineDeliverySplit.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 's1' },
+        data: expect.objectContaining({
+          deliveryType: 'IN_HOUSE',
+          vendorName: 'Balaji MetalTech, Bengaluru',
+          vendorId: null,
+        }),
+      }),
+    );
+  });
+
+  it('rejects a split pointed at a non-approved Vendor Master record', async () => {
+    prisma.orderLineItem.findFirst.mockResolvedValue({
+      id: 'line-1',
+      quantity: new Prisma.Decimal(100),
+      deliverySplits: [{ id: 's1', deliveryType: 'VENDOR', plmTracker: null }],
+    });
+    prisma.vendor.findUnique.mockResolvedValue({
+      id: 'vendor-7',
+      companyName: 'Vendor Seven',
+      status: 'PENDING',
+    });
+
+    await expect(
+      service.updateDeliveryItem(
+        'ko-1',
+        'line-1',
+        {
+          splits: [
+            {
+              id: 's1',
+              quantity: 100,
+              deliveryType: 'VENDOR',
+              vendorId: 'vendor-7',
+            },
+          ],
+        } as any,
+        pm,
+      ),
+    ).rejects.toThrow(/approved Vendor Master/);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('defaults vendorName from an approved Vendor Master when only vendorId is given', async () => {
+    prisma.orderLineItem.findFirst.mockResolvedValue({
+      id: 'line-1',
+      quantity: new Prisma.Decimal(100),
+      deliverySplits: [{ id: 's1', deliveryType: 'VENDOR', plmTracker: null }],
+    });
+    prisma.vendor.findUnique.mockResolvedValue({
+      id: 'vendor-7',
+      companyName: 'Vendor Seven',
+      status: 'APPROVED_PREFERRED',
+    });
+
+    await service.updateDeliveryItem(
+      'ko-1',
+      'line-1',
+      {
+        splits: [
+          {
+            id: 's1',
+            quantity: 100,
+            deliveryType: 'VENDOR',
+            vendorId: 'vendor-7',
+          },
+        ],
+      } as any,
+      pm,
+    );
+
+    expect(tx.orderLineDeliverySplit.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          vendorId: 'vendor-7',
+          vendorName: 'Vendor Seven',
+        }),
+      }),
+    );
   });
 });

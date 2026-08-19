@@ -9,21 +9,45 @@ import {
 } from '@prisma/client';
 
 /**
- * A line item from the kickoff's linked Order, with its delivery
- * classification. Read from OrderLineItem — surfaced here so the kickoff UI can
- * assign NPD / In-House / Vendor per product without Sales-module access.
+ * One vendor portion of an order line: its share of the quantity, delivery
+ * classification, and vendor. A single-vendor line has one split holding the
+ * whole quantity; splitting across vendors yields several that sum to it. Each
+ * split is tracked independently through PLM once the kickoff completes.
  */
-export class KickoffDeliveryItemEntity {
+export class KickoffDeliverySplitEntity {
   @ApiProperty() id!: string;
-  @ApiProperty() productName!: string;
-  @ApiProperty() productSku!: string;
-  @ApiProperty() quantity!: string;
+  @ApiProperty({ description: 'This split’s share of the line quantity' })
+  quantity!: string;
   @ApiProperty({ enum: OrderLineDeliveryType, nullable: true })
   deliveryType!: OrderLineDeliveryType | null;
   @ApiProperty({ nullable: true }) vendorId!: string | null;
   @ApiProperty({ nullable: true }) vendorName!: string | null;
   @ApiProperty({ nullable: true }) vendorContactInfo!: string | null;
   @ApiProperty({ nullable: true }) vendorExpectedLeadTime!: string | null;
+  @ApiProperty({
+    description:
+      'True once a PLM tracker exists for this split — the UI then locks its delivery type and blocks removal.',
+  })
+  hasPlmTracker!: boolean;
+
+  constructor(p: Partial<KickoffDeliverySplitEntity>) {
+    Object.assign(this, p);
+  }
+}
+
+/**
+ * A line item from the kickoff's linked Order, with its per-vendor delivery
+ * splits. Read from OrderLineItem — surfaced here so the kickoff UI can assign
+ * NPD / In-House / Vendor and split the quantity across vendors per product
+ * without Sales-module access.
+ */
+export class KickoffDeliveryItemEntity {
+  @ApiProperty() id!: string;
+  @ApiProperty() productName!: string;
+  @ApiProperty() productSku!: string;
+  @ApiProperty() quantity!: string;
+  @ApiProperty({ type: [KickoffDeliverySplitEntity] })
+  splits!: KickoffDeliverySplitEntity[];
 
   constructor(p: Partial<KickoffDeliveryItemEntity>) {
     Object.assign(this, p);

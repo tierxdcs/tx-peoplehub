@@ -1656,10 +1656,17 @@ model OrderLineItem {
   vendorId               String?
   vendor                 Vendor?                @relation("OrderLineVendor", fields: [vendorId], references: [id], onDelete: SetNull)
 
-  plmTracker     PlmTracker?
+  /// One PLM tracker per delivery split (a line sourced from N vendors has N
+  /// trackers). Was a to-one relation back when a line mapped to exactly one
+  /// vendor/tracker.
+  plmTrackers    PlmTracker[]
   qmsInspections QmsInspection[]
 
   deliveryChallanLines DeliveryChallanLine[]
+
+  /// Per-vendor delivery splits. A line has one split (the whole quantity) for
+  /// a single-vendor classification, or several that must sum to `quantity`.
+  deliverySplits OrderLineDeliverySplit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1667,6 +1674,32 @@ model OrderLineItem {
   @@index([orderId])
   @@index([vendorId])
   @@map("order_line_items")
+}
+
+/// A portion of an OrderLineItem's quantity sourced from one vendor, classified
+/// with its own delivery type and tracked independently through PLM. The split
+/// quantities under a line must sum to exactly the line's `quantity`. This is a
+/// sourcing/tracking sub-structure only — the commercial line (price, invoicing)
+/// is never split. Carries the vendor placeholder fields that used to live flat
+/// on OrderLineItem (see the vendorName note there for the Vendor Master path).
+model OrderLineDeliverySplit {
+  id                     String                 @id @default(uuid())
+  orderLineId            String
+  orderLine              OrderLineItem          @relation(fields: [orderLineId], references: [id], onDelete: Cascade)
+  quantity               Decimal                @db.Decimal(14, 2)
+  deliveryType           OrderLineDeliveryType?
+  vendorName             String?
+  vendorContactInfo      String?
+  vendorExpectedLeadTime String?
+  vendorId               String?
+  vendor                 Vendor?                @relation("DeliverySplitVendor", fields: [vendorId], references: [id], onDelete: SetNull)
+  plmTracker             PlmTracker?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  @@index([orderLineId])
+  @@index([vendorId])
+  @@map("order_line_delivery_splits")
 }
 
 /// Revocable, optionally password-protected public view of an Order's
@@ -3248,7 +3281,14 @@ enum PlmVendorUpdateType {
 
 model PlmTracker {
   id                  String                  @id @default(uuid())
-  orderLineId         String                  @unique
+  /// The delivery split this tracker follows — the true 1:1 anchor. Each split
+  /// (vendor portion) has its own tracker.
+  splitId             String                  @unique
+  split               OrderLineDeliverySplit  @relation(fields: [splitId], references: [id], onDelete: Cascade)
+  /// Denormalized from `split.orderLineId`. No longer unique (a line has one
+  /// tracker per split), but kept so the line-level QC/Dispatch/Material-Planning
+  /// gates can read `tracker.orderLine.*` without traversing the split.
+  orderLineId         String
   orderLine           OrderLineItem           @relation(fields: [orderLineId], references: [id], onDelete: Cascade)
   orderId             String
   order               Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -3279,6 +3319,7 @@ model PlmTracker {
   createdAt           DateTime                @default(now())
   updatedAt           DateTime                @updatedAt
 
+  @@index([orderLineId])
   @@index([orderId])
   @@index([kickoffId])
   @@index([ownerId])
@@ -3436,6 +3477,7 @@ model Vendor {
   apPayments               AccountsPayablePayment[]
   rfqInvitees              RfqInvitee[]
   orderLines               OrderLineItem[]          @relation("OrderLineVendor")
+  deliverySplits           OrderLineDeliverySplit[] @relation("DeliverySplitVendor")
   plmTrackers              PlmTracker[]
   createdAt                DateTime                 @default(now())
   updatedAt                DateTime                 @updatedAt

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import {
   BidStatus,
+  OrderFinalQcStatus,
   OrderStatus,
   OrderType,
   Prisma,
@@ -419,11 +420,11 @@ describe('OrdersService', () => {
         bidId: null,
         lineItems: [
           // matched to the bid + confirmed → update in place (tracker survives)
-          { id: 'A', productId: 'prod-1', plmTracker: null },
-          // dropped, but has design work → kept untouched
-          { id: 'B', productId: 'prod-3', plmTracker: { id: 'plm-1' } },
+          { id: 'A', productId: 'prod-1', plmTrackers: [] },
+          // dropped, but has design work on a split → kept untouched
+          { id: 'B', productId: 'prod-3', plmTrackers: [{ id: 'plm-1' }] },
           // dropped, no design work → deleted
-          { id: 'C', productId: 'prod-4', plmTracker: null },
+          { id: 'C', productId: 'prod-4', plmTrackers: [] },
         ],
       };
     }
@@ -582,7 +583,7 @@ describe('OrdersService', () => {
             id: 'D',
             productId: null,
             adHocProductName: 'Prototype',
-            plmTracker: { id: 'plm-2' },
+            plmTrackers: [{ id: 'plm-2' }],
           },
         ],
       });
@@ -638,7 +639,7 @@ describe('OrdersService', () => {
               quantity: new Prisma.Decimal(1),
               unitPrice: new Prisma.Decimal(0),
               lineTotal: new Prisma.Decimal(0),
-              plmTracker: { id: 'plm-1' },
+              plmTrackers: [{ id: 'plm-1' }],
             },
           ],
           createdAt: new Date(),
@@ -746,6 +747,7 @@ describe('OrdersService', () => {
         bidId: 'bid-9',
         customerId: 'cust-9',
         status: OrderStatus.CONFIRMED,
+        finalQcStatus: OrderFinalQcStatus.CLEARED,
         totalAmount: new Prisma.Decimal('100'),
         productionRunId: null,
         shipmentId: null,
@@ -759,6 +761,7 @@ describe('OrdersService', () => {
       const result = await service.findOne('order-peer', rep);
 
       expect(result.id).toBe('order-peer');
+      expect(result.finalQcStatus).toBe(OrderFinalQcStatus.CLEARED);
       expect(access.assertCanAccessOwned).not.toHaveBeenCalled();
     });
 

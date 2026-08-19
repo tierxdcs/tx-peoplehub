@@ -200,24 +200,32 @@ export default function DashboardPage() {
 
       {/* Task analytics — 4 stat cards. */}
       <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard icon={ListChecks} label="Assigned" value={stats.assigned} />
+        <StatCard
+          icon={ListChecks}
+          label="Assigned"
+          value={stats.assigned}
+          href="/my-tasks?status=assigned"
+        />
         <StatCard
           icon={CheckCircle2}
           label="Completed"
           value={stats.completed}
           tone="success"
+          href="/my-tasks?status=completed"
         />
         <StatCard
           icon={Clock}
           label="Due soon"
           value={stats.dueSoon}
           tone={stats.dueSoon > 0 ? 'warning' : 'muted'}
+          href="/my-tasks?status=due-soon"
         />
         <StatCard
           icon={AlertTriangle}
           label="Overdue"
           value={stats.overdue}
           tone={stats.overdue > 0 ? 'danger' : 'muted'}
+          href="/my-tasks?status=overdue"
         />
       </section>
 
@@ -225,14 +233,12 @@ export default function DashboardPage() {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">My tasks</h2>
-          {tasks.length > TASK_CAP && (
-            <Link
-              href="/kanban"
-              className="text-sm text-primary hover:underline"
-            >
-              View all
-            </Link>
-          )}
+          <Link
+            href="/my-tasks"
+            className="text-sm text-primary hover:underline"
+          >
+            View all
+          </Link>
         </div>
         <Card>
           <CardContent className="p-0">
@@ -338,11 +344,13 @@ function StatCard({
   label,
   value,
   tone = 'muted',
+  href,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number;
   tone?: 'muted' | 'success' | 'warning' | 'danger';
+  href: string;
 }) {
   const toneClass = {
     muted: 'text-muted-foreground',
@@ -351,7 +359,12 @@ function StatCard({
     danger: 'text-destructive',
   }[tone];
   return (
-    <Card>
+    <Link
+      href={href}
+      className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      aria-label={`View ${value} ${label.toLowerCase()} tasks`}
+    >
+      <Card className="h-full transition-colors hover:border-primary/40 hover:bg-accent/30">
       <CardContent className="flex items-center gap-2 p-3 sm:gap-3 sm:p-4">
         <div
           className={cn(
@@ -366,6 +379,7 @@ function StatCard({
           <p className="mt-1 text-xs text-muted-foreground">{label}</p>
         </div>
       </CardContent>
-    </Card>
+      </Card>
+    </Link>
   );
 }

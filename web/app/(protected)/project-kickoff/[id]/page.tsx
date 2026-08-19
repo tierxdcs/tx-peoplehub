@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
@@ -32,8 +32,10 @@ import {
   updateKickoff,
   updateMilestone,
   updateRisk,
+  type DeliverySplitInput,
   type DeliveryType,
   type KickoffDeliveryItem,
+  type KickoffDeliverySplit,
   type KickoffMeetingMode,
   type KickoffMilestoneTemplate,
   type MilestoneStatus,
@@ -1398,31 +1400,83 @@ function DeliveryClassificationSection({
             No line items on the linked order.
           </p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead>Delivery type</TableHead>
-                <TableHead>Vendor details</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((li) => (
-                <DeliveryRow
-                  key={li.id}
-                  kickoffId={kickoff.id}
-                  item={li}
-                  canManage={canManage}
-                  onChanged={onChanged}
-                />
-              ))}
-            </TableBody>
-          </Table>
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              A line’s quantity can be sourced from more than one vendor — use
+              “Split quantity” to divide it. Each split is tracked independently
+              through PLM once the kickoff completes.
+            </p>
+            {items.map((li) => (
+              <DeliveryRow
+                key={li.id}
+                kickoffId={kickoff.id}
+                item={li}
+                canManage={canManage}
+                onChanged={onChanged}
+              />
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>
   );
+}
+
+type SplitDraft = {
+  /** Stable local key: the persisted split id, or a temp id for a new row. */
+  key: string;
+  /** Present ⇒ update an existing split; absent ⇒ create a new one. */
+  id?: string;
+  quantity: string;
+  deliveryType: DeliveryType | '';
+  vendorId: string | null;
+  vendorName: string;
+  vendorContactInfo: string;
+  vendorExpectedLeadTime: string;
+  hasPlmTracker: boolean;
+};
+
+function splitsToDrafts(
+  splits: KickoffDeliverySplit[],
+  lineQuantity: string,
+): SplitDraft[] {
+  // A never-classified line has no splits yet — seed one holding the whole
+  // quantity so the user can classify it in place.
+  if (splits.length === 0) {
+    return [
+      {
+        key: 'seed',
+        quantity: lineQuantity,
+        deliveryType: '',
+        vendorId: null,
+        vendorName: '',
+        vendorContactInfo: '',
+        vendorExpectedLeadTime: '',
+        hasPlmTracker: false,
+      },
+    ];
+  }
+  return splits.map((s) => ({
+    key: s.id,
+    id: s.id,
+    quantity: s.quantity,
+    deliveryType: s.deliveryType ?? '',
+    vendorId: s.vendorId,
+    vendorName: s.vendorName ?? '',
+    vendorContactInfo: s.vendorContactInfo ?? '',
+    vendorExpectedLeadTime: s.vendorExpectedLeadTime ?? '',
+    hasPlmTracker: s.hasPlmTracker,
+  }));
+}
+
+/**
+ * Whole-cent value of a quantity string, or null if not a finite number. We
+ * compare allocations in integer cents so decimal quantities match exactly —
+ * mirroring the server's `Prisma.Decimal.equals`, never a raw float compare.
+ */
+function toCents(value: string): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n * 100) : null;
 }
 
 function DeliveryRow({
@@ -1437,39 +1491,117 @@ function DeliveryRow({
   onChanged: () => void;
 }) {
   const toast = useToast();
-  // Local editable buffers for the vendor fields (committed on blur).
-  const [vendorName, setVendorName] = useState(item.vendorName ?? '');
-  const [vendorContact, setVendorContact] = useState(
-    item.vendorContactInfo ?? '',
+  const tempId = useRef(0);
+  const [drafts, setDrafts] = useState<SplitDraft[]>(() =>
+    splitsToDrafts(item.splits, item.quantity),
   );
-  const [vendorLead, setVendorLead] = useState(
-    item.vendorExpectedLeadTime ?? '',
-  );
+  const [dirty, setDirty] = useState(false);
   const [nudge, setNudge] = useState<KickoffDeliveryItem | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Re-sync buffers when the persisted values change (e.g. selecting IN_HOUSE
-  // auto-fills vendorName server-side; without this the input would keep the
-  // stale local value and not show the auto-filled default).
+  // Re-seed the draft buffers when the persisted splits actually change (e.g.
+  // a save auto-fills the in-house vendor name, or provisions a tracker).
+  // Keyed on the values — not the array identity — so an unrelated parent
+  // refetch (another row saving) doesn't clobber in-progress edits here.
+  const serverKey = useMemo(
+    () =>
+      JSON.stringify(
+        item.splits.map((s) => [
+          s.id,
+          s.quantity,
+          s.deliveryType,
+          s.vendorId,
+          s.vendorName,
+          s.vendorContactInfo,
+          s.vendorExpectedLeadTime,
+          s.hasPlmTracker,
+        ]),
+      ),
+    [item.splits],
+  );
   useEffect(() => {
-    setVendorName(item.vendorName ?? '');
-    setVendorContact(item.vendorContactInfo ?? '');
-    setVendorLead(item.vendorExpectedLeadTime ?? '');
-  }, [item.vendorName, item.vendorContactInfo, item.vendorExpectedLeadTime]);
+    setDrafts(splitsToDrafts(item.splits, item.quantity));
+    setDirty(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverKey]);
 
-  // Vendor detail fields apply to VENDOR (manual entry) and IN_HOUSE (fixed
-  // partner, auto-filled but editable). NPD has no vendor.
-  const showVendorFields =
-    item.deliveryType === 'VENDOR' || item.deliveryType === 'IN_HOUSE';
-  const isInHouse = item.deliveryType === 'IN_HOUSE';
+  const lineCents = toCents(item.quantity);
+  const allocatedCents = drafts.reduce<number | null>((acc, d) => {
+    if (acc === null) return null;
+    const c = toCents(d.quantity);
+    return c === null ? null : acc + c;
+  }, 0);
+  const allPositive = drafts.every((d) => {
+    const c = toCents(d.quantity);
+    return c !== null && c > 0;
+  });
+  const sumMatches =
+    allPositive && allocatedCents !== null && allocatedCents === lineCents;
 
-  async function setType(deliveryType: DeliveryType) {
+  function patch(key: string, next: Partial<SplitDraft>) {
+    setDrafts((ds) => ds.map((d) => (d.key === key ? { ...d, ...next } : d)));
+    setDirty(true);
+  }
+  function addSplit() {
+    tempId.current += 1;
+    setDrafts((ds) => [
+      ...ds,
+      {
+        key: `new-${tempId.current}`,
+        quantity: '',
+        deliveryType: '',
+        vendorId: null,
+        vendorName: '',
+        vendorContactInfo: '',
+        vendorExpectedLeadTime: '',
+        hasPlmTracker: false,
+      },
+    ]);
+    setDirty(true);
+  }
+  function removeSplit(key: string) {
+    setDrafts((ds) => ds.filter((d) => d.key !== key));
+    setDirty(true);
+  }
+
+  function toPayload(d: SplitDraft): DeliverySplitInput {
+    const p: DeliverySplitInput = {
+      quantity: Number(d.quantity),
+      deliveryType: d.deliveryType || null,
+    };
+    if (d.id) p.id = d.id;
+    if (d.deliveryType === 'VENDOR' || d.deliveryType === 'IN_HOUSE') {
+      p.vendorId = d.vendorId;
+      const name = d.vendorName.trim();
+      // IN_HOUSE with a blank name → omit it so the server fills the fixed
+      // manufacturing partner (mirrors the former single-vendor auto-fill).
+      if (name) p.vendorName = name;
+      else if (d.deliveryType === 'VENDOR') p.vendorName = null;
+      p.vendorContactInfo = d.vendorContactInfo.trim() || null;
+      p.vendorExpectedLeadTime = d.vendorExpectedLeadTime.trim() || null;
+    } else {
+      // NPD / unclassified: no vendor.
+      p.vendorId = null;
+      p.vendorName = null;
+      p.vendorContactInfo = null;
+      p.vendorExpectedLeadTime = null;
+    }
+    return p;
+  }
+
+  async function save() {
+    if (!sumMatches) return;
     setBusy(true);
+    // Nudge only when the line gains its first vendor split, not on every save.
+    const gainsVendor =
+      drafts.some((d) => d.deliveryType === 'VENDOR') &&
+      !item.splits.some((s) => s.deliveryType === 'VENDOR');
     try {
-      await updateDeliveryItem(kickoffId, item.id, { deliveryType });
+      await updateDeliveryItem(kickoffId, item.id, {
+        splits: drafts.map(toPayload),
+      });
       onChanged();
-      // Soft nudge: vendor-sourced items carry more schedule/quality risk.
-      if (deliveryType === 'VENDOR') setNudge(item);
+      if (gainsVendor) setNudge(item);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Update failed.');
     } finally {
@@ -1477,95 +1609,165 @@ function DeliveryRow({
     }
   }
 
-  async function saveVendorField(patch: {
-    vendorName?: string;
-    vendorContactInfo?: string;
-    vendorExpectedLeadTime?: string;
-  }) {
-    try {
-      await updateDeliveryItem(kickoffId, item.id, patch);
-      onChanged();
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Update failed.');
-    }
-  }
-
   return (
-    <>
-      <TableRow>
-        <TableCell>
+    <div className="rounded-md border p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
           <div className="font-medium">{item.productName}</div>
           <div className="text-xs text-muted-foreground">
-            SKU: {item.productSku}
+            SKU: {item.productSku} · Qty {item.quantity}
           </div>
-        </TableCell>
-        <TableCell className="text-right align-top">{item.quantity}</TableCell>
-        <TableCell className="align-top">
-          <Select
-            value={item.deliveryType ?? ''}
-            onChange={(e) => setType(e.target.value as DeliveryType)}
-            disabled={busy || !canManage}
-            className="h-8 w-36"
+        </div>
+        {canManage && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={addSplit}
+            disabled={busy}
           >
-            <option value="" disabled>
-              Unclassified
-            </option>
-            {DELIVERY_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {DELIVERY_TYPE_LABEL[t]}
-              </option>
-            ))}
-          </Select>
-        </TableCell>
-        <TableCell className="align-top">
-          {showVendorFields ? (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                {isInHouse
-                  ? 'In-house manufacturing partner (pre-filled — edit if a different internal facility applies).'
-                  : 'Approved vendor list coming soon — enter vendor name manually for now.'}
-              </p>
-              <Input
-                value={vendorName}
-                onChange={(e) => setVendorName(e.target.value)}
-                onBlur={() => {
-                  if (vendorName !== (item.vendorName ?? ''))
-                    void saveVendorField({ vendorName });
-                }}
-                placeholder="Vendor name"
-                className="h-8"
-                disabled={!canManage}
-              />
-              <Input
-                value={vendorContact}
-                onChange={(e) => setVendorContact(e.target.value)}
-                onBlur={() => {
-                  if (vendorContact !== (item.vendorContactInfo ?? ''))
-                    void saveVendorField({ vendorContactInfo: vendorContact });
-                }}
-                placeholder="Contact (name / phone / email)"
-                className="h-8"
-                disabled={!canManage}
-              />
-              <Input
-                value={vendorLead}
-                onChange={(e) => setVendorLead(e.target.value)}
-                onBlur={() => {
-                  if (vendorLead !== (item.vendorExpectedLeadTime ?? ''))
-                    void saveVendorField({
-                      vendorExpectedLeadTime: vendorLead,
-                    });
-                }}
-                placeholder="Expected lead time (e.g. 6–8 weeks)"
-                className="h-8"
-                disabled={!canManage}
-              />
+            <Plus className="mr-1 size-4" />
+            Split quantity
+          </Button>
+        )}
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {drafts.map((d) => {
+          const showVendor =
+            d.deliveryType === 'VENDOR' || d.deliveryType === 'IN_HOUSE';
+          const isInHouse = d.deliveryType === 'IN_HOUSE';
+          return (
+            <div
+              key={d.key}
+              className="grid grid-cols-1 gap-2 rounded border bg-muted/30 p-2 sm:grid-cols-[6rem_9rem_1fr_auto]"
+            >
+              <div>
+                <label className="text-xs text-muted-foreground">Qty</label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={d.quantity}
+                  onChange={(e) => patch(d.key, { quantity: e.target.value })}
+                  className="h-8"
+                  disabled={!canManage}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">
+                  Delivery type
+                </label>
+                <Select
+                  value={d.deliveryType}
+                  onChange={(e) =>
+                    patch(d.key, {
+                      deliveryType: e.target.value as DeliveryType,
+                    })
+                  }
+                  // A split with a live PLM tracker cannot change type.
+                  disabled={!canManage || d.hasPlmTracker}
+                  className="h-8"
+                >
+                  <option value="" disabled>
+                    Unclassified
+                  </option>
+                  {DELIVERY_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {DELIVERY_TYPE_LABEL[t]}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="min-w-0">
+                {showVendor ? (
+                  <div className="space-y-1.5">
+                    <Input
+                      value={d.vendorName}
+                      onChange={(e) =>
+                        patch(d.key, { vendorName: e.target.value })
+                      }
+                      placeholder={
+                        isInHouse
+                          ? 'In-house partner (auto-filled on save)'
+                          : 'Vendor name'
+                      }
+                      className="h-8"
+                      disabled={!canManage}
+                    />
+                    <Input
+                      value={d.vendorContactInfo}
+                      onChange={(e) =>
+                        patch(d.key, { vendorContactInfo: e.target.value })
+                      }
+                      placeholder="Contact (name / phone / email)"
+                      className="h-8"
+                      disabled={!canManage}
+                    />
+                    <Input
+                      value={d.vendorExpectedLeadTime}
+                      onChange={(e) =>
+                        patch(d.key, {
+                          vendorExpectedLeadTime: e.target.value,
+                        })
+                      }
+                      placeholder="Expected lead time (e.g. 6–8 weeks)"
+                      className="h-8"
+                      disabled={!canManage}
+                    />
+                  </div>
+                ) : (
+                  <span className="text-sm text-muted-foreground">
+                    No vendor for this delivery type.
+                  </span>
+                )}
+              </div>
+              <div className="flex items-start justify-end">
+                {canManage && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remove split"
+                    onClick={() => removeSplit(d.key)}
+                    // Removing a tracked split would cascade-destroy its PLM
+                    // tracker; the last remaining split can't be removed either.
+                    disabled={busy || d.hasPlmTracker || drafts.length === 1}
+                    title={
+                      d.hasPlmTracker
+                        ? 'PLM tracking in progress — cannot remove'
+                        : undefined
+                    }
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                )}
+              </div>
             </div>
-          ) : (
-            <span className="text-sm text-muted-foreground">—</span>
+          );
+        })}
+      </div>
+
+      {canManage && (
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p
+            className={
+              sumMatches
+                ? 'text-xs text-muted-foreground'
+                : 'text-xs text-destructive'
+            }
+          >
+            Allocated{' '}
+            {allocatedCents === null ? '—' : allocatedCents / 100} of{' '}
+            {item.quantity}
+            {!sumMatches &&
+              ' — split quantities must add up to exactly the line quantity.'}
+          </p>
+          {dirty && (
+            <Button size="sm" onClick={save} disabled={busy || !sumMatches}>
+              {busy ? 'Saving…' : 'Save'}
+            </Button>
           )}
-        </TableCell>
-      </TableRow>
+        </div>
+      )}
 
       {nudge && (
         <VendorRiskNudge
@@ -1578,7 +1780,7 @@ function DeliveryRow({
           }}
         />
       )}
-    </>
+    </div>
   );
 }
 

@@ -42,57 +42,66 @@ export class PlmService {
     private readonly notifications: KanbanNotificationsService,
   ) {}
 
-  /** Idempotently provision every classified line after kickoff completion. */
+  /** Idempotently provision a tracker per classified delivery split after
+   * kickoff completion. A line sourced from N vendors yields N trackers. */
   async provisionForKickoff(kickoffId: string): Promise<number> {
     const kickoff = await this.prisma.projectKickoff.findUnique({
       where: { id: kickoffId },
       include: {
-        order: { include: { lineItems: true } },
+        order: {
+          include: { lineItems: { include: { deliverySplits: true } } },
+        },
       },
     });
     if (!kickoff || kickoff.status !== 'COMPLETED') return 0;
 
     let created = 0;
     for (const line of kickoff.order.lineItems) {
-      if (!line.deliveryType) continue;
-      const vendor = line.vendorId
-        ? { id: line.vendorId }
-        : line.vendorName
-          ? await this.prisma.vendor.findFirst({
-              where: {
-                companyName: { equals: line.vendorName, mode: 'insensitive' },
+      for (const split of line.deliverySplits) {
+        if (!split.deliveryType) continue;
+        const vendor = split.vendorId
+          ? { id: split.vendorId }
+          : split.vendorName
+            ? await this.prisma.vendor.findFirst({
+                where: {
+                  companyName: {
+                    equals: split.vendorName,
+                    mode: 'insensitive',
+                  },
+                },
+                select: { id: true },
+              })
+            : null;
+        const result = await this.prisma.plmTracker.upsert({
+          where: { splitId: split.id },
+          // Backfill the vendor link onto an existing tracker: a split often
+          // gets its approved Vendor Master assigned in Kickoff *after* the
+          // tracker is provisioned, and vendor update links require it. Only
+          // mirror when the split resolves to a vendor so we never wipe a link.
+          update: vendor?.id ? { vendorId: vendor.id } : {},
+          create: {
+            splitId: split.id,
+            orderLineId: line.id,
+            orderId: kickoff.orderId,
+            kickoffId: kickoff.id,
+            flowType: split.deliveryType,
+            currentStage: INITIAL_STAGE[split.deliveryType],
+            ownerId: kickoff.order.ownerId,
+            vendorId: vendor?.id ?? null,
+            productionBoardId: kickoff.kanbanBoardId,
+            events: {
+              create: {
+                type: PlmEventType.CREATED,
+                toStage: INITIAL_STAGE[split.deliveryType],
+                comment: 'Created automatically from completed Project Kickoff',
               },
-              select: { id: true },
-            })
-          : null;
-      const result = await this.prisma.plmTracker.upsert({
-        where: { orderLineId: line.id },
-        // Backfill the vendor link onto an existing tracker: a line often gets
-        // its approved Vendor Master assigned in Kickoff *after* the tracker is
-        // provisioned, and vendor update links require it. Only mirror when the
-        // line resolves to a vendor so we never wipe an existing link to null.
-        update: vendor?.id ? { vendorId: vendor.id } : {},
-        create: {
-          orderLineId: line.id,
-          orderId: kickoff.orderId,
-          kickoffId: kickoff.id,
-          flowType: line.deliveryType,
-          currentStage: INITIAL_STAGE[line.deliveryType],
-          ownerId: kickoff.order.ownerId,
-          vendorId: vendor?.id ?? null,
-          productionBoardId: kickoff.kanbanBoardId,
-          events: {
-            create: {
-              type: PlmEventType.CREATED,
-              toStage: INITIAL_STAGE[line.deliveryType],
-              comment: 'Created automatically from completed Project Kickoff',
             },
           },
-        },
-        select: { createdAt: true, updatedAt: true },
-      });
-      if (result.createdAt.getTime() === result.updatedAt.getTime())
-        created += 1;
+          select: { createdAt: true, updatedAt: true },
+        });
+        if (result.createdAt.getTime() === result.updatedAt.getTime())
+          created += 1;
+      }
     }
     return created;
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { taskStats, type MyCard } from './dashboard';
+import { filterMyCards, taskStats, type MyCard } from './dashboard';
 
 function card(id: string, isDone: boolean, isOverdue = false): MyCard {
   return {
@@ -33,5 +33,24 @@ describe('dashboard task totals', () => {
       completed: 1,
       overdue: 0,
     });
+  });
+
+  it('uses identical category rules for dashboard totals and task filters', () => {
+    const now = new Date('2026-07-19T12:00:00Z');
+    const cards = [
+      card('assigned', false),
+      { ...card('soon', false), dueDate: '2026-07-21T18:00:00.000Z' },
+      card('overdue', false, true),
+      card('completed', true),
+    ];
+    const stats = taskStats(cards, now);
+
+    expect(filterMyCards(cards, 'all', now)).toHaveLength(4);
+    expect(filterMyCards(cards, 'assigned', now)).toHaveLength(stats.assigned);
+    expect(filterMyCards(cards, 'completed', now)).toHaveLength(
+      stats.completed,
+    );
+    expect(filterMyCards(cards, 'due-soon', now)).toHaveLength(stats.dueSoon);
+    expect(filterMyCards(cards, 'overdue', now)).toHaveLength(stats.overdue);
   });
 });
