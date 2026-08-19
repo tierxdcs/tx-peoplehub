@@ -104,17 +104,50 @@ export class PingsService {
       });
       if (!board) throw new NotFoundException('Board not found');
       const people = [board.createdBy, ...board.members.map((m) => m.employee)];
-      return [...new Map(people.filter((e) => e.id !== user.id).map((e) => [e.id, toPingEmployee(e)])).values()];
+      return this.includeCeo(people, user.id);
+    }
+
+    if (user.role === Role.SUPER_ADMIN && linkedRecordType === 'KANBAN_CARD' && linkedRecordId) {
+      const card = await this.prisma.kanbanCard.findUnique({
+        where: { id: linkedRecordId },
+        select: { list: { select: { board: { select: { createdBy: { select: employeeSelect }, members: { select: { employee: { select: employeeSelect } } } } } } } },
+      });
+      if (!card) throw new NotFoundException('Card not found');
+      const board = card.list.board; const people = [board.createdBy, ...board.members.map((m) => m.employee)];
+      return this.includeCeo(people, user.id);
+    }
+
+    if (user.role === Role.SUPER_ADMIN && linkedRecordType === 'PROJECT_KICKOFF' && linkedRecordId) {
+      const kickoff = await this.prisma.projectKickoff.findUnique({ where: { id: linkedRecordId }, select: { createdBy: { select: employeeSelect }, attendees: { where: { employeeId: { not: null } }, select: { employee: { select: employeeSelect } } } } });
+      if (!kickoff) throw new NotFoundException('Project kickoff not found');
+      const people = [kickoff.createdBy, ...kickoff.attendees.flatMap((a) => a.employee ? [a.employee] : [])];
+      return this.includeCeo(people, user.id);
+    }
+
+    if (user.role === Role.SUPER_ADMIN && linkedRecordType === 'PLM_TRACKER' && linkedRecordId) {
+      const tracker = await this.prisma.plmTracker.findUnique({ where: { id: linkedRecordId }, select: { owner: { select: employeeSelect }, kickoff: { select: { createdBy: { select: employeeSelect }, attendees: { where: { employeeId: { not: null } }, select: { employee: { select: employeeSelect } } } } } } });
+      if (!tracker) throw new NotFoundException('PLM tracker not found');
+      const people = [tracker.owner, tracker.kickoff.createdBy, ...tracker.kickoff.attendees.flatMap((a) => a.employee ? [a.employee] : [])];
+      return this.includeCeo(people, user.id);
     }
 
     const adminOnlyPage = user.role === Role.SUPER_ADMIN && linkedRecordType === 'PAGE' && linkedRecordId?.startsWith('/admin/');
 
     const employees = await this.prisma.employee.findMany({
-      where: { status: EmployeeStatus.ACTIVE, id: { not: user.id }, ...(adminOnlyPage ? { role: { in: [Role.ADMIN, Role.SUPER_ADMIN] } } : verticalId ? { verticalId } : {}) },
+      where: { status: EmployeeStatus.ACTIVE, id: { not: user.id }, ...(adminOnlyPage ? { role: { in: [Role.ADMIN, Role.SUPER_ADMIN] } } : verticalId ? { OR: [{ verticalId }, { role: Role.SUPER_ADMIN }] } : {}) },
       select: employeeSelect,
       orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
     });
     return employees.map(toPingEmployee);
+  }
+
+  private async includeCeo(people: RawPingEmployee[], callerId: string) {
+    const ceos = await this.prisma.employee.findMany({
+      where: { role: Role.SUPER_ADMIN, status: EmployeeStatus.ACTIVE, id: { not: callerId } },
+      select: employeeSelect,
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+    });
+    return [...new Map([...people, ...ceos].filter((employee) => employee.id !== callerId).map((employee) => [employee.id, toPingEmployee(employee)])).values()];
   }
 
   private async withSchemaReady<T>(operation: () => Promise<T>): Promise<T> {

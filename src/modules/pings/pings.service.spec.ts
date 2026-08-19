@@ -49,7 +49,15 @@ describe('PingsService', () => {
     prisma.vertical.findUnique.mockResolvedValue({ id: 'sales-id' });
     prisma.employee.findMany.mockResolvedValue([]);
     await service.recipients(user, 'SALES', 'PAGE', '/sales/leads');
-    expect(prisma.employee.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ verticalId: 'sales-id' }) }));
+    expect(prisma.employee.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ OR: [{ verticalId: 'sales-id' }, { role: Role.SUPER_ADMIN }] }) }));
+  });
+
+  it('always includes active CEO accounts alongside the page vertical', async () => {
+    prisma.employee.findUnique.mockResolvedValue({ verticalId: 'sales-id' });
+    prisma.vertical.findUnique.mockResolvedValue({ id: 'sales-id' });
+    prisma.employee.findMany.mockResolvedValue([{ id: 'ceo', firstName: 'Chief', lastName: 'Executive', email: 'ceo@test.com', employeeId: 'CEO-1' }]);
+    const recipients = await service.recipients(user, 'SALES', 'PAGE', '/sales/leads');
+    expect(recipients).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'ceo' })]));
   });
 
   it('rejects a contextual send when a recipient is outside the eligible page audience', async () => {
