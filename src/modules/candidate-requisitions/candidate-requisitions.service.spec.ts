@@ -333,28 +333,14 @@ describe('CandidateRequisitionsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('keeps first-stage owned-vertical requests out of the CEO lifecycle register', async () => {
+  it('gives the CEO unrestricted visibility of every requisition, including first-stage owned-vertical requests', async () => {
     prisma.employee.findUnique.mockResolvedValue({ vertical: null });
     prisma.candidateRequisition.findMany.mockResolvedValue([]);
 
     await service.listRegister(superAdmin);
 
     expect(prisma.candidateRequisition.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          OR: [
-            {
-              status: {
-                not: CandidateRequisitionStatus.PENDING_VERTICAL_APPROVAL,
-              },
-            },
-            {
-              status: CandidateRequisitionStatus.PENDING_VERTICAL_APPROVAL,
-              vertical: { ownerId: null },
-            },
-          ],
-        },
-      }),
+      expect.objectContaining({ where: {} }),
     );
   });
 

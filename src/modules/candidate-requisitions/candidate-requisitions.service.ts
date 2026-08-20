@@ -149,27 +149,16 @@ export class CandidateRequisitionsService {
   }
 
   /** Full lifecycle register, scoped to the people legitimately connected to
-   * the authorization. The CEO remains unable to see configured-owner requests
-   * before first approval, preserving the sequential gate's confidentiality. */
+   * the authorization. HR staff and the CEO both get unrestricted visibility of
+   * every requisition from the moment it is raised; everyone else sees only
+   * their own requests or the verticals they own. (The sequential approval gate
+   * still governs who may *act* on a requisition — see the approve/reject
+   * methods — this only widens what the CEO can *see*.) */
   async listRegister(user: AuthenticatedUser) {
     const hrStaff = await this.isHrStaff(user);
     let where: Prisma.CandidateRequisitionWhereInput;
-    if (hrStaff) {
+    if (hrStaff || user.role === Role.SUPER_ADMIN) {
       where = {};
-    } else if (user.role === Role.SUPER_ADMIN) {
-      where = {
-        OR: [
-          {
-            status: {
-              not: CandidateRequisitionStatus.PENDING_VERTICAL_APPROVAL,
-            },
-          },
-          {
-            status: CandidateRequisitionStatus.PENDING_VERTICAL_APPROVAL,
-            vertical: { ownerId: null },
-          },
-        ],
-      };
     } else {
       where = {
         OR: [{ requestedById: user.id }, { vertical: { ownerId: user.id } }],
