@@ -164,6 +164,44 @@ describe('CandidateRequisitionsService', () => {
     expect(result.superAdminApprovedById).toBe('sa');
   });
 
+  it('lets the CEO finalise a requisition whose vertical owner is the requester (self-approval deadlock)', async () => {
+    prisma.candidateRequisition.findUnique.mockResolvedValue({
+      ...request,
+      requestedById: 'owner',
+      vertical: { ownerId: 'owner' }, // owner raised it themselves — cannot self-approve
+      verticalApprovedAt: null,
+    });
+    prisma.candidateRequisition.update.mockImplementation(
+      ({ data }: any) => data,
+    );
+    const result: any = await service.approveSuperAdmin('req', superAdmin);
+    expect(result.status).toBe(CandidateRequisitionStatus.APPROVED);
+    expect(result.verticalApprovedById).toBe('sa');
+    expect(result.superAdminApprovedById).toBe('sa');
+  });
+
+  it('surfaces vertical-stage requisitions the CEO must clear in the SuperAdmin queue', async () => {
+    prisma.candidateRequisition.findMany.mockResolvedValue([
+      // awaiting the final approval — always in the queue
+      {
+        ...request,
+        id: 'r1',
+        status: CandidateRequisitionStatus.PENDING_SUPERADMIN_APPROVAL,
+        verticalApprovedAt: new Date(),
+      },
+      // ownerless vertical — no first-stage approver
+      { ...request, id: 'r2', vertical: { ownerId: null } },
+      // owner is the requester — self-approval deadlock
+      { ...request, id: 'r3', requestedById: 'owner', vertical: { ownerId: 'owner' } },
+      // owned by someone other than the requester — the owner must approve first
+      { ...request, id: 'r4', requestedById: 'manager', vertical: { ownerId: 'owner' } },
+    ]);
+
+    const result: any[] = await service.listSuperAdminPending(superAdmin);
+
+    expect(result.map((r) => r.id)).toEqual(['r1', 'r2', 'r3']);
+  });
+
   it('lets the CEO reject an ownerless-vertical requisition directly', async () => {
     prisma.candidateRequisition.findUnique.mockResolvedValue({
       ...request,

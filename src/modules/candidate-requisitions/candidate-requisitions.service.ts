@@ -341,23 +341,32 @@ export class CandidateRequisitionsService {
     });
   }
 
-  listSuperAdminPending(user: AuthenticatedUser) {
+  async listSuperAdminPending(user: AuthenticatedUser) {
     this.assertSuperAdmin(user);
-    return this.prisma.candidateRequisition.findMany({
+    // The CEO's queue holds requisitions awaiting the final approval, plus any
+    // stuck at the vertical stage that no one else can clear — an ownerless
+    // vertical, or one whose owner is the requester (they cannot self-approve).
+    // The owner-is-requester case can't be expressed in a Prisma where clause
+    // (no column-to-column comparison), so pending-vertical rows are fetched and
+    // filtered in memory; the pending set is small.
+    const rows = await this.prisma.candidateRequisition.findMany({
       where: {
-        OR: [
-          { status: CandidateRequisitionStatus.PENDING_SUPERADMIN_APPROVAL },
-          // Fallback: a vertical with no owner has no first-stage approver, so the
-          // requisition routes straight to the CEO — a single approval finalises it.
-          {
-            status: CandidateRequisitionStatus.PENDING_VERTICAL_APPROVAL,
-            vertical: { ownerId: null },
-          },
-        ],
+        status: {
+          in: [
+            CandidateRequisitionStatus.PENDING_SUPERADMIN_APPROVAL,
+            CandidateRequisitionStatus.PENDING_VERTICAL_APPROVAL,
+          ],
+        },
       },
       include,
       orderBy: { createdAt: 'asc' },
     });
+    return rows.filter(
+      (req) =>
+        req.status ===
+          CandidateRequisitionStatus.PENDING_SUPERADMIN_APPROVAL ||
+        this.ceoMayFinaliseAtVerticalStage(req),
+    );
   }
 
   async approveVertical(id: string, user: AuthenticatedUser) {
@@ -408,16 +417,18 @@ export class CandidateRequisitionsService {
   async approveSuperAdmin(id: string, user: AuthenticatedUser) {
     this.assertSuperAdmin(user);
     const req = await this.find(id);
-    const ownerlessFallback = this.isOwnerlessVerticalFallback(req);
+    const verticalStageFallback = this.ceoMayFinaliseAtVerticalStage(req);
     if (
-      !ownerlessFallback &&
+      !verticalStageFallback &&
       (req.status !== CandidateRequisitionStatus.PENDING_SUPERADMIN_APPROVAL ||
         !req.verticalApprovedAt)
     )
       throw new BadRequestException(
         'Vertical approval must be completed first',
       );
-    // When the CEO clears an ownerless vertical, stamp the vertical stage too so the audit trail records who approved it.
+    // When the CEO clears a requisition still at the vertical stage (ownerless
+    // vertical, or one the requester owns), stamp the vertical stage too so the
+    // audit trail records who approved it.
     const now = new Date();
     return this.prisma.candidateRequisition.update({
       where: { id },
@@ -425,7 +436,7 @@ export class CandidateRequisitionsService {
         status: CandidateRequisitionStatus.APPROVED,
         superAdminApprovedById: user.id,
         superAdminApprovedAt: now,
-        ...(ownerlessFallback
+        ...(verticalStageFallback
           ? { verticalApprovedById: user.id, verticalApprovedAt: now }
           : {}),
       },
@@ -438,7 +449,7 @@ export class CandidateRequisitionsService {
     const req = await this.find(id);
     this.assertComment(comment);
     if (
-      !this.isOwnerlessVerticalFallback(req) &&
+      !this.ceoMayFinaliseAtVerticalStage(req) &&
       (req.status !== CandidateRequisitionStatus.PENDING_SUPERADMIN_APPROVAL ||
         !req.verticalApprovedAt)
     )
@@ -448,14 +459,18 @@ export class CandidateRequisitionsService {
     return this.rejectRecord(id, comment, user.id);
   }
 
-  /** A requisition whose vertical has no owner has no first-stage approver, so the CEO decides it directly. */
-  private isOwnerlessVerticalFallback(req: {
+  /** A requisition can be stuck at the vertical stage with no one able to clear
+   * it: the vertical has no owner, or its owner is the requester (self-approval
+   * is forbidden). In both cases the CEO finalises it directly, and a single
+   * final approval also stamps the vertical stage. */
+  private ceoMayFinaliseAtVerticalStage(req: {
     status: CandidateRequisitionStatus;
+    requestedById: string;
     vertical: { ownerId: string | null };
   }) {
     return (
       req.status === CandidateRequisitionStatus.PENDING_VERTICAL_APPROVAL &&
-      !req.vertical.ownerId
+      (!req.vertical.ownerId || req.vertical.ownerId === req.requestedById)
     );
   }
 
