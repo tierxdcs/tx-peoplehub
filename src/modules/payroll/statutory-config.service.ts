@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, StatutoryConfig, StatutoryConfigType } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { CreateStatutoryConfigDto } from './dto/create-statutory-config.dto';
+import { UpdateStatutoryConfigDto } from './dto/update-statutory-config.dto';
 import { StatutoryConfigEntity } from './entities/statutory-config.entity';
 
 /**
@@ -78,6 +79,57 @@ export class StatutoryConfigService {
     return rows.map((r) => this.toEntity(r));
   }
 
+  async update(
+    id: string,
+    dto: UpdateStatutoryConfigDto,
+  ): Promise<StatutoryConfigEntity> {
+    const existing = await this.prisma.statutoryConfig.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new NotFoundException('Statutory config version not found');
+    }
+    if (existing.configType !== dto.configType) {
+      throw new BadRequestException(
+        'Config type cannot be changed; add a new version instead',
+      );
+    }
+    if (
+      dto.configType === StatutoryConfigType.PROFESSIONAL_TAX &&
+      !dto.state
+    ) {
+      throw new BadRequestException(
+        'state is required for PROFESSIONAL_TAX config',
+      );
+    }
+    this.validateConfigDataShape(dto.configType, dto.configData);
+    const effectiveFrom = new Date(dto.effectiveFrom);
+    const effectiveTo = dto.effectiveTo ? new Date(dto.effectiveTo) : null;
+    if (effectiveTo && effectiveTo < effectiveFrom) {
+      throw new BadRequestException(
+        'effectiveTo cannot be before effectiveFrom',
+      );
+    }
+    await this.assertNoOverlap(
+      dto.configType,
+      dto.state ?? null,
+      effectiveFrom,
+      effectiveTo,
+      id,
+    );
+    const updated = await this.prisma.statutoryConfig.update({
+      where: { id },
+      data: {
+        state: dto.state ?? null,
+        effectiveFrom,
+        effectiveTo,
+        configData: dto.configData as Prisma.InputJsonValue,
+        sourceNote: dto.sourceNote,
+      },
+    });
+    return this.toEntity(updated);
+  }
+
   /**
    * The config row of `configType` (and `state`, for PROFESSIONAL_TAX)
    * effective on `asOf`. Used by PayrollComputationService — this is the
@@ -120,9 +172,11 @@ export class StatutoryConfigService {
     state: string | null,
     effectiveFrom: Date,
     effectiveTo: Date | null,
+    excludeId?: string,
   ): Promise<void> {
     const overlapping = await this.prisma.statutoryConfig.findFirst({
       where: {
+        ...(excludeId ? { id: { not: excludeId } } : {}),
         configType,
         state,
         effectiveFrom: effectiveTo ? { lte: effectiveTo } : undefined,

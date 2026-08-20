@@ -177,9 +177,12 @@ export default function OnboardEmployeePage() {
     ? officialEmail
     : suggestedOfficialEmail(firstName, lastName);
 
-  // Compensation is entered only as target Monthly CTC. The server derives
-  // every component from the effective Statutory Config.
-  const [monthlyCtc, setMonthlyCtc] = useState('');
+  // Compensation is entered as target Annual CTC. The salary engine is
+  // monthly-driven (annual = monthly × 12), so we send annual / 12 at the API
+  // boundary; the server multiplies back and rounds to paise, so the annual the
+  // user typed is what gets calculated and stored. The server then derives every
+  // component from the effective Statutory Config.
+  const [annualCtc, setAnnualCtc] = useState('');
   const [effectiveDate, setEffectiveDate] = useState('');
   const [compensationPreview, setCompensationPreview] =
     useState<CompensationPreview | null>(null);
@@ -208,7 +211,7 @@ export default function OnboardEmployeePage() {
   useEffect(() => {
     setCompensationPreview(null);
     setPreviewError(null);
-    if (!monthlyCtc || Number(monthlyCtc) <= 0 || !effectiveDate) return;
+    if (!annualCtc || Number(annualCtc) <= 0 || !effectiveDate) return;
     const timer = window.setTimeout(async () => {
       setPreviewLoading(true);
       try {
@@ -218,7 +221,7 @@ export default function OnboardEmployeePage() {
             {
               method: 'POST',
               body: JSON.stringify({
-                monthlyCtc: Number(monthlyCtc),
+                monthlyCtc: Number(annualCtc) / 12,
                 effectiveDate,
               }),
             },
@@ -235,7 +238,7 @@ export default function OnboardEmployeePage() {
       }
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [monthlyCtc, effectiveDate]);
+  }, [annualCtc, effectiveDate]);
 
   function selectRequisition(id: string) {
     setCandidateRequisitionId(id);
@@ -259,7 +262,7 @@ export default function OnboardEmployeePage() {
     setDateOfJoining('');
     setWorkLocation('');
     setTerritory('');
-    setMonthlyCtc('');
+    setAnnualCtc('');
     setEffectiveDate('');
 
     if (!option.hasApprovedOffer) {
@@ -270,7 +273,13 @@ export default function OnboardEmployeePage() {
       setDateOfJoining(option.dateOfJoining.slice(0, 10));
     if (option.workLocation) setWorkLocation(option.workLocation);
     if (option.territory) setTerritory(option.territory);
-    setMonthlyCtc(option.compensation?.monthlyCtc ?? '');
+    // The offer-letter snapshot carries a monthly figure; the engine's annual is
+    // monthly × 12, so prefill the annual field the same way.
+    setAnnualCtc(
+      option.compensation?.monthlyCtc
+        ? String(Number(option.compensation.monthlyCtc) * 12)
+        : '',
+    );
     if (option.compensation?.effectiveDate) {
       setEffectiveDate(option.compensation.effectiveDate.slice(0, 10));
     }
@@ -303,7 +312,7 @@ export default function OnboardEmployeePage() {
         displayedOfficialEmail
       ),
       // Compensation
-      !!(monthlyCtc && effectiveDate && compensationPreview),
+      !!(annualCtc && effectiveDate && compensationPreview),
       // Statutory
       !!(panNumber && aadhaarLast4.length === 4 && pfAccountNumber),
       // Banking
@@ -325,7 +334,7 @@ export default function OnboardEmployeePage() {
     dateOfJoining,
     workLocation,
     displayedOfficialEmail,
-    monthlyCtc,
+    annualCtc,
     effectiveDate,
     compensationPreview,
     panNumber,
@@ -385,7 +394,7 @@ export default function OnboardEmployeePage() {
           emergencyContactPhone,
           ...(photoStorageKey ? { photoStorageKey } : {}),
           compensation: {
-            monthlyCtc: Number(monthlyCtc),
+            monthlyCtc: Number(annualCtc) / 12,
             effectiveDate,
           },
           statutoryInfo: {
@@ -736,12 +745,12 @@ export default function OnboardEmployeePage() {
           {step === 2 && (
             <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Monthly CTC" hint="INR — annual CTC is derived">
+                <Field label="Annual CTC" hint="INR — monthly split is derived">
                   <Input
                     type="number"
                     min={1}
-                    value={monthlyCtc}
-                    onChange={(e) => setMonthlyCtc(e.target.value)}
+                    value={annualCtc}
+                    onChange={(e) => setAnnualCtc(e.target.value)}
                   />
                 </Field>
                 <Field label="Effective date">

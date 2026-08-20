@@ -78,6 +78,7 @@ export default function StatutoryConfigPage() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [viewing, setViewing] = useState<StatutoryConfig | null>(null);
+  const [editing, setEditing] = useState<StatutoryConfig | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -140,7 +141,7 @@ export default function StatutoryConfigPage() {
                   <TableHead>Effective From</TableHead>
                   <TableHead>Effective To</TableHead>
                   <TableHead>Source Note</TableHead>
-                  <TableHead className="text-right">Values</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -155,13 +156,20 @@ export default function StatutoryConfigPage() {
                     <TableCell className="text-sm text-muted-foreground">
                       {c.sourceNote}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="space-x-2 text-right">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setViewing(c)}
                       >
                         View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditing(c)}
+                      >
+                        Edit
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -173,10 +181,21 @@ export default function StatutoryConfigPage() {
       </Card>
 
       {showForm && (
-        <CreateConfigForm
+        <ConfigForm
           onClose={() => setShowForm(false)}
-          onCreated={() => {
+          onSaved={() => {
             setShowForm(false);
+            load();
+          }}
+        />
+      )}
+
+      {editing && (
+        <ConfigForm
+          config={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
             load();
           }}
         />
@@ -312,19 +331,31 @@ function ViewConfigDialog({
   );
 }
 
-function CreateConfigForm({
+function ConfigForm({
+  config,
   onClose,
-  onCreated,
+  onSaved,
 }: {
+  config?: StatutoryConfig;
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: () => void;
 }) {
-  const [configType, setConfigType] = useState<StatutoryConfigType>('PF');
-  const [state, setState] = useState('');
-  const [effectiveFrom, setEffectiveFrom] = useState('');
-  const [effectiveTo, setEffectiveTo] = useState('');
-  const [configData, setConfigData] = useState(CONFIG_DATA_PLACEHOLDER.PF);
-  const [sourceNote, setSourceNote] = useState('');
+  const [configType, setConfigType] = useState<StatutoryConfigType>(
+    config?.configType ?? 'PF',
+  );
+  const [state, setState] = useState(config?.state ?? '');
+  const [effectiveFrom, setEffectiveFrom] = useState(
+    config?.effectiveFrom.slice(0, 10) ?? '',
+  );
+  const [effectiveTo, setEffectiveTo] = useState(
+    config?.effectiveTo?.slice(0, 10) ?? '',
+  );
+  const [configData, setConfigData] = useState(
+    config
+      ? JSON.stringify(config.configData, null, 2)
+      : CONFIG_DATA_PLACEHOLDER.PF,
+  );
+  const [sourceNote, setSourceNote] = useState(config?.sourceNote ?? '');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -353,8 +384,10 @@ function CreateConfigForm({
     }
     setSubmitting(true);
     try {
-      await apiFetch('/statutory-config', {
-        method: 'POST',
+      await apiFetch(
+        config ? `/statutory-config/${config.id}` : '/statutory-config',
+        {
+        method: config ? 'PATCH' : 'POST',
         body: JSON.stringify({
           configType,
           state: state.trim() || undefined,
@@ -363,8 +396,9 @@ function CreateConfigForm({
           configData: parsedConfigData,
           sourceNote,
         }),
-      });
-      onCreated();
+      },
+      );
+      onSaved();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to save config');
     } finally {
@@ -376,7 +410,9 @@ function CreateConfigForm({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add Config Version</DialogTitle>
+          <DialogTitle>
+            {config ? 'Edit Config Version' : 'Add Config Version'}
+          </DialogTitle>
           <DialogDescription className="text-warning">
             Do not enter production rates without compliance sign-off.
           </DialogDescription>
@@ -386,6 +422,7 @@ function CreateConfigForm({
             <Field label="Type">
               <Select
                 value={configType}
+                disabled={Boolean(config)}
                 onChange={(e) => handleTypeChange(e.target.value as StatutoryConfigType)}
               >
                 {CONFIG_TYPES.map((t) => (
@@ -427,7 +464,7 @@ function CreateConfigForm({
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>
-              {submitting ? 'Saving…' : 'Save'}
+              {submitting ? 'Saving…' : config ? 'Save Changes' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

@@ -75,7 +75,8 @@
       "Bash(echo \"WEB BUILD EXIT: $?\")",
       "Bash(echo \"NEST BUILD EXIT: $?\")",
       "Bash(echo \"=== DEPLOY EXIT: $? ===\")",
-      "Bash(echo \"GENERATE EXIT: $?\")"
+      "Bash(echo \"GENERATE EXIT: $?\")",
+      "Bash(echo \"---exit:$?---\")"
     ]
   }
 }
