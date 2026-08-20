@@ -137,4 +137,65 @@ describe('CandidateApplicationsService', () => {
     });
     expect(prisma.candidateApplicationInvite.updateMany).toHaveBeenCalled();
   });
+
+  describe('listApplications access', () => {
+    const employee = (id: string, role: Role) => ({
+      id,
+      email: `${id}@phaze-dynamics.com`,
+      role,
+      verticalId: 'v-1',
+    });
+
+    beforeEach(() => {
+      prisma.candidateApplication.findMany.mockResolvedValue([]);
+    });
+
+    it('allows the CEO even when neither HR, requester, nor vertical owner', async () => {
+      prisma.candidateRequisition.findUnique.mockResolvedValue({
+        requestedById: 'someone-else',
+        vertical: { ownerId: 'another' },
+      });
+      prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'ENG' } });
+
+      await expect(
+        service.listApplications('req-1', employee('ceo', Role.SUPER_ADMIN)),
+      ).resolves.toEqual([]);
+    });
+
+    it("allows the requisition's vertical owner", async () => {
+      prisma.candidateRequisition.findUnique.mockResolvedValue({
+        requestedById: 'someone-else',
+        vertical: { ownerId: 'owner-1' },
+      });
+      prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'ENG' } });
+
+      await expect(
+        service.listApplications('req-1', employee('owner-1', Role.MANAGER)),
+      ).resolves.toEqual([]);
+    });
+
+    it('allows the original requester', async () => {
+      prisma.candidateRequisition.findUnique.mockResolvedValue({
+        requestedById: 'req-user',
+        vertical: { ownerId: 'another' },
+      });
+      prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'ENG' } });
+
+      await expect(
+        service.listApplications('req-1', employee('req-user', Role.MANAGER)),
+      ).resolves.toEqual([]);
+    });
+
+    it('rejects an unrelated non-HR employee', async () => {
+      prisma.candidateRequisition.findUnique.mockResolvedValue({
+        requestedById: 'someone-else',
+        vertical: { ownerId: 'another' },
+      });
+      prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'ENG' } });
+
+      await expect(
+        service.listApplications('req-1', employee('rando', Role.EMPLOYEE)),
+      ).rejects.toThrow(/may view candidate applications/);
+    });
+  });
 });

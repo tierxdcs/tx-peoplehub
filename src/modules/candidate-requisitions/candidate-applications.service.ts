@@ -9,6 +9,7 @@ import {
   CandidateApplicationStatus,
   CandidateHiringStage,
   CandidateRequisitionStatus,
+  Role,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import {
@@ -257,11 +258,23 @@ export class CandidateApplicationsService {
     return row;
   }
 
+  // Mirrors who can see the requisition in the register (candidate-requisitions.service
+  // listRegister): HR staff and the CEO see all; the requester and the vertical owner
+  // see their own. Anyone who can open the requisition can therefore load its applications.
   private async assertCanView(requisitionId: string, user: AuthenticatedUser) {
-    const row = await this.requisition(requisitionId);
-    if (row.requestedById !== user.id && !(await this.isHr(user))) {
+    const row = await this.prisma.candidateRequisition.findUnique({
+      where: { id: requisitionId },
+      select: { requestedById: true, vertical: { select: { ownerId: true } } },
+    });
+    if (!row) throw new NotFoundException('Candidate requisition not found');
+    const canView =
+      user.role === Role.SUPER_ADMIN ||
+      row.requestedById === user.id ||
+      row.vertical.ownerId === user.id ||
+      (await this.isHr(user));
+    if (!canView) {
       throw new ForbiddenException(
-        'Only HR and the original requester may view candidate applications',
+        "Only HR, the CEO, the requisition's vertical owner, and the original requester may view candidate applications",
       );
     }
   }
