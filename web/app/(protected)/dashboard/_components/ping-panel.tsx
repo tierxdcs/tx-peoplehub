@@ -5,17 +5,19 @@ import { Check, CheckCheck, Radio } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { cn } from '../../../lib/utils';
-import { linkedPingHref, pingAgeHours, respondToPing, type ReceivedPing, type SentPing } from '../../../lib/pings';
+import { linkedPingHref, orderReceivedForDashboard, pingAgeHours, respondToPing, type ReceivedPing, type SentPing } from '../../../lib/pings';
 
 export function PingPanel({ received, sent, onChanged }: { received: ReceivedPing[]; sent: SentPing[]; onChanged: () => void }) {
   const act = async (id: string, status: 'ACKNOWLEDGED' | 'RESOLVED') => { await respondToPing(id, status); onChanged(); };
+  // Pending → acknowledged → resolved; resolved pings older than two days drop off.
+  const visible = orderReceivedForDashboard(received);
   return (
     <aside className="space-y-3 xl:sticky xl:top-4">
       <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Pings</h2><Link href="/my-pings" className="text-sm text-primary hover:underline">View all</Link></div>
       <Card><CardContent className="p-0">
         <div className="border-b px-4 py-3 text-sm font-medium">Received</div>
-        {received.length === 0 ? <p className="p-4 text-sm text-muted-foreground">No pings waiting.</p> : (
-          <ul className="divide-y">{received.slice(0, 6).map((row) => {
+        {visible.length === 0 ? <p className="p-4 text-sm text-muted-foreground">No pings waiting.</p> : (
+          <ul className="divide-y">{visible.slice(0, 6).map((row) => {
             const hours = pingAgeHours(row.ping.createdAt); const overdue = row.status === 'PENDING' && hours >= 24; const href = linkedPingHref(row.ping.linkedRecordType, row.ping.linkedRecordId);
             return <li key={row.id} className={cn('space-y-2 p-4', row.status === 'PENDING' && (overdue ? 'ping-overdue bg-destructive/10' : 'ping-new bg-destructive/5'))}>
               <div className="flex gap-2"><Radio className={cn('mt-0.5 size-4 shrink-0', row.status === 'PENDING' ? 'text-destructive' : 'text-success')} /><div className="min-w-0"><p className="text-sm">{row.ping.message}</p><p className="mt-1 text-xs text-muted-foreground">{row.ping.fromEmployee.fullName} · {hours}h ago{overdue ? ` · ${hours - 24}h overdue` : ''}</p></div></div>

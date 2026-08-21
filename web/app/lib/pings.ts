@@ -35,6 +35,33 @@ export function pingAgeHours(createdAt: string, now = new Date()) {
   return Math.max(0, Math.floor((now.getTime() - new Date(createdAt).getTime()) / 3_600_000));
 }
 
+/** Resolved pings linger on the dashboard for two days after resolution, then drop off. */
+export const DASHBOARD_RESOLVED_TTL_MS = 2 * 86_400_000;
+const RECEIVED_STATUS_RANK: Record<PingStatus, number> = { PENDING: 0, ACKNOWLEDGED: 1, RESOLVED: 2 };
+
+/**
+ * Dashboard ordering for received pings: pending first (oldest / most overdue on
+ * top), then acknowledged, then resolved (most recently handled on top). Resolved
+ * pings older than two days are dropped so the panel doesn't accumulate history —
+ * the full log still lives on the My Pings register (unchanged).
+ */
+export function orderReceivedForDashboard(received: ReceivedPing[], now: number = Date.now()): ReceivedPing[] {
+  return received
+    .filter((row) => {
+      if (row.status !== 'RESOLVED') return true;
+      const resolvedAt = new Date(row.respondedAt ?? row.ping.createdAt).getTime();
+      return now - resolvedAt < DASHBOARD_RESOLVED_TTL_MS;
+    })
+    .sort((a, b) => {
+      const byStatus = RECEIVED_STATUS_RANK[a.status] - RECEIVED_STATUS_RANK[b.status];
+      if (byStatus !== 0) return byStatus;
+      const at = new Date(a.ping.createdAt).getTime();
+      const bt = new Date(b.ping.createdAt).getTime();
+      // Pending: oldest first to surface the most overdue. Handled: most recent first.
+      return a.status === 'PENDING' ? at - bt : bt - at;
+    });
+}
+
 export function linkedPingHref(type: string | null, id: string | null): string | null {
   if (!type || !id) return null;
   const routes: Record<string, string> = {
