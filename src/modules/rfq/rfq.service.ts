@@ -202,13 +202,13 @@ export class RfqService {
       orderBy: { createdAt: 'desc' },
     });
     const ctx = await this.approvalContext(user);
-    return rows.map((r) => this.toEntity(r, user, ctx));
+    return rows.map((r) => this.toEntity(r, ctx));
   }
 
   async get(id: string, user: AuthenticatedUser): Promise<RfqEntity> {
     await this.access.assertCanReadRfqs(user);
     const rfq = await this.findOrThrow(id);
-    return this.toEntity(rfq, user, await this.approvalContext(user));
+    return this.toEntity(rfq, await this.approvalContext(user));
   }
 
   /**
@@ -740,9 +740,9 @@ export class RfqService {
   // ── PM approval (gates issuing / invitee-link generation) ────────────
   /**
    * Approve a DRAFT RFQ so its invitee links can be generated. Gated to a
-   * Project Manager (Employee.isProjectManager) or SUPER_ADMIN; the RFQ's own
-   * creator can never self-approve (assertCanApprove enforces the fallback to
-   * SUPER_ADMIN). Approving clears any prior rejection comment.
+   * Project Manager (Employee.isProjectManager) or SUPER_ADMIN; a PM may
+   * approve an RFQ they created themselves. Approving clears any prior
+   * rejection comment.
    */
   async approve(id: string, user: AuthenticatedUser): Promise<RfqEntity> {
     const rfq = await this.prisma.rfq.findUnique({ where: { id } });
@@ -750,7 +750,7 @@ export class RfqService {
     if (rfq.status !== RfqStatus.DRAFT) {
       throw new BadRequestException('Only a DRAFT RFQ can be approved');
     }
-    await this.access.assertCanApprove(user, rfq.createdById);
+    await this.access.assertCanApprove(user);
     await this.prisma.rfq.update({
       where: { id },
       data: {
@@ -781,7 +781,7 @@ export class RfqService {
     if (rfq.status !== RfqStatus.DRAFT) {
       throw new BadRequestException('Only a DRAFT RFQ can be rejected');
     }
-    await this.access.assertCanApprove(user, rfq.createdById);
+    await this.access.assertCanApprove(user);
     await this.prisma.rfq.update({
       where: { id },
       data: {
@@ -1163,20 +1163,16 @@ export class RfqService {
     }));
   }
 
-  private toEntity(
-    rfq: RfqWithRelations,
-    user: AuthenticatedUser,
-    ctx: ApprovalContext,
-  ): RfqEntity {
+  private toEntity(rfq: RfqWithRelations, ctx: ApprovalContext): RfqEntity {
     const canSeeToken =
       rfq.status === RfqStatus.ISSUED || rfq.status === RfqStatus.CLOSED;
     // The Approve/Reject action is only meaningful while DRAFT (pre-issue).
-    // SUPER_ADMIN always qualifies; a PM designation-holder qualifies unless
-    // they are the RFQ's own creator (no self-approval → falls back to SA).
+    // SUPER_ADMIN always qualifies; a PM designation-holder qualifies, including
+    // for an RFQ they created themselves (self-approval is allowed — SCM is a
+    // small team and the owning PM often raises the RFQ).
     const canApprove =
       rfq.status === RfqStatus.DRAFT &&
-      (ctx.isSuperAdmin ||
-        (ctx.isProjectManager && rfq.createdById !== user.id));
+      (ctx.isSuperAdmin || ctx.isProjectManager);
     return new RfqEntity({
       id: rfq.id,
       rfqNumber: rfq.rfqNumber,

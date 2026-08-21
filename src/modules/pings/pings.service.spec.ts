@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { PingRecipientStatus, Role } from '@prisma/client';
+import { EmployeeStatus, PingRecipientStatus, Role } from '@prisma/client';
 import { PingsService } from './pings.service';
 
 describe('PingsService', () => {
@@ -38,26 +38,17 @@ describe('PingsService', () => {
     expect(prisma.pingRecipient.update).toHaveBeenCalledWith({ where: { id: 'r1' }, data: { status: PingRecipientStatus.ACKNOWLEDGED, respondedAt: expect.any(Date) } });
   });
 
-  it('enforces the current page vertical for regular users', async () => {
-    prisma.employee.findUnique.mockResolvedValue({ verticalId: 'sales-id' });
-    prisma.vertical.findUnique.mockResolvedValue({ id: 'scm-id' });
-    await expect(service.recipients(user, 'SCM', 'PAGE', '/scm/items')).rejects.toBeInstanceOf(ForbiddenException);
-  });
-
-  it('scopes a regular recipient list to the caller vertical', async () => {
-    prisma.employee.findUnique.mockResolvedValue({ verticalId: 'sales-id' });
-    prisma.vertical.findUnique.mockResolvedValue({ id: 'sales-id' });
-    prisma.employee.findMany.mockResolvedValue([]);
-    await service.recipients(user, 'SALES', 'PAGE', '/sales/leads');
-    expect(prisma.employee.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ OR: [{ verticalId: 'sales-id' }, { role: Role.SUPER_ADMIN }] }) }));
-  });
-
-  it('always includes active CEO accounts alongside the page vertical', async () => {
-    prisma.employee.findUnique.mockResolvedValue({ verticalId: 'sales-id' });
-    prisma.vertical.findUnique.mockResolvedValue({ id: 'sales-id' });
-    prisma.employee.findMany.mockResolvedValue([{ id: 'ceo', firstName: 'Chief', lastName: 'Executive', email: 'ceo@test.com', employeeId: 'CEO-1' }]);
-    const recipients = await service.recipients(user, 'SALES', 'PAGE', '/sales/leads');
-    expect(recipients).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'ceo' })]));
+  it('lists every active employee except the sender for the global widget', async () => {
+    prisma.employee.findMany.mockResolvedValue([
+      { id: 'a', firstName: 'Ann', lastName: 'One', email: 'a@test.com', employeeId: 'EMP-A' },
+      { id: 'ceo', firstName: 'Chief', lastName: 'Executive', email: 'ceo@test.com', employeeId: 'CEO-1' },
+    ]);
+    const recipients = await service.recipients(user);
+    expect(prisma.employee.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: EmployeeStatus.ACTIVE, id: { not: 'sender' } } }));
+    expect(recipients).toEqual([
+      { id: 'a', fullName: 'Ann One', email: 'a@test.com', employeeId: 'EMP-A' },
+      { id: 'ceo', fullName: 'Chief Executive', email: 'ceo@test.com', employeeId: 'CEO-1' },
+    ]);
   });
 
   it('rejects a contextual send when a recipient is outside the eligible page audience', async () => {

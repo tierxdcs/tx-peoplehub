@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { EmployeeStatus, PingRecipientStatus, Prisma, Role } from '@prisma/client';
+import { EmployeeStatus, PingRecipientStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { CreateContextualPingDto, CreatePingDto } from './dto/pings.dto';
@@ -43,7 +43,7 @@ export class PingsService {
 
   async createContextual(user: AuthenticatedUser, dto: CreateContextualPingDto) {
     if (!dto.linkedRecordType || !dto.linkedRecordId) throw new BadRequestException('A contextual ping must be linked to its current page');
-    const eligible = await this.recipients(user, dto.verticalCode, dto.linkedRecordType, dto.linkedRecordId);
+    const eligible = await this.recipients(user);
     const allowed = new Set(eligible.map((employee) => employee.id));
     if (dto.recipientIds.some((id) => !allowed.has(id))) throw new ForbiddenException('One or more recipients do not have access to this page context');
     return this.create(user, dto);
@@ -87,67 +87,19 @@ export class PingsService {
     return this.prisma.pingRecipient.update({ where: { id }, data: { status, respondedAt: new Date() } });
   }
 
-  async recipients(user: AuthenticatedUser, verticalCode?: string, linkedRecordType?: string, linkedRecordId?: string) {
-    const caller = await this.prisma.employee.findUnique({ where: { id: user.id }, select: { verticalId: true } });
-    let verticalId = caller?.verticalId ?? null;
-    if (verticalCode) {
-      const requested = await this.prisma.vertical.findUnique({ where: { code: verticalCode }, select: { id: true } });
-      if (!requested) throw new BadRequestException('This page is not mapped to an active vertical');
-      if (user.role !== Role.SUPER_ADMIN && requested.id !== verticalId) throw new ForbiddenException('Contextual pings cannot be sent outside your vertical');
-      verticalId = requested.id;
-    }
-
-    if (user.role === Role.SUPER_ADMIN && linkedRecordType === 'KANBAN_BOARD' && linkedRecordId) {
-      const board = await this.prisma.kanbanBoard.findUnique({
-        where: { id: linkedRecordId },
-        select: { createdBy: { select: employeeSelect }, members: { select: { employee: { select: employeeSelect } } } },
-      });
-      if (!board) throw new NotFoundException('Board not found');
-      const people = [board.createdBy, ...board.members.map((m) => m.employee)];
-      return this.includeCeo(people, user.id);
-    }
-
-    if (user.role === Role.SUPER_ADMIN && linkedRecordType === 'KANBAN_CARD' && linkedRecordId) {
-      const card = await this.prisma.kanbanCard.findUnique({
-        where: { id: linkedRecordId },
-        select: { list: { select: { board: { select: { createdBy: { select: employeeSelect }, members: { select: { employee: { select: employeeSelect } } } } } } } },
-      });
-      if (!card) throw new NotFoundException('Card not found');
-      const board = card.list.board; const people = [board.createdBy, ...board.members.map((m) => m.employee)];
-      return this.includeCeo(people, user.id);
-    }
-
-    if (user.role === Role.SUPER_ADMIN && linkedRecordType === 'PROJECT_KICKOFF' && linkedRecordId) {
-      const kickoff = await this.prisma.projectKickoff.findUnique({ where: { id: linkedRecordId }, select: { createdBy: { select: employeeSelect }, attendees: { where: { employeeId: { not: null } }, select: { employee: { select: employeeSelect } } } } });
-      if (!kickoff) throw new NotFoundException('Project kickoff not found');
-      const people = [kickoff.createdBy, ...kickoff.attendees.flatMap((a) => a.employee ? [a.employee] : [])];
-      return this.includeCeo(people, user.id);
-    }
-
-    if (user.role === Role.SUPER_ADMIN && linkedRecordType === 'PLM_TRACKER' && linkedRecordId) {
-      const tracker = await this.prisma.plmTracker.findUnique({ where: { id: linkedRecordId }, select: { owner: { select: employeeSelect }, kickoff: { select: { createdBy: { select: employeeSelect }, attendees: { where: { employeeId: { not: null } }, select: { employee: { select: employeeSelect } } } } } } });
-      if (!tracker) throw new NotFoundException('PLM tracker not found');
-      const people = [tracker.owner, tracker.kickoff.createdBy, ...tracker.kickoff.attendees.flatMap((a) => a.employee ? [a.employee] : [])];
-      return this.includeCeo(people, user.id);
-    }
-
-    const adminOnlyPage = user.role === Role.SUPER_ADMIN && linkedRecordType === 'PAGE' && linkedRecordId?.startsWith('/admin/');
-
+  /**
+   * Recipients for the global ping widget: every active employee except the
+   * sender. Pings raised from the floating widget can reach anyone in the
+   * company — the page context (verticalCode / linkedRecord*) is still recorded
+   * on the ping for its deep-link, but it no longer narrows the audience.
+   */
+  async recipients(user: AuthenticatedUser) {
     const employees = await this.prisma.employee.findMany({
-      where: { status: EmployeeStatus.ACTIVE, id: { not: user.id }, ...(adminOnlyPage ? { role: { in: [Role.ADMIN, Role.SUPER_ADMIN] } } : verticalId ? { OR: [{ verticalId }, { role: Role.SUPER_ADMIN }] } : {}) },
+      where: { status: EmployeeStatus.ACTIVE, id: { not: user.id } },
       select: employeeSelect,
       orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
     });
     return employees.map(toPingEmployee);
-  }
-
-  private async includeCeo(people: RawPingEmployee[], callerId: string) {
-    const ceos = await this.prisma.employee.findMany({
-      where: { role: Role.SUPER_ADMIN, status: EmployeeStatus.ACTIVE, id: { not: callerId } },
-      select: employeeSelect,
-      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
-    });
-    return [...new Map([...people, ...ceos].filter((employee) => employee.id !== callerId).map((employee) => [employee.id, toPingEmployee(employee)])).values()];
   }
 
   private async withSchemaReady<T>(operation: () => Promise<T>): Promise<T> {

@@ -70,14 +70,12 @@ export class RfqAccessService {
   /**
    * Approve/reject an RFQ before its invitee links are generated. Gated to a
    * Project Manager (Employee.isProjectManager) or SUPER_ADMIN — the same
-   * designation used for awards. No self-approval: a PM who created the RFQ
-   * cannot approve their own submission, so it falls back to SUPER_ADMIN
-   * (the established expense-claims/BOM pattern). SUPER_ADMIN always overrides.
+   * designation used for awards. A PM may approve an RFQ they created
+   * themselves: SCM is a small team and the PM who owns the vertical is often
+   * the one who raises the RFQ, so blocking self-approval would deadlock it.
+   * SUPER_ADMIN always overrides.
    */
-  async assertCanApprove(
-    user: AuthenticatedUser,
-    createdById: string,
-  ): Promise<void> {
+  async assertCanApprove(user: AuthenticatedUser): Promise<void> {
     if (this.isSuperAdmin(user)) return;
     const me = await this.prisma.employee.findUnique({
       where: { id: user.id },
@@ -86,11 +84,6 @@ export class RfqAccessService {
     if (!me?.isProjectManager) {
       throw new ForbiddenException(
         'Only the Project Manager or SUPER_ADMIN may approve an RFQ',
-      );
-    }
-    if (createdById === user.id) {
-      throw new ForbiddenException(
-        'You cannot approve an RFQ you created — a SUPER_ADMIN must approve it',
       );
     }
   }
