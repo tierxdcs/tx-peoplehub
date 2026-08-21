@@ -289,13 +289,12 @@ export class ProjectKickoffService {
         },
         rfqs: { select: { status: true, updatedAt: true } },
         plmTrackers: {
-          where: {
-            flowType: 'VENDOR',
-            status: 'ACTIVE',
-            currentStage: 'PRODUCTION',
-          },
           select: {
             createdAt: true,
+            updatedAt: true,
+            flowType: true,
+            status: true,
+            currentStage: true,
             events: {
               where: { toStage: 'PRODUCTION' },
               select: { createdAt: true },
@@ -360,6 +359,7 @@ export class ProjectKickoffService {
         ...kickoff.actionItems.map((item) => item.updatedAt),
         ...kickoff.risks.map((item) => item.updatedAt),
         ...kickoff.rfqs.map((item) => item.updatedAt),
+        ...kickoff.plmTrackers.map((item) => item.updatedAt),
         ...kickoff.order.deliveryChallans.map((item) => item.updatedAt),
         ...relatedInspections.map((item) => item.updatedAt),
         ...(designProject ? [designProject.updatedAt] : []),
@@ -367,15 +367,22 @@ export class ProjectKickoffService {
       const updatedAt = new Date(
         Math.max(...timestamps.map((value) => value.getTime())),
       );
-      const vendorCadenceStatuses = kickoff.plmTrackers.map((tracker) =>
-        deriveVendorCadence(
-          tracker.productionUpdates[0]?.createdAt ??
-            tracker.events[0]?.createdAt ??
-            tracker.createdAt,
-          kickoff.vendorUpdateCadenceDays,
-          new Date(now),
-        ),
-      );
+      const vendorCadenceStatuses = kickoff.plmTrackers
+        .filter(
+          (tracker) =>
+            tracker.flowType === 'VENDOR' &&
+            tracker.status === 'ACTIVE' &&
+            tracker.currentStage === 'PRODUCTION',
+        )
+        .map((tracker) =>
+          deriveVendorCadence(
+            tracker.productionUpdates[0]?.createdAt ??
+              tracker.events[0]?.createdAt ??
+              tracker.createdAt,
+            kickoff.vendorUpdateCadenceDays,
+            new Date(now),
+          ),
+        );
 
       return deriveProjectProgress({
         kickoffId: kickoff.id,
@@ -393,6 +400,9 @@ export class ProjectKickoffService {
         ),
         dispatchStatuses: kickoff.order.deliveryChallans.map(
           (challan) => challan.status,
+        ),
+        plmStages: kickoff.plmTrackers.map(
+          (tracker) => tracker.currentStage,
         ),
         overdueMilestones: kickoff.milestones.filter(
           (milestone) =>

@@ -23,6 +23,7 @@ function input(
     rfqStatuses: [],
     inspectionStatuses: [],
     dispatchStatuses: [],
+    plmStages: [],
     overdueMilestones: 0,
     overdueActions: 0,
     openHighRisks: 0,
@@ -96,6 +97,54 @@ describe('deriveProjectProgress', () => {
     expect(byKey.production.state).toBe('UPCOMING');
     // Furthest genuinely-active stage is Engineering, not Quality.
     expect(result.currentStage).toBe('engineering');
+  });
+
+  it('uses PLM line progress when the order-level status has not caught up', () => {
+    const result = deriveProjectProgress(
+      input({
+        order: {
+          id: 'order-6',
+          orderNumber: 'ORD-2026-0006',
+          status: 'CONFIRMED',
+          finalQcStatus: 'PENDING',
+          fulfilmentStatus: 'NOT_DISPATCHED',
+        },
+        plmStages: ['DISPATCH'],
+      }),
+    );
+    const byKey = Object.fromEntries(
+      result.stages.map((stage) => [stage.key, stage]),
+    );
+
+    expect(byKey.engineering.state).toBe('COMPLETE');
+    expect(byKey.procurement.state).toBe('COMPLETE');
+    expect(byKey.production.state).toBe('COMPLETE');
+    expect(byKey.quality.state).toBe('COMPLETE');
+    expect(byKey.dispatch.state).toBe('IN_PROGRESS');
+    expect(result.currentStage).toBe('dispatch');
+  });
+
+  it('uses the least advanced PLM line for aggregate project progress', () => {
+    const result = deriveProjectProgress(
+      input({
+        order: {
+          id: 'order-multi',
+          orderNumber: 'ORD-2026-0100',
+          status: 'CONFIRMED',
+          finalQcStatus: 'PENDING',
+          fulfilmentStatus: 'NOT_DISPATCHED',
+        },
+        plmStages: ['DISPATCH', 'PRODUCTION'],
+      }),
+    );
+    const byKey = Object.fromEntries(
+      result.stages.map((stage) => [stage.key, stage]),
+    );
+
+    expect(byKey.procurement.state).toBe('COMPLETE');
+    expect(byKey.production.state).toBe('IN_PROGRESS');
+    expect(byKey.quality.state).toBe('UPCOMING');
+    expect(byKey.dispatch.state).toBe('UPCOMING');
   });
 
   it('still surfaces a failed inspection even when upstream stages are incomplete', () => {

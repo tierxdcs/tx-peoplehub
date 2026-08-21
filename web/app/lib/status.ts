@@ -111,6 +111,11 @@ const VARIANT_BY_VALUE: Record<string, BadgeVariant> = {
   // ---- pending / caution (amber) ----
   PENDING: 'warning',
   PENDING_APPROVAL: 'warning',
+  // Two-stage approval gates (candidate requisitions + offer letters): both the
+  // vertical-owner and the CEO/super-admin stages are "awaiting a decision".
+  PENDING_VERTICAL_APPROVAL: 'warning',
+  PENDING_SUPERADMIN_APPROVAL: 'warning',
+  PENDING_CEO_APPROVAL: 'warning',
   PENDING_CLOSURE: 'warning',
   AWAITING_INTERNAL_SIGNATURE: 'warning',
   AWAITING_CUSTOMER_SIGNATURE: 'warning',
@@ -150,12 +155,16 @@ export function statusVariant(value: string | null | undefined): BadgeVariant {
   return VARIANT_BY_VALUE[value] ?? 'muted';
 }
 
+/** Enum tokens that read as acronyms, not Title Case (e.g. PENDING_CEO_APPROVAL
+ *  → "Pending CEO Approval" rather than "Pending Ceo Approval"). */
+const ACRONYMS: Record<string, string> = { ceo: 'CEO', kpi: 'KPI', ctc: 'CTC' };
+
 /** ENUM_LIKE_THIS → "Enum Like This" for display. */
 export function humanizeEnum(value: string): string {
   return value
     .toLowerCase()
     .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .map((w) => ACRONYMS[w] ?? w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
 }
 

@@ -19,6 +19,7 @@ export interface ProjectProgressInput {
   rfqStatuses: string[];
   inspectionStatuses: string[];
   dispatchStatuses: string[];
+  plmStages: string[];
   overdueMilestones: number;
   overdueActions: number;
   openHighRisks: number;
@@ -56,11 +57,28 @@ const PRODUCTION_COMPLETE = new Set(['READY_TO_SHIP', 'SHIPPED', 'DELIVERED']);
 const DESIGN_COMPLETE = new Set(['RELEASED_FOR_PRODUCTION', 'CLOSED']);
 const INSPECTION_FAILED = new Set(['FAILED']);
 const INSPECTION_COMPLETE = new Set(['PASSED', 'CONDITIONAL_PASS']);
+const PLM_STAGE_RANK: Record<string, number> = {
+  DESIGN: 0,
+  DESIGN_REVIEW: 1,
+  DRAWING_RELEASE: 2,
+  RELEASE_TO_SCM: 3,
+  MATERIAL_PLANNING: 4,
+  PRODUCTION: 5,
+  QC: 6,
+  DISPATCH: 7,
+  COMPLETED: 8,
+};
 
 /** Pure status derivation: every lamp is calculated from operational records. */
 export function deriveProjectProgress(
   input: ProjectProgressInput,
 ): ProjectProgressView {
+  const allPlmTrackersAtOrBeyond = (stage: string) =>
+    input.plmStages.length > 0 &&
+    input.plmStages.every(
+      (current) =>
+        (PLM_STAGE_RANK[current] ?? -1) >= (PLM_STAGE_RANK[stage] ?? 0),
+    );
   const cancelled = input.order.status === 'CANCELLED';
   const kickoffComplete =
     input.kickoffStatus === 'COMPLETED' ||
@@ -68,24 +86,32 @@ export function deriveProjectProgress(
   const engineeringComplete =
     (input.designProject
       ? DESIGN_COMPLETE.has(input.designProject.status)
-      : false) || ORDER_ADVANCED.has(input.order.status);
+      : false) ||
+    allPlmTrackersAtOrBeyond('RELEASE_TO_SCM') ||
+    ORDER_ADVANCED.has(input.order.status);
   const procurementComplete =
     (input.rfqStatuses.length > 0 &&
       input.rfqStatuses.every((s) => s === 'AWARDED')) ||
+    allPlmTrackersAtOrBeyond('PRODUCTION') ||
     ORDER_ADVANCED.has(input.order.status);
-  const productionComplete = PRODUCTION_COMPLETE.has(input.order.status);
+  const productionComplete =
+    allPlmTrackersAtOrBeyond('QC') ||
+    PRODUCTION_COMPLETE.has(input.order.status);
   const qualityFailed = input.inspectionStatuses.some((s) =>
     INSPECTION_FAILED.has(s),
   );
   const qualityComplete =
     input.order.finalQcStatus === 'CLEARED' ||
+    allPlmTrackersAtOrBeyond('DISPATCH') ||
     (input.inspectionStatuses.length > 0 &&
       input.inspectionStatuses.every((s) => INSPECTION_COMPLETE.has(s)));
   const dispatchComplete =
     input.order.fulfilmentStatus === 'FULLY_DISPATCHED' ||
+    allPlmTrackersAtOrBeyond('COMPLETED') ||
     ['SHIPPED', 'DELIVERED'].includes(input.order.status);
   const dispatchStarted =
     input.order.fulfilmentStatus === 'PARTIALLY_DISPATCHED' ||
+    allPlmTrackersAtOrBeyond('DISPATCH') ||
     input.dispatchStatuses.some((s) =>
       ['DISPATCHED', 'IN_TRANSIT', 'DELIVERED'].includes(s),
     );
@@ -185,12 +211,14 @@ export function deriveProjectProgress(
       label: 'Production',
       state: complete.production
         ? 'COMPLETE'
-        : input.order.status === 'IN_PRODUCTION'
+        : input.order.status === 'IN_PRODUCTION' ||
+            allPlmTrackersAtOrBeyond('PRODUCTION')
           ? 'IN_PROGRESS'
           : 'UPCOMING',
       detail: complete.production
         ? 'Ready to ship'
-        : input.order.status === 'IN_PRODUCTION'
+        : input.order.status === 'IN_PRODUCTION' ||
+            allPlmTrackersAtOrBeyond('PRODUCTION')
           ? 'In production'
           : 'Not started',
       href: `/sales/orders/${input.order.id}`,

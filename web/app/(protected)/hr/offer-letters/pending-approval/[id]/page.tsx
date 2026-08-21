@@ -13,6 +13,7 @@ import { Textarea } from '../../../../../components/ui/textarea';
 import { Skeleton } from '../../../../../components/ui/skeleton';
 import { useToast } from '../../../../../components/ui/toaster';
 import { useConfirm } from '../../../../../components/ui/confirm';
+import { useAuth } from '../../../../../lib/auth-context';
 import {
   OfferLetterDocument,
   OfferLetterPrintDocument,
@@ -30,6 +31,7 @@ export default function OfferLetterReviewPage() {
   const id = params.id;
   const toast = useToast();
   const confirm = useConfirm();
+  const { user } = useAuth();
 
   const [offer, setOffer] = useState<OfferLetterDocument | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,13 +71,26 @@ export default function OfferLetterReviewPage() {
       toast.error('A comment is required when rejecting.');
       return;
     }
+    // Whether *this* approval finalises the letter or only forwards it. The CEO
+    // (SUPER_ADMIN) always gives the final sign-off — either at the CEO stage or
+    // clearing an owner-less vertical-stage fallback. A vertical owner acting at
+    // the first stage merely forwards it to the CEO.
+    const finalises =
+      user?.role === 'SUPER_ADMIN' ||
+      offer?.status === 'PENDING_CEO_APPROVAL';
     const ok = await confirm(
       action === 'approve'
-        ? {
-            title: 'Approve this offer letter?',
-            description:
-              'It will be marked APPROVED and become downloadable by HR.',
-          }
+        ? finalises
+          ? {
+              title: 'Give final approval to this offer letter?',
+              description:
+                'It will be marked APPROVED and become downloadable by HR.',
+            }
+          : {
+              title: 'Approve and forward to the CEO?',
+              description:
+                'Your first-stage approval will be recorded and the letter forwarded to the CEO for final sign-off. It is not downloadable until the CEO approves.',
+            }
         : {
             title: 'Reject this offer letter?',
             description:
@@ -92,7 +107,9 @@ export default function OfferLetterReviewPage() {
       });
       toast.success(
         action === 'approve'
-          ? 'Offer letter approved.'
+          ? finalises
+            ? 'Offer letter approved.'
+            : 'Approved and forwarded to the CEO.'
           : 'Offer letter rejected.',
       );
       router.push('/hr/offer-letters/pending-approval');

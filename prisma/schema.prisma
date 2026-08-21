@@ -212,16 +212,21 @@ enum BidAssessmentStatus {
   REJECTED
 }
 
-/// Offer-letter approval lifecycle. DRAFT: HR authors content and previews
-/// freely with live data. PENDING_APPROVAL: HR has submitted a frozen snapshot
-/// for the new hire's vertical owner (or SuperAdmin) to review. APPROVED: the
-/// snapshot is signed off in-ERP (NOT a legal signature) and download unlocks.
-/// REJECTED: sent back with a mandatory comment, returns to DRAFT for revision.
+/// Offer-letter approval lifecycle (two-stage, mirroring candidate
+/// requisitions). DRAFT: HR authors content and previews freely with live data.
+/// PENDING_VERTICAL_APPROVAL: HR has submitted a frozen snapshot for the new
+/// hire's vertical owner to give the first approval. PENDING_CEO_APPROVAL: the
+/// vertical owner has approved and the CEO must give the final sign-off.
+/// APPROVED: the snapshot is signed off in-ERP (NOT a legal signature) and
+/// download unlocks. REJECTED: sent back with a mandatory comment, returns to
+/// DRAFT for revision. When a vertical has no owner — or the owner is the new
+/// hire or the submitter — the CEO finalises directly from the vertical stage.
 /// Any edit after submission drops the letter back to DRAFT, discarding the
 /// snapshot — a fresh submission always requires a fresh approval.
 enum OfferLetterStatus {
   DRAFT
-  PENDING_APPROVAL
+  PENDING_VERTICAL_APPROVAL
+  PENDING_CEO_APPROVAL
   APPROVED
   REJECTED
 }
@@ -519,7 +524,9 @@ model Employee {
   offerLetter                             OfferLetter?           @relation("OfferLetterEmployee")
   onboardingCandidateRequisition          CandidateRequisition?  @relation("CandidateRequisitionOnboardedEmployee")
   offerLettersCreated                     OfferLetter[]          @relation("OfferLetterCreator")
-  offerLettersToApprove                   OfferLetter[]          @relation("OfferLetterApprover")
+  offerLettersVerticalApproved            OfferLetter[]          @relation("OfferLetterVerticalApprover")
+  offerLettersCeoApproved                 OfferLetter[]          @relation("OfferLetterCeoApprover")
+  offerLettersRejected                    OfferLetter[]          @relation("OfferLetterRejecter")
   provisioningRequests                    ProvisioningRequest[]  @relation("ProvisioningEmployee")
   provisioningRequestsApproved            ProvisioningRequest[]  @relation("ProvisioningApprovedBy")
   provisioningRequestsFulfilled           ProvisioningRequest[]  @relation("ProvisioningFulfilledBy")
@@ -769,10 +776,20 @@ model OfferLetter {
   /// on any edit-invalidation. Same snapshot-at-decision principle as Bid line
   /// items, e-signatures, and the OCS lock.
   snapshotData           Json?
-  approverId             String?
-  approver               Employee?             @relation("OfferLetterApprover", fields: [approverId], references: [id], onDelete: SetNull)
   submittedAt            DateTime?
-  decidedAt              DateTime?
+  /// First-stage sign-off by the new hire's vertical owner (or stamped by the
+  /// CEO when they finalise a letter that had no non-conflicted owner).
+  verticalApprovedById   String?
+  verticalApprovedBy     Employee?             @relation("OfferLetterVerticalApprover", fields: [verticalApprovedById], references: [id], onDelete: SetNull)
+  verticalApprovedAt     DateTime?
+  /// Final sign-off by the CEO. Set together with APPROVED.
+  ceoApprovedById        String?
+  ceoApprovedBy          Employee?             @relation("OfferLetterCeoApprover", fields: [ceoApprovedById], references: [id], onDelete: SetNull)
+  ceoApprovedAt          DateTime?
+  /// Who rejected the letter (at either stage) and when.
+  rejectedById           String?
+  rejectedBy             Employee?             @relation("OfferLetterRejecter", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedAt             DateTime?
   /// Reviewer comment. Optional on approve; the service REQUIRES a non-empty
   /// value on reject (mirrors every other rejection gate in the system).
   approverComments       String?               @db.Text
@@ -782,7 +799,7 @@ model OfferLetter {
   updatedAt              DateTime              @updatedAt
 
   @@index([createdById])
-  @@index([status, approverId])
+  @@index([status])
   @@map("offer_letters")
 }
 

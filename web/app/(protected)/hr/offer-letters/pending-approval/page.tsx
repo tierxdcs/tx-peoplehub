@@ -22,14 +22,18 @@ import {
 import { RegisterToolbar } from '../../../../components/ui/register-toolbar';
 import { RegisterPagination } from '../../../../components/ui/register-pagination';
 import { useRegisterList } from '../../../../lib/use-register-list';
+import { StatusBadge } from '../../../../components/ui/status-badge';
 
 /**
  * A pending offer letter as returned by the list endpoint (raw record + a
  * selected employee). The approver reviews and decides on the detail page.
+ * `status` distinguishes the first-stage vertical-owner sign-off from the CEO's
+ * final sign-off — the CEO's queue mixes both (plus owner-less fallbacks).
  */
 type PendingOfferLetter = {
   id: string;
   referenceNumber: string;
+  status: 'PENDING_VERTICAL_APPROVAL' | 'PENDING_CEO_APPROVAL';
   submittedAt: string | null;
   employee: {
     id: string;
@@ -52,7 +56,7 @@ export default function OfferLetterApprovalQueuePage() {
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const register = useRegisterList(letters, (letter) => `${letter.referenceNumber} ${letter.employee.firstName} ${letter.employee.lastName} ${letter.employee.employeeId} ${letter.employee.designation ?? ''} pending`);
+  const register = useRegisterList(letters, (letter) => `${letter.referenceNumber} ${letter.employee.firstName} ${letter.employee.lastName} ${letter.employee.employeeId} ${letter.employee.designation ?? ''} ${letter.status} pending`);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,7 +99,7 @@ export default function OfferLetterApprovalQueuePage() {
     <PageContainer>
       <PageHeader
         title="Offer Letter Approvals"
-        description="Offer letters awaiting your approval as the new hire’s vertical owner. Open one to review and decide."
+        description="Offer letters awaiting your approval — as the new hire’s vertical owner (first sign-off) or, for the CEO, the final sign-off. Open one to review and decide."
       />
       <RegisterToolbar title="Approval Queue" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search candidate, reference or status" />
 
@@ -112,6 +116,7 @@ export default function OfferLetterApprovalQueuePage() {
                   <TableHead>Reference #</TableHead>
                   <TableHead>Candidate</TableHead>
                   <TableHead>Position</TableHead>
+                  <TableHead>Stage</TableHead>
                   <TableHead>Submitted</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -136,6 +141,9 @@ export default function OfferLetterApprovalQueuePage() {
                     </TableCell>
                     <TableCell>{l.employee.designation ?? '—'}</TableCell>
                     <TableCell>
+                      <StatusBadge value={l.status} />
+                    </TableCell>
+                    <TableCell>
                       {l.submittedAt ? dateOnlyStr(l.submittedAt) : '—'}
                     </TableCell>
                     <TableCell className="text-right">
@@ -156,7 +164,7 @@ export default function OfferLetterApprovalQueuePage() {
                 ))}
                 {register.visibleItems.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="p-0">
+                    <TableCell colSpan={6} className="p-0">
                       <EmptyState
                         icon={FileCheck}
                         tone="positive"

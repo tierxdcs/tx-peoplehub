@@ -150,7 +150,14 @@ describe('OfferLettersService', () => {
     expect(prisma.offerLetter.create).not.toHaveBeenCalled();
   });
 
-  // ---- approval gate ------------------------------------------------------
+  // ---- two-stage approval gate --------------------------------------------
+
+  const ownerUser = {
+    id: 'owner-1',
+    email: 'o@x.com',
+    role: Role.MANAGER,
+    verticalId: 'v1',
+  };
 
   const draftOffer = (overrides: any = {}) => ({
     id: 'offer-1',
@@ -163,10 +170,16 @@ describe('OfferLettersService', () => {
     snapshotData: null,
     createdAt: new Date('2026-01-01T00:00:00Z'),
     submittedAt: null,
-    decidedAt: null,
     approverComments: null,
-    approverId: null,
-    approver: null,
+    verticalApprovedById: null,
+    verticalApprovedBy: null,
+    verticalApprovedAt: null,
+    ceoApprovedById: null,
+    ceoApprovedBy: null,
+    ceoApprovedAt: null,
+    rejectedById: null,
+    rejectedBy: null,
+    rejectedAt: null,
     employee: {
       firstName: 'Punith',
       lastName: 'K',
@@ -178,6 +191,7 @@ describe('OfferLettersService', () => {
       territory: 'South India',
       vertical: {
         name: 'Sales',
+        ownerId: 'owner-1',
         owner: { id: 'owner-1', firstName: 'Vera', lastName: 'Owner' },
       },
       reportingManager: null,
@@ -185,9 +199,19 @@ describe('OfferLettersService', () => {
     ...overrides,
   });
 
+  /** Build an owner-less (or self-owned) vertical for CEO-fallback scenarios. */
+  const withVertical = (
+    overrides: any,
+    vertical: { ownerId: string | null; owner: any },
+  ) =>
+    draftOffer({
+      ...overrides,
+      employee: { ...draftOffer().employee, vertical: { name: 'Sales', ...vertical } },
+    });
+
   const compensation = { grandTotal: { perAnnum: '1400000.00' } };
 
-  it('submit freezes a snapshot, routes to the vertical owner and moves to PENDING_APPROVAL', async () => {
+  it('submit freezes a snapshot, clears prior stamps and moves to PENDING_VERTICAL_APPROVAL', async () => {
     prisma.offerLetter.findUnique.mockResolvedValue(draftOffer());
     payroll.computeCtcBreakdown.mockResolvedValue(compensation);
     prisma.offerLetter.update.mockResolvedValue({});
@@ -195,8 +219,12 @@ describe('OfferLettersService', () => {
     await service.submit('employee-1', user);
 
     const data = prisma.offerLetter.update.mock.calls[0][0].data;
-    expect(data.status).toBe(OfferLetterStatus.PENDING_APPROVAL);
-    expect(data.approverId).toBe('owner-1');
+    expect(data.status).toBe(OfferLetterStatus.PENDING_VERTICAL_APPROVAL);
+    // Routing is derived live at decision time — submit stamps no approver, and
+    // clears any decision stamps from a prior cycle.
+    expect(data.verticalApprovedById).toBeNull();
+    expect(data.ceoApprovedById).toBeNull();
+    expect(data.rejectedById).toBeNull();
     expect(data.submittedAt).toBeInstanceOf(Date);
     // Snapshot is a curated, JSON-safe payload — not the raw employee row.
     expect(data.snapshotData.employee.firstName).toBe('Punith');
@@ -206,122 +234,137 @@ describe('OfferLettersService', () => {
     expect(typeof data.snapshotData.employee.dateOfJoining).toBe('string');
   });
 
-  it('submit falls back to SuperAdmin-only (null approver) when the vertical has no owner', async () => {
-    prisma.offerLetter.findUnique.mockResolvedValue(
-      draftOffer({
-        employee: {
-          ...draftOffer().employee,
-          vertical: { name: 'Sales', owner: null },
-        },
-      }),
-    );
-    payroll.computeCtcBreakdown.mockResolvedValue(compensation);
-    prisma.offerLetter.update.mockResolvedValue({});
-
-    await service.submit('employee-1', user);
-
-    expect(
-      prisma.offerLetter.update.mock.calls[0][0].data.approverId,
-    ).toBeNull();
-  });
-
-  it('submit falls back to SuperAdmin when the owner would be the submitter (self-approval)', async () => {
-    prisma.offerLetter.findUnique.mockResolvedValue(
-      draftOffer({
-        createdById: 'owner-1', // submitter IS the vertical owner
-      }),
-    );
-    payroll.computeCtcBreakdown.mockResolvedValue(compensation);
-    prisma.offerLetter.update.mockResolvedValue({});
-
-    await service.submit('employee-1', user);
-
-    expect(
-      prisma.offerLetter.update.mock.calls[0][0].data.approverId,
-    ).toBeNull();
-  });
-
   it('submit rejects an offer letter that is not DRAFT/REJECTED', async () => {
     prisma.offerLetter.findUnique.mockResolvedValue(
-      draftOffer({ status: OfferLetterStatus.PENDING_APPROVAL }),
+      draftOffer({ status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL }),
     );
     await expect(service.submit('employee-1', user)).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });
 
-  it('approve moves PENDING_APPROVAL to APPROVED and stamps the approver', async () => {
-    const owner = {
-      id: 'owner-1',
-      email: 'o@x.com',
-      role: Role.MANAGER,
-      verticalId: 'v1',
-    };
+  it('stage 1: the vertical owner approves → PENDING_CEO_APPROVAL, stamping only the vertical stage', async () => {
     prisma.offerLetter.findUnique.mockResolvedValue(
-      draftOffer({
-        status: OfferLetterStatus.PENDING_APPROVAL,
-        approverId: 'owner-1',
-      }),
+      draftOffer({ status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL }),
     );
-    payroll.computeCtcBreakdown.mockResolvedValue(compensation);
     prisma.offerLetter.update.mockResolvedValue({});
 
-    await service.approve('offer-1', {}, owner);
+    await service.approve('offer-1', {}, ownerUser);
 
     const data = prisma.offerLetter.update.mock.calls[0][0].data;
-    expect(data.status).toBe(OfferLetterStatus.APPROVED);
-    expect(data.approverId).toBe('owner-1');
-    expect(data.decidedAt).toBeInstanceOf(Date);
+    expect(data.status).toBe(OfferLetterStatus.PENDING_CEO_APPROVAL);
+    expect(data.verticalApprovedById).toBe('owner-1');
+    expect(data.verticalApprovedAt).toBeInstanceOf(Date);
+    // The CEO stage is NOT stamped by the owner's first sign-off.
+    expect(data.ceoApprovedById).toBeUndefined();
   });
 
-  it('reject requires a comment', async () => {
-    const owner = {
-      id: 'owner-1',
-      email: 'o@x.com',
-      role: Role.MANAGER,
-      verticalId: 'v1',
-    };
+  it('stage 1: the CEO cannot pre-empt the vertical owner while an owner exists', async () => {
     prisma.offerLetter.findUnique.mockResolvedValue(
-      draftOffer({
-        status: OfferLetterStatus.PENDING_APPROVAL,
-        approverId: 'owner-1',
-      }),
+      draftOffer({ status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL }),
     );
-
-    await expect(
-      service.reject('offer-1', { approverComments: '   ' }, owner),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.approve('offer-1', {}, user)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(prisma.offerLetter.update).not.toHaveBeenCalled();
   });
 
-  it('reject with a comment moves to REJECTED and discards the snapshot', async () => {
-    const owner = {
-      id: 'owner-1',
-      email: 'o@x.com',
-      role: Role.MANAGER,
-      verticalId: 'v1',
-    };
+  it('stage 2: the CEO gives the final approval → APPROVED, stamping only the CEO stage', async () => {
     prisma.offerLetter.findUnique.mockResolvedValue(
       draftOffer({
-        status: OfferLetterStatus.PENDING_APPROVAL,
-        approverId: 'owner-1',
+        status: OfferLetterStatus.PENDING_CEO_APPROVAL,
+        verticalApprovedById: 'owner-1',
+        verticalApprovedAt: new Date('2026-01-02T00:00:00Z'),
+        snapshotData: { compensation },
       }),
     );
     prisma.offerLetter.update.mockResolvedValue({});
 
-    await service.reject('offer-1', { approverComments: 'Fix the CTC' }, owner);
+    await service.approve('offer-1', {}, user);
 
     const data = prisma.offerLetter.update.mock.calls[0][0].data;
-    expect(data.status).toBe(OfferLetterStatus.REJECTED);
-    expect(data.approverComments).toBe('Fix the CTC');
-    expect(data.snapshotData).toBeDefined(); // Prisma.DbNull sentinel, not undefined
+    expect(data.status).toBe(OfferLetterStatus.APPROVED);
+    expect(data.ceoApprovedById).toBe('admin-1');
+    expect(data.ceoApprovedAt).toBeInstanceOf(Date);
+    // The already-recorded vertical stage is left untouched.
+    expect(data.verticalApprovedById).toBeUndefined();
   });
 
-  it('blocks self-approval even for a SuperAdmin who is the subject', async () => {
+  it('stage 2: a vertical owner cannot give the final (CEO) approval', async () => {
     prisma.offerLetter.findUnique.mockResolvedValue(
       draftOffer({
-        status: OfferLetterStatus.PENDING_APPROVAL,
-        employeeId: 'admin-1', // the letter is FOR the SuperAdmin
+        status: OfferLetterStatus.PENDING_CEO_APPROVAL,
+        verticalApprovedById: 'owner-1',
+      }),
+    );
+    await expect(
+      service.approve('offer-1', {}, ownerUser),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.offerLetter.update).not.toHaveBeenCalled();
+  });
+
+  it('fallback: the CEO finalises an owner-less letter directly, stamping BOTH stages', async () => {
+    prisma.offerLetter.findUnique.mockResolvedValue(
+      withVertical(
+        {
+          status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
+          createdById: 'admin-1', // even one the CEO submitted (no deadlock)
+          snapshotData: { compensation },
+        },
+        { ownerId: null, owner: null },
+      ),
+    );
+    prisma.offerLetter.update.mockResolvedValue({});
+
+    await service.approve('offer-1', {}, user);
+
+    const data = prisma.offerLetter.update.mock.calls[0][0].data;
+    expect(data.status).toBe(OfferLetterStatus.APPROVED);
+    expect(data.verticalApprovedById).toBe('admin-1');
+    expect(data.ceoApprovedById).toBe('admin-1');
+  });
+
+  it('fallback: when the owner is the subject, the CEO finalises from the vertical stage', async () => {
+    prisma.offerLetter.findUnique.mockResolvedValue(
+      withVertical(
+        {
+          status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
+          employeeId: 'owner-1', // the new hire IS the vertical owner
+          snapshotData: { compensation },
+        },
+        { ownerId: 'owner-1', owner: { id: 'owner-1' } },
+      ),
+    );
+    prisma.offerLetter.update.mockResolvedValue({});
+
+    await service.approve('offer-1', {}, user);
+
+    const data = prisma.offerLetter.update.mock.calls[0][0].data;
+    expect(data.status).toBe(OfferLetterStatus.APPROVED);
+    expect(data.verticalApprovedById).toBe('admin-1');
+    expect(data.ceoApprovedById).toBe('admin-1');
+  });
+
+  it('blocks the submitter (who is also the owner) from approving at the vertical stage', async () => {
+    // Owner == submitter → self-approval; this is a CEO-fallback case, so a
+    // non-CEO owner-submitter must be refused (the CEO will finalise instead).
+    prisma.offerLetter.findUnique.mockResolvedValue(
+      draftOffer({
+        status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
+        createdById: 'owner-1',
+      }),
+    );
+    await expect(
+      service.approve('offer-1', {}, ownerUser),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.offerLetter.update).not.toHaveBeenCalled();
+  });
+
+  it('blocks self-approval even for a CEO who is the subject', async () => {
+    prisma.offerLetter.findUnique.mockResolvedValue(
+      draftOffer({
+        status: OfferLetterStatus.PENDING_CEO_APPROVAL,
+        employeeId: 'admin-1', // the letter is FOR the CEO
       }),
     );
     await expect(service.approve('offer-1', {}, user)).rejects.toBeInstanceOf(
@@ -329,44 +372,7 @@ describe('OfferLettersService', () => {
     );
   });
 
-  it('blocks the submitter from approving their own submission', async () => {
-    const submitter = {
-      id: 'hr-1',
-      email: 'hr@x.com',
-      role: Role.MANAGER,
-      verticalId: 'v1',
-    };
-    prisma.offerLetter.findUnique.mockResolvedValue(
-      draftOffer({
-        status: OfferLetterStatus.PENDING_APPROVAL,
-        createdById: 'hr-1',
-      }),
-    );
-    await expect(
-      service.approve('offer-1', {}, submitter),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-  });
-
-  it('lets a SuperAdmin approve an owner-less letter they submitted (no deadlock)', async () => {
-    // Owner-less vertical → approverId null → SuperAdmin-only fallback. If the
-    // sole SuperAdmin also submitted it, the submitter block must NOT fire —
-    // otherwise nobody can ever approve the letter.
-    prisma.offerLetter.findUnique.mockResolvedValue(
-      draftOffer({
-        status: OfferLetterStatus.PENDING_APPROVAL,
-        createdById: 'admin-1', // the SuperAdmin submitted it
-        approverId: null,
-        snapshotData: { compensation },
-      }),
-    );
-    prisma.offerLetter.update.mockResolvedValue({});
-    await service.approve('offer-1', {}, user);
-    const data = prisma.offerLetter.update.mock.calls[0][0].data;
-    expect(data.status).toBe(OfferLetterStatus.APPROVED);
-    expect(data.approverId).toBe('admin-1');
-  });
-
-  it('blocks a manager who is neither the routed owner nor a SuperAdmin', async () => {
+  it('blocks a manager who is neither the routed owner nor the CEO', async () => {
     const stranger = {
       id: 'mgr-9',
       email: 'm@x.com',
@@ -374,14 +380,67 @@ describe('OfferLettersService', () => {
       verticalId: 'v9',
     };
     prisma.offerLetter.findUnique.mockResolvedValue(
-      draftOffer({
-        status: OfferLetterStatus.PENDING_APPROVAL,
-        approverId: 'owner-1',
-      }),
+      draftOffer({ status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL }),
     );
     await expect(
       service.approve('offer-1', {}, stranger),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('approve rejects a letter that is not awaiting a decision', async () => {
+    prisma.offerLetter.findUnique.mockResolvedValue(
+      draftOffer({ status: OfferLetterStatus.DRAFT }),
+    );
+    await expect(service.approve('offer-1', {}, user)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('reject requires a comment', async () => {
+    prisma.offerLetter.findUnique.mockResolvedValue(
+      draftOffer({ status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL }),
+    );
+
+    await expect(
+      service.reject('offer-1', { approverComments: '   ' }, ownerUser),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.offerLetter.update).not.toHaveBeenCalled();
+  });
+
+  it('reject at the vertical stage by the owner → REJECTED, stamping the rejecter and discarding the snapshot', async () => {
+    prisma.offerLetter.findUnique.mockResolvedValue(
+      draftOffer({
+        status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
+        snapshotData: { compensation },
+      }),
+    );
+    prisma.offerLetter.update.mockResolvedValue({});
+
+    await service.reject(
+      'offer-1',
+      { approverComments: 'Fix the CTC' },
+      ownerUser,
+    );
+
+    const data = prisma.offerLetter.update.mock.calls[0][0].data;
+    expect(data.status).toBe(OfferLetterStatus.REJECTED);
+    expect(data.rejectedById).toBe('owner-1');
+    expect(data.rejectedAt).toBeInstanceOf(Date);
+    expect(data.approverComments).toBe('Fix the CTC');
+    expect(data.snapshotData).toBeDefined(); // Prisma.DbNull sentinel, not undefined
+  });
+
+  it('reject at the CEO stage is restricted to the CEO', async () => {
+    prisma.offerLetter.findUnique.mockResolvedValue(
+      draftOffer({
+        status: OfferLetterStatus.PENDING_CEO_APPROVAL,
+        verticalApprovedById: 'owner-1',
+      }),
+    );
+    await expect(
+      service.reject('offer-1', { approverComments: 'No' }, ownerUser),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.offerLetter.update).not.toHaveBeenCalled();
   });
 
   it('editing an APPROVED offer letter invalidates the approval back to DRAFT', async () => {
@@ -399,7 +458,9 @@ describe('OfferLettersService', () => {
 
     const data = prisma.offerLetter.update.mock.calls[0][0].data;
     expect(data.status).toBe(OfferLetterStatus.DRAFT);
-    expect(data.approverId).toBeNull();
+    expect(data.verticalApprovedById).toBeNull();
+    expect(data.ceoApprovedById).toBeNull();
+    expect(data.rejectedById).toBeNull();
     expect(data.submittedAt).toBeNull();
     expect(data.snapshotData).toBeDefined(); // Prisma.DbNull sentinel
   });
@@ -419,7 +480,7 @@ describe('OfferLettersService', () => {
 
     const data = prisma.offerLetter.update.mock.calls[0][0].data;
     expect(data).not.toHaveProperty('status');
-    expect(data).not.toHaveProperty('approverId');
+    expect(data).not.toHaveProperty('verticalApprovedById');
   });
 
   it('serves the frozen snapshot (not live data) once APPROVED', async () => {
@@ -428,15 +489,22 @@ describe('OfferLettersService', () => {
       employeeId: 'employee-1',
       status: OfferLetterStatus.APPROVED,
       submittedAt: new Date('2026-01-02T00:00:00Z'),
-      decidedAt: new Date('2026-01-03T00:00:00Z'),
       approverComments: null,
-      approver: { firstName: 'Vera', lastName: 'Owner' },
+      verticalApprovedBy: { firstName: 'Vera', lastName: 'Owner' },
+      verticalApprovedAt: new Date('2026-01-03T00:00:00Z'),
+      ceoApprovedBy: { firstName: 'Cee', lastName: 'Oh' },
+      ceoApprovedAt: new Date('2026-01-04T00:00:00Z'),
+      rejectedBy: null,
+      rejectedAt: null,
       snapshotData: {
         referenceNumber: 'PD/HR/2026/RSM',
         compensation: { grandTotal: { perAnnum: '999999.00' } },
       },
       employee: {
-        vertical: { owner: { firstName: 'Vera', lastName: 'Owner' } },
+        vertical: {
+          ownerId: 'owner-1',
+          owner: { firstName: 'Vera', lastName: 'Owner' },
+        },
       },
     });
 
@@ -444,34 +512,80 @@ describe('OfferLettersService', () => {
 
     expect(doc.compensation.grandTotal.perAnnum).toBe('999999.00');
     expect(doc.status).toBe(OfferLetterStatus.APPROVED);
+    expect(doc.verticalApprovedBy?.firstName).toBe('Vera');
+    expect(doc.ceoApprovedBy?.firstName).toBe('Cee');
     // The frozen path must NOT recompute compensation.
     expect(payroll.computeCtcBreakdown).not.toHaveBeenCalled();
   });
 
-  it('scopes the pending-approval list to the owner for a non-SuperAdmin caller', async () => {
-    const owner = {
-      id: 'owner-1',
-      email: 'o@x.com',
-      role: Role.MANAGER,
-      verticalId: 'v1',
-    };
+  it('scopes the pending-approval list to the routed owner for a non-CEO caller', async () => {
     prisma.offerLetter.findMany.mockResolvedValue([]);
 
-    await service.listPendingApproval(owner);
+    await service.listPendingApproval(ownerUser);
 
     expect(prisma.offerLetter.findMany.mock.calls[0][0].where).toEqual({
-      status: OfferLetterStatus.PENDING_APPROVAL,
-      approverId: 'owner-1',
+      status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
+      createdById: { not: 'owner-1' },
+      employeeId: { not: 'owner-1' },
+      employee: { vertical: { ownerId: 'owner-1' } },
     });
   });
 
-  it('scopes the pending-approval list to every pending letter for a SuperAdmin', async () => {
-    prisma.offerLetter.count.mockResolvedValue(3);
+  it("the CEO's queue is every CEO-stage letter plus only the vertical-stage fallbacks", async () => {
+    const pendingRow = (over: any) => ({
+      id: 'x',
+      status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
+      employeeId: 'e',
+      createdById: 'c',
+      employee: { vertical: { ownerId: 'someone' } },
+      ...over,
+    });
+    const ceoStage = pendingRow({
+      id: 'ceo',
+      status: OfferLetterStatus.PENDING_CEO_APPROVAL,
+    });
+    const ownerlessFallback = pendingRow({
+      id: 'fallback',
+      employee: { vertical: { ownerId: null } },
+    });
+    const realOwnerStage = pendingRow({ id: 'owned' }); // ownerId 'someone'
+    prisma.offerLetter.findMany.mockResolvedValue([
+      ceoStage,
+      ownerlessFallback,
+      realOwnerStage,
+    ]);
 
-    await service.countPendingApproval(user);
+    const list = await service.listPendingApproval(user);
 
+    expect(list.map((l: any) => l.id)).toEqual(['ceo', 'fallback']);
+    expect(prisma.offerLetter.findMany.mock.calls[0][0].where.status.in).toEqual(
+      [
+        OfferLetterStatus.PENDING_CEO_APPROVAL,
+        OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
+      ],
+    );
+  });
+
+  it('counts the CEO queue from the filtered list (no column-to-column DB count)', async () => {
+    prisma.offerLetter.findMany.mockResolvedValue([
+      { id: 'ceo', status: OfferLetterStatus.PENDING_CEO_APPROVAL, employeeId: 'e', createdById: 'c', employee: { vertical: { ownerId: 'x' } } },
+      { id: 'fallback', status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL, employeeId: 'e', createdById: 'c', employee: { vertical: { ownerId: null } } },
+      { id: 'owned', status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL, employeeId: 'e', createdById: 'c', employee: { vertical: { ownerId: 'x' } } },
+    ]);
+
+    expect(await service.countPendingApproval(user)).toBe(2);
+    expect(prisma.offerLetter.count).not.toHaveBeenCalled();
+  });
+
+  it('counts a non-CEO owner queue with a direct DB count', async () => {
+    prisma.offerLetter.count.mockResolvedValue(4);
+
+    expect(await service.countPendingApproval(ownerUser)).toBe(4);
     expect(prisma.offerLetter.count.mock.calls[0][0].where).toEqual({
-      status: OfferLetterStatus.PENDING_APPROVAL,
+      status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
+      createdById: { not: 'owner-1' },
+      employeeId: { not: 'owner-1' },
+      employee: { vertical: { ownerId: 'owner-1' } },
     });
   });
 });

@@ -9,7 +9,8 @@ type Row = {
 };
 export type OfferLetterStatus =
   | 'DRAFT'
-  | 'PENDING_APPROVAL'
+  | 'PENDING_VERTICAL_APPROVAL'
+  | 'PENDING_CEO_APPROVAL'
   | 'APPROVED'
   | 'REJECTED';
 
@@ -44,9 +45,16 @@ export type OfferLetterDocument = {
   // ignores it — it's consumed by the authoring page and the approval inbox).
   status: OfferLetterStatus;
   submittedAt: string | null;
-  decidedAt: string | null;
   approverComments: string | null;
-  approver: { firstName: string; lastName: string } | null;
+  // Two-stage decision trail: the vertical owner's first sign-off, the CEO's
+  // final sign-off, and any rejection. Each is null until that step happens.
+  verticalApprovedBy: { firstName: string; lastName: string } | null;
+  verticalApprovedAt: string | null;
+  ceoApprovedBy: { firstName: string; lastName: string } | null;
+  ceoApprovedAt: string | null;
+  rejectedBy: { firstName: string; lastName: string } | null;
+  rejectedAt: string | null;
+  // The vertical owner the letter routes to on submit (null → CEO finalises).
   verticalOwner: { firstName: string; lastName: string } | null;
   candidateRequisition?: { id: string; requisitionNumber: string; positionTitle: string } | null;
 };

@@ -198,7 +198,10 @@ export default function OfferLettersPage() {
   async function save() {
     setSaving(true);
     setError(null);
-    const wasGated = status === 'PENDING_APPROVAL' || status === 'APPROVED';
+    const wasGated =
+      status === 'PENDING_VERTICAL_APPROVAL' ||
+      status === 'PENDING_CEO_APPROVAL' ||
+      status === 'APPROVED';
     try {
       const fresh = await persist();
       if (fresh) {
@@ -432,7 +435,9 @@ export default function OfferLettersPage() {
               )}
             </Field>
 
-            {(status === 'PENDING_APPROVAL' || status === 'APPROVED') && (
+            {(status === 'PENDING_VERTICAL_APPROVAL' ||
+              status === 'PENDING_CEO_APPROVAL' ||
+              status === 'APPROVED') && (
               <p className="text-sm text-muted-foreground">
                 Editing the content and saving will reset this letter to draft
                 and require a fresh approval.
@@ -457,7 +462,8 @@ export default function OfferLettersPage() {
                   <Send />{' '}
                   {submitting
                     ? 'Submitting…'
-                    : status === 'PENDING_APPROVAL'
+                    : status === 'PENDING_VERTICAL_APPROVAL' ||
+                        status === 'PENDING_CEO_APPROVAL'
                       ? 'Resubmit for Approval'
                       : 'Submit for Approval'}
                 </Button>
@@ -488,14 +494,19 @@ export default function OfferLettersPage() {
  */
 function StatusPanel({ offer }: { offer: OfferLetterDocument }) {
   const owner = ownerName(offer.verticalOwner);
-  const approver = ownerName(offer.approver);
+  const verticalApprover = ownerName(offer.verticalApprovedBy);
+  const ceoApprover = ownerName(offer.ceoApprovedBy);
+  const rejecter = ownerName(offer.rejectedBy);
+  const pending =
+    offer.status === 'PENDING_VERTICAL_APPROVAL' ||
+    offer.status === 'PENDING_CEO_APPROVAL';
 
   const tone =
     offer.status === 'APPROVED'
       ? 'border-success/40 bg-success/10'
       : offer.status === 'REJECTED'
         ? 'border-destructive/40 bg-destructive/10'
-        : offer.status === 'PENDING_APPROVAL'
+        : pending
           ? 'border-warning/40 bg-warning/10'
           : 'border-border bg-muted/40';
 
@@ -504,7 +515,7 @@ function StatusPanel({ offer }: { offer: OfferLetterDocument }) {
       ? CheckCircle2
       : offer.status === 'REJECTED'
         ? XCircle
-        : offer.status === 'PENDING_APPROVAL'
+        : pending
           ? Clock
           : FileText;
 
@@ -517,28 +528,42 @@ function StatusPanel({ offer }: { offer: OfferLetterDocument }) {
         </div>
         {offer.status === 'DRAFT' && (
           <p className="text-muted-foreground">
-            This letter is a draft. Submit it for approval
-            {owner ? ` to ${owner} (vertical owner)` : ' to the CEO'} — it can
-            be downloaded only once approved.
+            This letter is a draft. Submitting sends it
+            {owner
+              ? ` to ${owner} (vertical owner) for the first approval, then to the CEO`
+              : ' to the CEO for approval'}{' '}
+            — it can be downloaded only once fully approved.
           </p>
         )}
-        {offer.status === 'PENDING_APPROVAL' && (
+        {offer.status === 'PENDING_VERTICAL_APPROVAL' && (
           <p className="text-muted-foreground">
-            Awaiting approval
-            {approver ? ` from ${approver}` : ' from the CEO'}. The document is
-            locked to what was submitted and can’t be downloaded until approved.
+            Awaiting first approval
+            {owner ? ` from ${owner} (vertical owner)` : ' from the CEO'}, then
+            final approval from the CEO. The document is locked to what was
+            submitted and can’t be downloaded until fully approved.
+          </p>
+        )}
+        {offer.status === 'PENDING_CEO_APPROVAL' && (
+          <p className="text-muted-foreground">
+            {verticalApprover
+              ? `Approved by ${verticalApprover} (vertical owner). `
+              : 'Vertical approval complete. '}
+            Awaiting final approval from the CEO — not downloadable until then.
           </p>
         )}
         {offer.status === 'APPROVED' && (
           <p className="text-muted-foreground">
-            Approved{approver ? ` by ${approver}` : ''}. You can now download
-            the offer letter.
+            Approved{ceoApprover ? ` by ${ceoApprover} (CEO)` : ''}
+            {verticalApprover && verticalApprover !== ceoApprover
+              ? `, after ${verticalApprover} (vertical owner)`
+              : ''}
+            . You can now download the offer letter.
           </p>
         )}
         {offer.status === 'REJECTED' && (
           <div className="space-y-1">
             <p className="text-muted-foreground">
-              Rejected{approver ? ` by ${approver}` : ''}. Address the feedback,
+              Rejected{rejecter ? ` by ${rejecter}` : ''}. Address the feedback,
               save, and resubmit.
             </p>
             {offer.approverComments && (
