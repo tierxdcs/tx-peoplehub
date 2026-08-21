@@ -35,14 +35,15 @@ export function pingAgeHours(createdAt: string, now = new Date()) {
   return Math.max(0, Math.floor((now.getTime() - new Date(createdAt).getTime()) / 3_600_000));
 }
 
-/** Resolved pings linger on the dashboard for two days after resolution, then drop off. */
-export const DASHBOARD_RESOLVED_TTL_MS = 2 * 86_400_000;
+/** Resolved pings linger on the dashboard for 24 hours after resolution. */
+export const DASHBOARD_RESOLVED_TTL_MS = 24 * 3_600_000;
 const RECEIVED_STATUS_RANK: Record<PingStatus, number> = { PENDING: 0, ACKNOWLEDGED: 1, RESOLVED: 2 };
 
 /**
  * Dashboard ordering for received pings: pending first (oldest / most overdue on
  * top), then acknowledged, then resolved (most recently handled on top). Resolved
- * pings older than two days are dropped so the panel doesn't accumulate history —
+ * pings resolved at least 24 hours ago are dropped so the panel does not
+ * accumulate history —
  * the full log still lives on the My Pings register (unchanged).
  */
 export function orderReceivedForDashboard(received: ReceivedPing[], now: number = Date.now()): ReceivedPing[] {

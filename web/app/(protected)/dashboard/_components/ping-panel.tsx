@@ -9,7 +9,7 @@ import { linkedPingHref, orderReceivedForDashboard, pingAgeHours, respondToPing,
 
 export function PingPanel({ received, sent, onChanged }: { received: ReceivedPing[]; sent: SentPing[]; onChanged: () => void }) {
   const act = async (id: string, status: 'ACKNOWLEDGED' | 'RESOLVED') => { await respondToPing(id, status); onChanged(); };
-  // Pending → acknowledged → resolved; resolved pings older than two days drop off.
+  // Pending → acknowledged → resolved; resolved pings drop off after 24 hours.
   const visible = orderReceivedForDashboard(received);
   return (
     <aside className="space-y-3 xl:sticky xl:top-4">

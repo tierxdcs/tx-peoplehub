@@ -31,21 +31,21 @@ describe('orderReceivedForDashboard', () => {
     expect(orderReceivedForDashboard(rows, NOW).map((r) => r.id)).toEqual(['fresh', 'stale']);
   });
 
-  it('keeps resolved pings resolved within the last two days', () => {
-    const rows = [ping('recent', 'RESOLVED', { resolvedHoursAgo: 47 })];
+  it('keeps resolved pings on the dashboard for less than 24 hours', () => {
+    const rows = [ping('recent', 'RESOLVED', { resolvedHoursAgo: 23 })];
     expect(orderReceivedForDashboard(rows, NOW).map((r) => r.id)).toEqual(['recent']);
   });
 
-  it('drops resolved pings older than two days but keeps pending/acknowledged of any age', () => {
+  it('drops resolved pings after 24 hours but keeps pending/acknowledged of any age', () => {
     const rows = [
-      ping('old-resolved', 'RESOLVED', { resolvedHoursAgo: 49 }),
+      ping('old-resolved', 'RESOLVED', { resolvedHoursAgo: 25 }),
       ping('old-pending', 'PENDING', { createdHoursAgo: 500 }),
       ping('old-ack', 'ACKNOWLEDGED', { resolvedHoursAgo: 500 }),
     ];
     expect(orderReceivedForDashboard(rows, NOW).map((r) => r.id)).toEqual(['old-pending', 'old-ack']);
   });
 
-  it('treats the two-day boundary as exclusive', () => {
+  it('removes a resolved ping at the exact 24-hour boundary', () => {
     const exactly = [ping('boundary', 'RESOLVED', { resolvedHoursAgo: DASHBOARD_RESOLVED_TTL_MS / HOUR })];
     expect(orderReceivedForDashboard(exactly, NOW)).toHaveLength(0);
   });
