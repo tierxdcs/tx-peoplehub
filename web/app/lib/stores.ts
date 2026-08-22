@@ -12,10 +12,12 @@ import { apiFetch } from './api';
 
 // ── Enums ────────────────────────────────────────────────────────────
 export type PurchaseOrderStatus =
+  | 'PENDING_CEO_APPROVAL'
   | 'DRAFT'
   | 'ISSUED'
   | 'PARTIALLY_RECEIVED'
   | 'FULLY_RECEIVED'
+  | 'REJECTED'
   | 'CANCELLED';
 
 export type GoodsReceiptNoteStatus =
@@ -85,6 +87,14 @@ export interface PurchaseOrder {
   supplierName: string | null;
   vendorId: string | null;
   vendorName: string | null;
+  adHocPartyName: string | null;
+  adHocContactInfo: string | null;
+  adHocPartyAddress: string | null;
+  ceoApprovedById: string | null;
+  ceoApprovedAt: string | null;
+  rejectedById: string | null;
+  rejectedAt: string | null;
+  rejectionComment: string | null;
   orderDate: string;
   expectedDeliveryDate: string | null;
   notes: string | null;
@@ -111,6 +121,9 @@ export interface PurchaseOrderLineInput {
 export interface CreatePurchaseOrderInput {
   supplierId?: string;
   vendorId?: string;
+  adHocPartyName?: string;
+  adHocContactInfo?: string;
+  adHocPartyAddress?: string;
   orderDate?: string;
   expectedDeliveryDate?: string;
   notes?: string;
@@ -139,6 +152,19 @@ export function issuePurchaseOrder(id: string) {
 
 export function cancelPurchaseOrder(id: string) {
   return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/cancel`, { method: 'POST' });
+}
+
+export function approveAdHocPurchaseOrder(id: string) {
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/approve-ad-hoc`, {
+    method: 'POST',
+  });
+}
+
+export function rejectAdHocPurchaseOrder(id: string, comment: string) {
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/reject-ad-hoc`, {
+    method: 'POST',
+    body: JSON.stringify({ comment }),
+  });
 }
 
 // ── Goods Receipt Notes + QC ─────────────────────────────────────────

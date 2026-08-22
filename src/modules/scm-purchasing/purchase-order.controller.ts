@@ -19,6 +19,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { PurchaseOrderService } from './purchase-order.service';
 import {
   CreatePurchaseOrderDto,
+  RejectAdHocPurchaseOrderDto,
   UpdatePurchaseOrderDto,
 } from './dto/purchase-order.dto';
 
@@ -76,6 +77,24 @@ export class PurchaseOrderController {
   @ApiOperation({ summary: 'Issue a DRAFT purchase order (SCM Manager+/SA)' })
   issue(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.issue(id, user);
+  }
+
+  @Post(':id/approve-ad-hoc')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'CEO approval for an ad-hoc purchase order' })
+  approveAdHoc(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.approveAdHoc(id, user);
+  }
+
+  @Post(':id/reject-ad-hoc')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'CEO rejection for an ad-hoc purchase order' })
+  rejectAdHoc(
+    @Param('id') id: string,
+    @Body() dto: RejectAdHocPurchaseOrderDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.rejectAdHoc(id, dto, user);
   }
 
   @Post(':id/cancel')

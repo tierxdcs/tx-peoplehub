@@ -1,11 +1,13 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import {
   Prisma,
   PurchaseOrderStatus,
+  Role,
   SupplierStatus,
   VendorStatus,
 } from '@prisma/client';
@@ -17,6 +19,7 @@ import {
   CreatePurchaseOrderDto,
   PurchaseOrderLineInputDto,
   UpdatePurchaseOrderDto,
+  RejectAdHocPurchaseOrderDto,
 } from './dto/purchase-order.dto';
 import {
   PurchaseOrderEntity,
@@ -93,7 +96,14 @@ export class PurchaseOrderService {
     user: AuthenticatedUser,
   ): Promise<PurchaseOrderEntity> {
     await this.access.assertCanManagePurchaseOrders(user);
-    this.assertExactlyOnePartner(dto.supplierId, dto.vendorId);
+    this.assertAtMostOnePartner(dto.supplierId, dto.vendorId);
+    const isAdHoc = !dto.supplierId && !dto.vendorId;
+    const adHocPartyName = dto.adHocPartyName?.trim() ?? '';
+    if (isAdHoc && !adHocPartyName) {
+      throw new BadRequestException(
+        'Party name is required for an ad-hoc purchase order',
+      );
+    }
     const warning = await this.resolvePartnerAndWarn(dto.supplierId, dto.vendorId);
     const lines = await this.buildLineData(dto.lines);
 
@@ -107,9 +117,18 @@ export class PurchaseOrderService {
       return tx.purchaseOrder.create({
         data: {
           poNumber,
-          status: PurchaseOrderStatus.DRAFT,
+          status: isAdHoc
+            ? PurchaseOrderStatus.PENDING_CEO_APPROVAL
+            : PurchaseOrderStatus.DRAFT,
           supplierId: dto.supplierId ?? null,
           vendorId: dto.vendorId ?? null,
+          adHocPartyName: isAdHoc ? adHocPartyName : null,
+          adHocContactInfo: isAdHoc
+            ? dto.adHocContactInfo?.trim() || null
+            : null,
+          adHocPartyAddress: isAdHoc
+            ? dto.adHocPartyAddress?.trim() || null
+            : null,
           orderDate: dto.orderDate ? new Date(dto.orderDate) : new Date(),
           expectedDeliveryDate: dto.expectedDeliveryDate
             ? new Date(dto.expectedDeliveryDate)
@@ -146,7 +165,7 @@ export class PurchaseOrderService {
       dto.supplierId !== undefined ? dto.supplierId : po.supplierId;
     const nextVendorId =
       dto.vendorId !== undefined ? dto.vendorId : po.vendorId;
-    this.assertExactlyOnePartner(nextSupplierId, nextVendorId);
+    this.assertAtMostOnePartner(nextSupplierId, nextVendorId);
     const warning = await this.resolvePartnerAndWarn(
       nextSupplierId,
       nextVendorId,
@@ -183,6 +202,13 @@ export class PurchaseOrderService {
 
   // ── Status transitions ───────────────────────────────────────────────
   async issue(id: string, user: AuthenticatedUser): Promise<PurchaseOrderEntity> {
+    const po = await this.prisma.purchaseOrder.findUnique({ where: { id } });
+    if (!po) throw new NotFoundException('Purchase order not found');
+    if (!po.supplierId && !po.vendorId && !po.ceoApprovedAt) {
+      throw new BadRequestException(
+        'An ad-hoc purchase order cannot be issued before CEO/SuperAdmin approval',
+      );
+    }
     return this.transition(id, PurchaseOrderStatus.ISSUED, user, {
       issuedAt: new Date(),
     });
@@ -192,6 +218,63 @@ export class PurchaseOrderService {
     return this.transition(id, PurchaseOrderStatus.CANCELLED, user, {
       cancelledAt: new Date(),
     });
+  }
+
+  async approveAdHoc(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<PurchaseOrderEntity> {
+    this.assertCeo(user);
+    const po = await this.prisma.purchaseOrder.findUnique({ where: { id } });
+    if (!po) throw new NotFoundException('Purchase order not found');
+    if (po.supplierId || po.vendorId || !po.adHocPartyName) {
+      throw new BadRequestException(
+        'Only an ad-hoc purchase order can use this approval action',
+      );
+    }
+    if (po.status !== PurchaseOrderStatus.PENDING_CEO_APPROVAL) {
+      throw new BadRequestException(
+        `Only a PENDING CEO APPROVAL purchase order can be approved (current: ${po.status})`,
+      );
+    }
+    await this.prisma.purchaseOrder.update({
+      where: { id },
+      data: {
+        status: PurchaseOrderStatus.DRAFT,
+        ceoApprovedById: user.id,
+        ceoApprovedAt: new Date(),
+      },
+    });
+    return this.get(id);
+  }
+
+  async rejectAdHoc(
+    id: string,
+    dto: RejectAdHocPurchaseOrderDto,
+    user: AuthenticatedUser,
+  ): Promise<PurchaseOrderEntity> {
+    this.assertCeo(user);
+    const comment = dto.comment?.trim();
+    if (!comment) {
+      throw new BadRequestException('A rejection comment is required');
+    }
+    const po = await this.prisma.purchaseOrder.findUnique({ where: { id } });
+    if (!po) throw new NotFoundException('Purchase order not found');
+    if (po.status !== PurchaseOrderStatus.PENDING_CEO_APPROVAL) {
+      throw new BadRequestException(
+        `Only a PENDING CEO APPROVAL purchase order can be rejected (current: ${po.status})`,
+      );
+    }
+    await this.prisma.purchaseOrder.update({
+      where: { id },
+      data: {
+        status: PurchaseOrderStatus.REJECTED,
+        rejectedById: user.id,
+        rejectedAt: new Date(),
+        rejectionComment: comment,
+      },
+    });
+    return this.get(id);
   }
 
   private async transition(
@@ -222,6 +305,9 @@ export class PurchaseOrderService {
     to: PurchaseOrderStatus,
   ): void {
     const MANUAL_TRANSITIONS: Record<PurchaseOrderStatus, PurchaseOrderStatus[]> = {
+      [PurchaseOrderStatus.PENDING_CEO_APPROVAL]: [
+        PurchaseOrderStatus.CANCELLED,
+      ],
       [PurchaseOrderStatus.DRAFT]: [
         PurchaseOrderStatus.ISSUED,
         PurchaseOrderStatus.CANCELLED,
@@ -231,6 +317,7 @@ export class PurchaseOrderService {
       // Receipt-derived states — no manual transitions out of them in Phase 1.
       [PurchaseOrderStatus.PARTIALLY_RECEIVED]: [],
       [PurchaseOrderStatus.FULLY_RECEIVED]: [],
+      [PurchaseOrderStatus.REJECTED]: [],
       [PurchaseOrderStatus.CANCELLED]: [],
     };
     if (!MANUAL_TRANSITIONS[from].includes(to)) {
@@ -241,15 +328,23 @@ export class PurchaseOrderService {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────
-  private assertExactlyOnePartner(
+  private assertAtMostOnePartner(
     supplierId?: string | null,
     vendorId?: string | null,
   ): void {
     const hasSupplier = !!supplierId;
     const hasVendor = !!vendorId;
-    if (hasSupplier === hasVendor) {
+    if (hasSupplier && hasVendor) {
       throw new BadRequestException(
-        'A purchase order must reference exactly one of a supplier or a vendor',
+        'A purchase order cannot reference both a supplier and a vendor',
+      );
+    }
+  }
+
+  private assertCeo(user: AuthenticatedUser): void {
+    if (user.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException(
+        'Only the CEO/SuperAdmin can approve or reject an ad-hoc purchase order',
       );
     }
   }
@@ -263,6 +358,7 @@ export class PurchaseOrderService {
     supplierId?: string | null,
     vendorId?: string | null,
   ): Promise<QualificationWarningEntity | null> {
+    if (!supplierId && !vendorId) return null;
     if (supplierId) {
       const supplier = await this.prisma.supplier.findUnique({
         where: { id: supplierId },
@@ -346,6 +442,14 @@ export class PurchaseOrderService {
       supplierName: po.supplier?.companyName ?? null,
       vendorId: po.vendorId,
       vendorName: po.vendor?.companyName ?? null,
+      adHocPartyName: po.adHocPartyName,
+      adHocContactInfo: po.adHocContactInfo,
+      adHocPartyAddress: po.adHocPartyAddress,
+      ceoApprovedById: po.ceoApprovedById,
+      ceoApprovedAt: po.ceoApprovedAt?.toISOString() ?? null,
+      rejectedById: po.rejectedById,
+      rejectedAt: po.rejectedAt?.toISOString() ?? null,
+      rejectionComment: po.rejectionComment,
       orderDate: po.orderDate.toISOString(),
       expectedDeliveryDate: po.expectedDeliveryDate
         ? po.expectedDeliveryDate.toISOString()

@@ -4629,17 +4629,19 @@ model JournalLine {
 /// here so Phase 2 can plug in receipt-based derivation (computed from GRN data)
 /// without a migration — the enum values already exist.
 enum PurchaseOrderStatus {
+  PENDING_CEO_APPROVAL
   DRAFT
   ISSUED
   PARTIALLY_RECEIVED
   FULLY_RECEIVED
+  REJECTED
   CANCELLED
 }
 
-/// A purchase order raised on exactly ONE trading partner — either a Supplier
-/// (raw-material qualification track) or a Vendor (general qualification track).
-/// Exactly-one-of is enforced in the service AND by a DB CHECK constraint added
-/// in the migration. There is deliberately NO stored received-quantity anywhere;
+/// A purchase order raised on at most one registered trading partner. A PO with
+/// neither link is an ad-hoc-party exception and requires CEO approval.
+/// At-most-one-of is enforced in the service AND by a DB CHECK constraint. There
+/// is deliberately NO stored received-quantity anywhere;
 /// receipt progress is computed from GRN data in a later phase.
 model PurchaseOrder {
   id       String              @id @default(uuid())
@@ -4648,11 +4650,23 @@ model PurchaseOrder {
   poNumber String              @unique
   status   PurchaseOrderStatus @default(DRAFT)
 
-  /// Exactly one of supplierId / vendorId is set (CHECK constraint in migration).
+  /// At most one of supplierId / vendorId is set (CHECK constraint in migration).
   supplierId String?
   supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   vendorId   String?
   vendor     Vendor?   @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+
+  /// Snapshot details used only when neither registered partner link is set.
+  adHocPartyName    String?
+  adHocContactInfo  String? @db.Text
+  adHocPartyAddress String? @db.Text
+
+  /// Highest-trust approval audit for an ad-hoc/unlisted party exception.
+  ceoApprovedById  String?
+  ceoApprovedAt    DateTime?
+  rejectedById     String?
+  rejectedAt       DateTime?
+  rejectionComment String?   @db.Text
 
   orderDate            DateTime  @default(now())
   expectedDeliveryDate DateTime?

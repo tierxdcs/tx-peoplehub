@@ -34,10 +34,12 @@ import {
 } from '../../../components/ui/table';
 
 const STATUSES: PurchaseOrderStatus[] = [
+  'PENDING_CEO_APPROVAL',
   'DRAFT',
   'ISSUED',
   'PARTIALLY_RECEIVED',
   'FULLY_RECEIVED',
+  'REJECTED',
   'CANCELLED',
 ];
 
@@ -76,7 +78,7 @@ export default function PurchaseOrdersPage() {
     () => (statusFilter ? orders.filter((o) => o.status === statusFilter) : orders),
     [orders, statusFilter],
   );
-  const register = useRegisterList(filtered, (po) => `${po.poNumber} ${po.status} ${po.supplierName ?? ''} ${po.vendorName ?? ''}`);
+  const register = useRegisterList(filtered, (po) => `${po.poNumber} ${po.status} ${po.supplierName ?? ''} ${po.vendorName ?? ''} ${po.adHocPartyName ?? ''}`);
 
   return (
     <PageContainer>
@@ -126,7 +128,7 @@ export default function PurchaseOrdersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>PO No.</TableHead>
-                  <TableHead>Supplier / Vendor</TableHead>
+                  <TableHead>Supplier / Vendor / Ad-hoc Party</TableHead>
                   <TableHead>Order Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Total Value</TableHead>
@@ -149,9 +151,9 @@ export default function PurchaseOrdersPage() {
                       </Link>
                     </TableCell>
                     <TableCell>
-                      {po.supplierName ?? po.vendorName ?? '—'}
+                      {po.supplierName ?? po.vendorName ?? po.adHocPartyName ?? '—'}
                       <span className="ml-1 text-xs text-muted-foreground">
-                        ({po.supplierId ? 'Supplier' : 'Vendor'})
+                        ({po.supplierId ? 'Supplier' : po.vendorId ? 'Vendor' : 'Ad-hoc'})
                       </span>
                     </TableCell>
                     <TableCell>{dateOnlyStr(po.orderDate)}</TableCell>

@@ -71,6 +71,7 @@ export function orderFlow(status: OrderStatus): FlowResult {
 
 // ── Purchase Order: draft → issued → partially/fully received ────────
 const PO_STEPS: ProcessFlowStep[] = [
+  { key: 'approval', label: 'CEO approval', gate: true, next: 'Awaiting approval for the unlisted party.' },
   { key: 'draft', label: 'Draft', next: 'Issue the PO to the supplier.' },
   { key: 'issued', label: 'Issued', next: 'Awaiting goods receipt.' },
   { key: 'partial', label: 'Partially received', next: 'Some lines received; awaiting the rest.' },
@@ -78,9 +79,10 @@ const PO_STEPS: ProcessFlowStep[] = [
 ];
 
 export function poFlow(status: PurchaseOrderStatus): FlowResult {
-  if (status === 'CANCELLED')
-    return { steps: PO_STEPS, currentStage: null, cancelled: true, cancelledLabel: 'This purchase order was cancelled.' };
-  const map: Record<Exclude<PurchaseOrderStatus, 'CANCELLED'>, string> = {
+  if (status === 'CANCELLED' || status === 'REJECTED')
+    return { steps: PO_STEPS, currentStage: null, cancelled: true, cancelledLabel: status === 'REJECTED' ? 'This ad-hoc purchase order was rejected.' : 'This purchase order was cancelled.' };
+  const map: Record<Exclude<PurchaseOrderStatus, 'CANCELLED' | 'REJECTED'>, string> = {
+    PENDING_CEO_APPROVAL: 'approval',
     DRAFT: 'draft',
     ISSUED: 'issued',
     PARTIALLY_RECEIVED: 'partial',

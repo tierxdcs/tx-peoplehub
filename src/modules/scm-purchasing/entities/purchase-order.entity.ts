@@ -48,6 +48,14 @@ export class PurchaseOrderEntity {
   @ApiProperty({ nullable: true }) supplierName!: string | null;
   @ApiProperty({ nullable: true }) vendorId!: string | null;
   @ApiProperty({ nullable: true }) vendorName!: string | null;
+  @ApiProperty({ nullable: true }) adHocPartyName!: string | null;
+  @ApiProperty({ nullable: true }) adHocContactInfo!: string | null;
+  @ApiProperty({ nullable: true }) adHocPartyAddress!: string | null;
+  @ApiProperty({ nullable: true }) ceoApprovedById!: string | null;
+  @ApiProperty({ nullable: true }) ceoApprovedAt!: string | null;
+  @ApiProperty({ nullable: true }) rejectedById!: string | null;
+  @ApiProperty({ nullable: true }) rejectedAt!: string | null;
+  @ApiProperty({ nullable: true }) rejectionComment!: string | null;
 
   @ApiProperty() orderDate!: string;
   @ApiProperty({ nullable: true }) expectedDeliveryDate!: string | null;

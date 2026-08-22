@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Download, PackagePlus } from 'lucide-react';
+import { ArrowLeft, Check, Download, PackagePlus, X } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
 import {
@@ -11,6 +11,8 @@ import {
   listGrns,
   issuePurchaseOrder,
   cancelPurchaseOrder,
+  approveAdHocPurchaseOrder,
+  rejectAdHocPurchaseOrder,
   isGrnFinalized,
   type PurchaseOrder,
   type GoodsReceiptNote,
@@ -26,6 +28,7 @@ import {
   CardTitle,
 } from '../../../../components/ui/card';
 import { Button } from '../../../../components/ui/button';
+import { Textarea } from '../../../../components/ui/textarea';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
 import { ProcessFlow } from '../../../../components/ui/process-flow';
@@ -55,6 +58,7 @@ export default function PurchaseOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
+  const [rejectionComment, setRejectionComment] = useState('');
 
   const canManage = user?.role === 'SUPER_ADMIN' || user?.role === 'MANAGER';
 
@@ -129,6 +133,48 @@ export default function PurchaseOrderDetailPage() {
     }
   }
 
+  async function handleApproveAdHoc() {
+    if (!po) return;
+    if (!(await confirm({
+      title: 'Approve ad-hoc purchase order',
+      description: `Approve ${po.poNumber} for ${po.adHocPartyName}? SCM may then issue it and receive goods against it.`,
+      confirmLabel: 'Approve',
+    }))) return;
+    setActing(true);
+    try {
+      await approveAdHocPurchaseOrder(po.id);
+      toast.success('Ad-hoc purchase order approved');
+      await load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to approve');
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function handleRejectAdHoc() {
+    if (!po || !rejectionComment.trim()) {
+      toast.error('Enter a rejection reason before rejecting');
+      return;
+    }
+    if (!(await confirm({
+      title: 'Reject ad-hoc purchase order',
+      description: `Reject ${po.poNumber}? This decision is terminal.`,
+      confirmLabel: 'Reject',
+      destructive: true,
+    }))) return;
+    setActing(true);
+    try {
+      await rejectAdHocPurchaseOrder(po.id, rejectionComment.trim());
+      toast.success('Ad-hoc purchase order rejected');
+      await load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to reject');
+    } finally {
+      setActing(false);
+    }
+  }
+
   /**
    * Print/Save-as-PDF. Chrome prints the browser tab title (document.title) in
    * its own page header — swap it to a clean line for the duration of the
@@ -191,7 +237,8 @@ export default function PurchaseOrderDetailPage() {
             <StatusBadge value={po.status} />
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {po.supplierName ?? po.vendorName} · {po.supplierId ? 'Supplier' : 'Vendor'}
+            {po.supplierName ?? po.vendorName ?? po.adHocPartyName} ·{' '}
+            {po.supplierId ? 'Supplier' : po.vendorId ? 'Vendor' : 'Ad-hoc / Unlisted Party'}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -218,6 +265,46 @@ export default function PurchaseOrderDetailPage() {
 
       {/* Live flow indicator — stage derived from the PO's status. */}
       <ProcessFlow title="PO progress" className="mb-6" {...poFlow(po.status)} />
+
+      {po.status === 'PENDING_CEO_APPROVAL' && (
+        <Card className="mb-6 border-warning/40 bg-warning/10">
+          <CardHeader>
+            <CardTitle className="text-base">CEO/SuperAdmin approval required</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              This PO uses the unlisted party <strong className="text-foreground">{po.adHocPartyName}</strong>.
+              It cannot be issued or used to receive a GRN until approved.
+            </p>
+            {po.adHocContactInfo && <Info label="Contact" value={po.adHocContactInfo} />}
+            {po.adHocPartyAddress && <Info label="Address" value={po.adHocPartyAddress} />}
+            {user?.role === 'SUPER_ADMIN' && (
+              <div className="space-y-3 border-t pt-4">
+                <Textarea
+                  value={rejectionComment}
+                  onChange={(e) => setRejectionComment(e.target.value)}
+                  placeholder="Rejection reason (required only when rejecting)"
+                />
+                <div className="flex gap-2">
+                  <Button onClick={handleApproveAdHoc} disabled={acting}>
+                    <Check className="size-4" /> Approve exception
+                  </Button>
+                  <Button variant="destructive" onClick={handleRejectAdHoc} disabled={acting || !rejectionComment.trim()}>
+                    <X className="size-4" /> Reject
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {po.status === 'REJECTED' && po.rejectionComment && (
+        <Card className="mb-6 border-destructive/40">
+          <CardHeader><CardTitle className="text-base text-destructive">PO rejected</CardTitle></CardHeader>
+          <CardContent className="text-sm">{po.rejectionComment}</CardContent>
+        </Card>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <Info label="Order Date" value={dateOnlyStr(po.orderDate)} />

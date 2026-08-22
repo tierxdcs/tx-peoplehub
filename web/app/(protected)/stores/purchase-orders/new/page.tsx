@@ -34,7 +34,7 @@ import { Skeleton } from '../../../../components/ui/skeleton';
 import { useToast } from '../../../../components/ui/toaster';
 import { ItemPicker } from '../../../../components/ui/item-picker';
 
-type PartnerType = 'SUPPLIER' | 'VENDOR';
+type PartnerType = 'SUPPLIER' | 'VENDOR' | 'AD_HOC';
 interface LineDraft {
   key: number;
   itemId: string;
@@ -56,6 +56,9 @@ export default function NewPurchaseOrderPage() {
 
   const [partnerType, setPartnerType] = useState<PartnerType>('SUPPLIER');
   const [partnerId, setPartnerId] = useState('');
+  const [adHocPartyName, setAdHocPartyName] = useState('');
+  const [adHocContactInfo, setAdHocContactInfo] = useState('');
+  const [adHocPartyAddress, setAdHocPartyAddress] = useState('');
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([
@@ -83,7 +86,15 @@ export default function NewPurchaseOrderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const partners = partnerType === 'SUPPLIER' ? suppliers : vendors;
+  const partners = useMemo(
+    () =>
+      partnerType === 'SUPPLIER'
+        ? suppliers
+        : partnerType === 'VENDOR'
+          ? vendors
+          : [],
+    [partnerType, suppliers, vendors],
+  );
 
   // The selected partner's qualification status, resolved inline so the warning
   // is visible BEFORE submitting (not only in the server response afterward).
@@ -122,13 +133,26 @@ export default function NewPurchaseOrderPage() {
   const validLines = lines.filter(
     (l) => l.itemId && Number(l.orderedQuantity) > 0 && Number(l.unitPrice) >= 0,
   );
-  const canSubmit = !!partnerId && validLines.length > 0 && !submitting;
+  const hasParty = partnerType === 'AD_HOC' ? !!adHocPartyName.trim() : !!partnerId;
+  const canSubmit = hasParty && validLines.length > 0 && !submitting;
 
   async function handleSubmit() {
     if (!canSubmit) return;
     setSubmitting(true);
     const input: CreatePurchaseOrderInput = {
-      ...(partnerType === 'SUPPLIER' ? { supplierId: partnerId } : { vendorId: partnerId }),
+      ...(partnerType === 'SUPPLIER'
+        ? { supplierId: partnerId }
+        : partnerType === 'VENDOR'
+          ? { vendorId: partnerId }
+          : {
+              adHocPartyName: adHocPartyName.trim(),
+              ...(adHocContactInfo.trim()
+                ? { adHocContactInfo: adHocContactInfo.trim() }
+                : {}),
+              ...(adHocPartyAddress.trim()
+                ? { adHocPartyAddress: adHocPartyAddress.trim() }
+                : {}),
+            }),
       ...(expectedDeliveryDate ? { expectedDeliveryDate: new Date(expectedDeliveryDate).toISOString() } : {}),
       ...(notes ? { notes } : {}),
       lines: validLines.map((l) => ({
@@ -139,7 +163,11 @@ export default function NewPurchaseOrderPage() {
     };
     try {
       const po = await createPurchaseOrder(input);
-      if (po.qualificationWarning) {
+      if (po.status === 'PENDING_CEO_APPROVAL') {
+        toast.success(
+          `PO ${po.poNumber} created and sent for CEO/SuperAdmin approval`,
+        );
+      } else if (po.qualificationWarning) {
         toast.success(
           `PO ${po.poNumber} created — note: ${po.qualificationWarning.message}`,
           'Created with warning',
@@ -172,7 +200,7 @@ export default function NewPurchaseOrderPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Supplier / Vendor</CardTitle>
+              <CardTitle className="text-base">Trading Party</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
@@ -186,31 +214,74 @@ export default function NewPurchaseOrderPage() {
                     }}
                   >
                     <option value="SUPPLIER">Supplier (raw materials)</option>
-                    <option value="VENDOR">Vendor</option>
+                    <option value="VENDOR">Vendor (finished goods)</option>
+                    <option value="AD_HOC">Ad-hoc / Unlisted Party</option>
                   </Select>
                 </Field>
-                <Field
-                  label={partnerType === 'SUPPLIER' ? 'Supplier' : 'Vendor'}
-                  htmlFor="partner"
-                  required
-                  hint="Qualification status is shown beside each name."
-                >
-                  <Select
-                    id="partner"
-                    value={partnerId}
-                    onChange={(e) => setPartnerId(e.target.value)}
+                {partnerType !== 'AD_HOC' ? (
+                  <Field
+                    label={partnerType === 'SUPPLIER' ? 'Supplier' : 'Vendor'}
+                    htmlFor="partner"
+                    required
+                    hint="Qualification status is shown beside each name."
                   >
-                    <option value="">Select…</option>
-                    {partners.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.companyName} — {humanizeEnum(p.status)}
-                        {p.statusOverridden ? ' (manually overridden)' : ''}
-                        {isQualifiedStatus(p.status) ? '' : ' ⚠'}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
+                    <Select
+                      id="partner"
+                      value={partnerId}
+                      onChange={(e) => setPartnerId(e.target.value)}
+                    >
+                      <option value="">Select…</option>
+                      {partners.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.companyName} — {humanizeEnum(p.status)}
+                          {p.statusOverridden ? ' (manually overridden)' : ''}
+                          {isQualifiedStatus(p.status) ? '' : ' ⚠'}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : (
+                  <Field label="Party Name" htmlFor="adHocPartyName" required>
+                    <Input
+                      id="adHocPartyName"
+                      value={adHocPartyName}
+                      onChange={(e) => setAdHocPartyName(e.target.value)}
+                      placeholder="Legal or trading name"
+                    />
+                  </Field>
+                )}
               </div>
+
+              {partnerType === 'AD_HOC' && (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Field label="Contact Information" htmlFor="adHocContactInfo">
+                      <Textarea
+                        id="adHocContactInfo"
+                        value={adHocContactInfo}
+                        onChange={(e) => setAdHocContactInfo(e.target.value)}
+                        placeholder="Contact name, phone and email"
+                      />
+                    </Field>
+                    <Field label="Address" htmlFor="adHocPartyAddress">
+                      <Textarea
+                        id="adHocPartyAddress"
+                        value={adHocPartyAddress}
+                        onChange={(e) => setAdHocPartyAddress(e.target.value)}
+                        placeholder="Billing / delivery party address"
+                      />
+                    </Field>
+                  </div>
+                  <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+                    <p>
+                      This exception PO will remain blocked until the CEO/SuperAdmin
+                      approves the unlisted party. It cannot be issued or used for a GRN
+                      before approval.
+                    </p>
+                  </div>
+                </>
+              )}
 
               {selectedPartner && (
                 <div className="flex flex-wrap items-center gap-2 text-sm">

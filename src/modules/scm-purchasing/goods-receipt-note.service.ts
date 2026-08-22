@@ -468,6 +468,15 @@ export class GoodsReceiptNoteService {
       include: { lines: { select: { id: true, itemId: true } } },
     });
     if (!po) throw new NotFoundException('Purchase order not found');
+    if (
+      !po.supplierId &&
+      !po.vendorId &&
+      (!po.ceoApprovedAt || po.status === PurchaseOrderStatus.PENDING_CEO_APPROVAL)
+    ) {
+      throw new BadRequestException(
+        'Cannot receive against an ad-hoc purchase order before CEO/SuperAdmin approval',
+      );
+    }
     if (po.status === PurchaseOrderStatus.DRAFT) {
       throw new BadRequestException(
         'Cannot receive against a DRAFT purchase order — issue it first',

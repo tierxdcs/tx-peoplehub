@@ -190,8 +190,8 @@ export function PurchaseOrderPrintDocument({
   /** Pre-formatted YYYY-MM-DD; passed in so render stays deterministic. */
   generatedOn: string;
 }) {
-  const supplierName = po.supplierName ?? po.vendorName ?? '—';
-  const supplierKind = po.supplierId ? 'Supplier' : 'Vendor';
+  const supplierName = po.supplierName ?? po.vendorName ?? po.adHocPartyName ?? '—';
+  const supplierKind = po.supplierId ? 'Supplier' : po.vendorId ? 'Vendor' : 'Ad-hoc Party';
   const lines = po.lines ?? [];
 
   const th: React.CSSProperties = {
@@ -332,6 +332,16 @@ export function PurchaseOrderPrintDocument({
                     {supplierKind}
                   </div>
                   <div style={{ fontWeight: 700 }}>M/s. {supplierName}</div>
+                  {po.adHocContactInfo && (
+                    <div style={{ marginTop: 3, color: '#333', whiteSpace: 'pre-line' }}>
+                      {po.adHocContactInfo}
+                    </div>
+                  )}
+                  {po.adHocPartyAddress && (
+                    <div style={{ marginTop: 3, color: '#333', whiteSpace: 'pre-line' }}>
+                      {po.adHocPartyAddress}
+                    </div>
+                  )}
                 </div>
                 <div style={{ fontSize: 12, textAlign: 'right' }}>
                   <div style={{ color: ACCENT, fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>

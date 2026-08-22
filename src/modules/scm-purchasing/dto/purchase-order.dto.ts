@@ -35,9 +35,12 @@ export class PurchaseOrderLineInputDto {
 }
 
 export class CreatePurchaseOrderDto {
-  /** Exactly ONE of supplierId / vendorId must be provided (enforced in service). */
+  /** At most one may be supplied. Neither means an ad-hoc party PO. */
   @ApiPropertyOptional() @IsOptional() @IsString() supplierId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() vendorId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() adHocPartyName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() adHocContactInfo?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() adHocPartyAddress?: string;
 
   @ApiPropertyOptional({ description: 'ISO date; defaults to now' })
   @IsOptional()
@@ -71,4 +74,8 @@ export class UpdatePurchaseOrderDto {
   @Type(() => PurchaseOrderLineInputDto)
   @ArrayMinSize(1)
   lines?: PurchaseOrderLineInputDto[];
+}
+
+export class RejectAdHocPurchaseOrderDto {
+  @ApiProperty() @IsString() @MinLength(1) comment!: string;
 }
