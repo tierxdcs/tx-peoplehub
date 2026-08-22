@@ -428,6 +428,13 @@ export class ProjectKickoffService {
         approachingVendorUpdates: vendorCadenceStatuses.filter(
           (cadence) => cadence.status === 'AMBER',
         ).length,
+        nextDueDate:
+          kickoff.milestones
+            .filter((milestone) => milestone.status !== 'COMPLETED')
+            .sort(
+              (left, right) =>
+                left.targetDate.getTime() - right.targetDate.getTime(),
+            )[0]?.targetDate ?? null,
       });
     });
   }

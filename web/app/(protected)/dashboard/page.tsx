@@ -35,8 +35,16 @@ import { PlmWorkCard } from './_components/plm-work-card';
 import { PingPanel } from './_components/ping-panel';
 import { getReceivedPings, getSentPings, pingAgeHours, type ReceivedPing, type SentPing } from '../../lib/pings';
 import { getMyEfficiencyScore, type EfficiencyScore } from '../../lib/efficiency';
+import {
+  portfolioBlockers,
+  portfolioHealth,
+  priorityProjects,
+  urgentLifecycleWork,
+} from '../../lib/dashboard-portfolio';
+import { PortfolioCharts } from './_components/portfolio-charts';
 
 const TASK_CAP = 8;
+const PORTFOLIO_PREVIEW_CAP = 4;
 const DAY_MS = 86_400_000;
 
 function greetingFor(now: Date): string {
@@ -187,6 +195,16 @@ export default function DashboardPage() {
   });
 
   const flow = flowForVertical(vertical?.code);
+  const projectPreview = useMemo(
+    () => priorityProjects(projects, PORTFOLIO_PREVIEW_CAP),
+    [projects],
+  );
+  const lifecyclePreview = useMemo(
+    () => urgentLifecycleWork(plmWork, PORTFOLIO_PREVIEW_CAP),
+    [plmWork],
+  );
+  const healthSummary = useMemo(() => portfolioHealth(projects), [projects]);
+  const blockerSummary = useMemo(() => portfolioBlockers(plmWork), [plmWork]);
 
   if (loading) {
     return (
@@ -297,6 +315,10 @@ export default function DashboardPage() {
         </Card>
       )}
 
+      {(projects.length > 0 || plmWork.length > 0) && (
+        <PortfolioCharts health={healthSummary} blockers={blockerSummary} />
+      )}
+
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="min-w-0 space-y-6 md:space-y-8">
       {/* My Tasks */}
@@ -379,7 +401,7 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="space-y-4">
-            {projects.map((project) => (
+            {projectPreview.map((project) => (
               <ProjectProgressCard key={project.kickoffId} project={project} />
             ))}
           </div>
@@ -388,12 +410,17 @@ export default function DashboardPage() {
 
       {plmWork.length > 0 && (
         <section>
-          <div className="mb-3">
-            <h2 className="text-lg font-semibold">Product lifecycle work</h2>
-            <p className="text-sm text-muted-foreground">Active order lines where you are an owner, kickoff participant, approver, or auditor.</p>
+          <div className="mb-3 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-end sm:gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Product lifecycle work</h2>
+              <p className="text-sm text-muted-foreground">Most urgent active lines where you are an owner, kickoff participant, approver, or auditor.</p>
+            </div>
+            <Link href="/plm" className="shrink-0 text-sm text-primary hover:underline">
+              View all
+            </Link>
           </div>
           <div className="space-y-3">
-            {plmWork.map((item) => <PlmWorkCard key={item.trackerId} item={item} />)}
+            {lifecyclePreview.map((item) => <PlmWorkCard key={item.trackerId} item={item} />)}
           </div>
         </section>
       )}

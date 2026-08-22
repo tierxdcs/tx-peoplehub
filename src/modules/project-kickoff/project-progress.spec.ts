@@ -29,6 +29,7 @@ function input(
     openHighRisks: 0,
     overdueVendorUpdates: 0,
     approachingVendorUpdates: 0,
+    nextDueDate: null,
     ...overrides,
   };
 }

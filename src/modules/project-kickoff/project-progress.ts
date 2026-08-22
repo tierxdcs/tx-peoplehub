@@ -25,6 +25,7 @@ export interface ProjectProgressInput {
   openHighRisks: number;
   overdueVendorUpdates: number;
   approachingVendorUpdates: number;
+  nextDueDate: Date | null;
 }
 
 export interface ProjectProgressStage {
@@ -44,6 +45,7 @@ export interface ProjectProgressView {
   healthReason: string;
   currentStage: string;
   updatedAt: string;
+  nextDueDate: string | null;
   stages: ProjectProgressStage[];
 }
 
@@ -305,6 +307,7 @@ export function deriveProjectProgress(
     healthReason,
     currentStage,
     updatedAt: input.updatedAt.toISOString(),
+    nextDueDate: input.nextDueDate?.toISOString() ?? null,
     stages,
   };
 }

@@ -140,6 +140,8 @@ export interface ProjectProgress {
   healthReason: string;
   currentStage: string;
   updatedAt: string;
+  /** Earliest incomplete kickoff milestone, used to prioritize previews. */
+  nextDueDate: string | null;
   stages: Array<{
     key: string;
     label: string;
