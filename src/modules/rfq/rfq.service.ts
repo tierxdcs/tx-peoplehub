@@ -78,6 +78,11 @@ const RFQ_INCLUDE = {
       },
     },
   },
+  // A quote-stage RFQ links to a customer BOM intake instead of a Kickoff order.
+  // These have no order and (by definition) no customer tagged yet, so the
+  // Project/Order/Customer columns are all blank — we surface a "Quote stage"
+  // label in the Project column instead (see toEntity).
+  customerBomIntake: { select: { id: true } },
   createdBy: { select: { firstName: true, lastName: true } },
   awardDecisionBy: { select: { firstName: true, lastName: true } },
   pmApprovedBy: { select: { firstName: true, lastName: true } },
@@ -1180,7 +1185,12 @@ export class RfqService {
       description: rfq.description,
       status: rfq.status,
       projectKickoffId: rfq.projectKickoffId,
-      projectName: rfq.projectKickoff?.projectName ?? null,
+      // Order-backed RFQs show their Kickoff project name. Quote-stage RFQs
+      // (linked to a customer BOM intake, no order/customer) have no project, so
+      // we label the Project column "Quote stage" rather than leaving it blank.
+      projectName:
+        rfq.projectKickoff?.projectName ??
+        (rfq.customerBomIntake ? 'Quote stage' : null),
       orderId: rfq.projectKickoff?.order.id ?? null,
       orderNumber: rfq.projectKickoff?.order.orderNumber ?? null,
       orderStatus: rfq.projectKickoff?.order.status ?? null,

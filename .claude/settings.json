@@ -76,7 +76,8 @@
       "Bash(echo \"NEST BUILD EXIT: $?\")",
       "Bash(echo \"=== DEPLOY EXIT: $? ===\")",
       "Bash(echo \"GENERATE EXIT: $?\")",
-      "Bash(echo \"---exit:$?---\")"
+      "Bash(echo \"---exit:$?---\")",
+      "Bash(awk 'NR>=600 && NR<=700 && /projectName|orderNumber|orderId|orderStatus|orderTotal|customerName|projectKickoff|customerBomIntake/' src/modules/rfq/rfq.service.ts)"
     ]
   }
 }
