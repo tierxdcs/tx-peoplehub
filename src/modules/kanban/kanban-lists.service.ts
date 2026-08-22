@@ -67,6 +67,14 @@ export class KanbanListsService {
     await this.access.assertCanManageLists(user, boardId);
     const list = await this.prisma.$transaction(async (tx) => {
       if (dto.isDoneList) {
+        const priorDoneLists = await tx.kanbanList.findMany({
+          where: { boardId, isDoneList: true },
+          select: { id: true },
+        });
+        await tx.kanbanCard.updateMany({
+          where: { listId: { in: priorDoneLists.map((item) => item.id) } },
+          data: { completedAt: null },
+        });
         await tx.kanbanList.updateMany({
           where: { boardId, isDoneList: true },
           data: { isDoneList: false },
@@ -99,6 +107,18 @@ export class KanbanListsService {
       );
     const updated = await this.prisma.$transaction(async (tx) => {
       if (dto.isDoneList === true) {
+        const priorDoneLists = await tx.kanbanList.findMany({
+          where: { boardId: list.boardId, isDoneList: true, id: { not: id } },
+          select: { id: true },
+        });
+        await tx.kanbanCard.updateMany({
+          where: { listId: { in: priorDoneLists.map((item) => item.id) } },
+          data: { completedAt: null },
+        });
+        await tx.kanbanCard.updateMany({
+          where: { listId: id, status: KanbanCardStatus.ACTIVE },
+          data: { completedAt: new Date() },
+        });
         await tx.kanbanList.updateMany({
           where: { boardId: list.boardId, isDoneList: true, id: { not: id } },
           data: { isDoneList: false },

@@ -44,7 +44,9 @@ const CARD_INCLUDE = {
   sprint: { select: { name: true } },
 } as const;
 
-type CardWithList = KanbanCard & { list: { boardId: string } };
+type CardWithList = KanbanCard & {
+  list: { boardId: string; isDoneList: boolean };
+};
 
 @Injectable()
 export class KanbanCardsService {
@@ -498,7 +500,15 @@ export class KanbanCardsService {
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.kanbanCard.update({
         where: { id },
-        data: { listId: dto.listId, position },
+        data: {
+          listId: dto.listId,
+          position,
+          ...(movedLists && targetList.isDoneList
+            ? { completedAt: new Date() }
+            : movedLists && card.list.isDoneList
+              ? { completedAt: null }
+              : {}),
+        },
         include: CARD_INCLUDE,
       });
       if (moveDescription) {
@@ -626,10 +636,10 @@ export class KanbanCardsService {
 
   private async getListOrThrow(
     listId: string,
-  ): Promise<{ id: string; boardId: string }> {
+  ): Promise<{ id: string; boardId: string; isDoneList: boolean }> {
     const list = await this.prisma.kanbanList.findUnique({
       where: { id: listId },
-      select: { id: true, boardId: true },
+      select: { id: true, boardId: true, isDoneList: true },
     });
     if (!list) {
       throw new NotFoundException('List not found');
@@ -640,7 +650,7 @@ export class KanbanCardsService {
   private async getCardOrThrow(id: string): Promise<CardWithList> {
     const card = await this.prisma.kanbanCard.findUnique({
       where: { id },
-      include: { list: { select: { boardId: true } } },
+      include: { list: { select: { boardId: true, isDoneList: true } } },
     });
     if (!card || card.status === KanbanCardStatus.ARCHIVED) {
       throw new NotFoundException('Card not found');

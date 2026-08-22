@@ -19,8 +19,10 @@ import {
   DesignPriority,
   DesignProjectStatus,
   DesignRequestSource,
+  DesignRequestStatus,
   DesignRequirementCategory,
   DesignRequirementStatus,
+  DesignReviewOutcome,
   DesignVerificationMethod,
 } from '@prisma/client';
 export class CreateDesignRequestDto {
@@ -48,6 +50,11 @@ export class CreateDesignProjectDto {
 }
 export class UpdateDesignProjectStatusDto {
   @IsEnum(DesignProjectStatus) status!: DesignProjectStatus;
+}
+export class UpdateDesignRequestStatusDto {
+  // Only the manual triage transitions are reachable here; CONVERTED is set
+  // implicitly when a project is created from the request.
+  @IsEnum(DesignRequestStatus) status!: DesignRequestStatus;
 }
 export class CreateDesignDocumentDto {
   @IsString() projectId!: string;
@@ -182,6 +189,7 @@ export class AddDesignReviewAttendeeDto {
 export class RecordDesignReviewDto {
   @IsString() @IsNotEmpty() minutes!: string;
   @IsString() @IsNotEmpty() decision!: string;
+  @IsEnum(DesignReviewOutcome) outcome!: DesignReviewOutcome;
   @IsOptional() @IsArray() attendedIds?: string[];
 }
 

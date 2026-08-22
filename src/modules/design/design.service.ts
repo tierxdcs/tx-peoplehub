@@ -7,6 +7,11 @@ import {
 import {
   DesignChangeImpactArea,
   DesignProjectStatus,
+  DesignRequestStatus,
+  DesignReview,
+  DesignReviewOutcome,
+  DesignReviewType,
+  DesignRevisionStatus,
   Prisma,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -58,6 +63,43 @@ const CHANGE_IMPACT_AREAS: DesignChangeImpactArea[] = [
   'COST',
   'SCHEDULE',
   'CUSTOMER',
+];
+
+// The ordered design-project stage ladder. Advancing along it is gated per
+// step (see updateProjectStatus); ON_HOLD and CLOSED sit outside the ladder and
+// are never gated.
+const STAGE_LADDER: DesignProjectStatus[] = [
+  'REQUIREMENTS',
+  'CONCEPT',
+  'DETAILED_DESIGN',
+  'INTERNAL_REVIEW',
+  'CUSTOMER_APPROVAL',
+  'RELEASED_FOR_PRODUCTION',
+];
+
+// A design review "passes" its gate when its latest closed instance of the
+// required type carries either of these outcomes.
+const APPROVING_REVIEW_OUTCOMES: DesignReviewOutcome[] = [
+  'APPROVED',
+  'APPROVED_WITH_CONDITIONS',
+];
+
+// Manual triage transitions for a design request. CONVERTED is deliberately
+// unreachable here — it's set implicitly when a project is created from the
+// request (see createProject).
+const REQUEST_TRANSITIONS: Record<DesignRequestStatus, DesignRequestStatus[]> = {
+  OPEN: ['ACCEPTED', 'REJECTED', 'CLOSED'],
+  ACCEPTED: ['REJECTED', 'CLOSED'],
+  REJECTED: [],
+  CONVERTED: [],
+  CLOSED: [],
+};
+
+// Revision statuses that mean a document has reached "at least submitted for
+// approval" — used by the DETAILED_DESIGN -> INTERNAL_REVIEW gate.
+const REVISION_REACHED_APPROVAL: DesignRevisionStatus[] = [
+  'PENDING_APPROVAL',
+  'RELEASED',
 ];
 @Injectable()
 export class DesignService {
@@ -168,6 +210,23 @@ export class DesignService {
       }),
     );
   }
+  async updateRequestStatus(
+    id: string,
+    status: DesignRequestStatus,
+    u: AuthenticatedUser,
+  ) {
+    await this.access.assertUser(u);
+    const req = await this.prisma.designRequest.findUnique({ where: { id } });
+    if (!req) throw new NotFoundException('Design request not found');
+    if (!REQUEST_TRANSITIONS[req.status].includes(status))
+      throw new BadRequestException(
+        `A ${req.status} design request cannot be moved to ${status}`,
+      );
+    return this.prisma.designRequest.update({
+      where: { id },
+      data: { status },
+    });
+  }
   async projects(u: AuthenticatedUser) {
     await this.access.assertUser(u);
     return this.prisma.designProject.findMany({
@@ -266,44 +325,148 @@ export class DesignService {
         milestones: true,
         changes: true,
         documents: { include: { revisions: true } },
+        reviews: true,
       },
     });
     if (!p) throw new NotFoundException('Design project not found');
-    if (status === 'RELEASED_FOR_PRODUCTION') {
-      await this.access.assertHead(u);
-      if (
-        !p.documents.length ||
-        p.documents.some(
-          (d) => !d.revisions.some((r) => r.status === 'RELEASED'),
-        )
-      )
-        throw new BadRequestException(
-          'Every design document requires a released revision before production release',
-        );
-      if (
-        p.requirements.some(
-          (r) =>
-            r.required && !['VERIFIED', 'NOT_APPLICABLE'].includes(r.status),
-        )
-      )
-        throw new BadRequestException(
-          'Every required design input must be verified',
-        );
-      if (
-        p.milestones.some((m) => !['COMPLETED', 'CANCELLED'].includes(m.status))
-      )
-        throw new BadRequestException(
-          'Every design milestone must be completed',
-        );
-      if (p.changes.some((c) => !['CLOSED', 'REJECTED'].includes(c.status)))
-        throw new BadRequestException(
-          'All engineering changes must be closed or rejected before production release',
-        );
+
+    // Cumulative stage gates: to advance along the ladder, every gate from the
+    // project's current stage up to the target stage must pass. Moving to a
+    // target that isn't on the ladder (ON_HOLD / CLOSED), staying put, or moving
+    // backwards for rework carries no gate. A project resuming from an off-ladder
+    // state (ON_HOLD / CLOSED) is treated as starting from the beginning, so it
+    // must satisfy every gate up to whatever stage it resumes into.
+    const targetIndex = STAGE_LADDER.indexOf(status);
+    if (targetIndex !== -1) {
+      const currentIndex = STAGE_LADDER.indexOf(p.status);
+      const fromIndex = currentIndex === -1 ? 0 : currentIndex;
+      for (let i = fromIndex; i < targetIndex; i++) {
+        await this.assertStageGate(STAGE_LADDER[i + 1], p, u);
+      }
     }
+
     return this.prisma.designProject.update({
       where: { id },
       data: { status },
     });
+  }
+
+  // Enforces the readiness criteria for entering a single ladder stage. Throws a
+  // BadRequestException with a clear reason when the criteria aren't met.
+  private async assertStageGate(
+    entering: DesignProjectStatus,
+    p: Prisma.DesignProjectGetPayload<{
+      include: {
+        requirements: true;
+        milestones: true;
+        changes: true;
+        documents: { include: { revisions: true } };
+        reviews: true;
+      };
+    }>,
+    u: AuthenticatedUser,
+  ) {
+    switch (entering) {
+      case 'CONCEPT':
+        if (!p.requirements.length)
+          throw new BadRequestException(
+            'At least one design requirement must be defined before moving to Concept',
+          );
+        return;
+      case 'DETAILED_DESIGN':
+        this.assertReviewApproved(
+          p.reviews,
+          'PRELIMINARY_DESIGN_REVIEW',
+          'preliminary design review',
+          'Detailed Design',
+        );
+        return;
+      case 'INTERNAL_REVIEW':
+        if (!p.documents.length)
+          throw new BadRequestException(
+            'At least one design document must be registered before moving to Internal Review',
+          );
+        if (
+          p.documents.some(
+            (d) =>
+              !d.revisions.some((r) =>
+                REVISION_REACHED_APPROVAL.includes(r.status),
+              ),
+          )
+        )
+          throw new BadRequestException(
+            'Every design document must have a revision submitted for approval before moving to Internal Review',
+          );
+        return;
+      case 'CUSTOMER_APPROVAL':
+        this.assertReviewApproved(
+          p.reviews,
+          'CRITICAL_DESIGN_REVIEW',
+          'critical design review',
+          'Customer Approval',
+        );
+        return;
+      case 'RELEASED_FOR_PRODUCTION':
+        // Unchanged production-release gate.
+        await this.access.assertHead(u);
+        if (
+          !p.documents.length ||
+          p.documents.some(
+            (d) => !d.revisions.some((r) => r.status === 'RELEASED'),
+          )
+        )
+          throw new BadRequestException(
+            'Every design document requires a released revision before production release',
+          );
+        if (
+          p.requirements.some(
+            (r) =>
+              r.required && !['VERIFIED', 'NOT_APPLICABLE'].includes(r.status),
+          )
+        )
+          throw new BadRequestException(
+            'Every required design input must be verified',
+          );
+        if (
+          p.milestones.some(
+            (m) => !['COMPLETED', 'CANCELLED'].includes(m.status),
+          )
+        )
+          throw new BadRequestException(
+            'Every design milestone must be completed',
+          );
+        if (p.changes.some((c) => !['CLOSED', 'REJECTED'].includes(c.status)))
+          throw new BadRequestException(
+            'All engineering changes must be closed or rejected before production release',
+          );
+        return;
+      default:
+        return;
+    }
+  }
+
+  // A stage's review gate is satisfied when the LATEST closed review of the
+  // required type carries an approving outcome — so a later rejected review of
+  // the same type re-blocks the transition.
+  private assertReviewApproved(
+    reviews: DesignReview[],
+    reviewType: DesignReviewType,
+    reviewLabel: string,
+    targetStageLabel: string,
+  ) {
+    const latestClosed = reviews
+      .filter((r) => r.reviewType === reviewType && r.status === 'CLOSED')
+      .sort(
+        (a, b) => (b.closedAt?.getTime() ?? 0) - (a.closedAt?.getTime() ?? 0),
+      )[0];
+    if (
+      !latestClosed ||
+      latestClosed.outcome === null ||
+      !APPROVING_REVIEW_OUTCOMES.includes(latestClosed.outcome)
+    )
+      throw new BadRequestException(
+        `A closed ${reviewLabel} with an approved outcome is required before moving to ${targetStageLabel}`,
+      );
   }
   async createDocument(d: CreateDesignDocumentDto, u: AuthenticatedUser) {
     await this.access.assertUser(u);
@@ -988,6 +1151,7 @@ export class DesignService {
         data: {
           minutes: d.minutes,
           decision: d.decision,
+          outcome: d.outcome,
           status: 'PENDING_CLOSURE',
         },
       });
@@ -1058,10 +1222,11 @@ export class DesignService {
     if (
       review.status !== 'PENDING_CLOSURE' ||
       !review.minutes ||
-      !review.decision
+      !review.decision ||
+      !review.outcome
     )
       throw new BadRequestException(
-        'Review minutes and decision must be submitted first',
+        'Review minutes, decision and outcome must be submitted first',
       );
     if (
       review.actions.some((a) => !['VERIFIED', 'CANCELLED'].includes(a.status))

@@ -84,7 +84,17 @@ export class PingsService {
     if (recipient.employeeId !== user.id) throw new ForbiddenException('You can only respond to your own pings');
     if (recipient.status === PingRecipientStatus.RESOLVED) throw new BadRequestException('This ping is already resolved');
     if (recipient.status === PingRecipientStatus.ACKNOWLEDGED && status === PingRecipientStatus.ACKNOWLEDGED) return recipient;
-    return this.prisma.pingRecipient.update({ where: { id }, data: { status, respondedAt: new Date() } });
+    const changedAt = new Date();
+    return this.prisma.pingRecipient.update({
+      where: { id },
+      data: {
+        status,
+        respondedAt: changedAt,
+        ...(status === PingRecipientStatus.ACKNOWLEDGED && !recipient.acknowledgedAt
+          ? { acknowledgedAt: changedAt }
+          : {}),
+      },
+    });
   }
 
   /**

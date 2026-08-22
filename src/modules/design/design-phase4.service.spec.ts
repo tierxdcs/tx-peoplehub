@@ -27,6 +27,7 @@ describe('DesignService phase 4 controls', () => {
       status: 'PENDING_CLOSURE',
       minutes: 'Reviewed',
       decision: 'Proceed',
+      outcome: 'APPROVED',
       attendees: [],
       actions: [{ status: 'COMPLETED' }],
     });

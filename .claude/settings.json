@@ -83,7 +83,13 @@
       "Bash(node /tmp/diag-vendor.js)",
       "Bash(node -r dotenv/config diag-vendor.js)",
       "Bash(node -r dotenv/config diag-vendor2.js)",
-      "Bash(node -r dotenv/config diag-vendor3.js)"
+      "Bash(node -r dotenv/config diag-vendor3.js)",
+      "Bash(echo \"nest build exit: $?\")",
+      "Bash(echo \"WEB_TSC_EXIT: $?\")",
+      "Bash(npx nest *)",
+      "Bash(echo \"NEST_BUILD_EXIT: $?\")",
+      "Bash(psql \"postgresql://localhost:5432/peoplehub\" -c \"\\\\d kanban_cards\")",
+      "Bash(psql \"postgresql://localhost:5432/peoplehub\" -c \"\\\\d ping_recipients\")"
     ]
   }
 }

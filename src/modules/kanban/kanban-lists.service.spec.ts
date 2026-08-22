@@ -17,7 +17,15 @@ describe('KanbanListsService done-list invariant', () => {
       updatedAt: new Date(),
       _count: { cards: 0 },
     });
-    const tx = { kanbanList: { updateMany, update } };
+    const cardUpdateMany = jest.fn().mockResolvedValue({ count: 0 });
+    const tx = {
+      kanbanList: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'list-1' }]),
+        updateMany,
+        update,
+      },
+      kanbanCard: { updateMany: cardUpdateMany },
+    };
     const prisma = {
       kanbanList: {
         findUnique: jest.fn().mockResolvedValue({
@@ -38,11 +46,12 @@ describe('KanbanListsService done-list invariant', () => {
       prisma,
       updateMany,
       update,
+      cardUpdateMany,
     };
   }
 
   it('atomically clears the previous holder when designating a new done list', async () => {
-    const { service, prisma, updateMany, update } = setup(false);
+    const { service, prisma, updateMany, update, cardUpdateMany } = setup(false);
 
     await service.updateList('list-2', { isDoneList: true }, user);
 
@@ -50,6 +59,14 @@ describe('KanbanListsService done-list invariant', () => {
     expect(updateMany).toHaveBeenCalledWith({
       where: { boardId: 'board-1', isDoneList: true, id: { not: 'list-2' } },
       data: { isDoneList: false },
+    });
+    expect(cardUpdateMany).toHaveBeenCalledWith({
+      where: { listId: { in: ['list-1'] } },
+      data: { completedAt: null },
+    });
+    expect(cardUpdateMany).toHaveBeenCalledWith({
+      where: { listId: 'list-2', status: 'ACTIVE' },
+      data: { completedAt: expect.any(Date) },
     });
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({

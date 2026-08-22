@@ -35,6 +35,7 @@ import {
   DesignChangeDecisionDto,
   UpdateDesignChangeDispositionDto,
   UpdateDesignProjectStatusDto,
+  UpdateDesignRequestStatusDto,
   UpdateDesignMilestoneDto,
   ReviseDesignChangeReportDto,
   SignDesignChangeReportCustomerDto,
@@ -67,6 +68,13 @@ export class DesignController {
     @CurrentUser() u: AuthenticatedUser,
   ) {
     return this.s.createRequest(d, u);
+  }
+  @Patch('requests/:id/status') requestStatus(
+    @Param('id') id: string,
+    @Body() d: UpdateDesignRequestStatusDto,
+    @CurrentUser() u: AuthenticatedUser,
+  ) {
+    return this.s.updateRequestStatus(id, d.status, u);
   }
   @Get('projects') projects(@CurrentUser() u: AuthenticatedUser) {
     return this.s.projects(u);

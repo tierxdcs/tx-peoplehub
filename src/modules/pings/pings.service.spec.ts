@@ -35,7 +35,26 @@ describe('PingsService', () => {
     prisma.pingRecipient.findUnique.mockResolvedValue({ id: 'r1', employeeId: 'sender', status: PingRecipientStatus.PENDING });
     prisma.pingRecipient.update.mockResolvedValue({ id: 'r1', status: PingRecipientStatus.ACKNOWLEDGED });
     await service.updateStatus('r1', user, PingRecipientStatus.ACKNOWLEDGED);
-    expect(prisma.pingRecipient.update).toHaveBeenCalledWith({ where: { id: 'r1' }, data: { status: PingRecipientStatus.ACKNOWLEDGED, respondedAt: expect.any(Date) } });
+    expect(prisma.pingRecipient.update).toHaveBeenCalledWith({
+      where: { id: 'r1' },
+      data: {
+        status: PingRecipientStatus.ACKNOWLEDGED,
+        acknowledgedAt: expect.any(Date),
+        respondedAt: expect.any(Date),
+      },
+    });
+  });
+
+  it('preserves an earlier acknowledgement when resolving later', async () => {
+    const acknowledgedAt = new Date('2026-08-01T10:00:00Z');
+    prisma.pingRecipient.findUnique.mockResolvedValue({
+      id: 'r1', employeeId: 'sender', status: PingRecipientStatus.ACKNOWLEDGED, acknowledgedAt,
+    });
+    await service.updateStatus('r1', user, PingRecipientStatus.RESOLVED);
+    expect(prisma.pingRecipient.update).toHaveBeenCalledWith({
+      where: { id: 'r1' },
+      data: { status: PingRecipientStatus.RESOLVED, respondedAt: expect.any(Date) },
+    });
   });
 
   it('lists every active employee except the sender for the global widget', async () => {

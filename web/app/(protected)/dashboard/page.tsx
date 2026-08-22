@@ -8,6 +8,8 @@ import {
   Clock,
   AlertTriangle,
   AlertCircle,
+  Gauge,
+  LockKeyhole,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 import { apiFetch } from '../../lib/api';
@@ -32,6 +34,7 @@ import { getMyPlmWork, type PlmDashboardItem } from '../../lib/plm';
 import { PlmWorkCard } from './_components/plm-work-card';
 import { PingPanel } from './_components/ping-panel';
 import { getReceivedPings, getSentPings, pingAgeHours, type ReceivedPing, type SentPing } from '../../lib/pings';
+import { getMyEfficiencyScore, type EfficiencyScore } from '../../lib/efficiency';
 
 const TASK_CAP = 8;
 const DAY_MS = 86_400_000;
@@ -62,6 +65,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [receivedPings, setReceivedPings] = useState<ReceivedPing[]>([]);
   const [sentPings, setSentPings] = useState<SentPing[]>([]);
+  const [efficiency, setEfficiency] = useState<EfficiencyScore | null>(null);
 
   // A single "now" per render pass keeps greeting/quote/chips consistent.
   const now = useMemo(() => new Date(), []);
@@ -78,7 +82,8 @@ export default function DashboardPage() {
       getMyPlmWork(),
       getReceivedPings(),
       getSentPings(),
-    ]).then(([emp, cardsRes, projectsRes, plmRes, receivedRes, sentRes]) => {
+      getMyEfficiencyScore(),
+    ]).then(([emp, cardsRes, projectsRes, plmRes, receivedRes, sentRes, efficiencyRes]) => {
       if (!alive) return;
       if (emp.status === 'fulfilled') setFirstName(emp.value.firstName);
       setCards(cardsRes.status === 'fulfilled' ? cardsRes.value : []);
@@ -86,6 +91,7 @@ export default function DashboardPage() {
       setPlmWork(plmRes.status === 'fulfilled' ? plmRes.value : []);
       setReceivedPings(receivedRes.status === 'fulfilled' ? receivedRes.value : []);
       setSentPings(sentRes.status === 'fulfilled' ? sentRes.value : []);
+      setEfficiency(efficiencyRes.status === 'fulfilled' ? efficiencyRes.value : null);
       if (cardsRes.status === 'fulfilled')
         window.sessionStorage.removeItem('kanban-dashboard-dirty');
       setLoading(false);
@@ -108,6 +114,9 @@ export default function DashboardPage() {
           if (!alive) return;
           setCards(next);
           window.sessionStorage.removeItem('kanban-dashboard-dirty');
+          getMyEfficiencyScore()
+            .then((score) => alive && setEfficiency(score))
+            .catch(() => undefined);
         })
         .catch(() => undefined);
     };
@@ -167,7 +176,15 @@ export default function DashboardPage() {
   );
   const overduePingWins = mostOverduePing && (!mostUrgentOverdue ||
     new Date(mostOverduePing.ping.createdAt).getTime() + DAY_MS < new Date(mostUrgentOverdue.dueDate!).getTime());
-  const refreshPings = () => Promise.all([getReceivedPings(), getSentPings()]).then(([received, sent]) => { setReceivedPings(received); setSentPings(sent); });
+  const refreshPings = () => Promise.all([
+    getReceivedPings(),
+    getSentPings(),
+    getMyEfficiencyScore(),
+  ]).then(([received, sent, score]) => {
+    setReceivedPings(received);
+    setSentPings(sent);
+    setEfficiency(score);
+  });
 
   const flow = flowForVertical(vertical?.code);
 
@@ -247,6 +264,38 @@ export default function DashboardPage() {
           href="/my-tasks?status=overdue"
         />
       </section>
+
+      {efficiency && (
+        <Card aria-label="Your private efficiency score">
+          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Gauge className="size-6" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="font-semibold">Efficiency score</h2>
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <LockKeyhole className="size-3" /> Private to you
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Rolling last {efficiency.windowDays} days · SLA outcomes, not response speed
+                </p>
+              </div>
+            </div>
+            <div className="sm:text-right">
+              <p className="text-3xl font-semibold tabular-nums">
+                {efficiency.score === null ? '—' : `${efficiency.score}%`}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Pings on time: {formatEfficiencyPart(efficiency.ping)} · Tasks on time:{' '}
+                {formatEfficiencyPart(efficiency.task)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="min-w-0 space-y-6 md:space-y-8">
@@ -361,6 +410,12 @@ export default function DashboardPage() {
       </div>
     </PageContainer>
   );
+}
+
+function formatEfficiencyPart(part: EfficiencyScore['ping']): string {
+  return part.percentage === null
+    ? 'No eligible outcomes'
+    : `${part.percentage}% (${part.onTime}/${part.total})`;
 }
 
 function StatCard({

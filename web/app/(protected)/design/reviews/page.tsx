@@ -30,6 +30,7 @@ type R = {
   status: string;
   minutes?: string;
   decision?: string;
+  outcome?: string;
   project: P;
   attendees: { id: string; name: string; attended: boolean }[];
   actions: A[];
@@ -110,13 +111,23 @@ export default function Reviews() {
   }
   async function record(r: R) {
     const minutes = prompt('Meeting minutes');
+    if (!minutes) return;
     const decision = prompt('Review decision / conclusion');
-    if (minutes && decision)
-      await post(`/design/reviews/${r.id}/record`, {
-        minutes,
-        decision,
-        attendedIds: r.attendees.map((x) => x.id),
-      });
+    if (!decision) return;
+    // Structured outcome — the project stage gates key off this, not the
+    // free-text decision. Captured as a numbered choice to avoid typos.
+    const outcome = {
+      '1': 'APPROVED',
+      '2': 'APPROVED_WITH_CONDITIONS',
+      '3': 'REJECTED',
+    }[prompt('Outcome:\n1) Approved\n2) Approved with conditions\n3) Rejected')?.trim() ?? ''];
+    if (!outcome) return;
+    await post(`/design/reviews/${r.id}/record`, {
+      minutes,
+      decision,
+      outcome,
+      attendedIds: r.attendees.map((x) => x.id),
+    });
   }
   return (
     <PageContainer>
@@ -219,6 +230,12 @@ export default function Reviews() {
                 <strong>Minutes:</strong> {r.minutes}
                 <br />
                 <strong>Decision:</strong> {r.decision}
+                {r.outcome && (
+                  <>
+                    <br />
+                    <strong>Outcome:</strong> {r.outcome.replace(/_/g, ' ')}
+                  </>
+                )}
               </div>
             )}
             <div className="mt-3 text-sm">

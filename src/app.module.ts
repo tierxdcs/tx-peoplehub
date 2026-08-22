@@ -58,6 +58,7 @@ import { ScmResourcePlanModule } from './modules/scm-resource-plan/scm-resource-
 import { LearningModule } from './modules/learning/learning.module';
 import { ExpenseClaimsModule } from './modules/expense-claims/expense-claims.module';
 import { PingsModule } from './modules/pings/pings.module';
+import { EfficiencyModule } from './modules/efficiency/efficiency.module';
 
 @Module({
   imports: [
@@ -109,6 +110,7 @@ import { PingsModule } from './modules/pings/pings.module';
     RfqModule,
     ExpenseClaimsModule,
     PingsModule,
+    EfficiencyModule,
     HealthModule,
   ],
   providers: [
