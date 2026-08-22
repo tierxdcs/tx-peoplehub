@@ -7,6 +7,8 @@ import {
   DeliveryChallanStatus,
   OrderFinalQcStatus,
   OrderFulfilmentStatus,
+  OrderStatus,
+  PlmStage,
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
@@ -102,6 +104,69 @@ export class DeliveryChallanService {
 
   async get(id: string): Promise<DeliveryChallanEntity> {
     return this.toEntity(await this.findOrThrow(id));
+  }
+
+  /**
+   * Purpose-built picker read. Sales /orders remains commercially scoped;
+   * Quality receives only the operational fields needed for outbound QC.
+   */
+  async eligibleOrders(user: AuthenticatedUser) {
+    await this.access.assertCanViewDispatchOrders(user);
+    const orders = await this.prisma.order.findMany({
+      where: {
+        status: { not: OrderStatus.CANCELLED },
+        fulfilmentStatus: { not: OrderFulfilmentStatus.FULLY_DISPATCHED },
+        OR: [
+          {
+            status: {
+              in: [
+                OrderStatus.READY_TO_SHIP,
+                OrderStatus.SHIPPED,
+                OrderStatus.DELIVERED,
+              ],
+            },
+          },
+          {
+            lineItems: {
+              some: {
+                plmTrackers: {
+                  some: { currentStage: { in: [PlmStage.DISPATCH, PlmStage.COMPLETED] } },
+                },
+              },
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        fulfilmentStatus: true,
+        finalQcStatus: true,
+        lineItems: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            quantity: true,
+            productId: true,
+            adHocProductName: true,
+            product: { select: { name: true, sku: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return orders.map((order) => ({
+      ...order,
+      dispatchReady: true,
+      lineItems: order.lineItems.map((line) => ({
+        ...line,
+        quantity: line.quantity.toString(),
+        productName:
+          line.product?.name ?? line.adHocProductName ?? 'Unnamed product',
+        productSku: line.product?.sku ?? 'Ad-hoc',
+      })),
+    }));
   }
 
   // ── Outbound final-QC clearance (the dispatch gate) ──────────────────

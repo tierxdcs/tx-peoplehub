@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, AlertTriangle, ShieldCheck, Truck } from 'lucide-react';
-import { apiFetch, ApiError } from '../../../../lib/api';
+import { ApiError } from '../../../../lib/api';
 import { useIsQcInspector } from '../../../../lib/use-is-qc-inspector';
-import type { Order, PaginatedResult } from '../../../../lib/types';
+import type { Order } from '../../../../lib/types';
 import {
   createDeliveryChallan,
   dispatchDeliveryChallan,
@@ -16,6 +16,7 @@ import {
   DC_DOCUMENT_KEYS,
   type TransportMode,
   type DeliveryChallan,
+  listDispatchEligibleOrders,
 } from '../../../../lib/logistics';
 import { todayDateStr } from '../../../../lib/date';
 import { PageContainer } from '../../../../components/ui/page-container';
@@ -72,17 +73,7 @@ export default function NewDispatchPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const res = await apiFetch<PaginatedResult<Order>>('/orders?page=1&limit=100');
-        // PLM is the operational source of truth for readiness. The backend's
-        // derived flag also supports legacy orders that used READY_TO_SHIP.
-        setOrders(
-          res.items.filter(
-            (o) =>
-              o.dispatchReady === true &&
-              o.status !== 'CANCELLED' &&
-              o.fulfilmentStatus !== 'FULLY_DISPATCHED',
-          ),
-        );
+        setOrders(await listDispatchEligibleOrders());
       } catch {
         toast.error('Failed to load orders.');
       } finally {
@@ -101,10 +92,9 @@ export default function NewDispatchPage() {
         return;
       }
       try {
-        const [ord, dcs] = await Promise.all([
-          apiFetch<Order>(`/orders/${id}`),
-          listDeliveryChallans({ orderId: id }),
-        ]);
+        const ord = orders.find((candidate) => candidate.id === id);
+        if (!ord) throw new Error('Order is not dispatch-ready');
+        const dcs = await listDeliveryChallans({ orderId: id });
         setOrder(ord);
         setPriorDcs(dcs);
         setQtys(Object.fromEntries((ord.lineItems ?? []).map((l) => [l.id, ''])));
@@ -112,7 +102,7 @@ export default function NewDispatchPage() {
         toast.error('Failed to load order.');
       }
     },
-    [toast],
+    [orders, toast],
   );
 
   useEffect(() => {

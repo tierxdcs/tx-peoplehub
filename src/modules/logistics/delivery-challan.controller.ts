@@ -59,6 +59,15 @@ export class DeliveryChallanController {
     return this.service.create(dto, user);
   }
 
+  @Get('eligible-orders')
+  @ApiOperation({
+    summary:
+      'List dispatch-ready orders (Quality/QC Inspector/Production/SUPER_ADMIN)',
+  })
+  eligibleOrders(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.eligibleOrders(user);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a delivery challan (company-wide read)' })
   get(@Param('id') id: string) {

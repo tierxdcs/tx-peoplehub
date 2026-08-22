@@ -1,6 +1,7 @@
 'use client';
 
 import { apiFetch } from './api';
+import type { Order } from './types';
 
 /**
  * Logistics & Dispatch client — Delivery Challans for outbound shipments.
@@ -183,6 +184,10 @@ export function clearFinalQc(orderId: string) {
     `/logistics/delivery-challans/orders/${orderId}/clear-final-qc`,
     { method: 'POST' },
   );
+}
+
+export function listDispatchEligibleOrders() {
+  return apiFetch<Order[]>('/logistics/delivery-challans/eligible-orders');
 }
 
 export function podUploadUrl(id: string, fileName: string, contentType: string) {

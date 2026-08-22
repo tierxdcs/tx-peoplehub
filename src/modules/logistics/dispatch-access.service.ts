@@ -56,6 +56,24 @@ export class DispatchAccessService {
     );
   }
 
+  /** Read dispatch-ready projects without granting challan write access. */
+  async assertCanViewDispatchOrders(user: AuthenticatedUser): Promise<void> {
+    if (this.isSuperAdmin(user)) return;
+    const emp = await this.load(user);
+    if (
+      emp &&
+      emp.status === EmployeeStatus.ACTIVE &&
+      (emp.isQcInspector ||
+        emp.verticalCode === 'QUALITY' ||
+        emp.verticalCode === 'PRODUCTION')
+    ) {
+      return;
+    }
+    throw new ForbiddenException(
+      'Only active Quality, QC Inspector, Production, or SUPER_ADMIN users may view dispatch-ready orders',
+    );
+  }
+
   /** Clear outbound final QC — designated QC Inspector or SUPER_ADMIN. */
   async assertCanClearFinalQc(user: AuthenticatedUser): Promise<void> {
     if (this.isSuperAdmin(user)) return;
