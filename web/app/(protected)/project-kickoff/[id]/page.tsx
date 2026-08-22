@@ -44,6 +44,7 @@ import {
   type RiskStatus,
 } from '../../../lib/project-kickoff';
 import { listMembers, type KanbanBoardMember } from '../../../lib/kanban';
+import { listVendors, type Vendor } from '../../../lib/scm';
 import type { EmployeeSearchResult } from '../../../lib/types';
 import { PageContainer } from '../../../components/ui/page-container';
 import {
@@ -1379,6 +1380,9 @@ function RisksSection({
 // ── Delivery classification (per order line item) ───────────────────
 const DELIVERY_TYPES: DeliveryType[] = ['NPD', 'IN_HOUSE', 'VENDOR'];
 
+/** Minimal approved-vendor shape for the delivery-split vendor picker. */
+type VendorOption = { id: string; companyName: string };
+
 function DeliveryClassificationSection({
   kickoff,
   canManage,
@@ -1389,6 +1393,32 @@ function DeliveryClassificationSection({
   onChanged: () => void;
 }) {
   const items = kickoff.deliveryItems ?? [];
+  // Approved Vendor Master records are the only ones a VENDOR split may point
+  // at — the PLM tracker links its vendor from the split's vendorId, and
+  // vendor-update links require an approved vendor. Fetched once here and shared
+  // across every row rather than refetched per line.
+  const [approvedVendors, setApprovedVendors] = useState<VendorOption[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void listVendors()
+      .then((vendors) => {
+        if (!alive) return;
+        setApprovedVendors(
+          vendors
+            .filter(
+              (v) =>
+                v.status === 'APPROVED' || v.status === 'APPROVED_PREFERRED',
+            )
+            .map((v) => ({ id: v.id, companyName: v.companyName })),
+        );
+      })
+      .catch(() => {
+        /* non-fatal — the picker degrades to an empty list with guidance */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
   return (
     <Card className="mb-4">
       <CardHeader>
@@ -1412,6 +1442,7 @@ function DeliveryClassificationSection({
                 kickoffId={kickoff.id}
                 item={li}
                 canManage={canManage}
+                approvedVendors={approvedVendors}
                 onChanged={onChanged}
               />
             ))}
@@ -1483,11 +1514,13 @@ function DeliveryRow({
   kickoffId,
   item,
   canManage,
+  approvedVendors,
   onChanged,
 }: {
   kickoffId: string;
   item: KickoffDeliveryItem;
   canManage: boolean;
+  approvedVendors: VendorOption[];
   onChanged: () => void;
 }) {
   const toast = useToast();
@@ -1636,6 +1669,26 @@ function DeliveryRow({
           const showVendor =
             d.deliveryType === 'VENDOR' || d.deliveryType === 'IN_HOUSE';
           const isInHouse = d.deliveryType === 'IN_HOUSE';
+          // A VENDOR split points at an approved Vendor Master record (its
+          // vendorId is what the PLM tracker links). Keep the currently-linked
+          // vendor selectable even if it has since dropped out of the approved
+          // list, so an existing selection never silently disappears.
+          const vendorOptions: VendorOption[] =
+            d.vendorId && !approvedVendors.some((v) => v.id === d.vendorId)
+              ? [
+                  {
+                    id: d.vendorId,
+                    companyName: d.vendorName || '(current vendor)',
+                  },
+                  ...approvedVendors,
+                ]
+              : approvedVendors;
+          // A legacy/free-text vendor name with no Vendor Master link — the
+          // tracker cannot attach it until an approved vendor is picked.
+          const unlinkedVendorName =
+            d.deliveryType === 'VENDOR' &&
+            !d.vendorId &&
+            d.vendorName.trim().length > 0;
           return (
             <div
               key={d.key}
@@ -1660,8 +1713,15 @@ function DeliveryRow({
                 <Select
                   value={d.deliveryType}
                   onChange={(e) =>
+                    // Changing the type clears any carried-over vendor (mirrors
+                    // the server's type-driven reset) so a VENDOR-picked link
+                    // never lingers on an IN_HOUSE/NPD split.
                     patch(d.key, {
                       deliveryType: e.target.value as DeliveryType,
+                      vendorId: null,
+                      vendorName: '',
+                      vendorContactInfo: '',
+                      vendorExpectedLeadTime: '',
                     })
                   }
                   // A split with a live PLM tracker cannot change type.
@@ -1681,19 +1741,56 @@ function DeliveryRow({
               <div className="min-w-0">
                 {showVendor ? (
                   <div className="space-y-1.5">
-                    <Input
-                      value={d.vendorName}
-                      onChange={(e) =>
-                        patch(d.key, { vendorName: e.target.value })
-                      }
-                      placeholder={
-                        isInHouse
-                          ? 'In-house partner (auto-filled on save)'
-                          : 'Vendor name'
-                      }
-                      className="h-8"
-                      disabled={!canManage}
-                    />
+                    {isInHouse ? (
+                      <Input
+                        value={d.vendorName}
+                        onChange={(e) =>
+                          patch(d.key, { vendorName: e.target.value })
+                        }
+                        placeholder="In-house partner (auto-filled on save)"
+                        className="h-8"
+                        disabled={!canManage}
+                      />
+                    ) : vendorOptions.length === 0 ? (
+                      <p className="rounded border border-warning/40 bg-warning/10 px-2 py-1.5 text-xs text-muted-foreground">
+                        No approved vendors in Vendor Master. Add and approve one
+                        under SCM › Vendors, then select it here so the PLM
+                        tracker can link it.
+                      </p>
+                    ) : (
+                      <>
+                        <Select
+                          value={d.vendorId ?? ''}
+                          onChange={(e) => {
+                            const picked = approvedVendors.find(
+                              (v) => v.id === e.target.value,
+                            );
+                            // Selecting sets the FK the tracker links from and
+                            // mirrors the company name; clearing drops both.
+                            patch(d.key, {
+                              vendorId: picked ? picked.id : null,
+                              vendorName: picked ? picked.companyName : '',
+                            });
+                          }}
+                          className="h-8"
+                          disabled={!canManage}
+                        >
+                          <option value="">Select an approved vendor…</option>
+                          {vendorOptions.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.companyName}
+                            </option>
+                          ))}
+                        </Select>
+                        {unlinkedVendorName && (
+                          <p className="text-xs text-warning">
+                            “{d.vendorName}” isn’t a Vendor Master record — pick
+                            an approved vendor above to link it to the PLM
+                            tracker.
+                          </p>
+                        )}
+                      </>
+                    )}
                     <Input
                       value={d.vendorContactInfo}
                       onChange={(e) =>

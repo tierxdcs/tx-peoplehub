@@ -77,7 +77,13 @@
       "Bash(echo \"=== DEPLOY EXIT: $? ===\")",
       "Bash(echo \"GENERATE EXIT: $?\")",
       "Bash(echo \"---exit:$?---\")",
-      "Bash(awk 'NR>=600 && NR<=700 && /projectName|orderNumber|orderId|orderStatus|orderTotal|customerName|projectKickoff|customerBomIntake/' src/modules/rfq/rfq.service.ts)"
+      "Bash(awk 'NR>=600 && NR<=700 && /projectName|orderNumber|orderId|orderStatus|orderTotal|customerName|projectKickoff|customerBomIntake/' src/modules/rfq/rfq.service.ts)",
+      "Bash(awk '/^model Item /{f=1} f{print NR\": \"$0} /^}/{if\\(f\\)f=0}' prisma/schema.prisma)",
+      "Bash(awk 'NR>=4684 && NR<=4740{print NR\": \"$0}' prisma/schema.prisma)",
+      "Bash(node /tmp/diag-vendor.js)",
+      "Bash(node -r dotenv/config diag-vendor.js)",
+      "Bash(node -r dotenv/config diag-vendor2.js)",
+      "Bash(node -r dotenv/config diag-vendor3.js)"
     ]
   }
 }

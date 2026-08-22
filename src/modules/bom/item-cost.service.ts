@@ -61,6 +61,23 @@ export class ItemCostService {
   }
 
   async currentCost(itemId: string): Promise<CurrentItemCost> {
+    const accepted = await this.latestAcceptedGrnCost(itemId);
+    if (accepted) return accepted;
+    const awardedQuote = await this.prisma.itemQuotedCost.findFirst({
+      where: { itemId },
+      orderBy: [{ awardedAt: 'desc' }, { createdAt: 'desc' }],
+      select: { unitPrice: true },
+    });
+    if (awardedQuote) return { amount: awardedQuote.unitPrice, source: 'LATEST_AWARDED_QUOTE' };
+    return this.manualStandardCost(itemId);
+  }
+
+  /** COPQ uses realized GRN cost, then manual standard cost; quotes are excluded. */
+  async currentFailureCost(itemId: string): Promise<CurrentItemCost> {
+    return (await this.latestAcceptedGrnCost(itemId)) ?? this.manualStandardCost(itemId);
+  }
+
+  private async latestAcceptedGrnCost(itemId: string): Promise<CurrentItemCost | null> {
     const accepted = await this.prisma.goodsReceiptNoteLine.findFirst({
       where: {
         itemId,
@@ -79,23 +96,10 @@ export class ItemCostService {
         purchaseOrderLine: { select: { unitPrice: true } },
       },
     });
-    if (accepted) {
-      return {
-        amount: accepted.purchaseOrderLine.unitPrice,
-        source: 'LATEST_ACCEPTED_GRN',
-      };
-    }
-    const awardedQuote = await this.prisma.itemQuotedCost.findFirst({
-      where: { itemId },
-      orderBy: [{ awardedAt: 'desc' }, { createdAt: 'desc' }],
-      select: { unitPrice: true },
-    });
-    if (awardedQuote) {
-      return {
-        amount: awardedQuote.unitPrice,
-        source: 'LATEST_AWARDED_QUOTE',
-      };
-    }
+    return accepted ? { amount: accepted.purchaseOrderLine.unitPrice, source: 'LATEST_ACCEPTED_GRN' } : null;
+  }
+
+  private async manualStandardCost(itemId: string): Promise<CurrentItemCost> {
     const item = await this.prisma.item.findUnique({
       where: { id: itemId },
       select: { manualStandardCost: true },

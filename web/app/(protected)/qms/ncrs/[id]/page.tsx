@@ -19,6 +19,10 @@ type N = {
   status: string;
   containmentAction?: string;
   disposition?: string;
+  affectedQuantity?: number;
+  costOfPoorQuality?: number;
+  costOfPoorQualitySource?: 'SYSTEM_CALCULATED' | 'MANUAL';
+  suggestedScrapCost?: number;
   capa?: { id: string; capaNumber: string };
 };
 export default function NcrDetail() {
@@ -29,6 +33,7 @@ export default function NcrDetail() {
     [containment, setContainment] = useState(''),
     [disposition, setDisposition] = useState('REWORK'),
     [notes, setNotes] = useState(''),
+    [copq, setCopq] = useState(''),
     [problem, setProblem] = useState(''),
     [owner, setOwner] = useState(''),
     [root, setRoot] = useState(''),
@@ -40,6 +45,7 @@ export default function NcrDetail() {
       apiFetch<E[]>('/qms/references/employees'),
     ]).then(([x, e]) => {
       setN(x);
+      setCopq(x.costOfPoorQuality == null ? '' : String(x.costOfPoorQuality));
       setEmps(e);
     });
   useEffect(() => {
@@ -92,7 +98,7 @@ export default function NcrDetail() {
           {isQmsHead && (
             <>
               <h3 className="mt-4 font-semibold">Disposition</h3>
-              <div className="grid gap-2 md:grid-cols-3">
+              <div className="grid gap-2 md:grid-cols-2">
                 <Select
                   value={disposition}
                   onChange={(e) => setDisposition(e.target.value)}
@@ -113,12 +119,28 @@ export default function NcrDetail() {
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Approval/disposition notes"
                 />
+                <div>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={copq}
+                    onChange={(e) => setCopq(e.target.value)}
+                    placeholder={disposition === 'SCRAP' && n.suggestedScrapCost != null ? `Calculated: ₹${Number(n.suggestedScrapCost).toLocaleString('en-IN')}` : 'Failure cost (manual, optional)'}
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {disposition === 'SCRAP'
+                      ? 'Scrap is calculated from affected quantity × current item cost. Enter a value only to override it.'
+                      : 'This disposition has no reliable automatic cost basis. Enter the known actual failure cost manually.'}
+                  </p>
+                </div>
                 <Button
                   onClick={() =>
                     post(`/qms/ncrs/${id}/disposition`, {
                       disposition,
                       dispositionNotes: notes,
                       concessionRequired: disposition === 'CONCESSION',
+                      costOfPoorQuality: copq === '' ? undefined : Number(copq),
                     })
                   }
                 >
@@ -126,6 +148,14 @@ export default function NcrDetail() {
                 </Button>
               </div>
             </>
+          )}
+          {n.costOfPoorQuality != null && (
+            <div className="mt-5 rounded-md border p-3">
+              <div className="text-sm text-muted-foreground">Cost of poor quality</div>
+              <div className="text-xl font-semibold">₹{Number(n.costOfPoorQuality).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+              <div className="text-xs text-muted-foreground">{n.costOfPoorQualitySource === 'SYSTEM_CALCULATED' ? 'System-calculated scrap cost' : 'Manually entered / overridden'}</div>
+              {isQmsHead && <Button className="mt-2" variant="outline" onClick={() => post(`/qms/ncrs/${id}/copq`, { costOfPoorQuality: Number(copq) })}>Save manual override</Button>}
+            </div>
           )}
         </CardContent>
       </Card>

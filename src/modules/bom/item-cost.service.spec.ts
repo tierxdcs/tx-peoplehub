@@ -92,3 +92,12 @@ describe('ItemCostService — awarded quote fallback', () => {
     expect(result.amount?.toString()).toBe('125.50');
   });
 });
+
+describe('ItemCostService — failure cost hierarchy', () => {
+  it('skips awarded quote and uses manual standard cost when no accepted GRN exists', async () => {
+    const prisma:any={goodsReceiptNoteLine:{findFirst:jest.fn().mockResolvedValue(null)},item:{findUnique:jest.fn().mockResolvedValue({manualStandardCost:80})},itemQuotedCost:{findFirst:jest.fn()}};
+    const service=new ItemCostService(prisma,{} as any);
+    await expect(service.currentFailureCost('item-1')).resolves.toEqual({amount:80,source:'MANUAL_STANDARD'});
+    expect(prisma.itemQuotedCost.findFirst).not.toHaveBeenCalled();
+  });
+});

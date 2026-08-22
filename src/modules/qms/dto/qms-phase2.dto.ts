@@ -9,7 +9,9 @@ export class CreateQmsNcrDto {
  @IsString() ownerId!:string; @IsDateString() targetDate!:string;
 }
 export class ContainQmsNcrDto { @IsString() @IsNotEmpty() containmentAction!:string; }
-export class DispositionQmsNcrDto { @IsEnum(QmsDisposition) disposition!:QmsDisposition; @IsOptional() @IsString() dispositionNotes?:string; @IsOptional() @IsBoolean() concessionRequired?:boolean; }
+export class DispositionQmsNcrDto { @IsEnum(QmsDisposition) disposition!:QmsDisposition; @IsOptional() @IsString() dispositionNotes?:string; @IsOptional() @IsBoolean() concessionRequired?:boolean; @IsOptional() @Type(()=>Number) @IsNumber() costOfPoorQuality?:number; }
+export class UpdateQmsCopqDto { @Type(()=>Number) @IsNumber() costOfPoorQuality!:number; }
+export class QmsAnalyticsQueryDto { @IsOptional() @IsDateString() from?:string; @IsOptional() @IsDateString() to?:string; }
 export class CreateQmsCapaDto { @IsString() problemStatement!:string; @IsString() ownerId!:string; @IsOptional() @IsString() rootCauseMethod?:string; @IsOptional() @IsObject() rootCauseAnalysis?:object; @IsOptional() @IsString() rootCauseConclusion?:string; @IsOptional() @IsString() correction?:string; @IsOptional() @IsString() effectivenessCriteria?:string; @IsOptional() @IsDateString() effectivenessDueDate?:string; }
 export class AddQmsCapaActionDto { @IsString() actionType!:string; @IsString() description!:string; @IsString() ownerId!:string; @IsDateString() dueDate!:string; }
 export class CompleteQmsCapaActionDto { @IsString() completionNote!:string; @IsOptional() @IsObject() evidence?:object; }
