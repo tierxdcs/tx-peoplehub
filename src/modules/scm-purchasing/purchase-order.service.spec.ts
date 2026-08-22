@@ -1,6 +1,9 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PurchaseOrderStatus, Role } from '@prisma/client';
 import { PurchaseOrderService } from './purchase-order.service';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { CreatePurchaseOrderDto } from './dto/purchase-order.dto';
 
 const ceo = {
   id: 'ceo-1',
@@ -111,5 +114,21 @@ describe('PurchaseOrderService ad-hoc approval', () => {
       },
     });
     expect(result.rejectionComment).toBe('Use a qualified vendor');
+  });
+});
+
+describe('CreatePurchaseOrderDto ad-hoc contract', () => {
+  it('accepts the ad-hoc party fields under whitelist validation', async () => {
+    const dto = plainToInstance(CreatePurchaseOrderDto, {
+      adHocPartyName: 'One-off Fabricator',
+      adHocContactInfo: 'buyer@example.com',
+      adHocPartyAddress: 'Bengaluru',
+      lines: [{ itemId: 'item-1', orderedQuantity: 1, unitPrice: 100 }],
+    });
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+    expect(errors).toEqual([]);
   });
 });
