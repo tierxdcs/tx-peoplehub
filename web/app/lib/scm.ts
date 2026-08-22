@@ -233,6 +233,12 @@ export function getVendor(id: string) {
   return apiFetch<VendorDetail>(`/vendors/${id}`);
 }
 
+export function deleteVendor(id: string) {
+  return apiFetch<{ id: string; deleted: true }>(`/vendors/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 export function createVendor(input: CreateVendorInput) {
   return apiFetch<Vendor>('/vendors', {
     method: 'POST',

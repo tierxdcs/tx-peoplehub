@@ -202,6 +202,72 @@ export class ProductsService {
     return this.toEntity(updated, showCost);
   }
 
+  async remove(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<{ id: string; deleted: true }> {
+    const canDelete =
+      user.role === Role.SUPER_ADMIN ||
+      (user.role === Role.MANAGER && (await this.access.isSalesStaff(user)));
+    if (!canDelete) {
+      throw new ForbiddenException(
+        'Only Sales Managers or CEO/SuperAdmin may delete products',
+      );
+    }
+
+    await this.findRawOrThrow(id);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const referenceChecks = await Promise.all([
+          tx.bidLineItem.count({ where: { productId: id } }),
+          tx.orderLineItem.count({ where: { productId: id } }),
+          tx.salesInvoiceLine.count({ where: { productId: id } }),
+          tx.customerBomIntake.count({ where: { productId: id } }),
+          tx.designRequest.count({ where: { productId: id } }),
+          tx.designProject.count({ where: { productId: id } }),
+          tx.kickoffBomSelection.count({ where: { productId: id } }),
+          tx.qmsInspectionPlan.count({ where: { productId: id } }),
+          tx.qmsInspection.count({ where: { productId: id } }),
+          tx.qmsNonConformance.count({ where: { productId: id } }),
+          tx.qmsCustomerComplaint.count({ where: { productId: id } }),
+        ]);
+        const labels = [
+          'bid lines',
+          'order lines',
+          'invoice lines',
+          'customer BOM intake',
+          'design requests',
+          'design projects',
+          'kickoff BOM snapshots',
+          'quality plans',
+          'quality inspections',
+          'quality NCRs',
+          'customer complaints',
+        ];
+        const usedBy = referenceChecks
+          .map((count, index) => (count ? `${labels[index]} (${count})` : null))
+          .filter(Boolean);
+        if (usedBy.length) {
+          throw new ConflictException(
+            `This product cannot be deleted because it is used by: ${usedBy.join(', ')}. Mark it inactive instead to preserve history.`,
+          );
+        }
+        await tx.product.delete({ where: { id } });
+        return { id, deleted: true as const };
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new ConflictException(
+          'This product cannot be deleted because it is referenced elsewhere in the system. Mark it inactive instead.',
+        );
+      }
+      throw error;
+    }
+  }
+
   private async findRawOrThrow(
     id: string,
   ): Promise<Prisma.ProductGetPayload<{ include: typeof PRODUCT_INCLUDE }>> {

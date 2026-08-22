@@ -67,6 +67,16 @@ export class ScmController {
     return this.service.getVendor(id);
   }
 
+  @Delete(':id')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Delete an unused vendor (CEO/SuperAdmin only)' })
+  deleteVendor(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.deleteVendor(id, user);
+  }
+
   @Patch(':id/core-competency')
   @ApiOperation({
     summary: "Set/correct the vendor's core competency (SCM Manager+/SA)",

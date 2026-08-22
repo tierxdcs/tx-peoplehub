@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
-import { apiFetch } from '../../../lib/api';
+import { Plus, Trash2 } from 'lucide-react';
+import { apiFetch, ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { PaginatedResult, Product } from '../../../lib/types';
 import { formatINR } from '../../../lib/sales';
@@ -20,6 +20,8 @@ import { Select } from '../../../components/ui/select';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { PackageSearch } from 'lucide-react';
+import { useConfirm } from '../../../components/ui/confirm';
+import { useToast } from '../../../components/ui/toaster';
 import {
   Table,
   TableBody,
@@ -33,6 +35,8 @@ export default function ProductsPage() {
   const { user } = useAuth();
   const { style: numberFormatStyle } = useNumberFormat();
   const canEdit = user?.role === 'MANAGER' || user?.role === 'SUPER_ADMIN';
+  const confirm = useConfirm();
+  const toast = useToast();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [page, setPage] = useState(1);
@@ -43,6 +47,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { businessUnits } = useBusinessUnitOptions();
   const limit = 20;
 
@@ -83,6 +88,30 @@ export default function ProductsPage() {
   const canSeeCost = products.some(
     (product) => product.rolledUpCostSnapshot !== undefined,
   );
+
+  async function deleteProduct(product: Product) {
+    const ok = await confirm({
+      title: 'Delete product permanently?',
+      description: `${product.sku} · ${product.name} will be permanently deleted. This is allowed only when the product has never been referenced anywhere in the system.`,
+      confirmLabel: 'Delete product',
+      cancelLabel: 'Cancel',
+      destructive: true,
+    });
+    if (!ok) return;
+    setDeletingId(product.id);
+    try {
+      await apiFetch(`/products/${product.id}`, { method: 'DELETE' });
+      toast.success(`${product.sku} deleted.`);
+      if (filtered.length === 1 && page > 1) setPage((value) => value - 1);
+      else await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to delete product',
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <PageContainer>
@@ -213,13 +242,26 @@ export default function ProductsPage() {
                       </TableCell>
                       {canEdit && (
                         <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setEditing(p)}
-                          >
-                            Edit
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditing(p)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              disabled={deletingId === p.id}
+                              onClick={() => deleteProduct(p)}
+                              aria-label={`Delete ${p.sku}`}
+                            >
+                              <Trash2 className="size-4" />
+                              {deletingId === p.id ? 'Deleting…' : 'Delete'}
+                            </Button>
+                          </div>
                         </TableCell>
                       )}
                     </TableRow>

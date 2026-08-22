@@ -1,11 +1,13 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import {
   Prisma,
+  Role,
   VendorQuestionnaireStatus,
   VendorStatus,
 } from '@prisma/client';
@@ -216,6 +218,72 @@ export class ScmService {
       questionnaires: s.questionnaires.map((q) => this.toQuestionnaire(q, s)),
       audits: s.audits.map((a) => this.toAudit(a)),
     };
+  }
+
+  /**
+   * Permanently delete a Vendor master and its owned qualification records.
+   * Operational records are never detached or erased: once a vendor has been
+   * used for sourcing, PLM, purchasing, or AP, the master must be retained.
+   */
+  async deleteVendor(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<{ id: string; deleted: true }> {
+    if (user.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException(
+        'Only CEO/SuperAdmin may delete vendors',
+      );
+    }
+
+    const vendor = await this.prisma.vendor.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!vendor) throw new NotFoundException('Vendor not found');
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const counts = await Promise.all([
+          tx.orderLineItem.count({ where: { vendorId: id } }),
+          tx.orderLineDeliverySplit.count({ where: { vendorId: id } }),
+          tx.plmTracker.count({ where: { vendorId: id } }),
+          tx.rfqInvitee.count({ where: { vendorId: id } }),
+          tx.purchaseOrder.count({ where: { vendorId: id } }),
+          tx.accountsPayableInvoice.count({ where: { vendorId: id } }),
+          tx.accountsPayablePayment.count({ where: { vendorId: id } }),
+        ]);
+        const labels = [
+          'order lines',
+          'order delivery splits',
+          'PLM trackers',
+          'RFQ invitations',
+          'purchase orders',
+          'AP invoices',
+          'AP payments',
+        ];
+        const usedBy = counts
+          .map((count, index) => (count ? `${labels[index]} (${count})` : null))
+          .filter(Boolean);
+        if (usedBy.length) {
+          throw new ConflictException(
+            `This vendor cannot be deleted because it is used by: ${usedBy.join(', ')}. Retain the vendor to preserve operational history.`,
+          );
+        }
+
+        await tx.vendor.delete({ where: { id } });
+        return { id, deleted: true as const };
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new ConflictException(
+          'This vendor cannot be deleted because it is referenced elsewhere in the system. Retain it to preserve operational history.',
+        );
+      }
+      throw error;
+    }
   }
 
   // ── Questionnaire revisions ──────────────────────────────────────────

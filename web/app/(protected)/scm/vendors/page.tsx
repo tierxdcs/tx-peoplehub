@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Factory } from 'lucide-react';
+import { Factory, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import {
   confirmNdaTemplateUpload,
   createNdaTemplateUploadUrl,
+  deleteVendor,
   listVendors,
   VENDOR_STATUS_LABEL,
   type Vendor,
@@ -37,6 +38,8 @@ import {
   TableRow,
 } from '../../../components/ui/table';
 import { NewVendorDialog } from './_components/new-vendor-dialog';
+import { useConfirm } from '../../../components/ui/confirm';
+import { useToast } from '../../../components/ui/toaster';
 
 const STATUSES: VendorStatus[] = [
   'PENDING_QUESTIONNAIRE',
@@ -55,6 +58,8 @@ const STATUSES: VendorStatus[] = [
 export default function VendorsPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,12 +67,14 @@ export default function VendorsPage() {
   const [competencyFilter, setCompetencyFilter] = useState<VendorCoreCompetency | ''>('');
   const [creating, setCreating] = useState(false);
   const [ndaUploading, setNdaUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // UI hint only — the button shows for SUPER_ADMIN or a MANAGER (the backend
   // enforces SCM-vertical). We can't see vertical code here, so a non-SCM
   // manager may see the button and get a 403 on submit (surfaced as a toast).
   const canCreate =
     user?.role === 'SUPER_ADMIN' || user?.role === 'MANAGER';
+  const canDelete = user?.role === 'SUPER_ADMIN';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,6 +100,28 @@ export default function VendorsPage() {
     [vendors, statusFilter, competencyFilter],
   );
   const register = useRegisterList(filtered, (vendor) => `${vendor.companyName} ${vendor.status} ${vendor.contactPersonName ?? ''} ${vendor.contactEmail} ${vendor.coreCompetency ?? ''}`);
+
+  async function removeVendor(vendor: Vendor) {
+    const accepted = await confirm({
+      title: 'Delete vendor permanently?',
+      description: `${vendor.companyName} and its qualification records will be permanently deleted. Vendors already used in an operational record cannot be deleted.`,
+      confirmLabel: 'Delete vendor',
+      cancelLabel: 'Cancel',
+      destructive: true,
+    });
+    if (!accepted) return;
+
+    setDeletingId(vendor.id);
+    try {
+      await deleteVendor(vendor.id);
+      setVendors((current) => current.filter((item) => item.id !== vendor.id));
+      toast.success(`${vendor.companyName} deleted.`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to delete vendor.');
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <PageContainer>
@@ -177,13 +206,14 @@ export default function VendorsPage() {
                 <TableHead>Core competency</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Created</TableHead>
+                {canDelete && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 5 }).map((__, j) => (
+                    {Array.from({ length: canDelete ? 6 : 5 }).map((__, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-4 w-28" />
                       </TableCell>
@@ -192,7 +222,7 @@ export default function VendorsPage() {
                 ))
               ) : register.visibleItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="p-0">
+                  <TableCell colSpan={canDelete ? 6 : 5} className="p-0">
                     <EmptyState
                       icon={Factory}
                       title="No vendors yet"
@@ -227,6 +257,24 @@ export default function VendorsPage() {
                     <TableCell>
                       {new Date(s.createdAt).toLocaleDateString()}
                     </TableCell>
+                    {canDelete && (
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          disabled={deletingId === s.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void removeVendor(s);
+                          }}
+                          aria-label={`Delete ${s.companyName}`}
+                        >
+                          <Trash2 className="size-4" />
+                          {deletingId === s.id ? 'Deleting…' : 'Delete'}
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}

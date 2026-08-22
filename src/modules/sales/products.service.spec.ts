@@ -81,3 +81,86 @@ describe('ProductsService SKU updates', () => {
     expect(prisma.product.update).not.toHaveBeenCalled();
   });
 });
+
+describe('ProductsService deletion', () => {
+  const user = {
+    id: 'admin-1',
+    email: 'admin@example.com',
+    role: Role.SUPER_ADMIN,
+    verticalId: null,
+  };
+
+  const existingProduct = {
+    id: 'product-1',
+    sku: 'SKU-001',
+    name: 'Unused product',
+    description: null,
+    unitPrice: new Prisma.Decimal(100),
+    unitOfMeasure: 'NOS',
+    hsnCode: null,
+    isActive: true,
+    itemId: null,
+    businessUnitId: 'bu-1',
+    autoAssignedBusinessUnit: false,
+    targetMarginPercent: null,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
+    businessUnit: { name: 'Infrastructure', colorHex: '#123456' },
+    item: null,
+  };
+
+  function setup(referenceCounts: Partial<Record<string, number>> = {}) {
+    const count = (key: string) =>
+      jest.fn().mockResolvedValue(referenceCounts[key] ?? 0);
+    const tx = {
+      bidLineItem: { count: count('bidLineItem') },
+      orderLineItem: { count: count('orderLineItem') },
+      salesInvoiceLine: { count: count('salesInvoiceLine') },
+      customerBomIntake: { count: count('customerBomIntake') },
+      designRequest: { count: count('designRequest') },
+      designProject: { count: count('designProject') },
+      kickoffBomSelection: { count: count('kickoffBomSelection') },
+      qmsInspectionPlan: { count: count('qmsInspectionPlan') },
+      qmsInspection: { count: count('qmsInspection') },
+      qmsNonConformance: { count: count('qmsNonConformance') },
+      qmsCustomerComplaint: { count: count('qmsCustomerComplaint') },
+      product: { delete: jest.fn().mockResolvedValue(existingProduct) },
+    };
+    const prisma = {
+      product: { findUnique: jest.fn().mockResolvedValue(existingProduct) },
+      $transaction: jest.fn((callback: (client: typeof tx) => unknown) =>
+        callback(tx),
+      ),
+    };
+    const service = new ProductsService(
+      prisma as never,
+      {} as never,
+      {} as never,
+    );
+    return { prisma, service, tx };
+  }
+
+  it('permanently deletes a product with no references', async () => {
+    const { service, tx } = setup();
+
+    await expect(service.remove(existingProduct.id, user)).resolves.toEqual({
+      id: existingProduct.id,
+      deleted: true,
+    });
+    expect(tx.product.delete).toHaveBeenCalledWith({
+      where: { id: existingProduct.id },
+    });
+  });
+
+  it('blocks deletion and identifies every discovered reference category', async () => {
+    const { service, tx } = setup({
+      orderLineItem: 2,
+      qmsInspection: 1,
+    });
+
+    await expect(service.remove(existingProduct.id, user)).rejects.toThrow(
+      'This product cannot be deleted because it is used by: order lines (2), quality inspections (1). Mark it inactive instead to preserve history.',
+    );
+    expect(tx.product.delete).not.toHaveBeenCalled();
+  });
+});
