@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   OrderFinalQcStatus,
+  OrderFulfilmentStatus,
   OrderLineDeliveryType,
   OrderStatus,
   OrderType,
@@ -101,6 +102,15 @@ export class OrderEntity {
 
   @ApiProperty({ enum: OrderStatus })
   status!: OrderStatus;
+
+  @ApiProperty({
+    description:
+      'Derived dispatch-picker eligibility: a PLM split is at Dispatch/Completed, or the legacy order workflow is Ready to Ship or beyond',
+  })
+  dispatchReady!: boolean;
+
+  @ApiProperty({ enum: OrderFulfilmentStatus })
+  fulfilmentStatus!: OrderFulfilmentStatus;
 
   @ApiProperty({
     enum: OrderFinalQcStatus,

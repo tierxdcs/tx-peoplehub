@@ -41,11 +41,6 @@ import { useToast } from '../../../../components/ui/toaster';
 
 const TRANSPORT_MODES: TransportMode[] = ['ROAD', 'RAIL', 'AIR', 'SEA', 'COURIER'];
 
-// Order statuses that mean production is finished and the goods are ready to
-// ship. Orders still in CONFIRMED / IN_PRODUCTION haven't reached dispatch yet,
-// so they're hidden from the picker — only dispatch-ready orders appear.
-const DISPATCH_READY_STATUSES = new Set(['READY_TO_SHIP', 'SHIPPED', 'DELIVERED']);
-
 export default function NewDispatchPage() {
   const router = useRouter();
   const toast = useToast();
@@ -78,14 +73,13 @@ export default function NewDispatchPage() {
     void (async () => {
       try {
         const res = await apiFetch<PaginatedResult<Order>>('/orders?page=1&limit=100');
-        // Dispatch-ready: production is complete (READY_TO_SHIP or beyond) and the
-        // order still has quantity left to dispatch. Orders in CONFIRMED /
-        // IN_PRODUCTION aren't ready to ship, and CANCELLED never reaches these
-        // statuses, so both are excluded.
+        // PLM is the operational source of truth for readiness. The backend's
+        // derived flag also supports legacy orders that used READY_TO_SHIP.
         setOrders(
           res.items.filter(
             (o) =>
-              DISPATCH_READY_STATUSES.has(o.status) &&
+              o.dispatchReady === true &&
+              o.status !== 'CANCELLED' &&
               o.fulfilmentStatus !== 'FULLY_DISPATCHED',
           ),
         );

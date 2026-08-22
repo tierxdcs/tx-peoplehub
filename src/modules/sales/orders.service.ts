@@ -9,6 +9,7 @@ import {
   OrderLineItem,
   OrderStatus,
   OrderType,
+  PlmStage,
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
@@ -44,7 +45,7 @@ type OrderLineItemWithProduct = OrderLineItem & {
   // Present only when the query included plmTrackers (findOne). A line now has
   // one tracker per delivery split, so this is an array; the entity reports
   // whether ANY split carries in-progress PLM/design work.
-  plmTrackers?: { id: string }[];
+  plmTrackers?: { id: string; currentStage?: PlmStage }[];
 };
 type OrderWithLines = Order & {
   lineItems: OrderLineItemWithProduct[];
@@ -498,7 +499,15 @@ export class OrdersService {
       this.prisma.order.findMany({
         where,
         include: {
-          lineItems: { include: { product: true } },
+          lineItems: {
+            include: {
+              product: true,
+              // The Sales order status is a separate/manual workflow. Dispatch
+              // readiness is driven by PLM, so expose the tracker stage to the
+              // order picker instead of requiring somebody to update both.
+              plmTrackers: { select: { id: true, currentStage: true } },
+            },
+          },
           customer: { select: { name: true } },
           enquiryCreator: { select: { firstName: true, lastName: true } },
           owner: { select: { firstName: true, lastName: true } },
@@ -655,7 +664,21 @@ export class OrdersService {
       customerId: order.customerId,
       customerName: order.customer?.name ?? null,
       status: order.status,
+      dispatchReady:
+        new Set<OrderStatus>([
+          OrderStatus.READY_TO_SHIP,
+          OrderStatus.SHIPPED,
+          OrderStatus.DELIVERED,
+        ]).has(order.status) ||
+        order.lineItems.some((line) =>
+          line.plmTrackers?.some((tracker) =>
+            new Set<PlmStage>([PlmStage.DISPATCH, PlmStage.COMPLETED]).has(
+              tracker.currentStage as PlmStage,
+            ),
+          ),
+        ),
       finalQcStatus: order.finalQcStatus,
+      fulfilmentStatus: order.fulfilmentStatus,
       totalAmount: order.totalAmount.toString(),
       productionRunId: order.productionRunId,
       shipmentId: order.shipmentId,

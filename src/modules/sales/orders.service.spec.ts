@@ -3,8 +3,10 @@ import { BadRequestException } from '@nestjs/common';
 import {
   BidStatus,
   OrderFinalQcStatus,
+  OrderFulfilmentStatus,
   OrderStatus,
   OrderType,
+  PlmStage,
   Prisma,
   Role,
 } from '@prisma/client';
@@ -738,6 +740,65 @@ describe('OrdersService', () => {
       const whereArg = prisma.order.findMany.mock.calls[0][0].where;
       expect(whereArg).toEqual({});
       expect(access.visibleOwnerIds).not.toHaveBeenCalled();
+    });
+
+    it('marks an order dispatch-ready when PLM has reached Dispatch even if its Sales status has not', async () => {
+      prisma.$transaction.mockResolvedValue([
+        [
+          {
+            id: 'order-plm-dispatch',
+            orderNumber: 'ORD-2026-0003',
+            orderType: OrderType.CUSTOMER,
+            bidId: 'bid-3',
+            customerId: 'cust-3',
+            customer: { name: 'Customer' },
+            status: OrderStatus.CONFIRMED,
+            finalQcStatus: OrderFinalQcStatus.CLEARED,
+            fulfilmentStatus: OrderFulfilmentStatus.NOT_DISPATCHED,
+            totalAmount: new Prisma.Decimal(100),
+            productionRunId: null,
+            shipmentId: null,
+            ownerId: 'emp-1',
+            owner: { firstName: 'Sales', lastName: 'Owner' },
+            enquiryCreatorId: null,
+            businessUnitId: null,
+            lineItems: [
+              {
+                id: 'line-1',
+                orderId: 'order-plm-dispatch',
+                productId: 'product-1',
+                adHocProductName: null,
+                adHocDescription: null,
+                quantity: new Prisma.Decimal(1),
+                unitPrice: new Prisma.Decimal(100),
+                lineTotal: new Prisma.Decimal(100),
+                deliveryType: null,
+                vendorName: null,
+                vendorContactInfo: null,
+                vendorExpectedLeadTime: null,
+                product: { name: 'Rack', sku: 'RACK-1' },
+                plmTrackers: [
+                  { id: 'tracker-1', currentStage: PlmStage.DISPATCH },
+                ],
+              },
+            ],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+        1,
+      ]);
+
+      const result = await service.findAll(
+        { page: 1, limit: 20, skip: 0 } as any,
+        rep,
+      );
+
+      expect(result.items[0].status).toBe(OrderStatus.CONFIRMED);
+      expect(result.items[0].dispatchReady).toBe(true);
+      expect(result.items[0].fulfilmentStatus).toBe(
+        OrderFulfilmentStatus.NOT_DISPATCHED,
+      );
     });
 
     it('findOne returns a peer-owned order without an ownership check', async () => {

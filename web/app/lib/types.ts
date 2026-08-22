@@ -674,6 +674,8 @@ export interface Order {
   customerId: string | null;
   customerName: string | null;
   status: OrderStatus;
+  /** Derived from PLM Dispatch/Completed (with legacy order-status fallback). */
+  dispatchReady?: boolean;
   /** Outbound finished-goods final-QC clearance (dispatch precondition). */
   finalQcStatus?: 'PENDING' | 'CLEARED';
   /** Derived dispatch fulfilment progress. */
