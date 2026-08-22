@@ -44,7 +44,11 @@ import {
   type RiskStatus,
 } from '../../../lib/project-kickoff';
 import { listMembers, type KanbanBoardMember } from '../../../lib/kanban';
-import { listVendors, type Vendor } from '../../../lib/scm';
+import {
+  listVendors,
+  VENDOR_STATUS_LABEL,
+  type VendorStatus,
+} from '../../../lib/scm';
 import type { EmployeeSearchResult } from '../../../lib/types';
 import { PageContainer } from '../../../components/ui/page-container';
 import {
@@ -1380,8 +1384,12 @@ function RisksSection({
 // ── Delivery classification (per order line item) ───────────────────
 const DELIVERY_TYPES: DeliveryType[] = ['NPD', 'IN_HOUSE', 'VENDOR'];
 
-/** Minimal approved-vendor shape for the delivery-split vendor picker. */
-type VendorOption = { id: string; companyName: string };
+/** Minimal Vendor Master shape for the delivery-split vendor picker. */
+type VendorOption = {
+  id: string;
+  companyName: string;
+  status?: VendorStatus;
+};
 
 function DeliveryClassificationSection({
   kickoff,
@@ -1393,23 +1401,21 @@ function DeliveryClassificationSection({
   onChanged: () => void;
 }) {
   const items = kickoff.deliveryItems ?? [];
-  // Approved Vendor Master records are the only ones a VENDOR split may point
-  // at — the PLM tracker links its vendor from the split's vendorId, and
-  // vendor-update links require an approved vendor. Fetched once here and shared
-  // across every row rather than refetched per line.
-  const [approvedVendors, setApprovedVendors] = useState<VendorOption[]>([]);
+  // All Vendor Master records are selectable, regardless of qualification
+  // status. The status remains visible in the option label so the PM can make
+  // an informed sourcing choice. Fetched once and shared across every row.
+  const [vendors, setVendors] = useState<VendorOption[]>([]);
   useEffect(() => {
     let alive = true;
     void listVendors()
       .then((vendors) => {
         if (!alive) return;
-        setApprovedVendors(
-          vendors
-            .filter(
-              (v) =>
-                v.status === 'APPROVED' || v.status === 'APPROVED_PREFERRED',
-            )
-            .map((v) => ({ id: v.id, companyName: v.companyName })),
+        setVendors(
+          vendors.map((v) => ({
+            id: v.id,
+            companyName: v.companyName,
+            status: v.status,
+          })),
         );
       })
       .catch(() => {
@@ -1442,7 +1448,7 @@ function DeliveryClassificationSection({
                 kickoffId={kickoff.id}
                 item={li}
                 canManage={canManage}
-                approvedVendors={approvedVendors}
+                vendors={vendors}
                 onChanged={onChanged}
               />
             ))}
@@ -1514,13 +1520,13 @@ function DeliveryRow({
   kickoffId,
   item,
   canManage,
-  approvedVendors,
+  vendors,
   onChanged,
 }: {
   kickoffId: string;
   item: KickoffDeliveryItem;
   canManage: boolean;
-  approvedVendors: VendorOption[];
+  vendors: VendorOption[];
   onChanged: () => void;
 }) {
   const toast = useToast();
@@ -1669,22 +1675,21 @@ function DeliveryRow({
           const showVendor =
             d.deliveryType === 'VENDOR' || d.deliveryType === 'IN_HOUSE';
           const isInHouse = d.deliveryType === 'IN_HOUSE';
-          // A VENDOR split points at an approved Vendor Master record (its
-          // vendorId is what the PLM tracker links). Keep the currently-linked
-          // vendor selectable even if it has since dropped out of the approved
-          // list, so an existing selection never silently disappears.
+          // A VENDOR split points at a Vendor Master record (its vendorId is
+          // what the PLM tracker links). Preserve a legacy/current selection
+          // defensively if that master no longer appears in the fetched list.
           const vendorOptions: VendorOption[] =
-            d.vendorId && !approvedVendors.some((v) => v.id === d.vendorId)
+            d.vendorId && !vendors.some((v) => v.id === d.vendorId)
               ? [
                   {
                     id: d.vendorId,
                     companyName: d.vendorName || '(current vendor)',
                   },
-                  ...approvedVendors,
+                  ...vendors,
                 ]
-              : approvedVendors;
+              : vendors;
           // A legacy/free-text vendor name with no Vendor Master link — the
-          // tracker cannot attach it until an approved vendor is picked.
+          // tracker cannot attach it until a Vendor Master record is picked.
           const unlinkedVendorName =
             d.deliveryType === 'VENDOR' &&
             !d.vendorId &&
@@ -1753,16 +1758,15 @@ function DeliveryRow({
                       />
                     ) : vendorOptions.length === 0 ? (
                       <p className="rounded border border-warning/40 bg-warning/10 px-2 py-1.5 text-xs text-muted-foreground">
-                        No approved vendors in Vendor Master. Add and approve one
-                        under SCM › Vendors, then select it here so the PLM
-                        tracker can link it.
+                        No vendors in Vendor Master. Add one under SCM › Vendors,
+                        then select it here so the PLM tracker can link it.
                       </p>
                     ) : (
                       <>
                         <Select
                           value={d.vendorId ?? ''}
                           onChange={(e) => {
-                            const picked = approvedVendors.find(
+                            const picked = vendors.find(
                               (v) => v.id === e.target.value,
                             );
                             // Selecting sets the FK the tracker links from and
@@ -1775,18 +1779,18 @@ function DeliveryRow({
                           className="h-8"
                           disabled={!canManage}
                         >
-                          <option value="">Select an approved vendor…</option>
+                          <option value="">Select a vendor…</option>
                           {vendorOptions.map((v) => (
                             <option key={v.id} value={v.id}>
                               {v.companyName}
+                              {v.status ? ` — ${VENDOR_STATUS_LABEL[v.status]}` : ''}
                             </option>
                           ))}
                         </Select>
                         {unlinkedVendorName && (
                           <p className="text-xs text-warning">
                             “{d.vendorName}” isn’t a Vendor Master record — pick
-                            an approved vendor above to link it to the PLM
-                            tracker.
+                            a vendor above to link it to the PLM tracker.
                           </p>
                         )}
                       </>

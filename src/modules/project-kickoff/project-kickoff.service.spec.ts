@@ -337,7 +337,7 @@ describe('ProjectKickoffService — delivery splits', () => {
     );
   });
 
-  it('rejects a split pointed at a non-approved Vendor Master record', async () => {
+  it('accepts a Vendor Master record irrespective of qualification status', async () => {
     prisma.orderLineItem.findFirst.mockResolvedValue({
       id: 'line-1',
       quantity: new Prisma.Decimal(100),
@@ -349,27 +349,33 @@ describe('ProjectKickoffService — delivery splits', () => {
       status: 'PENDING',
     });
 
-    await expect(
-      service.updateDeliveryItem(
-        'ko-1',
-        'line-1',
-        {
-          splits: [
-            {
-              id: 's1',
-              quantity: 100,
-              deliveryType: 'VENDOR',
-              vendorId: 'vendor-7',
-            },
-          ],
-        } as any,
-        pm,
-      ),
-    ).rejects.toThrow(/approved Vendor Master/);
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    await service.updateDeliveryItem(
+      'ko-1',
+      'line-1',
+      {
+        splits: [
+          {
+            id: 's1',
+            quantity: 100,
+            deliveryType: 'VENDOR',
+            vendorId: 'vendor-7',
+          },
+        ],
+      } as any,
+      pm,
+    );
+
+    expect(tx.orderLineDeliverySplit.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          vendorId: 'vendor-7',
+          vendorName: 'Vendor Seven',
+        }),
+      }),
+    );
   });
 
-  it('defaults vendorName from an approved Vendor Master when only vendorId is given', async () => {
+  it('defaults vendorName from a Vendor Master when only vendorId is given', async () => {
     prisma.orderLineItem.findFirst.mockResolvedValue({
       id: 'line-1',
       quantity: new Prisma.Decimal(100),

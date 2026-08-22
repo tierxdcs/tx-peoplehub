@@ -1036,13 +1036,8 @@ export class ProjectKickoffService {
           where: { id: input.vendorId },
           select: { id: true, companyName: true, status: true },
         });
-        if (
-          !vendor ||
-          !['APPROVED', 'APPROVED_PREFERRED'].includes(vendor.status)
-        ) {
-          throw new BadRequestException(
-            'Select an approved Vendor Master record',
-          );
+        if (!vendor) {
+          throw new BadRequestException('Select a valid Vendor Master record');
         }
         data.vendorId = vendor.id;
         if (input.vendorName === undefined) data.vendorName = vendor.companyName;
