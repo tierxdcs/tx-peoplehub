@@ -80,6 +80,13 @@ export default function LearningPage() {
       allowedCodes.add('RFQ_SOURCING');
     }
     if (
+      vertical?.code === 'QUALITY' ||
+      vertical?.code === 'QMS' ||
+      user?.role === 'SUPER_ADMIN'
+    ) {
+      allowedCodes.add('CUSTOMER_COMPLAINT');
+    }
+    if (
       canRaiseHiringRequest ||
       vertical?.code === 'HR' ||
       user?.role === 'SUPER_ADMIN'

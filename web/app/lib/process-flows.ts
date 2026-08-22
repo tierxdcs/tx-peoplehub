@@ -599,6 +599,81 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
     ],
   },
   {
+    codes: ['CUSTOMER_COMPLAINT'],
+    title: 'Customer Complaints — Registration to COPQ',
+    summary:
+      'Control a customer complaint from first report and containment through investigation, corrective action, closure and failure-cost reporting.',
+    participants:
+      'Quality employees, QMS Head, complaint owners, CAPA action owners, Sales and the customer',
+    steps: [
+      {
+        key: 'register',
+        label: 'Register the complaint',
+        detail:
+          'Open Customer Complaints and record the customer, severity, owner, reported date, target date, title and a factual description. Link the Order and Product whenever they are known, and capture the immediate action already taken. Good source data is essential because these links drive traceability and later COPQ reporting.',
+        href: '/qms/complaints',
+      },
+      {
+        key: 'linked-ncr',
+        label: 'Use the linked NCR',
+        detail:
+          'Submitting the complaint automatically creates and links a Customer Complaint NCR. Do not create a duplicate NCR for the same failure. If an immediate action was recorded, the NCR starts contained; otherwise it remains open until containment is documented. The complaint tracks the customer response while the NCR tracks the quality failure and corrective work.',
+        href: '/qms/ncrs',
+      },
+      {
+        key: 'contain',
+        label: 'Contain the impact',
+        detail:
+          'Protect the customer and stop further escape before investigating the deeper cause. Record the containment action on the linked NCR, such as isolating stock, stopping dispatch, arranging replacement or informing the affected team. Containment limits the immediate impact but does not replace root-cause analysis or corrective action.',
+      },
+      {
+        key: 'investigate',
+        label: 'Investigate & respond',
+        detail:
+          'On the complaint, document the investigation or root-cause conclusion and the response given to the customer. Submitting the investigation moves the complaint to Pending Closure. Keep evidence and technical corrective work on the linked NCR/CAPA so the customer-facing record and the internal quality record remain connected without duplicating information.',
+        href: '/qms/complaints',
+      },
+      {
+        key: 'disposition-copq',
+        label: 'Disposition & COPQ',
+        detail:
+          'The QMS Head selects the NCR disposition. Scrap can calculate failure cost from affected quantity multiplied by the Item cost when all required cost data is available; Rework, Repair, Return to Supplier, Use-as-is and Concession remain manual because the system does not know their true labour, recovery or handling cost. Review the source label and enter or override the actual amount when needed rather than treating an unknown cost as zero.',
+        gate: true,
+        href: '/qms/ncrs',
+      },
+      {
+        key: 'capa',
+        label: 'Complete CAPA',
+        detail:
+          'When corrective action is required, create a CAPA from the linked NCR, record the root cause, correction and effectiveness criteria, and assign actions with owners and due dates. Action owners complete their work with notes or evidence, and the QMS Head verifies each action. This provides proof that the cause was addressed, not merely that the customer received a reply.',
+        href: '/qms/capas',
+      },
+      {
+        key: 'effectiveness',
+        label: 'Verify effectiveness',
+        detail:
+          'After every CAPA action is verified, submit the effectiveness result for QMS Head review. An effective result closes the CAPA and its linked NCR; an ineffective result must not be treated as closure and needs further corrective work. This is the formal quality gate that confirms recurrence risk has actually been controlled.',
+        gate: true,
+        href: '/qms/capas',
+      },
+      {
+        key: 'close-complaint',
+        label: 'Close the complaint',
+        detail:
+          'The QMS Head reviews the investigation, the response to the customer and the closure note before closing the complaint. Complaint closure and NCR/CAPA closure are separate records: the first confirms the customer case was handled, while the second confirms the internal corrective process was effective. Check both so no open quality obligation is hidden by closing only one side.',
+        gate: true,
+        href: '/qms/complaints',
+      },
+      {
+        key: 'analytics',
+        label: 'Complete the COPQ roll-up',
+        detail:
+          'Open QMS Analytics, select the reporting date range and review Failure Cost totals. The report separates system-calculated, manually entered and unvalued NCRs, with breakdowns by disposition, Product, Order and Vendor or Supplier. Resolve unvalued records where reliable cost is available; this view reports failure costs only and does not yet include appraisal, warranty or broader prevention costs.',
+        href: '/qms/analytics',
+      },
+    ],
+  },
+  {
     codes: ['RESOURCE_PLAN'],
     title: 'Resource Planning — Kickoff to Negotiated Cost',
     summary:

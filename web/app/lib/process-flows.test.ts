@@ -98,4 +98,42 @@ describe('canonical employee process flows', () => {
       'pre-fill',
     );
   });
+
+  it('documents customer complaint handling through an honest COPQ roll-up', () => {
+    const complaint = VERTICAL_FLOWS.find((flow) =>
+      flow.codes.includes('CUSTOMER_COMPLAINT'),
+    );
+
+    expect(complaint?.steps.map((step) => step.key)).toEqual(
+      expect.arrayContaining([
+        'register',
+        'linked-ncr',
+        'contain',
+        'investigate',
+        'disposition-copq',
+        'capa',
+        'effectiveness',
+        'close-complaint',
+        'analytics',
+      ]),
+    );
+    expect(
+      complaint?.steps.find((step) => step.key === 'linked-ncr')?.detail,
+    ).toContain('automatically creates');
+    expect(
+      complaint?.steps.find((step) => step.key === 'disposition-copq')?.detail,
+    ).toContain('remain manual');
+    expect(
+      complaint?.steps.find((step) => step.key === 'analytics')?.detail,
+    ).toContain('unvalued');
+    expect(
+      complaint?.steps.filter((step) => step.gate).map((step) => step.key),
+    ).toEqual(
+      expect.arrayContaining([
+        'disposition-copq',
+        'effectiveness',
+        'close-complaint',
+      ]),
+    );
+  });
 });

@@ -148,13 +148,17 @@ export interface PlmDashboardItem {
   currentStage: PlmStage;
   ownerName: string;
   ageDays: number;
+  promisedDeliveryDate: string | null;
+  daysUntilDue: number | null;
   blocker: string | null;
   health: 'ON_TRACK' | 'AT_RISK' | 'BLOCKED';
   production: { done: number; total: number };
+  hasPendingPing: boolean;
   updatedAt: string;
 }
 
-export const getMyPlmWork = () => apiFetch<PlmDashboardItem[]>('/plm/dashboard');
+export const getMyPlmWork = () =>
+  apiFetch<PlmDashboardItem[]>('/plm/dashboard');
 
 export const getOrderPlm = (orderId: string) =>
   apiFetch<PlmTracker[]>(`/plm/orders/${orderId}`);

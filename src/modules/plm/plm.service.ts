@@ -11,6 +11,7 @@ import {
   PlmEventType,
   PlmStage,
   PlmTrackerStatus,
+  PingRecipientStatus,
   Prisma,
 } from '@prisma/client';
 import { deriveProductionProgress } from './plm-production-progress';
@@ -154,8 +155,35 @@ export class PlmService {
       },
       include: this.detailInclude(),
       orderBy: { updatedAt: 'desc' },
-      take: 20,
     });
+    const trackerIds = trackers.map((tracker) => tracker.id);
+    const relevantPingRows = trackerIds.length
+      ? await this.prisma.pingRecipient.findMany({
+          where: {
+            status: { not: PingRecipientStatus.RESOLVED },
+            AND: [
+              {
+                ping: {
+                  linkedRecordType: 'PLM_TRACKER',
+                  linkedRecordId: { in: trackerIds },
+                },
+              },
+              {
+                OR: [
+                  { employeeId: user.id },
+                  { ping: { fromEmployeeId: user.id } },
+                ],
+              },
+            ],
+          },
+          select: { ping: { select: { linkedRecordId: true } } },
+        })
+      : [];
+    const trackerIdsWithPendingPings = new Set(
+      relevantPingRows
+        .map((row) => row.ping.linkedRecordId)
+        .filter((id): id is string => Boolean(id)),
+    );
     return Promise.all(
       trackers.map(async (tracker) => {
         const derived = await this.withDerived(tracker);
@@ -201,6 +229,23 @@ export class PlmService {
           blocker = `Vendor update overdue (expected every ${derived.derived.vendorCadence.cadenceDays} day(s))`;
         }
         const cadenceAtRisk = derived.derived.vendorCadence?.status === 'AMBER';
+        const promisedDeliveryDate =
+          tracker.order.confirmationSheets[0]?.deliveryDate ?? null;
+        const daysUntilDue = promisedDeliveryDate
+          ? Math.ceil(
+              (Date.UTC(
+                promisedDeliveryDate.getUTCFullYear(),
+                promisedDeliveryDate.getUTCMonth(),
+                promisedDeliveryDate.getUTCDate(),
+              ) -
+                Date.UTC(
+                  new Date().getUTCFullYear(),
+                  new Date().getUTCMonth(),
+                  new Date().getUTCDate(),
+                )) /
+                86_400_000,
+            )
+          : null;
         return {
           trackerId: tracker.id,
           orderId: tracker.orderId,
@@ -216,6 +261,8 @@ export class PlmService {
           ownerName:
             `${tracker.owner.firstName} ${tracker.owner.lastName}`.trim(),
           ageDays,
+          promisedDeliveryDate: promisedDeliveryDate?.toISOString() ?? null,
+          daysUntilDue,
           blocker,
           health: blocker
             ? 'BLOCKED'
@@ -223,6 +270,7 @@ export class PlmService {
               ? 'AT_RISK'
               : 'ON_TRACK',
           production: derived.derived.production,
+          hasPendingPing: trackerIdsWithPendingPings.has(tracker.id),
           updatedAt: tracker.updatedAt.toISOString(),
         };
       }),
@@ -591,6 +639,12 @@ export class PlmService {
           orderNumber: true,
           ownerId: true,
           customer: { select: { name: true } },
+          confirmationSheets: {
+            where: { status: 'EXECUTED' as const },
+            orderBy: { revisionNumber: 'desc' as const },
+            take: 1,
+            select: { deliveryDate: true },
+          },
         },
       },
       kickoff: {

@@ -48,6 +48,7 @@ describe('PlmService', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       employee: { findUnique: jest.fn() },
+      pingRecipient: { findMany: jest.fn().mockResolvedValue([]) },
       kanbanBoard: { findUnique: jest.fn() },
       $transaction: jest.fn(),
     };
@@ -340,6 +341,9 @@ describe('PlmService', () => {
         id: 'order-1',
         orderNumber: 'ORD-2026-0001',
         ownerId: user.id,
+        confirmationSheets: [
+          { deliveryDate: new Date('2026-09-01T00:00:00.000Z') },
+        ],
       },
       orderLine: {
         product: { name: 'Rack', sku: 'RACK-1', item: { boms: [] } },
@@ -360,6 +364,48 @@ describe('PlmService', () => {
       expect.objectContaining({
         health: 'BLOCKED',
         blocker: 'Released BOM required',
+        promisedDeliveryDate: '2026-09-01T00:00:00.000Z',
+        hasPendingPing: false,
+      }),
+    );
+  });
+
+  it('surfaces only the current user pending tracker pings in the dashboard DTO', async () => {
+    const raw = tracker({
+      updatedAt: new Date(),
+      owner: { id: user.id, firstName: 'Order', lastName: 'Owner' },
+      order: {
+        id: 'order-1',
+        orderNumber: 'ORD-2026-0001',
+        ownerId: user.id,
+        confirmationSheets: [],
+      },
+      orderLine: {
+        product: { name: 'Rack', sku: 'RACK-1', item: { boms: [] } },
+        qmsInspections: [],
+        deliveryChallanLines: [],
+      },
+      events: [],
+    });
+    const { service, prisma } = setup(raw);
+    prisma.plmTracker.findMany.mockResolvedValue([raw]);
+    prisma.pingRecipient.findMany.mockResolvedValue([
+      { ping: { linkedRecordId: 'tracker-1' } },
+    ]);
+
+    const result = await service.dashboardForUser({
+      ...user,
+      role: Role.SUPER_ADMIN,
+    });
+
+    expect(result[0]).toEqual(
+      expect.objectContaining({ hasPendingPing: true }),
+    );
+    expect(prisma.pingRecipient.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { not: 'RESOLVED' },
+        }),
       }),
     );
   });
