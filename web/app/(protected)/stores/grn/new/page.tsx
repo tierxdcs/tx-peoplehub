@@ -161,7 +161,7 @@ export default function NewGrnPage() {
         setPo(poData);
         setPriorGrns(grns);
         const seed: Record<string, LineDraft> = {};
-        for (const l of poData.lines) {
+        for (const l of poData.lines.filter((line) => line.itemId !== null)) {
           seed[l.id] = {
             poLineId: l.id,
             storeLocationId: defaultStoreId,
@@ -206,12 +206,16 @@ export default function NewGrnPage() {
     () => Object.values(lines).filter((l) => Number(l.quantity) > 0),
     [lines],
   );
+  const inventoryPoLines = useMemo(
+    () => po?.lines.filter((line) => line.itemId !== null) ?? [],
+    [po],
+  );
 
   // Over-receipt: entered + previously-received exceeds ordered for a line.
   function overReceipt(
     poLineId: string,
   ): { over: boolean; remaining: number } | null {
-    const poLine = po?.lines.find((l) => l.id === poLineId);
+    const poLine = inventoryPoLines.find((l) => l.id === poLineId);
     if (!poLine) return null;
     const ordered = Number(poLine.orderedQuantity);
     const prev = prevReceivedByLine[poLineId] ?? 0;
@@ -220,8 +224,9 @@ export default function NewGrnPage() {
     return { over: entered > remaining, remaining };
   }
 
-  const anyOverReceipt =
-    po?.lines.some((l) => overReceipt(l.id)?.over) ?? false;
+  const anyOverReceipt = inventoryPoLines.some(
+    (l) => overReceipt(l.id)?.over,
+  );
   const poCanReceive =
     po?.status === 'ISSUED' || po?.status === 'PARTIALLY_RECEIVED';
   const enteredLinesHaveStores = enteredLines.every(
@@ -467,7 +472,7 @@ export default function NewGrnPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {po.lines.map((line) => {
+                      {inventoryPoLines.map((line) => {
                         const prev = prevReceivedByLine[line.id] ?? 0;
                         const or = overReceipt(line.id);
                         const draft = lines[line.id];

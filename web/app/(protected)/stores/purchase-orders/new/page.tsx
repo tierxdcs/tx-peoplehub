@@ -37,9 +37,26 @@ import { ItemPicker } from '../../../../components/ui/item-picker';
 type PartnerType = 'SUPPLIER' | 'VENDOR' | 'AD_HOC';
 interface LineDraft {
   key: number;
+  source: 'CATALOG' | 'FREE_TEXT';
   itemId: string;
+  adHocItemName: string;
+  adHocDescription: string;
+  unitOfMeasure: string;
   orderedQuantity: string;
   unitPrice: string;
+}
+
+function emptyLine(): LineDraft {
+  return {
+    key: lineKeySeq++,
+    source: 'CATALOG',
+    itemId: '',
+    adHocItemName: '',
+    adHocDescription: '',
+    unitOfMeasure: '',
+    orderedQuantity: '',
+    unitPrice: '',
+  };
 }
 
 let lineKeySeq = 1;
@@ -61,9 +78,7 @@ export default function NewPurchaseOrderPage() {
   const [adHocPartyAddress, setAdHocPartyAddress] = useState('');
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
   const [notes, setNotes] = useState('');
-  const [lines, setLines] = useState<LineDraft[]>([
-    { key: lineKeySeq++, itemId: '', orderedQuantity: '', unitPrice: '' },
-  ]);
+  const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -124,14 +139,19 @@ export default function NewPurchaseOrderPage() {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
   function addLine() {
-    setLines((prev) => [...prev, { key: lineKeySeq++, itemId: '', orderedQuantity: '', unitPrice: '' }]);
+    setLines((prev) => [...prev, emptyLine()]);
   }
   function removeLine(key: number) {
     setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.key !== key) : prev));
   }
 
   const validLines = lines.filter(
-    (l) => l.itemId && Number(l.orderedQuantity) > 0 && Number(l.unitPrice) >= 0,
+    (l) =>
+      (l.source === 'CATALOG'
+        ? !!l.itemId
+        : !!l.adHocItemName.trim() && !!l.unitOfMeasure.trim()) &&
+      Number(l.orderedQuantity) > 0 &&
+      Number(l.unitPrice) >= 0,
   );
   const hasParty = partnerType === 'AD_HOC' ? !!adHocPartyName.trim() : !!partnerId;
   const canSubmit = hasParty && validLines.length > 0 && !submitting;
@@ -156,7 +176,15 @@ export default function NewPurchaseOrderPage() {
       ...(expectedDeliveryDate ? { expectedDeliveryDate: new Date(expectedDeliveryDate).toISOString() } : {}),
       ...(notes ? { notes } : {}),
       lines: validLines.map((l) => ({
-        itemId: l.itemId,
+        ...(l.source === 'CATALOG'
+          ? { itemId: l.itemId }
+          : {
+              adHocItemName: l.adHocItemName.trim(),
+              ...(l.adHocDescription.trim()
+                ? { adHocDescription: l.adHocDescription.trim() }
+                : {}),
+              unitOfMeasure: l.unitOfMeasure.trim(),
+            }),
         orderedQuantity: Number(l.orderedQuantity),
         unitPrice: Number(l.unitPrice),
       })),
@@ -209,8 +237,16 @@ export default function NewPurchaseOrderPage() {
                     id="partnerType"
                     value={partnerType}
                     onChange={(e) => {
-                      setPartnerType(e.target.value as PartnerType);
+                      const nextType = e.target.value as PartnerType;
+                      setPartnerType(nextType);
                       setPartnerId('');
+                      if (nextType !== 'AD_HOC') {
+                        setLines((current) =>
+                          current.map((line) =>
+                            line.source === 'FREE_TEXT' ? emptyLine() : line,
+                          ),
+                        );
+                      }
                     }}
                   >
                     <option value="SUPPLIER">Supplier (raw materials)</option>
@@ -319,14 +355,56 @@ export default function NewPurchaseOrderPage() {
                 const lineTotal =
                   Number(line.orderedQuantity) * Number(line.unitPrice) || 0;
                 return (
-                  <div key={line.key} className="grid items-end gap-3 md:grid-cols-[1fr_120px_140px_120px_40px]">
-                    <Field label="Item">
-                      <ItemPicker
-                        items={items}
-                        value={line.itemId}
-                        onValueChange={(itemId) => updateLine(line.key, { itemId })}
-                      />
-                    </Field>
+                  <div key={line.key} className="rounded-lg border border-border p-3">
+                    {partnerType === 'AD_HOC' && (
+                      <div className="mb-3 max-w-xs">
+                        <Field label="Line type">
+                          <Select
+                            value={line.source}
+                            onChange={(e) =>
+                              updateLine(line.key, {
+                                source: e.target.value as LineDraft['source'],
+                                itemId: '',
+                                adHocItemName: '',
+                                adHocDescription: '',
+                                unitOfMeasure: '',
+                              })
+                            }
+                          >
+                            <option value="CATALOG">Item Master item</option>
+                            <option value="FREE_TEXT">Free-text product / service</option>
+                          </Select>
+                        </Field>
+                      </div>
+                    )}
+                    <div className="grid items-end gap-3 md:grid-cols-[1fr_120px_140px_120px_40px]">
+                    {line.source === 'CATALOG' || partnerType !== 'AD_HOC' ? (
+                      <Field label="Item">
+                        <ItemPicker
+                          items={items}
+                          value={line.itemId}
+                          onValueChange={(itemId) => updateLine(line.key, { itemId })}
+                        />
+                      </Field>
+                    ) : (
+                      <div className="space-y-3">
+                        <Field label="Product / service name" required>
+                          <Input
+                            value={line.adHocItemName}
+                            onChange={(e) => updateLine(line.key, { adHocItemName: e.target.value })}
+                            placeholder="Enter a free-text line item"
+                          />
+                        </Field>
+                        <Field label="Description">
+                          <Input
+                            value={line.adHocDescription}
+                            onChange={(e) => updateLine(line.key, { adHocDescription: e.target.value })}
+                            placeholder="Specification or scope (optional)"
+                          />
+                        </Field>
+                      </div>
+                    )}
+                    <div className="space-y-3">
                     <Field label={`Qty${item ? ` (${item.baseUnitOfMeasure})` : ''}`}>
                       <Input
                         type="number"
@@ -336,6 +414,16 @@ export default function NewPurchaseOrderPage() {
                         onChange={(e) => updateLine(line.key, { orderedQuantity: e.target.value })}
                       />
                     </Field>
+                    {line.source === 'FREE_TEXT' && partnerType === 'AD_HOC' && (
+                      <Field label="Unit" required>
+                        <Input
+                          value={line.unitOfMeasure}
+                          onChange={(e) => updateLine(line.key, { unitOfMeasure: e.target.value })}
+                          placeholder="NOS, job, lot..."
+                        />
+                      </Field>
+                    )}
+                    </div>
                     <Field label="Unit Price (₹)">
                       <Input
                         type="number"
@@ -360,6 +448,12 @@ export default function NewPurchaseOrderPage() {
                     >
                       <Trash2 className="size-4" />
                     </Button>
+                    </div>
+                    {line.source === 'FREE_TEXT' && partnerType === 'AD_HOC' && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        This line stays on this PO only. It will not create an Item Master or stock record and cannot be received through GRN.
+                      </p>
+                    )}
                   </div>
                 );
               })}

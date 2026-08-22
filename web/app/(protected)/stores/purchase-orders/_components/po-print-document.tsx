@@ -392,9 +392,14 @@ export function PurchaseOrderPrintDocument({
                       style={{ background: i % 2 ? '#f6f8fa' : '#fff' }}
                     >
                       <td style={td}>{i + 1}</td>
-                      <td style={td}>{line.itemCode}</td>
+                      <td style={td}>{line.itemCode ?? '—'}</td>
                       <td style={td}>
                         <span style={{ fontWeight: 600 }}>{line.itemName}</span>
+                        {line.adHocDescription && (
+                          <div style={{ color: MUTED, marginTop: 2 }}>
+                            {line.adHocDescription}
+                          </div>
+                        )}
                         {line.notes && (
                           <div style={{ color: MUTED, marginTop: 2 }}>
                             {line.notes}

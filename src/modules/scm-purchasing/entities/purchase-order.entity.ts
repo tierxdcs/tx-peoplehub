@@ -3,9 +3,10 @@ import { PurchaseOrderStatus } from '@prisma/client';
 
 export class PurchaseOrderLineEntity {
   @ApiProperty() id!: string;
-  @ApiProperty() itemId!: string;
-  @ApiProperty() itemCode!: string;
+  @ApiProperty({ nullable: true }) itemId!: string | null;
+  @ApiProperty({ nullable: true }) itemCode!: string | null;
   @ApiProperty() itemName!: string;
+  @ApiProperty({ nullable: true }) adHocDescription!: string | null;
   @ApiProperty({ description: 'Decimal serialized as string' })
   orderedQuantity!: string;
   @ApiProperty({ description: 'Decimal serialized as string' })

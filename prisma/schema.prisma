@@ -4708,18 +4708,21 @@ model PurchaseOrder {
 /// at write) mirroring OrderLineItem. unitOfMeasure is snapshotted from the Item
 /// at creation. NO receivedQuantity — that is computed from GRN data later.
 model PurchaseOrderLine {
-  id              String        @id @default(uuid())
-  purchaseOrderId String
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  itemId          String
-  item            Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  orderedQuantity Decimal       @db.Decimal(14, 4)
-  unitPrice       Decimal       @db.Decimal(14, 2)
+  id               String        @id @default(uuid())
+  purchaseOrderId  String
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  itemId           String?
+  item             Item?         @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  /// Free-text PO line used only for an ad-hoc/unlisted trading party.
+  adHocItemName    String?
+  adHocDescription String?       @db.Text
+  orderedQuantity  Decimal       @db.Decimal(14, 4)
+  unitPrice        Decimal       @db.Decimal(14, 2)
   /// UoM snapshot at PO time (Item.baseUnitOfMeasure can change later).
-  unitOfMeasure   String
-  lineTotal       Decimal       @db.Decimal(14, 2)
-  notes           String?       @db.Text
-  sequence        Int           @default(0)
+  unitOfMeasure    String
+  lineTotal        Decimal       @db.Decimal(14, 2)
+  notes            String?       @db.Text
+  sequence         Int           @default(0)
 
   grnLines       GoodsReceiptNoteLine[]
   apInvoiceLines AccountsPayableInvoiceLine[]

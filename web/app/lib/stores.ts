@@ -60,9 +60,10 @@ export const PACKING_CONDITION_LABEL: Record<PackingCondition, string> = {
 // ── Purchase Orders ──────────────────────────────────────────────────
 export interface PurchaseOrderLine {
   id: string;
-  itemId: string;
-  itemCode: string;
+  itemId: string | null;
+  itemCode: string | null;
   itemName: string;
+  adHocDescription: string | null;
   orderedQuantity: string;
   unitPrice: string;
   unitOfMeasure: string;
@@ -110,7 +111,9 @@ export interface PurchaseOrder {
 }
 
 export interface PurchaseOrderLineInput {
-  itemId: string;
+  itemId?: string;
+  adHocItemName?: string;
+  adHocDescription?: string;
   orderedQuantity: number;
   unitPrice: number;
   unitOfMeasure?: string;

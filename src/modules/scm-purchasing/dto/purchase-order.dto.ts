@@ -14,7 +14,9 @@ import {
 } from 'class-validator';
 
 export class PurchaseOrderLineInputDto {
-  @ApiProperty() @IsString() @MinLength(1) itemId!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MinLength(1) itemId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MinLength(1) adHocItemName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() adHocDescription?: string;
   @ApiProperty({ description: 'Ordered quantity' })
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)

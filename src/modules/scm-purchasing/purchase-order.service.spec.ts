@@ -131,4 +131,24 @@ describe('CreatePurchaseOrderDto ad-hoc contract', () => {
     });
     expect(errors).toEqual([]);
   });
+
+  it('accepts a free-text line without an Item Master id', async () => {
+    const dto = plainToInstance(CreatePurchaseOrderDto, {
+      adHocPartyName: 'One-off Fabricator',
+      lines: [
+        {
+          adHocItemName: 'Site installation service',
+          adHocDescription: 'Installation and commissioning at customer site',
+          unitOfMeasure: 'job',
+          orderedQuantity: 1,
+          unitPrice: 25000,
+        },
+      ],
+    });
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+    expect(errors).toEqual([]);
+  });
 });

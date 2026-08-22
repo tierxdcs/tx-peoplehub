@@ -344,7 +344,14 @@ export default function PurchaseOrderDetailPage() {
                   <TableRow key={line.id}>
                     <TableCell>
                       <div className="font-medium">{line.itemName}</div>
-                      <div className="text-xs text-muted-foreground">{line.itemCode}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {line.itemCode ?? 'Free-text line · non-inventory'}
+                      </div>
+                      {line.adHocDescription && (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {line.adHocDescription}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       {line.orderedQuantity} {line.unitOfMeasure}

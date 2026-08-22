@@ -105,7 +105,7 @@ export class PurchaseOrderService {
       );
     }
     const warning = await this.resolvePartnerAndWarn(dto.supplierId, dto.vendorId);
-    const lines = await this.buildLineData(dto.lines);
+    const lines = await this.buildLineData(dto.lines, isAdHoc);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const poNumber = await this.numbering.nextNumber(
@@ -171,7 +171,10 @@ export class PurchaseOrderService {
       nextVendorId,
     );
 
-    const lineData = dto.lines ? await this.buildLineData(dto.lines) : undefined;
+    const isAdHoc = !nextSupplierId && !nextVendorId;
+    const lineData = dto.lines
+      ? await this.buildLineData(dto.lines, isAdHoc)
+      : undefined;
 
     await this.prisma.purchaseOrder.update({
       where: { id },
@@ -400,8 +403,30 @@ export class PurchaseOrderService {
    */
   private async buildLineData(
     lines: PurchaseOrderLineInputDto[],
+    allowAdHocLines: boolean,
   ): Promise<Prisma.PurchaseOrderLineCreateWithoutPurchaseOrderInput[]> {
-    const itemIds = [...new Set(lines.map((l) => l.itemId))];
+    for (const line of lines) {
+      const hasItem = !!line.itemId?.trim();
+      const hasAdHocItem = !!line.adHocItemName?.trim();
+      if (hasItem === hasAdHocItem) {
+        throw new BadRequestException(
+          'Each purchase order line must contain either an Item Master item or a free-text item name, but not both',
+        );
+      }
+      if (hasAdHocItem && !allowAdHocLines) {
+        throw new BadRequestException(
+          'Free-text lines are available only for an ad-hoc/unlisted party purchase order',
+        );
+      }
+      if (hasAdHocItem && !line.unitOfMeasure?.trim()) {
+        throw new BadRequestException(
+          'Unit of measure is required for a free-text purchase order line',
+        );
+      }
+    }
+    const itemIds = [
+      ...new Set(lines.flatMap((l) => (l.itemId ? [l.itemId] : []))),
+    ];
     const items = await this.prisma.item.findMany({
       where: { id: { in: itemIds } },
       select: { id: true, isActive: true, baseUnitOfMeasure: true },
@@ -417,11 +442,15 @@ export class PurchaseOrderService {
     return lines.map((l, i) => {
       const qty = new Prisma.Decimal(l.orderedQuantity);
       const price = new Prisma.Decimal(l.unitPrice);
+      const item = l.itemId ? byId.get(l.itemId) : undefined;
       return {
-        item: { connect: { id: l.itemId } },
+        ...(l.itemId ? { item: { connect: { id: l.itemId } } } : {}),
+        adHocItemName: l.adHocItemName?.trim() || null,
+        adHocDescription: l.adHocDescription?.trim() || null,
         orderedQuantity: qty,
         unitPrice: price,
-        unitOfMeasure: l.unitOfMeasure ?? byId.get(l.itemId)!.baseUnitOfMeasure,
+        unitOfMeasure:
+          l.unitOfMeasure?.trim() || item?.baseUnitOfMeasure || '',
         lineTotal: qty.times(price),
         notes: l.notes ?? null,
         sequence: l.sequence ?? i,
@@ -467,8 +496,9 @@ export class PurchaseOrderService {
           new PurchaseOrderLineEntity({
             id: l.id,
             itemId: l.itemId,
-            itemCode: l.item.itemCode,
-            itemName: l.item.name,
+            itemCode: l.item?.itemCode ?? null,
+            itemName: l.item?.name ?? l.adHocItemName ?? 'Ad-hoc item',
+            adHocDescription: l.adHocDescription,
             orderedQuantity: l.orderedQuantity.toString(),
             unitPrice: l.unitPrice.toString(),
             unitOfMeasure: l.unitOfMeasure,

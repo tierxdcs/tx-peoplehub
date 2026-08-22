@@ -7,7 +7,7 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
  * Access rules for Logistics & Dispatch:
  *  - READ: company-wide (Sales wants to see whether a customer's order shipped).
  *  - CREATE / dispatch / POD: active Production-vertical employee (Stores /
- *    Logistics) or SUPER_ADMIN — same model as the inbound Stores flow.
+ *    Logistics), designated QC Inspector, or SUPER_ADMIN.
  *  - Outbound final-QC clearance: a designated QC Inspector (isQcInspector) or
  *    SUPER_ADMIN — mirrors the inbound GRN QC authority.
  */
@@ -40,19 +40,19 @@ export class DispatchAccessService {
     };
   }
 
-  /** Create / dispatch a DC, capture POD — Production-vertical or SUPER_ADMIN. */
+  /** Create / dispatch a DC, capture POD — Production, QC Inspector, or admin. */
   async assertCanDispatch(user: AuthenticatedUser): Promise<void> {
     if (this.isSuperAdmin(user)) return;
     const emp = await this.load(user);
     if (
       emp &&
       emp.status === EmployeeStatus.ACTIVE &&
-      emp.verticalCode === 'PRODUCTION'
+      (emp.verticalCode === 'PRODUCTION' || emp.isQcInspector)
     ) {
       return;
     }
     throw new ForbiddenException(
-      'Only an active Production-vertical employee or SUPER_ADMIN may create or dispatch delivery challans',
+      'Only an active Production-vertical employee, designated QC Inspector, or SUPER_ADMIN may create or dispatch delivery challans',
     );
   }
 

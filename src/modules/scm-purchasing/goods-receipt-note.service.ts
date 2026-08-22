@@ -465,7 +465,12 @@ export class GoodsReceiptNoteService {
   private async loadPurchaseOrderForReceipt(purchaseOrderId: string) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id: purchaseOrderId },
-      include: { lines: { select: { id: true, itemId: true } } },
+      include: {
+        lines: {
+          where: { itemId: { not: null } },
+          select: { id: true, itemId: true },
+        },
+      },
     });
     if (!po) throw new NotFoundException('Purchase order not found');
     if (
@@ -497,7 +502,7 @@ export class GoodsReceiptNoteService {
 
   private buildLineData(
     lines: GoodsReceiptNoteLineInputDto[],
-    po: { id: string; lines: { id: string; itemId: string }[] },
+    po: { id: string; lines: { id: string; itemId: string | null }[] },
   ): Prisma.GoodsReceiptNoteLineCreateWithoutGrnInput[] {
     const poLineById = new Map(po.lines.map((l) => [l.id, l]));
     return lines.map((l, i) => {
@@ -505,6 +510,11 @@ export class GoodsReceiptNoteService {
       if (!poLine) {
         throw new BadRequestException(
           `Line references a purchase order line (${l.purchaseOrderLineId}) not on purchase order ${po.id}`,
+        );
+      }
+      if (!poLine.itemId) {
+        throw new BadRequestException(
+          'Free-text purchase order lines are non-inventory lines and cannot be received into stock',
         );
       }
       return {
@@ -549,7 +559,12 @@ export class GoodsReceiptNoteService {
   ): Promise<void> {
     const po = await tx.purchaseOrder.findUnique({
       where: { id: purchaseOrderId },
-      include: { lines: { select: { id: true, orderedQuantity: true } } },
+      include: {
+        lines: {
+          where: { itemId: { not: null } },
+          select: { id: true, orderedQuantity: true },
+        },
+      },
     });
     if (!po) return;
     // Never override a terminal/administrative state.
@@ -603,7 +618,7 @@ export class GoodsReceiptNoteService {
     const warnings: OverReceiptWarningEntity[] = [];
     for (const line of po.lines) {
       const got = accepted.get(line.id) ?? new Prisma.Decimal(0);
-      if (got.greaterThan(line.orderedQuantity)) {
+      if (line.item && got.greaterThan(line.orderedQuantity)) {
         warnings.push(
           new OverReceiptWarningEntity({
             purchaseOrderLineId: line.id,
