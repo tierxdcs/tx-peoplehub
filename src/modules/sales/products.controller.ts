@@ -17,8 +17,8 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { CreateProductDto } from './dto/create-product.dto';
+import { ProductListQueryDto } from './dto/product-list-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
 
@@ -50,7 +50,7 @@ export class ProductsController {
   @Get()
   @ApiOperation({ summary: 'List products (all Sales staff)' })
   findAll(
-    @Query() query: PaginationQueryDto,
+    @Query() query: ProductListQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.productsService.findAll(query, user);

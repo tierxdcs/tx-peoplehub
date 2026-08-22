@@ -1,5 +1,56 @@
-import { OrderFinalQcStatus, Role } from '@prisma/client';
-import { DeliveryChallanService } from './delivery-challan.service';
+import {
+  OrderFinalQcStatus,
+  OrderLineDeliveryType,
+  Role,
+} from '@prisma/client';
+import {
+  DeliveryChallanService,
+  requiresInternalDispatchStock,
+} from './delivery-challan.service';
+
+describe('delivery challan stock-flow classification', () => {
+  it('does not issue internal stock for a vendor-only order line', () => {
+    expect(
+      requiresInternalDispatchStock({
+        deliveryType: OrderLineDeliveryType.VENDOR,
+        deliverySplits: [],
+      }),
+    ).toBe(false);
+    expect(
+      requiresInternalDispatchStock({
+        deliveryType: null,
+        deliverySplits: [
+          { deliveryType: OrderLineDeliveryType.VENDOR },
+          { deliveryType: OrderLineDeliveryType.VENDOR },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it('keeps stock safeguards for internal, mixed, and unclassified lines', () => {
+    expect(
+      requiresInternalDispatchStock({
+        deliveryType: OrderLineDeliveryType.IN_HOUSE,
+        deliverySplits: [],
+      }),
+    ).toBe(true);
+    expect(
+      requiresInternalDispatchStock({
+        deliveryType: null,
+        deliverySplits: [
+          { deliveryType: OrderLineDeliveryType.VENDOR },
+          { deliveryType: OrderLineDeliveryType.IN_HOUSE },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      requiresInternalDispatchStock({
+        deliveryType: null,
+        deliverySplits: [],
+      }),
+    ).toBe(true);
+  });
+});
 
 describe('DeliveryChallanService final QC clearance', () => {
   it('returns success without rewriting an order that is already cleared', async () => {

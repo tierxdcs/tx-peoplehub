@@ -1245,6 +1245,8 @@ model Customer {
   salesInvoices    SalesInvoice[]
   customerReceipts CustomerReceipt[]
   deliveryChallans DeliveryChallan[]
+  designRequests   DesignRequest[]
+  designProjects   DesignProject[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -1303,6 +1305,8 @@ model Product {
   bidLineItems             BidLineItem[]
   orderLineItems           OrderLineItem[]
   salesInvoiceLines        SalesInvoiceLine[]
+  designRequests           DesignRequest[]
+  designProjects           DesignProject[]
   createdAt                DateTime           @default(now())
   updatedAt                DateTime           @updatedAt
 
@@ -1618,6 +1622,8 @@ model Order {
   customerProgressInvites OrderCustomerProgressInvite[]
   customerSignoff         OrderCustomerSignoff?
   resourcePlans           ProjectResourcePlan[]
+  designRequests          DesignRequest[]
+  designProjects          DesignProject[]
   createdAt               DateTime                      @default(now())
   updatedAt               DateTime                      @updatedAt
 
@@ -2309,10 +2315,16 @@ model DesignRequest {
   description      String              @db.Text
   priority         DesignPriority      @default(MEDIUM)
   status           DesignRequestStatus @default(OPEN)
+  /// Optional cross-module links. SetNull so deleting the commercial record
+  /// never destroys design history.
   productId        String?
+  product          Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
   customerId       String?
+  customer         Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
   orderId          String?
+  order            Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
   projectKickoffId String?
+  projectKickoff   ProjectKickoff?     @relation(fields: [projectKickoffId], references: [id], onDelete: SetNull)
   requestedById    String
   ownerId          String?
   targetDate       DateTime
@@ -2333,10 +2345,17 @@ model DesignProject {
   name             String
   description      String?             @db.Text
   status           DesignProjectStatus @default(REQUIREMENTS)
+  /// Optional cross-module links. SetNull so deleting the commercial record
+  /// never destroys design history. (orderId, productId) is the matching key
+  /// PLM uses to find the design project behind an NPD tracker.
   productId        String?
+  product          Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
   customerId       String?
+  customer         Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
   orderId          String?
+  order            Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
   projectKickoffId String?
+  projectKickoff   ProjectKickoff?     @relation(fields: [projectKickoffId], references: [id], onDelete: SetNull)
   leadDesignerId   String
   targetDate       DateTime
   createdById      String
@@ -2351,6 +2370,7 @@ model DesignProject {
 
   @@index([status, targetDate])
   @@index([leadDesignerId, status])
+  @@index([orderId, productId])
   @@map("design_projects")
 }
 
@@ -3152,6 +3172,8 @@ model ProjectKickoff {
   materialIndents   MaterialIndent[]
   rfqs              Rfq[]
   plmTrackers       PlmTracker[]
+  designRequests    DesignRequest[]
+  designProjects    DesignProject[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

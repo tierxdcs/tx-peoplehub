@@ -190,15 +190,48 @@ export class DesignService {
     }
     return out;
   }
+  async customerRefs(u: AuthenticatedUser) {
+    await this.access.assertUser(u);
+    return this.prisma.customer.findMany({
+      where: { status: 'ACTIVE' },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+  async productRefs(u: AuthenticatedUser) {
+    await this.access.assertUser(u);
+    return this.prisma.product.findMany({
+      where: { isActive: true },
+      select: { id: true, sku: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+  async orderRefs(u: AuthenticatedUser) {
+    await this.access.assertUser(u);
+    return this.prisma.order.findMany({
+      select: {
+        id: true,
+        orderNumber: true,
+        customer: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
   async requests(u: AuthenticatedUser) {
     await this.access.assertUser(u);
     return this.prisma.designRequest.findMany({
-      include: { project: true },
+      include: {
+        project: true,
+        customer: { select: { id: true, name: true } },
+        product: { select: { id: true, sku: true, name: true } },
+        order: { select: { id: true, orderNumber: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
   async createRequest(d: CreateDesignRequestDto, u: AuthenticatedUser) {
     await this.access.assertUser(u);
+    await this.assertLinkTargets(d);
     return this.prisma.$transaction(async (tx) =>
       tx.designRequest.create({
         data: {
@@ -235,6 +268,9 @@ export class DesignService {
         requirements: true,
         milestones: true,
         changes: true,
+        customer: { select: { id: true, name: true } },
+        product: { select: { id: true, sku: true, name: true } },
+        order: { select: { id: true, orderNumber: true } },
         documents: {
           include: { revisions: { orderBy: { revisionNumber: 'desc' } } },
         },
@@ -248,6 +284,9 @@ export class DesignService {
       where: { id },
       include: {
         request: true,
+        customer: { select: { id: true, name: true } },
+        product: { select: { id: true, sku: true, name: true } },
+        order: { select: { id: true, orderNumber: true } },
         requirements: { orderBy: { requirementNumber: 'asc' } },
         milestones: { orderBy: { dueDate: 'asc' } },
         changes: {
@@ -288,6 +327,7 @@ export class DesignService {
   }
   async createProject(d: CreateDesignProjectDto, u: AuthenticatedUser) {
     await this.access.assertUser(u);
+    await this.assertLinkTargets(d);
     if (
       d.requestId &&
       !(await this.prisma.designRequest.findUnique({
@@ -1642,6 +1682,46 @@ export class DesignService {
     });
     if (!x) throw new NotFoundException('Engineering change not found');
     return x;
+  }
+  // Validates the optional cross-module link ids on request/project creation so
+  // the caller gets a clear message instead of a raw FK violation.
+  private async assertLinkTargets(d: {
+    productId?: string;
+    customerId?: string;
+    orderId?: string;
+    projectKickoffId?: string;
+  }) {
+    const [product, customer, order, kickoff] = await Promise.all([
+      d.productId
+        ? this.prisma.product.findUnique({
+            where: { id: d.productId },
+            select: { id: true },
+          })
+        : true,
+      d.customerId
+        ? this.prisma.customer.findUnique({
+            where: { id: d.customerId },
+            select: { id: true },
+          })
+        : true,
+      d.orderId
+        ? this.prisma.order.findUnique({
+            where: { id: d.orderId },
+            select: { id: true },
+          })
+        : true,
+      d.projectKickoffId
+        ? this.prisma.projectKickoff.findUnique({
+            where: { id: d.projectKickoffId },
+            select: { id: true },
+          })
+        : true,
+    ]);
+    if (!product) throw new BadRequestException('Linked product not found');
+    if (!customer) throw new BadRequestException('Linked customer not found');
+    if (!order) throw new BadRequestException('Linked order not found');
+    if (!kickoff)
+      throw new BadRequestException('Linked project kickoff not found');
   }
   private async requireRevision(id: string) {
     const x = await this.prisma.designDocumentRevision.findUnique({

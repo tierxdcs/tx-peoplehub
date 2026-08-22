@@ -42,6 +42,7 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [buFilter, setBuFilter] = useState('');
   const [autoOnly, setAutoOnly] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -55,8 +56,13 @@ export default function ProductsPage() {
     setLoading(true);
     setError(null);
     try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+      });
+      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
       const res = await apiFetch<PaginatedResult<Product>>(
-        `/products?page=${page}&limit=${limit}`,
+        `/products?${params.toString()}`,
       );
       setProducts(res.items);
       setTotal(res.total);
@@ -65,7 +71,15 @@ export default function ProductsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, debouncedSearch]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setDebouncedSearch(search);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     load();
@@ -74,16 +88,11 @@ export default function ProductsPage() {
   const filtered = useMemo(
     () =>
       products.filter((p) => {
-        if (
-          search &&
-          !`${p.sku} ${p.name}`.toLowerCase().includes(search.toLowerCase())
-        )
-          return false;
         if (buFilter && p.businessUnitId !== buFilter) return false;
         if (autoOnly && !p.autoAssignedBusinessUnit) return false;
         return true;
       }),
-    [products, search, buFilter, autoOnly],
+    [products, buFilter, autoOnly],
   );
   const canSeeCost = products.some(
     (product) => product.rolledUpCostSnapshot !== undefined,
@@ -127,8 +136,6 @@ export default function ProductsPage() {
         }
       />
 
-      {/* Filters apply to the products on the current page (client-side),
-          matching the existing search behaviour. */}
       <RegisterToolbar
         title="Product Register"
         search={search}

@@ -2,6 +2,48 @@ import { ConflictException } from '@nestjs/common';
 import { Prisma, Role } from '@prisma/client';
 import { ProductsService } from './products.service';
 
+describe('ProductsService catalogue search', () => {
+  const user = {
+    id: 'admin-1',
+    email: 'admin@example.com',
+    role: Role.SUPER_ADMIN,
+    verticalId: null,
+  };
+
+  it('searches SKU and name across the complete catalogue without excluding inactive products', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const count = jest.fn().mockResolvedValue(0);
+    const prisma = {
+      product: { findMany, count },
+      $transaction: jest.fn((queries: Array<Promise<unknown>>) =>
+        Promise.all(queries),
+      ),
+    };
+    const service = new ProductsService(
+      prisma as never,
+      {} as never,
+      {} as never,
+    );
+
+    await service.findAll(
+      { page: 1, limit: 20, skip: 0, search: 'phtpost-2' } as never,
+      user,
+    );
+
+    const expectedWhere = {
+      OR: [
+        { sku: { contains: 'phtpost-2', mode: 'insensitive' } },
+        { name: { contains: 'phtpost-2', mode: 'insensitive' } },
+      ],
+    };
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expectedWhere }),
+    );
+    expect(count).toHaveBeenCalledWith({ where: expectedWhere });
+    expect(findMany.mock.calls[0][0].where).not.toHaveProperty('isActive');
+  });
+});
+
 describe('ProductsService SKU updates', () => {
   const user = {
     id: 'admin-1',

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  DesignProjectStatus,
   OrderLineDeliveryType,
   NotificationType,
   PlmDesignReviewStatus,
@@ -33,6 +34,19 @@ const INITIAL_STAGE: Record<OrderLineDeliveryType, PlmStage> = {
   IN_HOUSE: PlmStage.RELEASE_TO_SCM,
   VENDOR: PlmStage.RELEASE_TO_SCM,
 };
+
+// Design-project stage ladder, mirrored from the Design module, used to compare
+// a linked project's progress against the PLM design-gate thresholds. ON_HOLD
+// and CLOSED are off-ladder: they never block advancement here — the tracker UI
+// surfaces them instead.
+const DESIGN_STAGE_LADDER: DesignProjectStatus[] = [
+  'REQUIREMENTS',
+  'CONCEPT',
+  'DETAILED_DESIGN',
+  'INTERNAL_REVIEW',
+  'CUSTOMER_APPROVAL',
+  'RELEASED_FOR_PRODUCTION',
+];
 
 @Injectable()
 export class PlmService {
@@ -333,6 +347,11 @@ export class PlmService {
       );
     }
     await this.access.assertCanCompleteDesign(user);
+    await this.assertLinkedDesignProjectAtLeast(
+      tracker,
+      'DETAILED_DESIGN',
+      'Design can be submitted for review',
+    );
     const updated = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.plmTracker.update({
         where: { id },
@@ -385,6 +404,11 @@ export class PlmService {
     if (tracker.designSubmittedById === user.id) {
       throw new ForbiddenException('You cannot approve your own Design Review');
     }
+    await this.assertLinkedDesignProjectAtLeast(
+      tracker,
+      'CUSTOMER_APPROVAL',
+      'the Design Review can be approved',
+    );
     const updated = await this.review(id, user, true, null);
     await this.notifyDesignDecision(tracker, user, 'approved');
     return updated;
@@ -609,6 +633,45 @@ export class PlmService {
     );
   }
 
+  /** The DesignProject behind a tracker, matched on (orderId, productId). Null
+   * when the order line has no catalog product or no design project links back
+   * to this order/product pair. Most recently updated wins if several match. */
+  private async linkedDesignProject(tracker: {
+    orderId: string;
+    orderLine: { productId: string | null };
+  }) {
+    if (!tracker.orderLine.productId) return null;
+    return this.prisma.designProject.findFirst({
+      where: {
+        orderId: tracker.orderId,
+        productId: tracker.orderLine.productId,
+      },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, projectNumber: true, name: true, status: true },
+    });
+  }
+
+  /** Additional design-engineering gate on top of the existing Production Head
+   * approval: blocks when the linked DesignProject is on the stage ladder but
+   * hasn't reached `threshold`. No linked project, or an off-ladder status
+   * (ON_HOLD / CLOSED), never blocks — the tracker UI surfaces those states
+   * instead of silently gating on them. */
+  private async assertLinkedDesignProjectAtLeast(
+    tracker: { orderId: string; orderLine: { productId: string | null } },
+    threshold: DesignProjectStatus,
+    action: string,
+  ) {
+    const project = await this.linkedDesignProject(tracker);
+    if (!project) return;
+    const current = DESIGN_STAGE_LADDER.indexOf(project.status);
+    if (current === -1) return;
+    if (current < DESIGN_STAGE_LADDER.indexOf(threshold)) {
+      throw new BadRequestException(
+        `Design project ${project.projectNumber} is at ${project.status.replaceAll('_', ' ')}; it must reach at least ${threshold.replaceAll('_', ' ')} before ${action}`,
+      );
+    }
+  }
+
   private assertPendingReview(tracker: {
     currentStage: PlmStage;
     designReviewStatus: PlmDesignReviewStatus;
@@ -720,9 +783,16 @@ export class PlmService {
             lastVendorUpdateAt: latestVendorUpdateAt,
           }
         : null;
+    // Only NPD trackers pass through DESIGN/DESIGN_REVIEW, so only they carry
+    // the linked design-project state (null on an NPD tracker = "not linked").
+    const designProject =
+      tracker.flowType === OrderLineDeliveryType.NPD
+        ? await this.linkedDesignProject(tracker)
+        : null;
     return {
       ...tracker,
       derived: {
+        designProject,
         drawingReleased:
           !tracker.orderLine.product ||
           !!tracker.orderLine.product.item?.boms.length,

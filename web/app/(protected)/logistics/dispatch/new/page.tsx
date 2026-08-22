@@ -185,7 +185,7 @@ export default function NewDispatchPage() {
       });
       if (thenDispatch) {
         await dispatchDeliveryChallan(dc.id);
-        toast.success(`${dc.dcNumber} dispatched — stock issued and a draft invoice created`);
+        toast.success(`${dc.dcNumber} dispatched — a draft invoice was created`);
       } else {
         toast.success(`${dc.dcNumber} saved as draft`);
       }

@@ -160,6 +160,30 @@ export function PlmSection({ orderId, trackerId }: PlmSectionProps) {
                   </div>
                 )}
 
+                {tracker.flowType === 'NPD' && ['DESIGN', 'DESIGN_REVIEW'].includes(tracker.currentStage) && (
+                  tracker.derived.designProject ? (
+                    <div className={`rounded-md border p-3 text-sm ${['ON_HOLD', 'CLOSED'].includes(tracker.derived.designProject.status) ? 'border-warning/40 bg-warning/10 text-warning-foreground' : 'bg-muted/40'}`}>
+                      <strong>Design project:</strong> {tracker.derived.designProject.projectNumber} · {tracker.derived.designProject.name}
+                      <span className="ml-2">· Status: {prettyEnum(tracker.derived.designProject.status)}</span>
+                      {['ON_HOLD', 'CLOSED'].includes(tracker.derived.designProject.status) && (
+                        <p className="mt-1 text-xs">
+                          The linked design project is {prettyEnum(tracker.derived.designProject.status).toLowerCase()} — its engineering
+                          status is not being verified against this stage.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning-foreground">
+                      <strong>No linked Design Project — cannot verify engineering status.</strong>
+                      <p className="mt-1 text-xs">
+                        Link a Design Project to this order and product (set its Order and Product
+                        when creating it in the Design module) to gate this stage on real
+                        engineering progress. Without a link, only the standard PLM approvals apply.
+                      </p>
+                    </div>
+                  )
+                )}
+
                 <div className="flex flex-wrap gap-2">
                   {tracker.currentStage === 'DESIGN' && (
                     <Button size="sm" disabled={acting === tracker.id} onClick={() => void act(tracker, 'design-review/submit')}>Submit Design Review</Button>

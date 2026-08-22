@@ -89,7 +89,9 @@
       "Bash(npx nest *)",
       "Bash(echo \"NEST_BUILD_EXIT: $?\")",
       "Bash(psql \"postgresql://localhost:5432/peoplehub\" -c \"\\\\d kanban_cards\")",
-      "Bash(psql \"postgresql://localhost:5432/peoplehub\" -c \"\\\\d ping_recipients\")"
+      "Bash(psql \"postgresql://localhost:5432/peoplehub\" -c \"\\\\d ping_recipients\")",
+      "Bash(pg_isready -h localhost -p 5432)",
+      "Bash(open -a Docker)"
     ]
   }
 }

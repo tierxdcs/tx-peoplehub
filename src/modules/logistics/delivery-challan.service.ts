@@ -7,6 +7,7 @@ import {
   DeliveryChallanStatus,
   OrderFinalQcStatus,
   OrderFulfilmentStatus,
+  OrderLineDeliveryType,
   OrderStatus,
   PlmStage,
   Prisma,
@@ -42,6 +43,26 @@ const ACTIVE_DC: DeliveryChallanStatus[] = [
   DeliveryChallanStatus.DELIVERED,
 ];
 
+type DispatchOrderLineFlow = {
+  deliveryType: OrderLineDeliveryType | null;
+  deliverySplits: Array<{ deliveryType: OrderLineDeliveryType | null }>;
+};
+
+/**
+ * Vendor-only lines are fulfilled outside company inventory. Unclassified,
+ * NPD, IN_HOUSE, and mixed-flow lines retain the stock ledger safeguard.
+ */
+export function requiresInternalDispatchStock(
+  orderLine: DispatchOrderLineFlow,
+): boolean {
+  if (orderLine.deliverySplits.length > 0) {
+    return orderLine.deliverySplits.some(
+      (split) => split.deliveryType !== OrderLineDeliveryType.VENDOR,
+    );
+  }
+  return orderLine.deliveryType !== OrderLineDeliveryType.VENDOR;
+}
+
 const DC_INCLUDE = {
   order: { select: { orderNumber: true } },
   customer: { select: { name: true } },
@@ -51,7 +72,13 @@ const DC_INCLUDE = {
     orderBy: { sequence: 'asc' as const },
     include: {
       item: { select: { itemCode: true } },
-      orderLine: { select: { quantity: true } },
+      orderLine: {
+        select: {
+          quantity: true,
+          deliveryType: true,
+          deliverySplits: { select: { deliveryType: true } },
+        },
+      },
     },
   },
 } satisfies Prisma.DeliveryChallanInclude;
@@ -64,9 +91,9 @@ type DcWithRelations = Prisma.DeliveryChallanGetPayload<{
  * Logistics & Dispatch. Delivery Challans for outbound shipments.
  *
  * Dispatching a DC (DRAFT → DISPATCHED) does two integrations, atomically:
- *  1. STOCK_OUT for each line via the shared InventoryService ledger (no
- *     reservation context — plain finished-goods issue), so FG inventory
- *     actually decreases.
+ *  1. STOCK_OUT for internally fulfilled lines via the shared InventoryService
+ *     ledger. Vendor-only lines bypass company inventory because those goods
+ *     are dispatched by the assigned vendor rather than from an internal store.
  *  2. Seeds a DRAFT SalesInvoice in AR via ArService.createDraftInvoiceFromDispatch
  *     — DRAFT only, never issued; Finance's maker-checker owns the rest.
  *
@@ -392,13 +419,20 @@ export class DeliveryChallanService {
       );
     }
 
-    // Resolve the single store location to draw finished goods from. Use the
-    // one holding stock for these items (MVP: the seeded MAIN store).
-    const store = await this.prisma.storeLocation.findFirst({
-      where: { code: 'MAIN' },
-      select: { id: true },
-    });
-    if (!store) {
+    const stockLines = dc.lines.filter((line) =>
+      requiresInternalDispatchStock(line.orderLine),
+    );
+
+    // Resolve a store only when at least one line is fulfilled from company
+    // inventory. A vendor-only dispatch never touches the internal stock ledger.
+    const store =
+      stockLines.length > 0
+        ? await this.prisma.storeLocation.findFirst({
+            where: { code: 'MAIN' },
+            select: { id: true },
+          })
+        : null;
+    if (stockLines.length > 0 && !store) {
       throw new BadRequestException(
         'No store location configured to dispatch from',
       );
@@ -416,11 +450,11 @@ export class DeliveryChallanService {
     const DEFAULT_GST = 18; // best-effort default rate; Finance overrides.
 
     await this.prisma.$transaction(async (tx) => {
-      // 1) STOCK_OUT per line via the shared ledger implementation.
-      for (const line of dc.lines) {
+      // 1) STOCK_OUT only for lines fulfilled from internal inventory.
+      for (const line of stockLines) {
         await this.inventory.issueStockOutTx(tx, {
           itemId: line.itemId,
-          storeLocationId: store.id,
+          storeLocationId: store!.id,
           quantity: line.quantity,
           reason: `Dispatch ${dc.dcNumber} (order ${dc.order?.orderNumber ?? dc.orderId})`,
           actorId: user.id,

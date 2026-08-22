@@ -7,11 +7,9 @@ import {
 import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import {
-  PaginatedResult,
-  PaginationQueryDto,
-} from '../../common/dto/pagination.dto';
+import { PaginatedResult } from '../../common/dto/pagination.dto';
 import { CreateProductDto } from './dto/create-product.dto';
+import { ProductListQueryDto } from './dto/product-list-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductEntity } from './entities/product.entity';
 import { SalesAccessService } from './common/sales-access.service';
@@ -96,19 +94,29 @@ export class ProductsService {
   }
 
   async findAll(
-    query: PaginationQueryDto,
+    query: ProductListQueryDto,
     user: AuthenticatedUser,
   ): Promise<PaginatedResult<ProductEntity>> {
     const showCost = await this.canViewCost(user);
     if (!showCost) await this.access.assertSalesAccess(user);
+    const search = query.search?.trim();
+    const where: Prisma.ProductWhereInput = search
+      ? {
+          OR: [
+            { sku: { contains: search, mode: 'insensitive' } },
+            { name: { contains: search, mode: 'insensitive' } },
+          ],
+        }
+      : {};
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({
+        where,
         skip: query.skip,
         take: query.limit,
         orderBy: { createdAt: 'desc' },
         include: PRODUCT_INCLUDE,
       }),
-      this.prisma.product.count(),
+      this.prisma.product.count({ where }),
     ]);
     return {
       items: items.map((p) => this.toEntity(p, showCost)),

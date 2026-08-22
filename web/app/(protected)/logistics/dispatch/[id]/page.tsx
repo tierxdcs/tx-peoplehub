@@ -90,7 +90,7 @@ export default function DispatchDetailPage() {
   async function handleDispatch() {
     if (!dc) return;
     if (!(await confirm({ title: 'Dispatch', description: `Dispatch ${dc.dcNumber}? This issues stock and creates a draft invoice.`, confirmLabel: 'Dispatch' }))) return;
-    await act(() => dispatchDeliveryChallan(dc.id), 'Dispatched — stock issued, draft invoice created');
+    await act(() => dispatchDeliveryChallan(dc.id), 'Dispatched — draft invoice created');
   }
 
   async function handlePodUpload() {

@@ -114,6 +114,14 @@ export interface PlmTracker {
     photos: Array<{ id: string; fileName: string; sizeBytes: number }>;
   }>;
   derived: {
+    /** Design project matched on (orderId, productId) — NPD trackers only.
+     * Null on an NPD tracker means no design project is linked. */
+    designProject: {
+      id: string;
+      projectNumber: string;
+      name: string;
+      status: string;
+    } | null;
     drawingReleased: boolean;
     qcPassed: boolean;
     dispatched: boolean;
