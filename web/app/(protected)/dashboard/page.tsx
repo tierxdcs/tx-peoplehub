@@ -29,9 +29,7 @@ import { Spinner } from '../../components/ui/spinner';
 import { cn } from '../../lib/utils';
 import { DeadlineChip, deadlineLabel } from './_components/deadline-chip';
 import { ProcessFlowModal } from './_components/process-flow-modal';
-import { ProjectProgressCard } from './_components/project-progress-card';
 import { getMyPlmWork, type PlmDashboardItem } from '../../lib/plm';
-import { PlmWorkCard } from './_components/plm-work-card';
 import { PingPanel } from './_components/ping-panel';
 import { getReceivedPings, getSentPings, pingAgeHours, type ReceivedPing, type SentPing } from '../../lib/pings';
 import { getMyEfficiencyScore, type EfficiencyScore } from '../../lib/efficiency';
@@ -42,9 +40,10 @@ import {
   urgentLifecycleWork,
 } from '../../lib/dashboard-portfolio';
 import { PortfolioCharts } from './_components/portfolio-charts';
+import { PortfolioPreviews } from './_components/portfolio-previews';
 
 const TASK_CAP = 8;
-const PORTFOLIO_PREVIEW_CAP = 4;
+const PORTFOLIO_PREVIEW_CAP = 3;
 const DAY_MS = 86_400_000;
 
 function greetingFor(now: Date): string {
@@ -383,46 +382,8 @@ export default function DashboardPage() {
         </Card>
       </section>
 
-      {/* Participant-scoped, live Order-to-Dispatch project tracking. */}
-      {projects.length > 0 && (
-        <section>
-          <div className="mb-3 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-end sm:gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Project progress</h2>
-              <p className="text-sm text-muted-foreground">
-                Live status for projects where you attended the kickoff.
-              </p>
-            </div>
-            <Link
-              href="/project-kickoff"
-              className="shrink-0 text-sm text-primary hover:underline"
-            >
-              View projects
-            </Link>
-          </div>
-          <div className="space-y-4">
-            {projectPreview.map((project) => (
-              <ProjectProgressCard key={project.kickoffId} project={project} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {plmWork.length > 0 && (
-        <section>
-          <div className="mb-3 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-end sm:gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Product lifecycle work</h2>
-              <p className="text-sm text-muted-foreground">Most urgent active lines where you are an owner, kickoff participant, approver, or auditor.</p>
-            </div>
-            <Link href="/plm" className="shrink-0 text-sm text-primary hover:underline">
-              View all
-            </Link>
-          </div>
-          <div className="space-y-3">
-            {lifecyclePreview.map((item) => <PlmWorkCard key={item.trackerId} item={item} />)}
-          </div>
-        </section>
+      {(projectPreview.length > 0 || lifecyclePreview.length > 0) && (
+        <PortfolioPreviews projects={projectPreview} lifecycle={lifecyclePreview} />
       )}
 
       {/* Process flow overview (only when the user has a mapped vertical). */}
