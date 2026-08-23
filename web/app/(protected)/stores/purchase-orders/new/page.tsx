@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Check, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import {
   createPurchaseOrder,
@@ -16,14 +16,6 @@ import { listItems, type Item } from '../../../../lib/scm-item-master';
 import { formatINR } from '../../../../lib/sales';
 import { useNumberFormat } from '../../../../lib/number-format-context';
 import { humanizeEnum } from '../../../../lib/status';
-import { PageContainer } from '../../../../components/ui/page-container';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '../../../../components/ui/card';
-import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Select } from '../../../../components/ui/select';
 import { Field } from '../../../../components/ui/field';
@@ -33,6 +25,7 @@ import { OverrideTag } from '../../../../components/ui/override-tag';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { useToast } from '../../../../components/ui/toaster';
 import { ItemPicker } from '../../../../components/ui/item-picker';
+import { cn } from '../../../../lib/utils';
 
 type PartnerType = 'SUPPLIER' | 'VENDOR' | 'AD_HOC';
 interface LineDraft {
@@ -46,10 +39,10 @@ interface LineDraft {
   unitPrice: string;
 }
 
-function emptyLine(): LineDraft {
+function emptyLine(source: LineDraft['source'] = 'CATALOG'): LineDraft {
   return {
     key: lineKeySeq++,
-    source: 'CATALOG',
+    source,
     itemId: '',
     adHocItemName: '',
     adHocDescription: '',
@@ -60,6 +53,9 @@ function emptyLine(): LineDraft {
 }
 
 let lineKeySeq = 1;
+
+const LINE_GRID =
+  'grid grid-cols-[26px_1.4fr_1.6fr_70px_88px_110px_110px_32px] items-center gap-2.5 px-5';
 
 export default function NewPurchaseOrderPage() {
   const router = useRouter();
@@ -80,6 +76,15 @@ export default function NewPurchaseOrderPage() {
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
+
+  // Shares the dashboard's Signal-page plumbing: paints the shell's stretched
+  // <main> column in the page's theme-matched background (see globals.css).
+  useEffect(() => {
+    document.body.dataset.dashboardDark = '';
+    return () => {
+      delete document.body.dataset.dashboardDark;
+    };
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -138,8 +143,8 @@ export default function NewPurchaseOrderPage() {
   function updateLine(key: number, patch: Partial<LineDraft>) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
-  function addLine() {
-    setLines((prev) => [...prev, emptyLine()]);
+  function addLine(source: LineDraft['source']) {
+    setLines((prev) => [...prev, emptyLine(source)]);
   }
   function removeLine(key: number) {
     setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.key !== key) : prev));
@@ -155,6 +160,31 @@ export default function NewPurchaseOrderPage() {
   );
   const hasParty = partnerType === 'AD_HOC' ? !!adHocPartyName.trim() : !!partnerId;
   const canSubmit = hasParty && validLines.length > 0 && !submitting;
+
+  // What still blocks or would drop content — feeds the summary-rail card.
+  // Mirrors the actual validation above (unit price is allowed to be blank/0).
+  const missing = useMemo(() => {
+    const out: string[] = [];
+    if (!hasParty)
+      out.push(
+        partnerType === 'AD_HOC'
+          ? 'Party name'
+          : partnerType === 'SUPPLIER'
+            ? 'Supplier'
+            : 'Vendor',
+      );
+    lines.forEach((l, i) => {
+      const n = `Line ${String(i + 1).padStart(2, '0')}`;
+      if (l.source === 'CATALOG') {
+        if (!l.itemId) out.push(`${n} item`);
+      } else {
+        if (!l.adHocItemName.trim()) out.push(`${n} product name`);
+        if (!l.unitOfMeasure.trim()) out.push(`${n} unit`);
+      }
+      if (!(Number(l.orderedQuantity) > 0)) out.push(`${n} qty`);
+    });
+    return out;
+  }, [hasParty, partnerType, lines]);
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -211,27 +241,58 @@ export default function NewPurchaseOrderPage() {
   }
 
   return (
-    <PageContainer>
-      <div className="mb-4">
+    <div className="-m-4 min-h-[calc(100dvh-3.5rem)] bg-[#F4F4F4] text-[#1B1B1B] md:-m-6 dark:bg-[#1B1B1B] dark:text-[#EDEDED]">
+      {/* Header action bar. */}
+      <div className="flex flex-wrap items-center gap-3.5 border-b border-black/10 bg-[#ECECEC] px-5 py-3.5 lg:px-7 dark:border-white/[.07] dark:bg-[#1F1F1F]">
         <Link
           href="/stores/purchase-orders"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-1 text-[12px] font-medium text-black/45 hover:text-black/70 dark:text-white/45 dark:hover:text-white/70"
         >
-          <ArrowLeft className="size-4" /> Purchase Orders
+          <ArrowLeft className="size-3.5" /> Purchase Orders
         </Link>
+        <span className="hidden h-4 w-px bg-black/15 sm:inline dark:bg-white/[.12]" />
+        <h1 className="text-[19px] font-extrabold tracking-[-.7px]">
+          New Purchase Order
+        </h1>
+        <span className="rounded-[5px] bg-black/10 px-[9px] py-1 text-[11.5px] font-medium text-black/65 dark:bg-white/[.09] dark:text-white/60">
+          {partnerType === 'AD_HOC' ? 'Draft · exception' : 'Draft'}
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => router.push('/stores/purchase-orders')}
+            className="rounded-lg px-3.5 py-2 text-[12.5px] font-semibold text-black/65 hover:bg-black/5 dark:text-white/60 dark:hover:bg-white/5"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="rounded-lg bg-[#3B6FB5] px-4 py-2 text-[12.5px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting ? 'Creating…' : 'Create Purchase Order'}
+          </button>
+        </div>
       </div>
-      <h1 className="mb-6 text-2xl font-semibold tracking-tight">New Purchase Order</h1>
 
       {loading ? (
-        <Skeleton className="h-96 w-full" />
+        <div className="px-5 py-[18px] lg:px-7">
+          <Skeleton className="h-96 w-full" />
+        </div>
       ) : (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Trading Party</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid items-start gap-4 px-5 pb-7 pt-[18px] lg:px-7 xl:grid-cols-[1fr_316px]">
+          {/* ── Left column ─────────────────────────────────────────── */}
+          <div className="flex min-w-0 flex-col gap-3.5">
+            {/* Trading Party */}
+            <SCard className="px-5 py-[18px]">
+              <div className="flex flex-wrap items-baseline gap-2.5">
+                <span className="text-[14px] font-bold">Trading Party</span>
+                <span className="text-[11.5px] text-black/40 dark:text-white/35">
+                  Who you are buying from
+                </span>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <Field label="Partner Type" htmlFor="partnerType">
                   <Select
                     id="partnerType"
@@ -290,7 +351,7 @@ export default function NewPurchaseOrderPage() {
 
               {partnerType === 'AD_HOC' && (
                 <>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
                     <Field label="Contact Information" htmlFor="adHocContactInfo">
                       <Textarea
                         id="adHocContactInfo"
@@ -308,21 +369,26 @@ export default function NewPurchaseOrderPage() {
                       />
                     </Field>
                   </div>
-                  <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
-                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
-                    <p>
-                      This exception PO will remain blocked until the CEO/SuperAdmin
-                      approves the unlisted party. It cannot be issued or used for a GRN
-                      before approval.
-                    </p>
-                  </div>
+                  <Callout>
+                    This exception PO will remain blocked until the CEO/SuperAdmin
+                    approves the unlisted party. It cannot be issued or used for a GRN
+                    before approval.
+                  </Callout>
                 </>
               )}
 
               {selectedPartner && (
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">Qualification:</span>
-                  <Badge variant={isQualifiedStatus(selectedPartner.status) ? 'success' : 'warning'}>
+                <div className="mt-3.5 flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-black/45 dark:text-white/45">
+                    Qualification:
+                  </span>
+                  <Badge
+                    variant={
+                      isQualifiedStatus(selectedPartner.status)
+                        ? 'success'
+                        : 'warning'
+                    }
+                  >
                     {humanizeEnum(selectedPartner.status)}
                   </Badge>
                   {selectedPartner.statusOverridden && <OverrideTag />}
@@ -330,174 +396,378 @@ export default function NewPurchaseOrderPage() {
               )}
 
               {unqualified && (
-                <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
-                  <div>
-                    <p className="font-medium">This {partnerType.toLowerCase()} is not qualified.</p>
-                    <p className="text-muted-foreground">
-                      {selectedPartner?.companyName} is currently{' '}
-                      {humanizeEnum(selectedPartner!.status)}. The purchase order is still
-                      allowed (emergency purchases are legitimate), but review before issuing.
-                    </p>
-                  </div>
-                </div>
+                <Callout>
+                  <span className="font-medium">
+                    This {partnerType.toLowerCase()} is not qualified.
+                  </span>{' '}
+                  {selectedPartner?.companyName} is currently{' '}
+                  {humanizeEnum(selectedPartner!.status)}. The purchase order is still
+                  allowed (emergency purchases are legitimate), but review before
+                  issuing.
+                </Callout>
               )}
-            </CardContent>
-          </Card>
+            </SCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Line Items</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {lines.map((line) => {
-                const item = itemById(line.itemId);
-                const lineTotal =
-                  Number(line.orderedQuantity) * Number(line.unitPrice) || 0;
-                return (
-                  <div key={line.key} className="rounded-lg border border-border p-3">
-                    {partnerType === 'AD_HOC' && (
-                      <div className="mb-3 max-w-xs">
-                        <Field label="Line type">
-                          <Select
-                            value={line.source}
+            {/* Line Items — a real aligned table. */}
+            <SCard className="overflow-hidden">
+              <div className="flex flex-wrap items-center gap-2.5 px-5 pb-3.5 pt-[18px]">
+                <span className="text-[14px] font-bold">Line Items</span>
+                <span className="rounded-full bg-black/10 px-2 py-[3px] text-[10.5px] font-semibold text-black/65 dark:bg-white/[.08] dark:text-white/60">
+                  {lines.length} {lines.length === 1 ? 'line' : 'lines'}
+                </span>
+                <span className="ml-auto text-[11.5px] text-black/40 dark:text-white/35">
+                  Amounts in ₹
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <div className="min-w-[860px]">
+                  <div
+                    className={cn(
+                      LINE_GRID,
+                      'border-y border-black/10 bg-black/[.035] py-[9px] text-[12px] font-medium text-black/60 dark:border-white/[.08] dark:bg-white/[.035] dark:text-white/[.62]',
+                    )}
+                  >
+                    <span>#</span>
+                    <span>
+                      Product / service <Req />
+                    </span>
+                    <span>Description</span>
+                    <span className="text-right">Qty</span>
+                    <span>Unit</span>
+                    <span className="text-right">Unit Price (₹)</span>
+                    <span className="text-right">Line Total</span>
+                    <span />
+                  </div>
+                  {lines.map((line, index) => {
+                    const item = itemById(line.itemId);
+                    const lineTotal =
+                      Number(line.orderedQuantity) * Number(line.unitPrice) || 0;
+                    return (
+                      <div
+                        key={line.key}
+                        className={cn(
+                          index > 0 &&
+                            'border-t border-black/[.06] dark:border-white/[.06]',
+                        )}
+                      >
+                        <div className={cn(LINE_GRID, 'pb-1 pt-[11px]')}>
+                          <span className="text-[11.5px] font-semibold tabular-nums text-black/40 dark:text-white/35">
+                            {String(index + 1).padStart(2, '0')}
+                          </span>
+                          {line.source === 'CATALOG' ? (
+                            <ItemPicker
+                              items={items}
+                              value={line.itemId}
+                              onValueChange={(itemId) =>
+                                updateLine(line.key, { itemId })
+                              }
+                            />
+                          ) : (
+                            <Input
+                              value={line.adHocItemName}
+                              onChange={(e) =>
+                                updateLine(line.key, {
+                                  adHocItemName: e.target.value,
+                                })
+                              }
+                              placeholder="Enter a free-text line item"
+                            />
+                          )}
+                          {line.source === 'CATALOG' ? (
+                            <div
+                              className="truncate text-[12.5px] text-black/55 dark:text-white/55"
+                              title={item?.description ?? undefined}
+                            >
+                              {item?.description ?? '—'}
+                            </div>
+                          ) : (
+                            <Input
+                              value={line.adHocDescription}
+                              onChange={(e) =>
+                                updateLine(line.key, {
+                                  adHocDescription: e.target.value,
+                                })
+                              }
+                              placeholder="Specification or scope"
+                            />
+                          )}
+                          <Input
+                            type="number"
+                            min="0"
+                            step="any"
+                            className="text-right tabular-nums"
+                            value={line.orderedQuantity}
                             onChange={(e) =>
                               updateLine(line.key, {
-                                source: e.target.value as LineDraft['source'],
-                                itemId: '',
-                                adHocItemName: '',
-                                adHocDescription: '',
-                                unitOfMeasure: '',
+                                orderedQuantity: e.target.value,
                               })
                             }
+                          />
+                          {line.source === 'CATALOG' ? (
+                            <div className="truncate text-[12.5px] font-medium text-black/65 dark:text-white/60">
+                              {item?.baseUnitOfMeasure ?? '—'}
+                            </div>
+                          ) : (
+                            <Input
+                              value={line.unitOfMeasure}
+                              onChange={(e) =>
+                                updateLine(line.key, {
+                                  unitOfMeasure: e.target.value,
+                                })
+                              }
+                              placeholder="NOS, job…"
+                            />
+                          )}
+                          <Input
+                            type="number"
+                            min="0"
+                            step="any"
+                            className="text-right tabular-nums"
+                            value={line.unitPrice}
+                            onChange={(e) =>
+                              updateLine(line.key, { unitPrice: e.target.value })
+                            }
+                          />
+                          <div className="text-right text-[13px] font-bold tabular-nums">
+                            {formatINR(lineTotal, numberFormatStyle)}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeLine(line.key)}
+                            disabled={lines.length === 1}
+                            aria-label="Remove line"
+                            className="grid size-8 place-items-center justify-self-center rounded-md text-black/35 hover:bg-black/5 hover:text-black/70 disabled:cursor-not-allowed disabled:opacity-40 dark:text-white/35 dark:hover:bg-white/5 dark:hover:text-white/70"
                           >
-                            <option value="CATALOG">Item Master item</option>
-                            <option value="FREE_TEXT">Free-text product / service</option>
-                          </Select>
-                        </Field>
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
+                        <div className="px-5 pb-3 pl-[56px] text-[11px] text-black/40 dark:text-white/35">
+                          {line.source === 'CATALOG'
+                            ? 'Item master · will create a stock record and can be received through GRN'
+                            : 'Free-text · This line stays on this PO only. It will not create an Item Master or stock record and cannot be received through GRN.'}
+                        </div>
                       </div>
-                    )}
-                    <div className="grid items-end gap-3 md:grid-cols-[1fr_120px_140px_120px_40px]">
-                    {line.source === 'CATALOG' || partnerType !== 'AD_HOC' ? (
-                      <Field label="Item">
-                        <ItemPicker
-                          items={items}
-                          value={line.itemId}
-                          onValueChange={(itemId) => updateLine(line.key, { itemId })}
-                        />
-                      </Field>
-                    ) : (
-                      <div className="space-y-3">
-                        <Field label="Product / service name" required>
-                          <Input
-                            value={line.adHocItemName}
-                            onChange={(e) => updateLine(line.key, { adHocItemName: e.target.value })}
-                            placeholder="Enter a free-text line item"
-                          />
-                        </Field>
-                        <Field label="Description">
-                          <Input
-                            value={line.adHocDescription}
-                            onChange={(e) => updateLine(line.key, { adHocDescription: e.target.value })}
-                            placeholder="Specification or scope (optional)"
-                          />
-                        </Field>
-                      </div>
-                    )}
-                    <div className="space-y-3">
-                    <Field label={`Qty${item ? ` (${item.baseUnitOfMeasure})` : ''}`}>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={line.orderedQuantity}
-                        onChange={(e) => updateLine(line.key, { orderedQuantity: e.target.value })}
-                      />
-                    </Field>
-                    {line.source === 'FREE_TEXT' && partnerType === 'AD_HOC' && (
-                      <Field label="Unit" required>
-                        <Input
-                          value={line.unitOfMeasure}
-                          onChange={(e) => updateLine(line.key, { unitOfMeasure: e.target.value })}
-                          placeholder="NOS, job, lot..."
-                        />
-                      </Field>
-                    )}
-                    </div>
-                    <Field label="Unit Price (₹)">
-                      <Input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={line.unitPrice}
-                        onChange={(e) => updateLine(line.key, { unitPrice: e.target.value })}
-                      />
-                    </Field>
-                    <Field label="Line Total">
-                      <div className="flex h-9 items-center text-sm font-medium">
-                        {formatINR(lineTotal, numberFormatStyle)}
-                      </div>
-                    </Field>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeLine(line.key)}
-                      disabled={lines.length === 1}
-                      aria-label="Remove line"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                    </div>
-                    {line.source === 'FREE_TEXT' && partnerType === 'AD_HOC' && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        This line stays on this PO only. It will not create an Item Master or stock record and cannot be received through GRN.
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-              <div className="flex items-center justify-between pt-2">
-                <Button type="button" variant="outline" size="sm" onClick={addLine}>
-                  <Plus className="size-4" /> Add line
-                </Button>
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Total: </span>
-                  <span className="font-semibold">{formatINR(total, numberFormatStyle)}</span>
+                    );
+                  })}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+              <div className="flex flex-wrap items-center gap-2.5 border-t border-black/10 bg-black/[.02] px-5 py-3 dark:border-white/[.08] dark:bg-white/[.02]">
+                <AddLineButton onClick={() => addLine('CATALOG')}>
+                  Add Item Master line
+                </AddLineButton>
+                {partnerType === 'AD_HOC' && (
+                  <AddLineButton onClick={() => addLine('FREE_TEXT')}>
+                    Add free-text line
+                  </AddLineButton>
+                )}
+                <span className="ml-auto text-[12px] text-black/50 dark:text-white/45">
+                  Subtotal{' '}
+                  <b className="ml-2 text-[14px] font-bold text-[#1B1B1B] dark:text-[#EDEDED]">
+                    {formatINR(total, numberFormatStyle)}
+                  </b>
+                </span>
+              </div>
+            </SCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Details</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <Field label="Expected Delivery Date" htmlFor="edd">
-                <Input
-                  id="edd"
-                  type="date"
-                  value={expectedDeliveryDate}
-                  onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+            {/* Details */}
+            <SCard className="px-5 py-[18px]">
+              <span className="text-[14px] font-bold">Details</span>
+              <div className="mt-4 grid gap-3 md:grid-cols-[200px_1fr]">
+                <Field label="Expected Delivery Date" htmlFor="edd">
+                  <Input
+                    id="edd"
+                    type="date"
+                    value={expectedDeliveryDate}
+                    onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+                  />
+                </Field>
+                <Field
+                  label="Notes"
+                  htmlFor="notes"
+                  hint="Internal note, not printed on the PO."
+                >
+                  <Textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                  />
+                </Field>
+              </div>
+            </SCard>
+          </div>
+
+          {/* ── Sticky summary rail ─────────────────────────────────── */}
+          <div className="flex flex-col gap-3.5 xl:sticky xl:top-[4.5rem]">
+            <SCard className="px-5 py-[18px]">
+              <div className="text-[14px] font-bold">Order Summary</div>
+              <div className="mt-3.5 flex flex-col">
+                <SummaryRow label="Lines" value={String(lines.length)} />
+                <SummaryRow
+                  label="Subtotal"
+                  value={formatINR(total, numberFormatStyle)}
                 />
-              </Field>
-              <Field label="Notes" htmlFor="notes" className="md:col-span-2">
-                <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </Field>
-            </CardContent>
-          </Card>
+                <div className="flex items-baseline justify-between pt-3">
+                  <span className="text-[12.5px] font-semibold">Total</span>
+                  <span className="text-2xl font-bold tabular-nums tracking-[-1px]">
+                    {formatINR(total, numberFormatStyle)}
+                  </span>
+                </div>
+              </div>
+            </SCard>
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => router.push('/stores/purchase-orders')}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit} disabled={!canSubmit}>
-              {submitting ? 'Creating…' : 'Create Purchase Order'}
-            </Button>
+            <SCard className="px-5 py-[18px]">
+              <div className="text-[14px] font-bold">Approval Route</div>
+              <div className="mt-3.5 flex flex-col">
+                <RouteStep state="done" title="Drafted" meta="You · today" />
+                {partnerType === 'AD_HOC' && (
+                  <RouteStep
+                    state="active"
+                    title="Unlisted party approval"
+                    meta="CEO / SuperAdmin · required"
+                  />
+                )}
+                <RouteStep
+                  state="future"
+                  title="Issued to party"
+                  meta="Unlocks GRN"
+                  last
+                />
+              </div>
+            </SCard>
+
+            {missing.length > 0 && (
+              <div className="rounded-xl border border-[#E5484D]/30 bg-[#E5484D]/[.07] px-4 py-3.5">
+                <div className="text-[11.5px] font-medium text-[#C13438] dark:text-[#FF8A8D]">
+                  {missing.length} {missing.length === 1 ? 'field' : 'fields'}{' '}
+                  remaining
+                </div>
+                <div className="mt-2 text-[11.5px] leading-relaxed text-black/60 dark:text-white/60">
+                  {missing.join(' · ')}
+                </div>
+                {canSubmit && (
+                  <div className="mt-2 text-[11px] text-black/45 dark:text-white/45">
+                    Incomplete lines are not included when you create the PO.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
-    </PageContainer>
+    </div>
+  );
+}
+
+// ── Building blocks ─────────────────────────────────────────────────────────
+
+function SCard({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-xl border border-black/10 bg-white dark:border-white/[.08] dark:bg-[#232323]',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Req() {
+  return <span className="text-[#D9363E] dark:text-[#FF5257]">*</span>;
+}
+
+/** The orange exception/warning callout from the 3a spec. */
+function Callout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-3.5 flex gap-2.5 rounded-[9px] border border-[#C9761B] bg-[#E08A2C]/[.09] px-3.5 py-3 dark:border-[#E08A2C]">
+      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[#C9761B] dark:text-[#E08A2C]" />
+      <p className="text-[12px] leading-normal text-black/70 dark:text-white/[.72]">
+        {children}
+      </p>
+    </div>
+  );
+}
+
+function AddLineButton({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1 rounded-lg border border-dashed border-black/25 px-3 py-[7px] text-[12px] font-semibold text-black/70 hover:bg-black/[.03] dark:border-white/[.22] dark:text-white/70 dark:hover:bg-white/[.04]"
+    >
+      <Plus className="size-3.5" /> {children}
+    </button>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between border-b border-black/[.07] py-2 text-[12px] font-medium text-black/60 dark:border-white/[.07] dark:text-white/55">
+      <span>{label}</span>
+      <span className="text-[12.5px] font-semibold tabular-nums text-[#1B1B1B] dark:text-[#EDEDED]">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function RouteStep({
+  state,
+  title,
+  meta,
+  last,
+}: {
+  state: 'done' | 'active' | 'future';
+  title: string;
+  meta: string;
+  last?: boolean;
+}) {
+  return (
+    <div className="flex gap-[11px]">
+      <div className="flex flex-col items-center">
+        {state === 'done' ? (
+          <span className="grid size-[18px] flex-none place-items-center rounded-full bg-[#1E9E63] dark:bg-[#3DD68C]">
+            <Check className="size-3 text-white dark:text-[#1B1B1B]" />
+          </span>
+        ) : (
+          <span
+            className={cn(
+              'size-[18px] flex-none rounded-full border-2',
+              state === 'active'
+                ? 'border-[#3B6FB5] dark:border-[#6FA3E0]'
+                : 'border-black/15 dark:border-white/[.16]',
+            )}
+          />
+        )}
+        {!last && (
+          <span className="min-h-[22px] w-[2px] flex-1 bg-black/10 dark:bg-white/[.12]" />
+        )}
+      </div>
+      <div className={cn(!last && 'pb-3.5')}>
+        <div
+          className={cn(
+            'text-[12.5px] font-semibold',
+            state === 'active' && 'text-[#3B6FB5] dark:text-[#6FA3E0]',
+            state === 'future' && 'text-black/40 dark:text-white/40',
+          )}
+        >
+          {title}
+        </div>
+        <div className="text-[11px] text-black/45 dark:text-white/40">{meta}</div>
+      </div>
+    </div>
   );
 }

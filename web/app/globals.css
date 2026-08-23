@@ -349,3 +349,32 @@
     color: #000;
   }
 }
+
+/* Signal page theme plumbing — set by the redesigned pages (dashboard, new
+   purchase order) while mounted. The pages follow the app theme (light by
+   default, dark under .dark). Two jobs here:
+   1. Paint the shell's <main> behind the dashboard — it stretches to the
+      tallest flex sibling (the sidebar nav), so without this the theme
+      background shows through below the page's last section.
+   2. CSS variables for the handful of inline-styled colors (sparkline stroke,
+      dial/donut tracks, faint numerals) that Tailwind classes can't reach. */
+body[data-dashboard-dark] {
+  --sd-faint: rgba(0, 0, 0, 0.4);
+  --sd-track: rgba(0, 0, 0, 0.08);
+  --sd-spark: rgba(0, 0, 0, 0.45);
+  --sd-success: #1e9e63;
+  --sd-danger: #d9363e;
+}
+.dark body[data-dashboard-dark] {
+  --sd-faint: rgba(255, 255, 255, 0.35);
+  --sd-track: rgba(255, 255, 255, 0.08);
+  --sd-spark: rgba(255, 255, 255, 0.5);
+  --sd-success: #3dd68c;
+  --sd-danger: #ff5257;
+}
+body[data-dashboard-dark] main {
+  background-color: #f4f4f4;
+}
+.dark body[data-dashboard-dark] main {
+  background-color: #1b1b1b;
+}

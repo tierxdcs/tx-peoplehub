@@ -11,6 +11,9 @@ export interface MyCard {
   dueDate: string | null;
   isDone: boolean;
   isOverdue: boolean;
+  createdAt: string;
+  /** When the card entered a done list; approximate for legacy completions. */
+  completedAt: string | null;
 }
 
 export type TaskFilter =
@@ -69,4 +72,58 @@ export function filterMyCards(
 /** Active cards assigned to the current user, across all boards. */
 export function myCards() {
   return apiFetch<MyCard[]>('/kanban/cards/mine');
+}
+
+// ── KPI history (sparklines + week-over-week deltas) ────────────────────────
+// Reconstructed from the current card set's real timestamps (createdAt /
+// completedAt / dueDate) — no synthetic data. Cards deleted or reassigned in
+// the window are absent from the history; legacy completions carry an
+// approximate completedAt.
+
+export type TrendCounter = 'assigned' | 'completed' | 'overdue';
+
+export interface CounterTrend {
+  /** Daily value at each end-of-day, oldest first (last entry = today). */
+  series: number[];
+  /** Today's value minus the value 7 days ago. */
+  weekDelta: number;
+}
+
+function countOn(cards: MyCard[], counter: TrendCounter, endOfDay: number) {
+  return cards.filter((card) => {
+    const created = new Date(card.createdAt).getTime();
+    const completed = card.completedAt
+      ? new Date(card.completedAt).getTime()
+      : null;
+    const doneBy = completed !== null && completed <= endOfDay;
+    if (counter === 'completed') return doneBy;
+    if (created > endOfDay || doneBy) return false;
+    if (counter === 'assigned') return true;
+    return !!card.dueDate && new Date(card.dueDate).getTime() < endOfDay;
+  }).length;
+}
+
+/** Real daily history for one KPI counter over the trailing `days` days. */
+export function counterTrend(
+  cards: MyCard[],
+  counter: TrendCounter,
+  now: Date,
+  days = 14,
+): CounterTrend {
+  const series: number[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const endOfDay = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - i,
+      23,
+      59,
+      59,
+      999,
+    ).getTime();
+    series.push(countOn(cards, counter, endOfDay));
+  }
+  const today = series[series.length - 1];
+  const weekAgo = series[series.length - 8] ?? series[0];
+  return { series, weekDelta: today - weekAgo };
 }

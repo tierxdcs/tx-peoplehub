@@ -91,7 +91,12 @@
       "Bash(psql \"postgresql://localhost:5432/peoplehub\" -c \"\\\\d kanban_cards\")",
       "Bash(psql \"postgresql://localhost:5432/peoplehub\" -c \"\\\\d ping_recipients\")",
       "Bash(pg_isready -h localhost -p 5432)",
-      "Bash(open -a Docker)"
+      "Bash(open -a Docker)",
+      "Bash(echo \"TSC: $?\")",
+      "Bash(echo \"BUILD: $?\")",
+      "Bash(npm run *)",
+      "Bash(echo \"WEB_TSC: $?\")",
+      "Bash(echo \"WEB_BUILD: $?\")"
     ]
   }
 }

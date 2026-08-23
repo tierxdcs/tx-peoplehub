@@ -241,6 +241,13 @@ export class MyCardEntity {
   isDone!: boolean;
   @ApiProperty({ description: 'dueDate past AND not in a done list' })
   isOverdue!: boolean;
+  @ApiProperty() createdAt!: string;
+  @ApiProperty({
+    nullable: true,
+    description:
+      'When the card entered a done list. Approximate (updatedAt) for cards completed before completion tracking existed.',
+  })
+  completedAt!: string | null;
 
   constructor(partial: Partial<MyCardEntity>) {
     Object.assign(this, partial);

@@ -218,6 +218,8 @@ export class KanbanCardsService {
         dueDate: c.dueDate ? c.dueDate.toISOString() : null,
         isDone,
         isOverdue: !!c.dueDate && c.dueDate.getTime() < now && !isDone,
+        createdAt: c.createdAt.toISOString(),
+        completedAt: c.completedAt ? c.completedAt.toISOString() : null,
       });
     });
   }
