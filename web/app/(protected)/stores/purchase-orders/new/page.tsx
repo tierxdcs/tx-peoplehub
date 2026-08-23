@@ -35,9 +35,39 @@ interface LineDraft {
   adHocItemName: string;
   adHocDescription: string;
   unitOfMeasure: string;
+  /** Free-text unit entry mode — chosen via "Other…" in the unit dropdown. */
+  customUnit: boolean;
   orderedQuantity: string;
   unitPrice: string;
 }
+
+/** Common purchase-order units. The backend stores unitOfMeasure as a free
+ * string, so this only guides input — "Other…" allows anything else. */
+const COMMON_UNITS = [
+  'NOS',
+  'PCS',
+  'SET',
+  'PAIR',
+  'KG',
+  'G',
+  'TON',
+  'M',
+  'MM',
+  'FT',
+  'SQM',
+  'SQFT',
+  'LTR',
+  'ML',
+  'ROLL',
+  'SHEET',
+  'BOX',
+  'PACK',
+  'LOT',
+  'JOB',
+  'HOUR',
+  'DAY',
+];
+const OTHER_UNIT = '__OTHER__';
 
 function emptyLine(source: LineDraft['source'] = 'CATALOG'): LineDraft {
   return {
@@ -47,6 +77,7 @@ function emptyLine(source: LineDraft['source'] = 'CATALOG'): LineDraft {
     adHocItemName: '',
     adHocDescription: '',
     unitOfMeasure: '',
+    customUnit: false,
     orderedQuantity: '',
     unitPrice: '',
   };
@@ -507,16 +538,49 @@ export default function NewPurchaseOrderPage() {
                             <div className="truncate text-[12.5px] font-medium text-black/65 dark:text-white/60">
                               {item?.baseUnitOfMeasure ?? '—'}
                             </div>
-                          ) : (
+                          ) : line.customUnit ? (
+                            // "Other…" mode: type any unit; clearing it and
+                            // leaving the field returns to the dropdown.
                             <Input
+                              autoFocus
                               value={line.unitOfMeasure}
                               onChange={(e) =>
                                 updateLine(line.key, {
                                   unitOfMeasure: e.target.value,
                                 })
                               }
-                              placeholder="NOS, job…"
+                              onBlur={() => {
+                                if (!line.unitOfMeasure.trim())
+                                  updateLine(line.key, {
+                                    customUnit: false,
+                                    unitOfMeasure: '',
+                                  });
+                              }}
+                              placeholder="Unit"
                             />
+                          ) : (
+                            <Select
+                              aria-label="Unit"
+                              value={line.unitOfMeasure}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value === OTHER_UNIT)
+                                  updateLine(line.key, {
+                                    customUnit: true,
+                                    unitOfMeasure: '',
+                                  });
+                                else
+                                  updateLine(line.key, { unitOfMeasure: value });
+                              }}
+                            >
+                              <option value="">Unit…</option>
+                              {COMMON_UNITS.map((u) => (
+                                <option key={u} value={u}>
+                                  {u}
+                                </option>
+                              ))}
+                              <option value={OTHER_UNIT}>Other…</option>
+                            </Select>
                           )}
                           <Input
                             type="number"
