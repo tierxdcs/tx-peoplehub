@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, CalendarDays, Plus, UserRound } from 'lucide-react';
+import { CalendarDays, Plus, UserRound } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import {
   Bid,
@@ -15,13 +15,15 @@ import {
 import { formatINR, prettyEnum } from '../../../../lib/sales';
 import { useNumberFormat } from '../../../../lib/number-format-context';
 import { deriveBidGate } from '../../../../lib/bid-assessment';
-import { PageContainer } from '../../../../components/ui/page-container';
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '../../../../components/ui/card';
+  SCard,
+  SCardTitle,
+  SIGNAL_EYEBROW,
+  SIGNAL_LINK,
+  SIGNAL_MUTED,
+  SignalHeader,
+  SignalPage,
+} from '../../../../components/ui/signal';
 import { Badge } from '../../../../components/ui/badge';
 import { Button, buttonVariants } from '../../../../components/ui/button';
 import { Select } from '../../../../components/ui/select';
@@ -128,18 +130,22 @@ export default function OpportunityDetailPage() {
 
   if (loading) {
     return (
-      <PageContainer>
-        <Skeleton className="mb-4 h-6 w-32" />
-        <Skeleton className="mb-6 h-9 w-80" />
-        <Skeleton className="h-48 w-full" />
-      </PageContainer>
+      <SignalPage>
+        <div className="px-5 py-[18px] lg:px-7">
+          <Skeleton className="mb-4 h-6 w-32" />
+          <Skeleton className="mb-6 h-9 w-80" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      </SignalPage>
     );
   }
   if (error || !opp) {
     return (
-      <PageContainer>
-        <p className="text-destructive">{error ?? 'Opportunity not found'}</p>
-      </PageContainer>
+      <SignalPage>
+        <div className="px-5 py-[18px] lg:px-7">
+          <p className="text-destructive">{error ?? 'Opportunity not found'}</p>
+        </div>
+      </SignalPage>
     );
   }
 
@@ -148,82 +154,64 @@ export default function OpportunityDetailPage() {
   const gate = deriveBidGate(assessments[0]);
 
   return (
-    <PageContainer>
-      <Link
-        href="/sales/opportunities"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Opportunities
-      </Link>
-
-      {/* Header: opportunity name as title */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">{opp.name}</h1>
-        <BusinessUnitLabel
-          className="mt-2"
-          name={opp.businessUnitName}
-          colorHex={opp.businessUnitColorHex}
-        />
-      </div>
+    <SignalPage>
+      <SignalHeader
+        backHref="/sales/opportunities"
+        backLabel="Opportunities"
+        title={opp.name}
+        chip={
+          <BusinessUnitLabel
+            name={opp.businessUnitName}
+            colorHex={opp.businessUnitColorHex}
+          />
+        }
+      />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
       {/* Metadata card: Stage / Estimated value / Expected close */}
-      <Card className="mb-4">
-        <CardContent className="grid gap-6 p-6 sm:grid-cols-4">
+      <SCard className="px-5 py-[18px]">
+        <div className="grid gap-6 sm:grid-cols-4">
           <div>
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Stage
-            </div>
+            <div className={SIGNAL_EYEBROW}>Stage</div>
             <div className="mt-1.5">
               <StatusBadge value={opp.stage} />
             </div>
           </div>
           <div>
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Owner
-            </div>
+            <div className={SIGNAL_EYEBROW}>Owner</div>
             <div className="mt-1 flex items-center gap-2 text-sm font-medium">
-              <UserRound className="size-4 text-muted-foreground" />
+              <UserRound className={`size-4 ${SIGNAL_MUTED}`} />
               {opp.ownerName}
             </div>
           </div>
           <div>
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Estimated value
-            </div>
-            <div className="mt-1 text-2xl font-semibold">
+            <div className={SIGNAL_EYEBROW}>Estimated value</div>
+            <div className="mt-1 text-2xl font-semibold tabular-nums tracking-[-1px]">
               {formatINR(opp.estimatedValue, numberFormatStyle)}
             </div>
           </div>
           <div>
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Expected close
-            </div>
+            <div className={SIGNAL_EYEBROW}>Expected close</div>
             <div className="mt-1 flex items-center gap-2 text-sm font-medium">
-              <CalendarDays className="size-4 text-muted-foreground" />
+              <CalendarDays className={`size-4 ${SIGNAL_MUTED}`} />
               {opp.expectedCloseDate.slice(0, 10)}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </SCard>
 
       {opp.lostReason && (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              Lost reason
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="whitespace-pre-wrap text-sm">{opp.lostReason}</p>
-          </CardContent>
-        </Card>
+        <SCard className="px-5 py-[18px]">
+          <div className={SIGNAL_EYEBROW}>Lost reason</div>
+          <p className="mt-2 whitespace-pre-wrap text-sm">{opp.lostReason}</p>
+        </SCard>
       )}
 
-      <Card className="mb-6">
-        <CardHeader className="flex-row items-center justify-between space-y-0">
+      <SCard className="px-5 py-[18px]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle>Customer BOM intake</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <span className="text-[14px] font-bold">Customer BOM intake</span>
+            <p className="mt-1 text-[12px] text-black/45 dark:text-white/45">
               Turn a customer file into traceable Items, a Product, and a
               quote-stage BOM for SCM sourcing.
             </p>
@@ -234,15 +222,13 @@ export default function OpportunityDetailPage() {
           >
             Open BOM intake
           </Link>
-        </CardHeader>
-      </Card>
+        </div>
+      </SCard>
 
       {/* Update stage — compact form card */}
-      <Card className="mb-6 max-w-[400px]">
-        <CardHeader>
-          <CardTitle>Update stage</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 pt-0">
+      <SCard className="max-w-[400px] px-5 py-[18px]">
+        <SCardTitle title="Update stage" />
+        <div className="mt-3.5 space-y-3">
           <Select
             value={stage}
             onChange={(e) => setStage(e.target.value as OpportunityStage)}
@@ -267,13 +253,13 @@ export default function OpportunityDetailPage() {
           <Button onClick={saveStage} disabled={saving}>
             {saving ? 'Saving…' : 'Save stage'}
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </SCard>
 
       {/* Bids section: header reflects the Bid/No-Bid gate state */}
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle>Bids</CardTitle>
+      <SCard className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 pb-3.5 pt-[18px]">
+          <span className="text-[14px] font-bold">Bids</span>
           <div className="flex items-center gap-2">
             {gate.badgeLabel && gate.badgeVariant && (
               <Badge variant={gate.badgeVariant}>{gate.badgeLabel}</Badge>
@@ -293,21 +279,18 @@ export default function OpportunityDetailPage() {
               </Button>
             )}
           </div>
-        </CardHeader>
-        <CardContent className="pt-0">
+        </div>
           {/* Rejection context surfaced inline, not hidden behind a click. */}
           {gate.state === 'REJECTED' && gate.comments && (
-            <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+            <div className="mx-5 mb-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
               <span className="font-semibold">Reviewer comments:</span>{' '}
               {gate.comments}
             </div>
           )}
           {/* Reviewer's e-signature once the assessment is approved. */}
           {gate.state === 'APPROVED' && assessments[0] && (
-            <div className="mb-4 rounded-md border border-success/40 bg-success/10 p-3">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Approved by
-              </div>
+            <div className="mx-5 mb-4 rounded-md border border-success/40 bg-success/10 p-3">
+              <div className={SIGNAL_EYEBROW}>Approved by</div>
               <div className="mt-1">
                 <SignatureDisplay
                   text={assessments[0].approverSignatureTextSnapshot}
@@ -343,7 +326,7 @@ export default function OpportunityDetailPage() {
                   <TableCell className="text-right">
                     <Link
                       href={`/sales/bids/${b.id}`}
-                      className="text-primary underline-offset-4 hover:underline"
+                      className={SIGNAL_LINK}
                     >
                       View →
                     </Link>
@@ -362,8 +345,7 @@ export default function OpportunityDetailPage() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </SCard>
 
       <BidAssessmentDialog
         opportunityId={opp.id}
@@ -374,6 +356,7 @@ export default function OpportunityDetailPage() {
           gate.state === 'REJECTED' ? gate.comments : null
         }
       />
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

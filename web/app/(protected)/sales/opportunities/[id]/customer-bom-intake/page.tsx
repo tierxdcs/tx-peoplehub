@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Plus, Search, Trash2, Upload } from 'lucide-react';
+import { Plus, Search, Trash2, Upload } from 'lucide-react';
 import { ApiError } from '../../../../../lib/api';
 import {
   createCustomerBomIntake,
@@ -16,13 +15,12 @@ import {
 import { uploadToPresignedUrl } from '../../../../../lib/vault-api';
 import { businessUnitOptions } from '../../../../../lib/business-units';
 import type { BusinessUnit } from '../../../../../lib/types';
-import { PageContainer } from '../../../../../components/ui/page-container';
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '../../../../../components/ui/card';
+  SCard,
+  SCardTitle,
+  SignalHeader,
+  SignalPage,
+} from '../../../../../components/ui/signal';
 import { Button } from '../../../../../components/ui/button';
 import { Input } from '../../../../../components/ui/input';
 import { Select } from '../../../../../components/ui/select';
@@ -173,26 +171,18 @@ export default function CustomerBomIntakePage() {
   }
 
   return (
-    <PageContainer>
-      <Link
-        href={`/sales/opportunities/${id}`}
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Opportunity
-      </Link>
-      <h1 className="text-2xl font-semibold">Customer BOM Intake</h1>
-      <p className="mb-6 mt-1 text-sm text-muted-foreground">
-        Transcribe the customer&apos;s parts list without entering engineering
-        classifications or internal costs.
-      </p>
+    <SignalPage>
+      <SignalHeader
+        backHref={`/sales/opportunities/${id}`}
+        backLabel="Opportunity"
+        title="Customer BOM Intake"
+        description="Transcribe the customer's parts list without entering engineering classifications or internal costs."
+      />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-base">
-            Customer document and product
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
+      <SCard className="px-5 py-[18px]">
+        <SCardTitle title="Customer document and product" />
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
           <Field label="Customer BOM file" required>
             <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm">
               <Upload className="size-4" />{' '}
@@ -240,27 +230,24 @@ export default function CustomerBomIntakePage() {
               onChange={(event) => setTargetMarginPercent(event.target.value)}
             />
           </Field>
-        </CardContent>
-      </Card>
+        </div>
+      </SCard>
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-base">Customer BOM lines</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Search Item Master for every line before choosing an existing
-              match or explicitly creating new.
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setLines((current) => [...current, emptyLine()])}
-          >
-            <Plus className="size-4" /> Add line
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <SCard className="px-5 py-[18px]">
+        <SCardTitle
+          title="Customer BOM lines"
+          subtitle="Search Item Master for every line before choosing an existing match or explicitly creating new."
+          right={
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setLines((current) => [...current, emptyLine()])}
+            >
+              <Plus className="size-4" /> Add line
+            </Button>
+          }
+        />
+        <div className="mt-4 space-y-4">
           {lines.map((line, index) => (
             <div key={line.key} className="rounded-lg border p-4">
               <div className="mb-3 flex items-center justify-between">
@@ -337,7 +324,7 @@ export default function CustomerBomIntakePage() {
                 </div>
               </div>
               {line.searchedDescription && (
-                <div className="mt-3 rounded-md bg-muted/30 p-3 text-sm">
+                <div className="mt-3 rounded-md bg-black/[.03] p-3 text-sm dark:bg-white/[.03]">
                   <p className="mb-2 font-medium">
                     Candidate Item Master matches
                   </p>
@@ -398,15 +385,13 @@ export default function CustomerBomIntakePage() {
               {submitting ? 'Creating records…' : 'Create Product & Draft BOM'}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </SCard>
 
       {createdIntakes.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="text-base">Quote-stage BOMs</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <SCard className="px-5 py-[18px]">
+          <SCardTitle title="Quote-stage BOMs" />
+          <div className="mt-4 space-y-3">
             {createdIntakes.map((intake) => (
               <div key={intake.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm">
                 <div>
@@ -426,9 +411,10 @@ export default function CustomerBomIntakePage() {
                 </div>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </SCard>
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

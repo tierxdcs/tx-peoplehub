@@ -10,9 +10,12 @@ import { Button } from '../../../../components/ui/button';
 import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
 import { Input } from '../../../../components/ui/input';
-import { Card, CardContent } from '../../../../components/ui/card';
-import { PageContainer } from '../../../../components/ui/page-container';
-import { PageHeader } from '../../../../components/ui/page-header';
+import {
+  SCard,
+  SIGNAL_LINK,
+  SignalHeader,
+  SignalPage,
+} from '../../../../components/ui/signal';
 import { RegisterToolbar } from '../../../../components/ui/register-toolbar';
 import { RegisterPagination } from '../../../../components/ui/register-pagination';
 import { EmptyState } from '../../../../components/ui/empty-state';
@@ -81,25 +84,25 @@ export default function BidApprovalQueuePage() {
   }
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Bid Approvals"
         description="Bids awaiting your approval. Your own submitted bids never appear here."
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
       <RegisterToolbar title="Approval Queue" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search bid, requester or status" />
 
       {error && <p className="text-destructive">{error}</p>}
       {loading ? (
         <p>Loading…</p>
       ) : (
-        <Card>
-          <CardContent className="p-3 md:p-0">
+        <SCard className="overflow-hidden p-3 md:p-0">
             <div className="space-y-3 md:hidden">
               {register.visibleItems.map((b) => (
                 <article key={b.id} className="space-y-3 rounded-lg border p-4">
                   <div className="flex items-start justify-between gap-3">
                     <Link
-                      className="font-medium text-primary"
+                      className={SIGNAL_LINK}
                       href={`/sales/bids/${b.id}`}
                     >
                       {b.bidNumber}
@@ -141,7 +144,7 @@ export default function BidApprovalQueuePage() {
                   {register.visibleItems.map((b) => (
                     <TableRow key={b.id}>
                       <TableCell>
-                        <Link href={`/sales/bids/${b.id}`}>{b.bidNumber}</Link>
+                        <Link className={SIGNAL_LINK} href={`/sales/bids/${b.id}`}>{b.bidNumber}</Link>
                       </TableCell><TableCell>{b.discountPercent}%</TableCell><TableCell>{formatINR(b.grandTotal, numberFormatStyle)}</TableCell><TableCell>
                         <Input
                           placeholder="Optional"
@@ -175,10 +178,10 @@ export default function BidApprovalQueuePage() {
                   {!register.visibleItems.length && <TableRow><TableCell colSpan={5} className="p-0"><EmptyState icon={ClipboardCheck} title="No bids pending approval" tone="positive" /></TableCell></TableRow>}
                 </TableBody></Table>
             </div>
-          </CardContent>
-        </Card>
+        </SCard>
       )}
       <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

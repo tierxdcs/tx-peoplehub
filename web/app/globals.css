@@ -358,23 +358,23 @@
       background shows through below the page's last section.
    2. CSS variables for the handful of inline-styled colors (sparkline stroke,
       dial/donut tracks, faint numerals) that Tailwind classes can't reach. */
-body[data-dashboard-dark] {
+body[data-signal-page] {
   --sd-faint: rgba(0, 0, 0, 0.4);
   --sd-track: rgba(0, 0, 0, 0.08);
   --sd-spark: rgba(0, 0, 0, 0.45);
   --sd-success: #1e9e63;
   --sd-danger: #d9363e;
 }
-.dark body[data-dashboard-dark] {
+.dark body[data-signal-page] {
   --sd-faint: rgba(255, 255, 255, 0.35);
   --sd-track: rgba(255, 255, 255, 0.08);
   --sd-spark: rgba(255, 255, 255, 0.5);
   --sd-success: #3dd68c;
   --sd-danger: #ff5257;
 }
-body[data-dashboard-dark] main {
+body[data-signal-page] main {
   background-color: #f4f4f4;
 }
-.dark body[data-dashboard-dark] main {
+.dark body[data-signal-page] main {
   background-color: #1b1b1b;
 }

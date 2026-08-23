@@ -19,9 +19,12 @@ import {
   uploadLeadAttachment,
 } from '../../../../lib/leads';
 import { prettyEnum } from '../../../../lib/sales';
-import { PageContainer } from '../../../../components/ui/page-container';
-import { PageHeader } from '../../../../components/ui/page-header';
-import { Card, CardContent } from '../../../../components/ui/card';
+import {
+  SCard,
+  SIGNAL_EYEBROW,
+  SignalHeader,
+  SignalPage,
+} from '../../../../components/ui/signal';
 import { Button } from '../../../../components/ui/button';
 import { Badge } from '../../../../components/ui/badge';
 import { StatusBadge } from '../../../../components/ui/status-badge';
@@ -138,50 +141,50 @@ export default function LeadDetailPage() {
 
   if (loading) {
     return (
-      <PageContainer className="max-w-3xl">
-        <Skeleton className="mb-4 h-6 w-24" />
-        <Skeleton className="mb-6 h-9 w-64" />
-        <Skeleton className="h-40 w-full" />
-      </PageContainer>
+      <SignalPage>
+        <div className="max-w-3xl px-5 py-[18px] lg:px-7">
+          <Skeleton className="mb-4 h-6 w-24" />
+          <Skeleton className="mb-6 h-9 w-64" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      </SignalPage>
     );
   }
   if (error || !lead) {
     return (
-      <PageContainer className="max-w-3xl">
-        <button
-          onClick={() => router.push('/sales/leads')}
-          className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" /> Leads
-        </button>
-        <p className="text-destructive">{error ?? 'Lead not found.'}</p>
-      </PageContainer>
+      <SignalPage>
+        <div className="max-w-3xl px-5 py-[18px] lg:px-7">
+          <button
+            onClick={() => router.push('/sales/leads')}
+            className="mb-4 inline-flex items-center gap-1 text-sm text-black/45 hover:text-black/70 dark:text-white/45 dark:hover:text-white/70"
+          >
+            <ArrowLeft className="size-4" /> Leads
+          </button>
+          <p className="text-destructive">{error ?? 'Lead not found.'}</p>
+        </div>
+      </SignalPage>
     );
   }
 
   return (
-    <PageContainer className="max-w-3xl">
-      <button
-        onClick={() => router.push('/sales/leads')}
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Leads
-      </button>
-
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
+        backHref="/sales/leads"
+        backLabel="Leads"
         title={lead.companyName}
+        chip={<StatusBadge value={lead.status} />}
         description={
           <span className="flex flex-wrap items-center gap-2">
             <span>{lead.leadNumber}</span>
             <span>· {lead.contactName}</span>
-            <StatusBadge value={lead.status} />
           </span>
         }
       />
+      <div className="max-w-3xl space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
       {/* Lead summary */}
-      <Card className="mb-6">
-        <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
+      <SCard>
+        <div className="grid gap-4 px-5 py-[18px] sm:grid-cols-2">
           <Detail label="Requirement" value={lead.requirement} full />
           <Detail label="Business unit" node={<BusinessUnitLabel name={lead.businessUnitName} colorHex={lead.businessUnitColorHex} />} />
           <Detail label="Owner" value={lead.ownerName} />
@@ -189,11 +192,11 @@ export default function LeadDetailPage() {
           <Detail label="Source" value={prettyEnum(lead.source)} />
           {lead.email && <Detail label="Email" value={lead.email} />}
           {lead.phone && <Detail label="Phone" value={lead.phone} />}
-        </CardContent>
-      </Card>
+        </div>
+      </SCard>
 
       {/* Attachments */}
-      <div className="mb-3 flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Attachments</h2>
         {canEdit && (
           <Button
@@ -209,8 +212,7 @@ export default function LeadDetailPage() {
         <input ref={fileRef} type="file" className="hidden" onChange={onFilePicked} />
       </div>
 
-      <Card>
-        <CardContent className="p-0">
+      <SCard className="overflow-hidden">
           {attachments.length === 0 ? (
             <EmptyState
               icon={Paperclip}
@@ -259,8 +261,7 @@ export default function LeadDetailPage() {
               ))}
             </ul>
           )}
-        </CardContent>
-      </Card>
+      </SCard>
 
       {preview && (
         <PreviewModal
@@ -269,7 +270,8 @@ export default function LeadDetailPage() {
           onClose={() => setPreview(null)}
         />
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }
 
@@ -286,9 +288,7 @@ function Detail({
 }) {
   return (
     <div className={full ? 'sm:col-span-2' : undefined}>
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
+      <div className={SIGNAL_EYEBROW}>{label}</div>
       <div className="mt-1 text-sm font-medium">{node ?? value}</div>
     </div>
   );

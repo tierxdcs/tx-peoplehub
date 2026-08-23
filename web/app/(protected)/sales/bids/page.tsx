@@ -7,9 +7,14 @@ import { apiFetch } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { formatINR, prettyEnum } from '../../../lib/sales';
 import { useNumberFormat } from '../../../lib/number-format-context';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent } from '../../../components/ui/card';
+import {
+  Callout,
+  SCard,
+  SignalHeader,
+  SignalPage,
+  StatStrip,
+  StatTile,
+} from '../../../components/ui/signal';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
@@ -37,17 +42,6 @@ const STATUSES: BidStatus[] = [
   'EXPIRED',
 ];
 const PAGE_SIZE = 20;
-
-function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <Card className="min-w-[160px] flex-1">
-      <CardContent className="p-4">
-        <div className="text-sm font-medium text-muted-foreground">{label}</div>
-        <div className="mt-1 text-2xl font-semibold">{value}</div>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function BidsPage() {
   const router = useRouter();
@@ -140,14 +134,15 @@ export default function BidsPage() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Bids"
         description="Commercial proposal register — track drafts, approvals, customer submissions and outcomes."
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
       {canSeeAdHocCount && adHocCount && adHocCount.lineItemCount > 0 && (
-        <div className="mb-6 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
+        <Callout className="mt-0">
           <span className="font-semibold">
             {adHocCount.lineItemCount} line item
             {adHocCount.lineItemCount === 1 ? '' : 's'} awaiting product setup
@@ -155,18 +150,18 @@ export default function BidsPage() {
           across {adHocCount.bidCount} bid
           {adHocCount.bidCount === 1 ? '' : 's'}. Ad-hoc lines must be resolved
           to real products before those bids can convert to orders.
-        </div>
+        </Callout>
       )}
 
-      <div className="mb-6 flex flex-wrap gap-3">
-        <StatCard label="Drafts" value={summary.drafts} />
-        <StatCard label="Awaiting Approval" value={summary.awaitingApproval} />
-        <StatCard label="Sent to Customers" value={summary.sent} />
-        <StatCard
+      <StatStrip>
+        <StatTile label="Drafts" value={summary.drafts} />
+        <StatTile label="Awaiting Approval" value={summary.awaitingApproval} />
+        <StatTile label="Sent to Customers" value={summary.sent} />
+        <StatTile
           label="Accepted Value"
           value={formatINR(summary.acceptedValue, numberFormatStyle)}
         />
-      </div>
+      </StatStrip>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -210,8 +205,7 @@ export default function BidsPage() {
         </Select>
       </RegisterToolbar>
 
-      <Card>
-        <CardContent className="p-0">
+      <SCard className="overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -295,8 +289,7 @@ export default function BidsPage() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </SCard>
 
       <RegisterPagination
         page={page}
@@ -304,6 +297,7 @@ export default function BidsPage() {
         onPageChange={setPage}
         disabled={loading}
       />
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

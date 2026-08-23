@@ -16,9 +16,17 @@ import { formatINR, leadDisplayStatus } from '../../../lib/sales';
 import { useNumberFormat } from '../../../lib/number-format-context';
 import { statusVariant } from '../../../lib/status';
 import { todayDateStr } from '../../../lib/date';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent } from '../../../components/ui/card';
+import {
+  SCard,
+  SIGNAL_BTN_GHOST,
+  SIGNAL_BTN_PRIMARY,
+  SIGNAL_DIALOG,
+  SIGNAL_DIALOG_TITLE,
+  SignalHeader,
+  SignalPage,
+  StatStrip,
+  StatTile,
+} from '../../../components/ui/signal';
 import { Badge } from '../../../components/ui/badge';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { BusinessUnitLabel } from '../../../components/ui/business-unit-label';
@@ -50,17 +58,6 @@ import {
 } from '../../../components/ui/table';
 import { useToast } from '../../../components/ui/toaster';
 import { useConfirm } from '../../../components/ui/confirm';
-
-function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <Card className="min-w-[160px] flex-1">
-      <CardContent className="p-4">
-        <div className="text-sm font-medium text-muted-foreground">{label}</div>
-        <div className="mt-1 text-2xl font-semibold">{value}</div>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function LeadsPage() {
   const router = useRouter();
@@ -228,22 +225,23 @@ export default function LeadsPage() {
   }
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Leads"
         description="Enquiry pipeline — from new lead through qualification and conversion."
-        action={<Button onClick={() => setShowNew(true)}>+ New Enquiry</Button>}
+        actions={<Button onClick={() => setShowNew(true)}>+ New Enquiry</Button>}
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
-      <div className="mb-6 flex flex-wrap gap-3">
-        <StatCard label="New Leads" value={summary.newLeads} />
-        <StatCard label="Qualified" value={summary.qualified} />
-        <StatCard label="Proposals" value={summary.proposals} />
-        <StatCard
+      <StatStrip>
+        <StatTile label="New Leads" value={summary.newLeads} />
+        <StatTile label="Qualified" value={summary.qualified} />
+        <StatTile label="Proposals" value={summary.proposals} />
+        <StatTile
           label="Won YTD"
           value={formatINR(summary.wonYtd, numberFormatStyle)}
         />
-      </div>
+      </StatStrip>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -267,8 +265,7 @@ export default function LeadsPage() {
           ))}
         </Select>
       </RegisterToolbar>
-      <Card>
-        <CardContent className="p-0">
+      <SCard className="overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -395,8 +392,7 @@ export default function LeadsPage() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </SCard>
 
       {showNew && (
         <NewLeadForm
@@ -434,7 +430,8 @@ export default function LeadsPage() {
           }}
         />
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }
 
@@ -515,9 +512,11 @@ function NewLeadForm({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className={SIGNAL_DIALOG}>
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit Enquiry' : 'New Enquiry'}</DialogTitle>
+          <DialogTitle className={SIGNAL_DIALOG_TITLE}>
+            {isEdit ? 'Edit Enquiry' : 'New Enquiry'}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label="Company name" required error={errors.companyName}>
@@ -609,12 +608,16 @@ function NewLeadForm({
             <p className="text-sm text-destructive">{errors._form}</p>
           )}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <button type="button" onClick={onClose} className={SIGNAL_BTN_GHOST}>
               Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className={SIGNAL_BTN_PRIMARY}
+            >
               {submitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Lead'}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -685,9 +688,11 @@ function ConvertLeadForm({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className={SIGNAL_DIALOG}>
         <DialogHeader>
-          <DialogTitle>Convert {lead.leadNumber} → Opportunity</DialogTitle>
+          <DialogTitle className={SIGNAL_DIALOG_TITLE}>
+            Convert {lead.leadNumber} → Opportunity
+          </DialogTitle>
           <DialogDescription>
             Converting creates an Opportunity (and a Customer from this lead),
             then takes you to the Opportunity, where you’ll submit the
@@ -756,12 +761,16 @@ function ConvertLeadForm({
             <p className="text-sm text-destructive">{errors._form}</p>
           )}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <button type="button" onClick={onClose} className={SIGNAL_BTN_GHOST}>
               Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className={SIGNAL_BTN_PRIMARY}
+            >
               {submitting ? 'Converting…' : 'Convert to Opportunity'}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>

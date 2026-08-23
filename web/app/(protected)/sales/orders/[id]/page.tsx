@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ReceiptText, UserRound } from 'lucide-react';
+import { ReceiptText, UserRound } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
 import { useIsSalesHead } from '../../../../lib/use-is-sales-head';
@@ -14,13 +14,14 @@ import {
   prettyEnum,
 } from '../../../../lib/sales';
 import { useNumberFormat } from '../../../../lib/number-format-context';
-import { PageContainer } from '../../../../components/ui/page-container';
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '../../../../components/ui/card';
+  SCard,
+  SCardTitle,
+  SIGNAL_EYEBROW,
+  SIGNAL_LINK,
+  SignalHeader,
+  SignalPage,
+} from '../../../../components/ui/signal';
 import { Button } from '../../../../components/ui/button';
 import { Select } from '../../../../components/ui/select';
 import { Skeleton } from '../../../../components/ui/skeleton';
@@ -128,18 +129,22 @@ export default function OrderDetailPage() {
 
   if (loading) {
     return (
-      <PageContainer>
-        <Skeleton className="mb-4 h-6 w-24" />
-        <Skeleton className="mb-6 h-9 w-64" />
-        <Skeleton className="h-48 w-full" />
-      </PageContainer>
+      <SignalPage>
+        <div className="px-5 py-[18px] lg:px-7">
+          <Skeleton className="mb-4 h-6 w-24" />
+          <Skeleton className="mb-6 h-9 w-64" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      </SignalPage>
     );
   }
   if (error || !order) {
     return (
-      <PageContainer>
-        <p className="text-destructive">{error ?? 'Order not found'}</p>
-      </PageContainer>
+      <SignalPage>
+        <div className="px-5 py-[18px] lg:px-7">
+          <p className="text-destructive">{error ?? 'Order not found'}</p>
+        </div>
+      </SignalPage>
     );
   }
 
@@ -153,65 +158,53 @@ export default function OrderDetailPage() {
     order.status === 'CONFIRMED' && !latestExecuted;
 
   return (
-    <PageContainer>
-      <Link
-        href="/sales/orders"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Orders
-      </Link>
-
-      {/* Header row: number + status */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {order.orderNumber}
-        </h1>
-        {order.orderType === 'INTERNAL' && (
-          <Badge variant="muted">Internal</Badge>
-        )}
-        <StatusBadge value={order.status} />
-        <BusinessUnitLabel
-          name={order.businessUnitName}
-          colorHex={order.businessUnitColorHex}
-        />
-      </div>
-
-      {/* Live flow indicator — stage derived from the order's status. */}
-      <ProcessFlow
-        title="Order progress"
-        className="mb-4"
-        {...orderFlow(order.status)}
+    <SignalPage>
+      <SignalHeader
+        backHref="/sales/orders"
+        backLabel="Orders"
+        title={order.orderNumber}
+        chip={
+          <>
+            {order.orderType === 'INTERNAL' && (
+              <Badge variant="muted">Internal</Badge>
+            )}
+            <StatusBadge value={order.status} />
+            <BusinessUnitLabel
+              name={order.businessUnitName}
+              colorHex={order.businessUnitColorHex}
+            />
+          </>
+        }
       />
 
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+
+      {/* Live flow indicator — stage derived from the order's status. */}
+      <ProcessFlow title="Order progress" {...orderFlow(order.status)} />
+
       {/* Metadata card: Total (prominent) + Linked bid (link) */}
-      <Card className="mb-4">
-        <CardContent className="grid gap-6 p-6 sm:grid-cols-3">
+      <SCard className="px-5 py-[18px]">
+        <div className="grid gap-6 sm:grid-cols-3">
           <div>
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Total
-            </div>
-            <div className="mt-1 text-2xl font-semibold">
+            <div className={SIGNAL_EYEBROW}>Total</div>
+            <div className="mt-1.5 text-2xl font-bold tabular-nums tracking-[-1px]">
               {formatINR(order.totalAmount, numberFormatStyle)}
             </div>
           </div>
           <div>
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Owner
-            </div>
-            <div className="mt-1 flex items-center gap-2 text-sm font-medium">
-              <UserRound className="size-4 text-muted-foreground" />
+            <div className={SIGNAL_EYEBROW}>Owner</div>
+            <div className="mt-1.5 flex items-center gap-2 text-sm font-medium">
+              <UserRound className="size-4 text-black/45 dark:text-white/40" />
               {order.ownerName}
             </div>
           </div>
           <div>
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Linked bid
-            </div>
-            <div className="mt-1 text-sm font-medium">
+            <div className={SIGNAL_EYEBROW}>Linked bid</div>
+            <div className="mt-1.5 text-sm font-medium">
               {order.bidId ? (
                 <Link
                   href={`/sales/bids/${order.bidId}`}
-                  className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+                  className={`inline-flex items-center gap-1 ${SIGNAL_LINK}`}
                 >
                   <ReceiptText className="size-4" /> View bid
                 </Link>
@@ -220,15 +213,14 @@ export default function OrderDetailPage() {
               )}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </SCard>
 
       {/* Line items — full width (no line-level discount on orders) */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>Line items</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
+      <SCard className="overflow-hidden">
+        <div className="px-5 pb-3.5 pt-[18px]">
+          <SCardTitle title="Line items" />
+        </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -270,15 +262,12 @@ export default function OrderDetailPage() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </SCard>
 
       {/* Update status — small form card, not full width */}
-      <Card className="max-w-[400px]">
-        <CardHeader>
-          <CardTitle>Update status</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
+      <SCard className="max-w-[400px] px-5 py-[18px]">
+        <SCardTitle title="Update status" />
+        <div className="mt-4">
           {nextOptions.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               This order is in a terminal state — no further transitions.
@@ -313,8 +302,8 @@ export default function OrderDetailPage() {
               )}
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </SCard>
 
       <ConfirmationSheetsSection
         orderId={order.id}
@@ -333,6 +322,7 @@ export default function OrderDetailPage() {
 
       <PlmSection orderId={order.id} />
       <CustomerProgressLinks orderId={order.id} />
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

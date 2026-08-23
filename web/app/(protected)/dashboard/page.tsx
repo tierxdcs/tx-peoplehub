@@ -84,9 +84,9 @@ export default function DashboardPage() {
   // theme-matched background and (b) provides the CSS variables for the few
   // inline-styled chart colors (see globals.css).
   useEffect(() => {
-    document.body.dataset.dashboardDark = '';
+    document.body.dataset.signalPage = '';
     return () => {
-      delete document.body.dataset.dashboardDark;
+      delete document.body.dataset.signalPage;
     };
   }, []);
 

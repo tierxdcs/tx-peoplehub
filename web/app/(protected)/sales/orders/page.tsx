@@ -6,9 +6,13 @@ import { Order, OrderStatus, OrderType, PaginatedResult } from '../../../lib/typ
 import { apiFetch } from '../../../lib/api';
 import { formatINR, prettyEnum } from '../../../lib/sales';
 import { useNumberFormat } from '../../../lib/number-format-context';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent } from '../../../components/ui/card';
+import {
+  SCard,
+  SignalHeader,
+  SignalPage,
+  StatStrip,
+  StatTile,
+} from '../../../components/ui/signal';
 import { Badge } from '../../../components/ui/badge';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { Button } from '../../../components/ui/button';
@@ -37,17 +41,6 @@ const STATUSES: OrderStatus[] = [
   'CANCELLED',
 ];
 const PAGE_SIZE = 20;
-
-function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <Card className="min-w-[160px] flex-1">
-      <CardContent className="p-4">
-        <div className="text-sm font-medium text-muted-foreground">{label}</div>
-        <div className="mt-1 text-2xl font-semibold">{value}</div>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function OrdersPage() {
   const router = useRouter();
@@ -134,11 +127,11 @@ export default function OrdersPage() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Orders"
         description="Sales order register — follow confirmed work through production, shipment and delivery."
-        action={
+        actions={
           canManage ? (
             <Button onClick={() => router.push('/sales/orders/new')}>
               New Internal Order
@@ -146,16 +139,17 @@ export default function OrdersPage() {
           ) : undefined
         }
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
-      <div className="mb-6 flex flex-wrap gap-3">
-        <StatCard label="Confirmed" value={summary.confirmed} />
-        <StatCard label="In Production" value={summary.inProduction} />
-        <StatCard label="Ready / Shipping" value={summary.readyOrShipping} />
-        <StatCard
+      <StatStrip>
+        <StatTile label="Confirmed" value={summary.confirmed} />
+        <StatTile label="In Production" value={summary.inProduction} />
+        <StatTile label="Ready / Shipping" value={summary.readyOrShipping} />
+        <StatTile
           label="Booked Value"
           value={formatINR(summary.bookedValue, numberFormatStyle)}
         />
-      </div>
+      </StatStrip>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -212,8 +206,7 @@ export default function OrdersPage() {
         </Select>
       </RegisterToolbar>
 
-      <Card>
-        <CardContent className="p-0">
+      <SCard className="overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -308,8 +301,7 @@ export default function OrdersPage() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </SCard>
 
       <RegisterPagination
         page={page}
@@ -317,6 +309,7 @@ export default function OrdersPage() {
         onPageChange={setPage}
         disabled={loading}
       />
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

@@ -10,17 +10,29 @@ import {
   Product,
 } from '../../../../lib/types';
 import { formatINR } from '../../../../lib/sales';
+import { adHocBundleWarning } from '../../../../lib/ad-hoc-quality';
 import { useNumberFormat } from '../../../../lib/number-format-context';
 import { orderProductsForOpportunity } from '../../../../lib/business-unit-rules';
 import { todayDateStr } from '../../../../lib/date';
 import { Button } from '../../../../components/ui/button';
+import { Input } from '../../../../components/ui/input';
+import { Select } from '../../../../components/ui/select';
+import { Field } from '../../../../components/ui/field';
+import { Textarea } from '../../../../components/ui/textarea';
 import { useConfirm } from '../../../../components/ui/confirm';
-
-const fieldStyle: React.CSSProperties = {
-  width: '100%',
-  padding: 8,
-  boxSizing: 'border-box',
-};
+import {
+  Callout,
+  SCard,
+  SCardTitle,
+  SIGNAL_BTN_GHOST,
+  SIGNAL_BTN_PRIMARY,
+  SIGNAL_TABLE_HEAD,
+  SignalChip,
+  SignalHeader,
+  SignalPage,
+  SummaryRow,
+} from '../../../../components/ui/signal';
+import { cn } from '../../../../lib/utils';
 
 interface LineDraft {
   productId: string;
@@ -119,6 +131,10 @@ function computeTotals(
   const taxable = subtotal - discountAmount;
   return { subtotal, discountAmount, taxable };
 }
+
+/** Shared column template so the line-items header and body rows align. */
+const LINE_GRID =
+  'grid grid-cols-[26px_minmax(210px,1.6fr)_120px_84px_84px_84px_110px_36px] items-center gap-2.5 px-5';
 
 export default function NewBidPage() {
   const router = useRouter();
@@ -286,449 +302,516 @@ export default function NewBidPage() {
     }
   }
 
-  if (loading) return <p>Loading…</p>;
+  if (loading)
+    return (
+      <SignalPage>
+        <SignalHeader
+          backHref="/sales/bids"
+          backLabel="Bids"
+          title="New Bid"
+          chip={<SignalChip>Draft</SignalChip>}
+        />
+        <div className="px-5 py-[18px] lg:px-7">
+          <p>Loading…</p>
+        </div>
+      </SignalPage>
+    );
 
   return (
-    <div>
-      <h1>New Bid</h1>
-      <form onSubmit={handleSubmit} style={{ maxWidth: 720 }}>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Opportunity
-          </label>
-          <select
-            value={opportunityId}
-            onChange={(e) => setOpportunityId(e.target.value)}
-            required
-            style={fieldStyle}
-          >
-            <option value="">Select an opportunity…</option>
-            {opportunities.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-          {selectedOpp && !customerId && (
-            <p className="text-sm text-destructive">
-              This opportunity has no linked customer.
-            </p>
-          )}
-        </div>
+    <SignalPage>
+      <SignalHeader
+        backHref="/sales/bids"
+        backLabel="Bids"
+        title="New Bid"
+        chip={<SignalChip>Draft</SignalChip>}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className={SIGNAL_BTN_GHOST}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="new-bid-form"
+              disabled={submitting}
+              className={SIGNAL_BTN_PRIMARY}
+            >
+              {submitting ? 'Creating…' : 'Create Bid (Draft)'}
+            </button>
+          </>
+        }
+      />
 
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Valid until
-          </label>
-          <input
-            type="date"
-            value={validUntil}
-            // Forward-looking: a bid's validity can't expire in the past.
-            min={todayDateStr()}
-            onChange={(e) => setValidUntil(e.target.value)}
-            required
-            style={fieldStyle}
-          />
-        </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Tender reference number (optional)
-          </label>
-          <input
-            value={tenderReferenceNumber}
-            onChange={(e) => setTenderReferenceNumber(e.target.value)}
-            style={fieldStyle}
-          />
-        </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Quotation subject (optional)
-          </label>
-          <input
-            value={quotationSubject}
-            onChange={(e) => setQuotationSubject(e.target.value)}
-            placeholder="e.g. Submission of quotation for supply of 24U & 42U 800x800 racks, along with MDU"
-            style={fieldStyle}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Used in both the Subject line and the opening paragraph of the
-            proposal.
-          </p>
-        </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Technical specification
-          </label>
-          <textarea
-            value={technicalSpecification}
-            onChange={(e) => setTechnicalSpecification(e.target.value)}
-            style={{ ...fieldStyle, minHeight: 80 }}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Internal notes only — not printed on the proposal (the per-line
-            product description carries the technical detail).
-          </p>
-        </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Reference link (metadata only — no file upload in this phase)
-          </label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              placeholder="File name"
-              value={attachmentName}
-              onChange={(e) => setAttachmentName(e.target.value)}
-              style={fieldStyle}
-            />
-            <input
-              placeholder="https://…"
-              value={attachmentUrl}
-              onChange={(e) => setAttachmentUrl(e.target.value)}
-              style={fieldStyle}
-            />
-          </div>
-        </div>
-
-        <h3>Line items</h3>
-        <table
-          style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}
-        >
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid hsl(var(--border))' }}>
-              <th>Product</th>
-              <th>Unit price</th>
-              <th>Qty</th>
-              <th>Margin %</th>
-              <th>Line disc %</th>
-              <th>Line total</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((l, i) => {
-              const product = products.find((p) => p.id === l.productId);
-              const unit = l.adHoc
-                ? Number(l.adHocUnitPrice) || 0
-                : product
-                  ? Number(product.unitPrice)
-                  : 0;
-              const qty = Number(l.quantity) || 0;
-              const disc = Number(l.lineDiscountPercent) || 0;
-              const lineMargin = Number(l.marginPercent) || 0;
-              const quotedUnit = effectiveUnitPrice(unit, lineMargin, marginNum);
-              const lineTotal = quotedUnit * qty * (1 - disc / 100);
-              const hasValue = l.adHoc ? l.adHocUnitPrice !== '' : !!product;
-              return (
-                <tr key={i} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
-                  <td>
-                    <select
-                      value={l.adHoc ? AD_HOC_OPTION : l.productId}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (v === AD_HOC_OPTION) {
-                          updateLine(i, { adHoc: true, productId: '' });
-                        } else {
-                          updateLine(i, {
-                            adHoc: false,
-                            productId: v,
-                            adHocProductName: '',
-                            adHocDescription: '',
-                            adHocUnitPrice: '',
-                          });
-                        }
-                      }}
-                      style={{ padding: 4, minWidth: 180 }}
-                    >
-                      <option value="">Select…</option>
-                      <option value={AD_HOC_OPTION}>
-                        ➕ Enter a new product (ad-hoc)…
-                      </option>
-                      {orderProductsForOpportunity(
-                        products,
-                        selectedOpp?.businessUnitId,
-                      ).map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.sku})
-                            {p.businessUnitName
-                              ? ` · ${p.businessUnitName}`
-                              : ''}
-                          </option>
-                        ))}
-                    </select>
-                    {l.adHoc && (
-                      <div style={{ marginTop: 6, display: 'grid', gap: 4 }}>
-                        <input
-                          placeholder="New product name"
-                          value={l.adHocProductName}
-                          onChange={(e) =>
-                            updateLine(i, { adHocProductName: e.target.value })
-                          }
-                          style={{ padding: 4, minWidth: 180 }}
-                        />
-                        <input
-                          placeholder="Description (optional)"
-                          value={l.adHocDescription}
-                          onChange={(e) =>
-                            updateLine(i, { adHocDescription: e.target.value })
-                          }
-                          style={{ padding: 4, minWidth: 180 }}
-                        />
-                        <span className="text-xs text-warning">
-                          Needs product setup before order conversion.
-                        </span>
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    {l.adHoc ? (
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        placeholder="0.00"
-                        value={l.adHocUnitPrice}
-                        onChange={(e) =>
-                          updateLine(i, { adHocUnitPrice: e.target.value })
-                        }
-                        style={{ padding: 4, width: 100 }}
-                      />
-                    ) : product ? (
-                      formatINR(product.unitPrice, numberFormatStyle)
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      value={l.quantity}
-                      onChange={(e) =>
-                        updateLine(i, { quantity: e.target.value })
-                      }
-                      style={{ padding: 4, width: 80 }}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      max={500}
-                      step="0.01"
-                      value={l.marginPercent}
-                      onChange={(e) =>
-                        updateLine(i, { marginPercent: e.target.value })
-                      }
-                      placeholder="0"
-                      title="Sales margin (markup) % — internal, not shown to the customer"
-                      style={{ padding: 4, width: 70 }}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={l.lineDiscountPercent}
-                      onChange={(e) =>
-                        updateLine(i, { lineDiscountPercent: e.target.value })
-                      }
-                      style={{ padding: 4, width: 70 }}
-                    />
-                  </td>
-                  <td>
-                    {hasValue && qty
-                      ? formatINR(lineTotal, numberFormatStyle)
-                      : '—'}
-                  </td>
-                  <td>
-                    {lines.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() =>
-                          setLines((ls) => ls.filter((_, j) => j !== i))
-                        }
-                      >
-                        ✕
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="mb-4"
-          onClick={() => setLines((ls) => [...ls, blankLine()])}
-        >
-          + Add line
-        </Button>
-
-        <div style={{ marginBottom: 12, maxWidth: 300 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Bid-level margin %
-          </label>
-          <input
-            type="number"
-            min={0}
-            max={500}
-            step="0.01"
-            value={marginPercent}
-            onChange={(e) => setMarginPercent(e.target.value)}
-            style={fieldStyle}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Your markup on top of each line’s margin. Internal only — it’s built
-            into the quoted prices and never shown on the proposal.
-          </p>
-        </div>
-
-        <div style={{ marginBottom: 12, maxWidth: 300 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>
-            Bid-level discount %
-          </label>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={discountPercent}
-            onChange={(e) => setDiscountPercent(e.target.value)}
-            style={fieldStyle}
-          />
-        </div>
-
-        <section className="mb-4 max-w-md rounded-md border p-4">
-          <h3 className="mb-1 text-base font-semibold">AMC Charges</h3>
-          <p className="mb-3 text-xs text-muted-foreground">
-            Enter each year as a direct amount, or switch to % to charge a
-            percentage of the taxable value ({formatINR(totals.taxable, numberFormatStyle)}).
-          </p>
-          <div className="space-y-3">
-            {AMC_YEARS.map(({ yearNumber, label }) => {
-              const input = amcInputs[yearNumber];
-              const isPercent = input.mode === 'percent';
-              return (
-                <div
-                  key={yearNumber}
-                  className="grid gap-1 text-sm sm:grid-cols-[1fr_110px_170px] sm:items-center"
+      <form
+        id="new-bid-form"
+        onSubmit={handleSubmit}
+        className="grid items-start gap-4 px-5 pb-7 pt-[18px] lg:px-7 xl:grid-cols-[1fr_316px]"
+      >
+        {/* ── Left column ─────────────────────────────────────────── */}
+        <div className="flex min-w-0 flex-col gap-3.5">
+          {/* Bid details */}
+          <SCard className="px-5 py-[18px]">
+            <SCardTitle title="Bid Details" />
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <Field
+                label="Opportunity"
+                htmlFor="opportunity"
+                required
+                error={
+                  selectedOpp && !customerId
+                    ? 'This opportunity has no linked customer.'
+                    : undefined
+                }
+              >
+                <Select
+                  id="opportunity"
+                  value={opportunityId}
+                  onChange={(e) => setOpportunityId(e.target.value)}
+                  required
                 >
-                  <span>{label}</span>
-                  <select
-                    value={input.mode}
-                    onChange={(event) =>
-                      setAmcInputs((current) => ({
-                        ...current,
-                        [yearNumber]: {
-                          ...current[yearNumber],
-                          mode: event.target.value as AmcMode,
-                        },
-                      }))
-                    }
-                    aria-label={`${label} — entry mode`}
-                    style={{ padding: 4 }}
+                  <option value="">Select an opportunity…</option>
+                  {opportunities.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Valid until" htmlFor="validUntil" required>
+                <Input
+                  id="validUntil"
+                  type="date"
+                  value={validUntil}
+                  // Forward-looking: a bid's validity can't expire in the past.
+                  min={todayDateStr()}
+                  onChange={(e) => setValidUntil(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field
+                label="Tender reference number (optional)"
+                htmlFor="tenderRef"
+              >
+                <Input
+                  id="tenderRef"
+                  value={tenderReferenceNumber}
+                  onChange={(e) => setTenderReferenceNumber(e.target.value)}
+                />
+              </Field>
+              <Field
+                label="Quotation subject (optional)"
+                htmlFor="quotationSubject"
+                className="md:col-span-2"
+                hint="Used in both the Subject line and the opening paragraph of the proposal."
+              >
+                <Input
+                  id="quotationSubject"
+                  value={quotationSubject}
+                  onChange={(e) => setQuotationSubject(e.target.value)}
+                  placeholder="e.g. Submission of quotation for supply of 24U & 42U 800x800 racks, along with MDU"
+                />
+              </Field>
+              <Field
+                label="Technical specification"
+                htmlFor="technicalSpecification"
+                className="md:col-span-2"
+                hint="Internal notes only — not printed on the proposal (the per-line product description carries the technical detail)."
+              >
+                <Textarea
+                  id="technicalSpecification"
+                  value={technicalSpecification}
+                  onChange={(e) => setTechnicalSpecification(e.target.value)}
+                />
+              </Field>
+              <Field
+                label="Reference link (metadata only — no file upload in this phase)"
+                className="md:col-span-2"
+              >
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    placeholder="File name"
+                    aria-label="Reference link file name"
+                    value={attachmentName}
+                    onChange={(e) => setAttachmentName(e.target.value)}
+                  />
+                  <Input
+                    placeholder="https://…"
+                    aria-label="Reference link URL"
+                    value={attachmentUrl}
+                    onChange={(e) => setAttachmentUrl(e.target.value)}
+                  />
+                </div>
+              </Field>
+            </div>
+          </SCard>
+
+          {/* Line items — aligned table */}
+          <SCard className="overflow-hidden">
+            <div className="flex flex-wrap items-center gap-2.5 px-5 pb-3.5 pt-[18px]">
+              <span className="text-[14px] font-bold">Line items</span>
+              <span className="ml-auto text-[11.5px] text-black/40 dark:text-white/35">
+                Amounts in ₹
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="min-w-[860px]">
+                <div className={cn(LINE_GRID, 'py-[9px]', SIGNAL_TABLE_HEAD)}>
+                  <span>#</span>
+                  <span>Product</span>
+                  <span className="text-right">Unit price</span>
+                  <span className="text-right">Qty</span>
+                  <span className="text-right">Margin %</span>
+                  <span className="text-right">Line disc %</span>
+                  <span className="text-right">Line total</span>
+                  <span />
+                </div>
+                {lines.map((l, i) => {
+                  const product = products.find((p) => p.id === l.productId);
+                  const unit = l.adHoc
+                    ? Number(l.adHocUnitPrice) || 0
+                    : product
+                      ? Number(product.unitPrice)
+                      : 0;
+                  const qty = Number(l.quantity) || 0;
+                  const disc = Number(l.lineDiscountPercent) || 0;
+                  const lineMargin = Number(l.marginPercent) || 0;
+                  const quotedUnit = effectiveUnitPrice(
+                    unit,
+                    lineMargin,
+                    marginNum,
+                  );
+                  const lineTotal = quotedUnit * qty * (1 - disc / 100);
+                  const hasValue = l.adHoc
+                    ? l.adHocUnitPrice !== ''
+                    : !!product;
+                  return (
+                    <div
+                      key={i}
+                      className={cn(
+                        i > 0 &&
+                          'border-t border-black/[.06] dark:border-white/[.06]',
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          LINE_GRID,
+                          'pt-[11px]',
+                          l.adHoc ? 'pb-1' : 'pb-3',
+                        )}
+                      >
+                        <span className="text-[11.5px] font-semibold tabular-nums text-black/40 dark:text-white/35">
+                          {String(i + 1).padStart(2, '0')}
+                        </span>
+                        <Select
+                          aria-label="Product"
+                          value={l.adHoc ? AD_HOC_OPTION : l.productId}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === AD_HOC_OPTION) {
+                              updateLine(i, { adHoc: true, productId: '' });
+                            } else {
+                              updateLine(i, {
+                                adHoc: false,
+                                productId: v,
+                                adHocProductName: '',
+                                adHocDescription: '',
+                                adHocUnitPrice: '',
+                              });
+                            }
+                          }}
+                        >
+                          <option value="">Select…</option>
+                          <option value={AD_HOC_OPTION}>
+                            ➕ Enter a new product (ad-hoc)…
+                          </option>
+                          {orderProductsForOpportunity(
+                            products,
+                            selectedOpp?.businessUnitId,
+                          ).map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} ({p.sku})
+                              {p.businessUnitName
+                                ? ` · ${p.businessUnitName}`
+                                : ''}
+                            </option>
+                          ))}
+                        </Select>
+                        {l.adHoc ? (
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            placeholder="0.00"
+                            className="text-right tabular-nums"
+                            value={l.adHocUnitPrice}
+                            onChange={(e) =>
+                              updateLine(i, { adHocUnitPrice: e.target.value })
+                            }
+                          />
+                        ) : (
+                          <div className="text-right text-[12.5px] tabular-nums text-black/65 dark:text-white/60">
+                            {product
+                              ? formatINR(product.unitPrice, numberFormatStyle)
+                              : '—'}
+                          </div>
+                        )}
+                        <Input
+                          type="number"
+                          min={0}
+                          className="text-right tabular-nums"
+                          value={l.quantity}
+                          onChange={(e) =>
+                            updateLine(i, { quantity: e.target.value })
+                          }
+                        />
+                        <Input
+                          type="number"
+                          min={0}
+                          max={500}
+                          step="0.01"
+                          className="text-right tabular-nums"
+                          value={l.marginPercent}
+                          onChange={(e) =>
+                            updateLine(i, { marginPercent: e.target.value })
+                          }
+                          placeholder="0"
+                          title="Sales margin (markup) % — internal, not shown to the customer"
+                        />
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          className="text-right tabular-nums"
+                          value={l.lineDiscountPercent}
+                          onChange={(e) =>
+                            updateLine(i, {
+                              lineDiscountPercent: e.target.value,
+                            })
+                          }
+                        />
+                        <div className="text-right text-[13px] font-bold tabular-nums">
+                          {hasValue && qty
+                            ? formatINR(lineTotal, numberFormatStyle)
+                            : '—'}
+                        </div>
+                        <div className="justify-self-center">
+                          {lines.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() =>
+                                setLines((ls) => ls.filter((_, j) => j !== i))
+                              }
+                            >
+                              ✕
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      {l.adHoc && (
+                        <div className="grid gap-2 px-5 pb-3 pl-[56px] md:grid-cols-2">
+                          <Input
+                            placeholder="New product name"
+                            value={l.adHocProductName}
+                            onChange={(e) =>
+                              updateLine(i, {
+                                adHocProductName: e.target.value,
+                              })
+                            }
+                          />
+                          <Input
+                            placeholder="Description (optional)"
+                            value={l.adHocDescription}
+                            onChange={(e) =>
+                              updateLine(i, {
+                                adHocDescription: e.target.value,
+                              })
+                            }
+                          />
+                          <span className="text-xs text-warning md:col-span-2">
+                            Needs product setup before order conversion.
+                          </span>
+                          {adHocBundleWarning(l.adHocProductName) && (
+                            <Callout className="mt-0 md:col-span-2">
+                              {adHocBundleWarning(l.adHocProductName)}
+                            </Callout>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2.5 border-t border-black/10 bg-black/[.02] px-5 py-3 dark:border-white/[.08] dark:bg-white/[.02]">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setLines((ls) => [...ls, blankLine()])}
+              >
+                + Add line
+              </Button>
+            </div>
+          </SCard>
+
+          {/* Bid-level pricing */}
+          <SCard className="px-5 py-[18px]">
+            <SCardTitle title="Pricing" />
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <Field
+                label="Bid-level margin %"
+                htmlFor="bidMargin"
+                hint="Your markup on top of each line’s margin. Internal only — it’s built into the quoted prices and never shown on the proposal."
+              >
+                <Input
+                  id="bidMargin"
+                  type="number"
+                  min={0}
+                  max={500}
+                  step="0.01"
+                  value={marginPercent}
+                  onChange={(e) => setMarginPercent(e.target.value)}
+                />
+              </Field>
+              <Field label="Bid-level discount %" htmlFor="bidDiscount">
+                <Input
+                  id="bidDiscount"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={discountPercent}
+                  onChange={(e) => setDiscountPercent(e.target.value)}
+                />
+              </Field>
+            </div>
+          </SCard>
+
+          {/* AMC charges */}
+          <SCard className="px-5 py-[18px]">
+            <SCardTitle title="AMC Charges" />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Enter each year as a direct amount, or switch to % to charge a
+              percentage of the taxable value (
+              {formatINR(totals.taxable, numberFormatStyle)}).
+            </p>
+            <div className="mt-4 space-y-3">
+              {AMC_YEARS.map(({ yearNumber, label }) => {
+                const input = amcInputs[yearNumber];
+                const isPercent = input.mode === 'percent';
+                return (
+                  <div
+                    key={yearNumber}
+                    className="grid gap-1 text-sm sm:grid-cols-[1fr_110px_170px] sm:items-center"
                   >
-                    <option value="amount">Amount (₹)</option>
-                    <option value="percent">Percent (%)</option>
-                  </select>
-                  <div>
-                    <input
-                      type="number"
-                      min={0}
-                      max={isPercent ? 100 : undefined}
-                      step="0.01"
-                      inputMode="decimal"
-                      value={input.value}
+                    <span>{label}</span>
+                    <Select
+                      value={input.mode}
                       onChange={(event) =>
                         setAmcInputs((current) => ({
                           ...current,
                           [yearNumber]: {
                             ...current[yearNumber],
-                            value: event.target.value,
+                            mode: event.target.value as AmcMode,
                           },
                         }))
                       }
-                      placeholder={isPercent ? '0' : '0.00'}
-                      aria-label={`${label} — ${isPercent ? 'percent' : 'amount'}`}
-                      style={fieldStyle}
-                    />
-                    {isPercent && amcResolved[yearNumber] > 0 && (
-                      <span className="mt-0.5 block text-xs text-muted-foreground">
-                        = {formatINR(amcResolved[yearNumber], numberFormatStyle)}
-                      </span>
-                    )}
+                      aria-label={`${label} — entry mode`}
+                    >
+                      <option value="amount">Amount (₹)</option>
+                      <option value="percent">Percent (%)</option>
+                    </Select>
+                    <div>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={isPercent ? 100 : undefined}
+                        step="0.01"
+                        inputMode="decimal"
+                        className="text-right tabular-nums"
+                        value={input.value}
+                        onChange={(event) =>
+                          setAmcInputs((current) => ({
+                            ...current,
+                            [yearNumber]: {
+                              ...current[yearNumber],
+                              value: event.target.value,
+                            },
+                          }))
+                        }
+                        placeholder={isPercent ? '0' : '0.00'}
+                        aria-label={`${label} — ${isPercent ? 'percent' : 'amount'}`}
+                      />
+                      {isPercent && amcResolved[yearNumber] > 0 && (
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          = {formatINR(amcResolved[yearNumber], numberFormatStyle)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-3 flex justify-between border-t pt-3 font-semibold">
-            <span>AMC Total</span>
-            <span>{formatINR(amcTotal, numberFormatStyle)}</span>
-          </div>
-        </section>
-
-        {/* Live totals preview (tax computed server-side, shown on detail). */}
-        <div
-          style={{
-            border: '1px solid hsl(var(--border))',
-            borderRadius: 6,
-            padding: 12,
-            maxWidth: 300,
-            marginBottom: 12,
-          }}
-        >
-          <div>
-            Subtotal: {formatINR(totals.subtotal, numberFormatStyle)}
-          </div>
-          <div>
-            Discount: −{formatINR(totals.discountAmount, numberFormatStyle)}
-          </div>
-          <div style={{ fontWeight: 'bold' }}>
-            Taxable: {formatINR(totals.taxable, numberFormatStyle)}
-          </div>
-          <div>
-            AMC Total (untaxed): {formatINR(amcTotal, numberFormatStyle)}
-          </div>
-          <div className="mt-1 flex justify-between border-t pt-1 font-bold">
-            <span>Grand Total before GST</span>
-            <span>
-              {formatINR(totals.taxable + amcTotal, numberFormatStyle)}
-            </span>
-          </div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            Tax is applied server-side from the active GST config; the final
-            total appears on the bid after saving.
-          </div>
+                );
+              })}
+            </div>
+            <div className="mt-3 flex justify-between border-t border-black/10 pt-3 font-semibold dark:border-white/[.08]">
+              <span>AMC Total</span>
+              <span className="tabular-nums">
+                {formatINR(amcTotal, numberFormatStyle)}
+              </span>
+            </div>
+          </SCard>
         </div>
 
-        {needsApproval && (
-          <p className="text-warning">
-            ⚠ This bid&apos;s discount exceeds 10% — it will require manager
-            approval before it can be sent.
-          </p>
-        )}
+        {/* ── Sticky summary rail ─────────────────────────────────── */}
+        <div className="flex flex-col gap-3.5 xl:sticky xl:top-[4.5rem]">
+          {/* Live totals preview (tax computed server-side, shown on detail). */}
+          <SCard className="px-5 py-[18px]">
+            <div className="text-[14px] font-bold">Bid Summary</div>
+            <div className="mt-3.5 flex flex-col">
+              <SummaryRow
+                label="Subtotal"
+                value={formatINR(totals.subtotal, numberFormatStyle)}
+              />
+              <SummaryRow
+                label="Discount"
+                value={`−${formatINR(totals.discountAmount, numberFormatStyle)}`}
+              />
+              <SummaryRow
+                label="Taxable"
+                value={formatINR(totals.taxable, numberFormatStyle)}
+              />
+              <SummaryRow
+                label="AMC Total (untaxed)"
+                value={formatINR(amcTotal, numberFormatStyle)}
+              />
+              <div className="flex items-baseline justify-between gap-3 pt-3">
+                <span className="text-[12.5px] font-semibold">
+                  Grand Total before GST
+                </span>
+                <span className="text-2xl font-bold tabular-nums tracking-[-1px]">
+                  {formatINR(totals.taxable + amcTotal, numberFormatStyle)}
+                </span>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Tax is applied server-side from the active GST config; the
+                final total appears on the bid after saving.
+              </div>
+            </div>
+          </SCard>
 
-        {error && <p className="text-destructive">{error}</p>}
+          {needsApproval && (
+            <Callout className="mt-0">
+              This bid&apos;s discount exceeds 10% — it will require manager
+              approval before it can be sent.
+            </Callout>
+          )}
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button type="submit" disabled={submitting}>
-            {submitting ? 'Creating…' : 'Create Bid (Draft)'}
-          </Button>
-          <Button type="button" variant="outline" onClick={() => router.back()}>
-            Cancel
-          </Button>
+          {error && <p className="text-destructive">{error}</p>}
         </div>
       </form>
-    </div>
+    </SignalPage>
   );
 }

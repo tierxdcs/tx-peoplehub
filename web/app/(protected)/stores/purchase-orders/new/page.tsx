@@ -1,9 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import {
   createPurchaseOrder,
@@ -25,6 +24,18 @@ import { OverrideTag } from '../../../../components/ui/override-tag';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { useToast } from '../../../../components/ui/toaster';
 import { ItemPicker } from '../../../../components/ui/item-picker';
+import {
+  Callout,
+  RouteStep,
+  SCard,
+  SCardTitle,
+  SIGNAL_BTN_GHOST,
+  SIGNAL_BTN_PRIMARY,
+  SignalChip,
+  SignalHeader,
+  SignalPage,
+  SummaryRow,
+} from '../../../../components/ui/signal';
 import { cn } from '../../../../lib/utils';
 
 type PartnerType = 'SUPPLIER' | 'VENDOR' | 'AD_HOC';
@@ -107,15 +118,6 @@ export default function NewPurchaseOrderPage() {
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
-
-  // Shares the dashboard's Signal-page plumbing: paints the shell's stretched
-  // <main> column in the page's theme-matched background (see globals.css).
-  useEffect(() => {
-    document.body.dataset.dashboardDark = '';
-    return () => {
-      delete document.body.dataset.dashboardDark;
-    };
-  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -272,40 +274,36 @@ export default function NewPurchaseOrderPage() {
   }
 
   return (
-    <div className="-m-4 min-h-[calc(100dvh-3.5rem)] bg-[#F4F4F4] text-[#1B1B1B] md:-m-6 dark:bg-[#1B1B1B] dark:text-[#EDEDED]">
-      {/* Header action bar. */}
-      <div className="flex flex-wrap items-center gap-3.5 border-b border-black/10 bg-[#ECECEC] px-5 py-3.5 lg:px-7 dark:border-white/[.07] dark:bg-[#1F1F1F]">
-        <Link
-          href="/stores/purchase-orders"
-          className="inline-flex items-center gap-1 text-[12px] font-medium text-black/45 hover:text-black/70 dark:text-white/45 dark:hover:text-white/70"
-        >
-          <ArrowLeft className="size-3.5" /> Purchase Orders
-        </Link>
-        <span className="hidden h-4 w-px bg-black/15 sm:inline dark:bg-white/[.12]" />
-        <h1 className="text-[19px] font-extrabold tracking-[-.7px]">
-          New Purchase Order
-        </h1>
-        <span className="rounded-[5px] bg-black/10 px-[9px] py-1 text-[11.5px] font-medium text-black/65 dark:bg-white/[.09] dark:text-white/60">
-          {partnerType === 'AD_HOC' ? 'Draft · exception' : 'Draft'}
-        </span>
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => router.push('/stores/purchase-orders')}
-            className="rounded-lg px-3.5 py-2 text-[12.5px] font-semibold text-black/65 hover:bg-black/5 dark:text-white/60 dark:hover:bg-white/5"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="rounded-lg bg-[#3B6FB5] px-4 py-2 text-[12.5px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitting ? 'Creating…' : 'Create Purchase Order'}
-          </button>
-        </div>
-      </div>
+    <SignalPage>
+      <SignalHeader
+        backHref="/stores/purchase-orders"
+        backLabel="Purchase Orders"
+        title="New Purchase Order"
+        chip={
+          <SignalChip>
+            {partnerType === 'AD_HOC' ? 'Draft · exception' : 'Draft'}
+          </SignalChip>
+        }
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => router.push('/stores/purchase-orders')}
+              className={SIGNAL_BTN_GHOST}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              className={SIGNAL_BTN_PRIMARY}
+            >
+              {submitting ? 'Creating…' : 'Create Purchase Order'}
+            </button>
+          </>
+        }
+      />
 
       {loading ? (
         <div className="px-5 py-[18px] lg:px-7">
@@ -317,12 +315,7 @@ export default function NewPurchaseOrderPage() {
           <div className="flex min-w-0 flex-col gap-3.5">
             {/* Trading Party */}
             <SCard className="px-5 py-[18px]">
-              <div className="flex flex-wrap items-baseline gap-2.5">
-                <span className="text-[14px] font-bold">Trading Party</span>
-                <span className="text-[11.5px] text-black/40 dark:text-white/35">
-                  Who you are buying from
-                </span>
-              </div>
+              <SCardTitle title="Trading Party" subtitle="Who you are buying from" />
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <Field label="Partner Type" htmlFor="partnerType">
                   <Select
@@ -718,45 +711,14 @@ export default function NewPurchaseOrderPage() {
           </div>
         </div>
       )}
-    </div>
+    </SignalPage>
   );
 }
 
 // ── Building blocks ─────────────────────────────────────────────────────────
 
-function SCard({
-  className,
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={cn(
-        'rounded-xl border border-black/10 bg-white dark:border-white/[.08] dark:bg-[#232323]',
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
 function Req() {
   return <span className="text-[#D9363E] dark:text-[#FF5257]">*</span>;
-}
-
-/** The orange exception/warning callout from the 3a spec. */
-function Callout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mt-3.5 flex gap-2.5 rounded-[9px] border border-[#C9761B] bg-[#E08A2C]/[.09] px-3.5 py-3 dark:border-[#E08A2C]">
-      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[#C9761B] dark:text-[#E08A2C]" />
-      <p className="text-[12px] leading-normal text-black/70 dark:text-white/[.72]">
-        {children}
-      </p>
-    </div>
-  );
 }
 
 function AddLineButton({
@@ -777,61 +739,3 @@ function AddLineButton({
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between border-b border-black/[.07] py-2 text-[12px] font-medium text-black/60 dark:border-white/[.07] dark:text-white/55">
-      <span>{label}</span>
-      <span className="text-[12.5px] font-semibold tabular-nums text-[#1B1B1B] dark:text-[#EDEDED]">
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function RouteStep({
-  state,
-  title,
-  meta,
-  last,
-}: {
-  state: 'done' | 'active' | 'future';
-  title: string;
-  meta: string;
-  last?: boolean;
-}) {
-  return (
-    <div className="flex gap-[11px]">
-      <div className="flex flex-col items-center">
-        {state === 'done' ? (
-          <span className="grid size-[18px] flex-none place-items-center rounded-full bg-[#1E9E63] dark:bg-[#3DD68C]">
-            <Check className="size-3 text-white dark:text-[#1B1B1B]" />
-          </span>
-        ) : (
-          <span
-            className={cn(
-              'size-[18px] flex-none rounded-full border-2',
-              state === 'active'
-                ? 'border-[#3B6FB5] dark:border-[#6FA3E0]'
-                : 'border-black/15 dark:border-white/[.16]',
-            )}
-          />
-        )}
-        {!last && (
-          <span className="min-h-[22px] w-[2px] flex-1 bg-black/10 dark:bg-white/[.12]" />
-        )}
-      </div>
-      <div className={cn(!last && 'pb-3.5')}>
-        <div
-          className={cn(
-            'text-[12.5px] font-semibold',
-            state === 'active' && 'text-[#3B6FB5] dark:text-[#6FA3E0]',
-            state === 'future' && 'text-black/40 dark:text-white/40',
-          )}
-        >
-          {title}
-        </div>
-        <div className="text-[11px] text-black/45 dark:text-white/40">{meta}</div>
-      </div>
-    </div>
-  );
-}

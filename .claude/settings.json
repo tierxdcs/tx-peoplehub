@@ -96,7 +96,11 @@
       "Bash(echo \"BUILD: $?\")",
       "Bash(npm run *)",
       "Bash(echo \"WEB_TSC: $?\")",
-      "Bash(echo \"WEB_BUILD: $?\")"
+      "Bash(echo \"WEB_BUILD: $?\")",
+      "Bash(awk -F/ '{print $1\"/\"$2}')",
+      "Bash(echo \"exit-grep:$?\")",
+      "Bash(echo \"exit grep: $?\")",
+      "Bash(echo \"exit-filtered: $?\")"
     ]
   }
 }

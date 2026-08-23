@@ -10,9 +10,13 @@ import {
 import { apiFetch } from '../../../lib/api';
 import { formatINR, prettyEnum } from '../../../lib/sales';
 import { useNumberFormat } from '../../../lib/number-format-context';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent } from '../../../components/ui/card';
+import {
+  SCard,
+  SignalHeader,
+  SignalPage,
+  StatStrip,
+  StatTile,
+} from '../../../components/ui/signal';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
@@ -39,17 +43,6 @@ const STAGES: OpportunityStage[] = [
   'CLOSED_LOST',
 ];
 const PAGE_SIZE = 20;
-
-function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <Card className="min-w-[160px] flex-1">
-      <CardContent className="p-4">
-        <div className="text-sm font-medium text-muted-foreground">{label}</div>
-        <div className="mt-1 text-2xl font-semibold">{value}</div>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function OpportunitiesPage() {
   const router = useRouter();
@@ -142,21 +135,22 @@ export default function OpportunitiesPage() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Opportunities"
         description="Qualified sales pipeline — from prospecting through proposal, negotiation and closure."
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
-      <div className="mb-6 flex flex-wrap gap-3">
-        <StatCard label="Active Opportunities" value={summary.active} />
-        <StatCard
+      <StatStrip>
+        <StatTile label="Active Opportunities" value={summary.active} />
+        <StatTile
           label="Pipeline Value"
           value={formatINR(summary.pipelineValue, numberFormatStyle)}
         />
-        <StatCard label="Proposals" value={summary.proposals} />
-        <StatCard label="Closing This Month" value={summary.closingThisMonth} />
-      </div>
+        <StatTile label="Proposals" value={summary.proposals} />
+        <StatTile label="Closing This Month" value={summary.closingThisMonth} />
+      </StatStrip>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -200,8 +194,7 @@ export default function OpportunitiesPage() {
         </Select>
       </RegisterToolbar>
 
-      <Card>
-        <CardContent className="p-0">
+      <SCard className="overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -285,8 +278,7 @@ export default function OpportunitiesPage() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </SCard>
 
       <RegisterPagination
         page={page}
@@ -294,6 +286,7 @@ export default function OpportunitiesPage() {
         onPageChange={setPage}
         disabled={loading}
       />
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

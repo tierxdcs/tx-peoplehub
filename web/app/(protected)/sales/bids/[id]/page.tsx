@@ -1,28 +1,23 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import {
-  ArrowLeft,
-  CalendarDays,
-  Download,
-  FileText,
-  UserRound,
-} from 'lucide-react';
+import { CalendarDays, Download, FileText, UserRound } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
 import { Bid, Customer, Employee } from '../../../../lib/types';
 import { formatINR, prettyEnum } from '../../../../lib/sales';
 import { useNumberFormat } from '../../../../lib/number-format-context';
 import { todayDateStr } from '../../../../lib/date';
-import { PageContainer } from '../../../../components/ui/page-container';
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '../../../../components/ui/card';
+  SCard,
+  SCardTitle,
+  SIGNAL_EYEBROW,
+  SIGNAL_LINK,
+  SIGNAL_MUTED,
+  SignalHeader,
+  SignalPage,
+} from '../../../../components/ui/signal';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Skeleton } from '../../../../components/ui/skeleton';
@@ -192,18 +187,22 @@ export default function BidDetailPage() {
 
   if (loading) {
     return (
-      <PageContainer>
-        <Skeleton className="mb-4 h-6 w-24" />
-        <Skeleton className="mb-6 h-9 w-64" />
-        <Skeleton className="h-48 w-full" />
-      </PageContainer>
+      <SignalPage>
+        <div className="px-5 pb-7 pt-[18px] lg:px-7">
+          <Skeleton className="mb-4 h-6 w-24" />
+          <Skeleton className="mb-6 h-9 w-64" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      </SignalPage>
     );
   }
   if (error || !bid) {
     return (
-      <PageContainer>
-        <p className="text-destructive">{error ?? 'Bid not found'}</p>
-      </PageContainer>
+      <SignalPage>
+        <div className="px-5 pb-7 pt-[18px] lg:px-7">
+          <p className="text-destructive">{error ?? 'Bid not found'}</p>
+        </div>
+      </SignalPage>
     );
   }
 
@@ -229,245 +228,219 @@ export default function BidDetailPage() {
         numberFormatStyle={numberFormatStyle}
       />
 
-      <PageContainer>
-        <Link
-          href="/sales/bids"
-          className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" /> Bids
-        </Link>
-
-        {/* Header row: number + status on the left, actions on the right */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {bid.bidNumber}
-            </h1>
-            <StatusBadge value={bid.status} />
-            <BusinessUnitLabel
-              name={bid.businessUnitName}
-              colorHex={bid.businessUnitColorHex}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={printProposal}>
-              <Download /> Download PDF
-            </Button>
-            {(bid.status === 'DRAFT' || bid.status === 'REJECTED') && (
-              <Button
-                disabled={acting}
-                onClick={() =>
-                  act(
-                    'submit',
-                    undefined,
-                    Number(bid.discountPercent) > 10
-                      ? {
-                          title: 'Submit for approval?',
-                          description:
-                            'Discount exceeds 10% — this will route to your manager for approval.',
-                        }
-                      : undefined,
-                  )
-                }
-              >
-                {acting ? '…' : 'Submit'}
+      <SignalPage>
+        <SignalHeader
+          backHref="/sales/bids"
+          backLabel="Bids"
+          title={bid.bidNumber}
+          chip={
+            <>
+              <StatusBadge value={bid.status} />
+              <BusinessUnitLabel
+                name={bid.businessUnitName}
+                colorHex={bid.businessUnitColorHex}
+              />
+            </>
+          }
+          actions={
+            <>
+              <Button variant="outline" onClick={printProposal}>
+                <Download /> Download PDF
               </Button>
-            )}
-            {bid.status === 'APPROVED' && (
-              <Button
-                disabled={acting}
-                onClick={() =>
-                  act(
-                    'status',
-                    { status: 'SENT' },
-                    {
-                      title: 'Mark as Sent?',
-                      description: 'Record this bid as sent to the customer.',
-                    },
-                  )
-                }
-              >
-                Mark as Sent
-              </Button>
-            )}
-            {bid.status === 'SENT' && (
-              <Button
-                disabled={acting}
-                onClick={() =>
-                  act(
-                    'status',
-                    { status: 'ACCEPTED' },
-                    {
-                      title: 'Mark as Accepted?',
-                      description:
-                        'Record the customer as having accepted this bid.',
-                    },
-                  )
-                }
-              >
-                Mark as Accepted
-              </Button>
-            )}
-            {bid.status === 'ACCEPTED' &&
-              (bid.convertedOrderId ? (
-                // Already converted — a bid maps to at most one order. Offer a
-                // link to it instead of a dead "Convert" that the API rejects.
+              {(bid.status === 'DRAFT' || bid.status === 'REJECTED') && (
+                <Button
+                  disabled={acting}
+                  onClick={() =>
+                    act(
+                      'submit',
+                      undefined,
+                      Number(bid.discountPercent) > 10
+                        ? {
+                            title: 'Submit for approval?',
+                            description:
+                              'Discount exceeds 10% — this will route to your manager for approval.',
+                          }
+                        : undefined,
+                    )
+                  }
+                >
+                  {acting ? '…' : 'Submit'}
+                </Button>
+              )}
+              {bid.status === 'APPROVED' && (
+                <Button
+                  disabled={acting}
+                  onClick={() =>
+                    act(
+                      'status',
+                      { status: 'SENT' },
+                      {
+                        title: 'Mark as Sent?',
+                        description: 'Record this bid as sent to the customer.',
+                      },
+                    )
+                  }
+                >
+                  Mark as Sent
+                </Button>
+              )}
+              {bid.status === 'SENT' && (
+                <Button
+                  disabled={acting}
+                  onClick={() =>
+                    act(
+                      'status',
+                      { status: 'ACCEPTED' },
+                      {
+                        title: 'Mark as Accepted?',
+                        description:
+                          'Record the customer as having accepted this bid.',
+                      },
+                    )
+                  }
+                >
+                  Mark as Accepted
+                </Button>
+              )}
+              {bid.status === 'ACCEPTED' &&
+                (bid.convertedOrderId ? (
+                  // Already converted — a bid maps to at most one order. Offer a
+                  // link to it instead of a dead "Convert" that the API rejects.
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      router.push(`/sales/orders/${bid.convertedOrderId}`)
+                    }
+                  >
+                    View Order
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      disabled={acting || hasAdHocLines}
+                      title={
+                        hasAdHocLines
+                          ? 'Resolve all ad-hoc line items before promoting'
+                          : 'Attach this won bid to an existing internal order, preserving its kickoff/PLM/Kanban history'
+                      }
+                      onClick={() => setPromoteOpen(true)}
+                    >
+                      Promote Internal Order
+                    </Button>
+                    <Button
+                      disabled={acting || hasAdHocLines}
+                      title={
+                        hasAdHocLines
+                          ? 'Resolve all ad-hoc line items before converting'
+                          : undefined
+                      }
+                      onClick={convertToOrder}
+                    >
+                      Convert to Order
+                    </Button>
+                  </>
+                ))}
+              {(bid.status === 'DRAFT' || bid.status === 'REJECTED') && (
                 <Button
                   variant="outline"
                   onClick={() =>
-                    router.push(`/sales/orders/${bid.convertedOrderId}`)
+                    router.push(
+                      `/sales/bids/new?opportunityId=${bid.opportunityId}`,
+                    )
                   }
                 >
-                  View Order
+                  New revised bid
                 </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    disabled={acting || hasAdHocLines}
-                    title={
-                      hasAdHocLines
-                        ? 'Resolve all ad-hoc line items before promoting'
-                        : 'Attach this won bid to an existing internal order, preserving its kickoff/PLM/Kanban history'
-                    }
-                    onClick={() => setPromoteOpen(true)}
-                  >
-                    Promote Internal Order
-                  </Button>
-                  <Button
-                    disabled={acting || hasAdHocLines}
-                    title={
-                      hasAdHocLines
-                        ? 'Resolve all ad-hoc line items before converting'
-                        : undefined
-                    }
-                    onClick={convertToOrder}
-                  >
-                    Convert to Order
-                  </Button>
-                </>
-              ))}
-            {(bid.status === 'DRAFT' || bid.status === 'REJECTED') && (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  router.push(
-                    `/sales/bids/new?opportunityId=${bid.opportunityId}`,
-                  )
-                }
-              >
-                New revised bid
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Live flow indicator — current stage derived from the bid's status. */}
-        <ProcessFlow
-          title="Bid progress"
-          className="mb-4"
-          {...bidFlow(bid.status)}
+              )}
+            </>
+          }
         />
 
-        {/* Formalization gate: resolve any ad-hoc lines to real products before
-            this bid can convert to an order. Hidden once converted. */}
-        {hasAdHocLines && !bid.convertedOrderId && (
-          <AdHocResolutionCard
-            bid={bid}
-            canCreateProduct={canCreateProduct}
-            onResolved={load}
-          />
-        )}
+        <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+          {/* Live flow indicator — current stage derived from the bid's status. */}
+          <ProcessFlow title="Bid progress" {...bidFlow(bid.status)} />
 
-        {/* Metadata card: Valid until / Tender reference, two-column with icons */}
-        <Card className="mb-4">
-          <CardContent className="grid gap-6 p-6 sm:grid-cols-3">
+          {/* Formalization gate: resolve any ad-hoc lines to real products before
+              this bid can convert to an order. Hidden once converted. */}
+          {hasAdHocLines && !bid.convertedOrderId && (
+            <AdHocResolutionCard
+              bid={bid}
+              canCreateProduct={canCreateProduct}
+              onResolved={load}
+            />
+          )}
+
+          {/* Metadata card: Valid until / Tender reference, two-column with icons */}
+          <SCard className="grid gap-6 px-5 py-[18px] sm:grid-cols-3">
             <div className="flex items-start gap-3">
-              <CalendarDays className="mt-0.5 size-5 text-muted-foreground" />
+              <CalendarDays className={`mt-0.5 size-5 ${SIGNAL_MUTED}`} />
               <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Valid until
-                </div>
+                <div className={SIGNAL_EYEBROW}>Valid until</div>
                 <div className="mt-0.5 text-sm font-medium">
                   {bid.validUntil.slice(0, 10)}
                 </div>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <UserRound className="mt-0.5 size-5 text-muted-foreground" />
+              <UserRound className={`mt-0.5 size-5 ${SIGNAL_MUTED}`} />
               <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Owner
-                </div>
+                <div className={SIGNAL_EYEBROW}>Owner</div>
                 <div className="mt-0.5 text-sm font-medium">
                   {bid.ownerName}
                 </div>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <FileText className="mt-0.5 size-5 text-muted-foreground" />
+              <FileText className={`mt-0.5 size-5 ${SIGNAL_MUTED}`} />
               <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Tender reference
-                </div>
+                <div className={SIGNAL_EYEBROW}>Tender reference</div>
                 <div className="mt-0.5 text-sm font-medium">
                   {bid.tenderReferenceNumber || '—'}
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </SCard>
 
-        {/* Technical specification card */}
-        {bid.technicalSpecification && (
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                Technical specification
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <p className="whitespace-pre-wrap text-sm">
+          {/* Technical specification card */}
+          {bid.technicalSpecification && (
+            <SCard className="px-5 py-[18px]">
+              <SCardTitle title="Technical specification" />
+              <p className="mt-3 whitespace-pre-wrap text-sm">
                 {bid.technicalSpecification}
               </p>
-            </CardContent>
-          </Card>
-        )}
+            </SCard>
+          )}
 
-        {/* Attachments (reference links) */}
-        {bid.attachments && bid.attachments.length > 0 && (
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                Attachments (reference links)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 pt-0 text-sm">
-              {bid.attachments.map((a, i) => (
-                <div key={i}>
-                  {String((a as Record<string, unknown>).filename ?? '')}{' '}
-                  {(a as Record<string, unknown>).url ? (
-                    <a
-                      className="text-primary underline-offset-4 hover:underline"
-                      href={String((a as Record<string, unknown>).url)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {String((a as Record<string, unknown>).url)}
-                    </a>
-                  ) : null}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
+          {/* Attachments (reference links) */}
+          {bid.attachments && bid.attachments.length > 0 && (
+            <SCard className="px-5 py-[18px]">
+              <SCardTitle title="Attachments (reference links)" />
+              <div className="mt-3 space-y-1 text-sm">
+                {bid.attachments.map((a, i) => (
+                  <div key={i}>
+                    {String((a as Record<string, unknown>).filename ?? '')}{' '}
+                    {(a as Record<string, unknown>).url ? (
+                      <a
+                        className={SIGNAL_LINK}
+                        href={String((a as Record<string, unknown>).url)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {String((a as Record<string, unknown>).url)}
+                      </a>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </SCard>
+          )}
 
-        {/* Line items — full width */}
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle>Line items</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
+          {/* Line items — full width */}
+          <SCard className="overflow-hidden">
+            <div className="px-5 pb-3.5 pt-[18px]">
+              <SCardTitle title="Line items" />
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -522,44 +495,48 @@ export default function BidDetailPage() {
                 )}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+          </SCard>
 
-        {/* Summary block — right-aligned, fixed width */}
-        <div className="mb-6 flex justify-end">
-          <Card className="w-full max-w-[320px]">
-            <CardContent className="space-y-2 p-4 text-sm">
+          {/* Summary block — right-aligned, fixed width */}
+          <div className="flex justify-end">
+            <SCard className="w-full max-w-[320px] space-y-2 px-5 py-[18px] text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span>{formatINR(bid.subtotal, numberFormatStyle)}</span>
+                <span className={SIGNAL_MUTED}>Subtotal</span>
+                <span className="tabular-nums">
+                  {formatINR(bid.subtotal, numberFormatStyle)}
+                </span>
               </div>
               {Number(bid.marginPercent) > 0 && (
-                <div className="flex justify-between text-xs text-muted-foreground">
+                <div className={`flex justify-between text-xs ${SIGNAL_MUTED}`}>
                   <span>Margin (bid-level, {bid.marginPercent}%)</span>
                   <span>included in prices</span>
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-muted-foreground">
+                <span className={SIGNAL_MUTED}>
                   Discount ({bid.discountPercent}%)
                 </span>
-                <span>−{formatINR(bid.discountAmount, numberFormatStyle)}</span>
+                <span className="tabular-nums">
+                  −{formatINR(bid.discountAmount, numberFormatStyle)}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">
+                <span className={SIGNAL_MUTED}>
                   Tax
                   {bid.taxType
                     ? ` (${prettyEnum(bid.taxType)} ${bid.taxRate}%)`
                     : ''}
                 </span>
-                <span>{formatINR(bid.taxAmount, numberFormatStyle)}</span>
+                <span className="tabular-nums">
+                  {formatINR(bid.taxAmount, numberFormatStyle)}
+                </span>
               </div>
               {(bid.amcCharges ?? []).length > 0 && (
                 <>
-                  <div className="my-1 border-t" />
+                  <div className="my-1 border-t border-black/[.07] dark:border-white/[.06]" />
                   {(bid.amcCharges ?? []).map((charge) => (
                     <div className="flex justify-between" key={charge.id}>
-                      <span className="text-muted-foreground">
+                      <span className={SIGNAL_MUTED}>
                         AMC Charges for{' '}
                         {charge.yearNumber === 2
                           ? '2nd'
@@ -568,58 +545,56 @@ export default function BidDetailPage() {
                             : `${charge.yearNumber}th`}{' '}
                         Year
                       </span>
-                      <span>{formatINR(charge.amount, numberFormatStyle)}</span>
+                      <span className="tabular-nums">
+                        {formatINR(charge.amount, numberFormatStyle)}
+                      </span>
                     </div>
                   ))}
                   <div className="flex justify-between font-medium">
                     <span>AMC Total</span>
-                    <span>{formatINR(bid.amcTotal, numberFormatStyle)}</span>
+                    <span className="tabular-nums">
+                      {formatINR(bid.amcTotal, numberFormatStyle)}
+                    </span>
                   </div>
                 </>
               )}
-              <div className="my-1 border-t" />
+              <div className="my-1 border-t border-black/[.07] dark:border-white/[.06]" />
               <div className="flex justify-between text-lg font-semibold">
                 <span>Grand Total</span>
-                <span>{formatINR(bid.grandTotal, numberFormatStyle)}</span>
+                <span className="tabular-nums tracking-[-.5px]">
+                  {formatINR(bid.grandTotal, numberFormatStyle)}
+                </span>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {bid.approverComments && (
-          <p className="mb-4 text-sm">
-            <span className="font-semibold">Approver comments:</span>{' '}
-            {bid.approverComments}
-          </p>
-        )}
-
-        {/* Approver's e-signature, shown once the bid is approved. */}
-        {bid.status === 'APPROVED' && (
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                Approved by
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <SignatureDisplay
-                text={bid.approverSignatureTextSnapshot}
-                font={bid.approverSignatureFontSnapshot}
-                date={bid.approvedAt ? bid.approvedAt.slice(0, 10) : null}
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Approve/reject controls for the assigned approver */}
-        {canApprove && !hasSignature && (
-          <div className="mb-4">
-            <SignatureSetupInline onSaved={() => setHasSignature(true)} />
+            </SCard>
           </div>
-        )}
-        {canApprove && (
-          <Card className="mb-4">
-            <CardContent className="flex flex-wrap items-center gap-2 p-4">
+
+          {bid.approverComments && (
+            <p className="text-sm">
+              <span className="font-semibold">Approver comments:</span>{' '}
+              {bid.approverComments}
+            </p>
+          )}
+
+          {/* Approver's e-signature, shown once the bid is approved. */}
+          {bid.status === 'APPROVED' && (
+            <SCard className="px-5 py-[18px]">
+              <SCardTitle title="Approved by" />
+              <div className="mt-3">
+                <SignatureDisplay
+                  text={bid.approverSignatureTextSnapshot}
+                  font={bid.approverSignatureFontSnapshot}
+                  date={bid.approvedAt ? bid.approvedAt.slice(0, 10) : null}
+                />
+              </div>
+            </SCard>
+          )}
+
+          {/* Approve/reject controls for the assigned approver */}
+          {canApprove && !hasSignature && (
+            <SignatureSetupInline onSaved={() => setHasSignature(true)} />
+          )}
+          {canApprove && (
+            <SCard className="flex flex-wrap items-center gap-2 p-4">
               <Input
                 className="max-w-xs"
                 placeholder="Comments (optional)"
@@ -658,17 +633,17 @@ export default function BidDetailPage() {
               >
                 Reject
               </Button>
-            </CardContent>
-          </Card>
-        )}
+            </SCard>
+          )}
 
-        {bid.status === 'PENDING_APPROVAL' && !canApprove && (
-          <p className="text-sm text-muted-foreground">
-            Awaiting approval from the assigned manager.
-          </p>
-        )}
-        <StrategyMeetingsSection bidId={bid.id} />
-      </PageContainer>
+          {bid.status === 'PENDING_APPROVAL' && !canApprove && (
+            <p className="text-sm text-muted-foreground">
+              Awaiting approval from the assigned manager.
+            </p>
+          )}
+          <StrategyMeetingsSection bidId={bid.id} />
+        </div>
+      </SignalPage>
 
       <PromoteInternalOrderDialog
         bid={bid}

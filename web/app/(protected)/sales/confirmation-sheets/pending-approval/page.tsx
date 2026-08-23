@@ -6,9 +6,11 @@ import { FileCheck } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { OrderConfirmationSheet } from '../../../../lib/types';
 import { dateOnlyStr } from '../../../../lib/date';
-import { PageContainer } from '../../../../components/ui/page-container';
-import { PageHeader } from '../../../../components/ui/page-header';
-import { Card, CardContent } from '../../../../components/ui/card';
+import {
+  SCard,
+  SignalHeader,
+  SignalPage,
+} from '../../../../components/ui/signal';
 import { Button } from '../../../../components/ui/button';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { EmptyState } from '../../../../components/ui/empty-state';
@@ -72,32 +74,34 @@ export default function ConfirmationSheetQueuePage() {
 
   if (forbidden) {
     return (
-      <PageContainer>
-        <PageHeader title="Confirmation Sheet Approvals" />
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
+      <SignalPage>
+        <SignalHeader title="Confirmation Sheet Approvals" />
+        <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+          <SCard className="p-6 text-sm text-muted-foreground">
             This queue is visible only to the designated Sales Head and Super
             Admins.
-          </CardContent>
-        </Card>
-      </PageContainer>
+          </SCard>
+        </div>
+      </SignalPage>
     );
   }
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Confirmation Sheet Approvals"
         description="Order confirmation sheets awaiting your internal signature. Open an order to sign or reject its sheet."
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
       <RegisterToolbar title="Approval Queue" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search confirmation, requester or status" />
 
-      <Card>
-        <CardContent className="pt-6">
+      <SCard className="overflow-hidden">
           {loading ? (
-            <Skeleton className="h-40 w-full" />
+            <div className="p-4">
+              <Skeleton className="h-40 w-full" />
+            </div>
           ) : error ? (
-            <p className="text-sm text-destructive">{error}</p>
+            <p className="p-4 text-sm text-destructive">{error}</p>
           ) : (
             <Table>
               <TableHeader>
@@ -152,9 +156,9 @@ export default function ConfirmationSheetQueuePage() {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+      </SCard>
       <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }
