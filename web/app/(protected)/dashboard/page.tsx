@@ -19,7 +19,11 @@ import {
 import { quoteOfTheDay } from '../../lib/quotes';
 import { Spinner } from '../../components/ui/spinner';
 import { cn } from '../../lib/utils';
-import { getMyPlmWork, plmTrackerHref, type PlmDashboardItem } from '../../lib/plm';
+import {
+  getMyPlmWork,
+  plmTrackerHref,
+  type PlmDashboardItem,
+} from '../../lib/plm';
 import {
   getReceivedPings,
   getSentPings,
@@ -30,7 +34,10 @@ import {
   type ReceivedPing,
   type SentPing,
 } from '../../lib/pings';
-import { getMyEfficiencyScore, type EfficiencyScore } from '../../lib/efficiency';
+import {
+  getMyEfficiencyScore,
+  type EfficiencyScore,
+} from '../../lib/efficiency';
 import {
   portfolioBlockers,
   portfolioHealth,
@@ -76,7 +83,9 @@ export default function DashboardPage() {
   const [receivedPings, setReceivedPings] = useState<ReceivedPing[]>([]);
   const [sentPings, setSentPings] = useState<SentPing[]>([]);
   const [efficiency, setEfficiency] = useState<EfficiencyScore | null>(null);
-  const [activeTab, setActiveTab] = useState<'projects' | 'lifecycle'>('projects');
+  const [activeTab, setActiveTab] = useState<'projects' | 'lifecycle'>(
+    'projects',
+  );
 
   // The shell's <main> stretches to the tallest flex sibling (the sidebar nav),
   // so it can run taller than this page's surface. While the dashboard is
@@ -106,19 +115,35 @@ export default function DashboardPage() {
       getReceivedPings(),
       getSentPings(),
       getMyEfficiencyScore(),
-    ]).then(([emp, cardsRes, projectsRes, plmRes, receivedRes, sentRes, efficiencyRes]) => {
-      if (!alive) return;
-      if (emp.status === 'fulfilled') setFirstName(emp.value.firstName);
-      setCards(cardsRes.status === 'fulfilled' ? cardsRes.value : []);
-      setProjects(projectsRes.status === 'fulfilled' ? projectsRes.value : []);
-      setPlmWork(plmRes.status === 'fulfilled' ? plmRes.value : []);
-      setReceivedPings(receivedRes.status === 'fulfilled' ? receivedRes.value : []);
-      setSentPings(sentRes.status === 'fulfilled' ? sentRes.value : []);
-      setEfficiency(efficiencyRes.status === 'fulfilled' ? efficiencyRes.value : null);
-      if (cardsRes.status === 'fulfilled')
-        window.sessionStorage.removeItem('kanban-dashboard-dirty');
-      setLoading(false);
-    });
+    ]).then(
+      ([
+        emp,
+        cardsRes,
+        projectsRes,
+        plmRes,
+        receivedRes,
+        sentRes,
+        efficiencyRes,
+      ]) => {
+        if (!alive) return;
+        if (emp.status === 'fulfilled') setFirstName(emp.value.firstName);
+        setCards(cardsRes.status === 'fulfilled' ? cardsRes.value : []);
+        setProjects(
+          projectsRes.status === 'fulfilled' ? projectsRes.value : [],
+        );
+        setPlmWork(plmRes.status === 'fulfilled' ? plmRes.value : []);
+        setReceivedPings(
+          receivedRes.status === 'fulfilled' ? receivedRes.value : [],
+        );
+        setSentPings(sentRes.status === 'fulfilled' ? sentRes.value : []);
+        setEfficiency(
+          efficiencyRes.status === 'fulfilled' ? efficiencyRes.value : null,
+        );
+        if (cardsRes.status === 'fulfilled')
+          window.sessionStorage.removeItem('kanban-dashboard-dirty');
+        setLoading(false);
+      },
+    );
     return () => {
       alive = false;
     };
@@ -208,13 +233,15 @@ export default function DashboardPage() {
   );
 
   const refreshPings = () =>
-    Promise.all([getReceivedPings(), getSentPings(), getMyEfficiencyScore()]).then(
-      ([received, sent, score]) => {
-        setReceivedPings(received);
-        setSentPings(sent);
-        setEfficiency(score);
-      },
-    );
+    Promise.all([
+      getReceivedPings(),
+      getSentPings(),
+      getMyEfficiencyScore(),
+    ]).then(([received, sent, score]) => {
+      setReceivedPings(received);
+      setSentPings(sent);
+      setEfficiency(score);
+    });
 
   const projectPreview = useMemo(
     () => priorityProjects(projects, PORTFOLIO_PREVIEW_CAP),
@@ -249,9 +276,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div
-      className="-m-4 min-h-[calc(100dvh-3.5rem)] bg-[#F4F4F4] text-[#1B1B1B] dark:bg-[#1B1B1B] dark:text-[#EDEDED] md:-m-6"
-    >
+    <div className="-m-4 min-h-[calc(100dvh-3.5rem)] bg-[#F4F4F4] text-[#1B1B1B] dark:bg-[#1B1B1B] dark:text-[#EDEDED] md:-m-6">
       {/* Filter / context bar — pills are visual-only this pass ("Mine only"
           reflects the dashboard's actual scope; the others are future work). */}
       <div className="flex items-center gap-2.5 border-b border-black/10 dark:border-white/[.07] bg-[#ECECEC] dark:bg-[#1F1F1F] px-5 py-[11px] lg:px-7">
@@ -278,7 +303,9 @@ export default function DashboardPage() {
           <span className="ml-auto text-[11.5px] font-semibold text-[#D9363E] dark:text-[#FF5257]">
             ⚠ {stats.overdue} overdue
             <span className="hidden sm:inline">
-              {projectsAtRisk > 0 ? ` · ${projectsAtRisk} projects at risk` : ''}
+              {projectsAtRisk > 0
+                ? ` · ${projectsAtRisk} projects at risk`
+                : ''}
             </span>
           </span>
         )}
@@ -330,7 +357,11 @@ export default function DashboardPage() {
         <KpiTile
           label="Due soon"
           value={stats.dueSoon}
-          valueClass={stats.dueSoon === 0 ? 'text-black/35 dark:text-white/[.28]' : undefined}
+          valueClass={
+            stats.dueSoon === 0
+              ? 'text-black/35 dark:text-white/[.28]'
+              : undefined
+          }
           deltaLabel="7 days"
           href="/my-tasks?status=due-soon"
           zeroCopy={
@@ -358,7 +389,9 @@ export default function DashboardPage() {
       <div className="mx-5 mt-4 grid gap-4 md:grid-cols-2 lg:mx-7 xl:grid-cols-[1.1fr_.9fr_1.1fr]">
         <Panel>
           <div className="flex items-center justify-between">
-            <span className="text-[13.5px] font-semibold">Efficiency score</span>
+            <span className="text-[13.5px] font-semibold">
+              Efficiency score
+            </span>
             <span className="rounded-[5px] border border-black/15 dark:border-white/[.14] px-[7px] py-[3px] text-[10px] font-medium text-black/45 dark:text-white/40">
               Private to you
             </span>
@@ -366,12 +399,17 @@ export default function DashboardPage() {
           <div className="mt-3.5 flex items-center gap-4">
             <Dial
               pct={efficiency?.score ?? 0}
-              label={efficiency?.score === null || !efficiency ? '—' : `${efficiency.score}%`}
+              label={
+                efficiency?.score === null || !efficiency
+                  ? '—'
+                  : `${efficiency.score}%`
+              }
               labelClass="text-[#C9761B] dark:text-[#E08A2C]"
             />
             <div className="min-w-0 flex-1">
               <div className="text-[11px] leading-[1.45] text-black/50 dark:text-white/[.42]">
-                Rolling last {efficiency?.windowDays ?? 30} days · SLA outcomes, not response speed
+                Rolling last {efficiency?.windowDays ?? 30} days · SLA outcomes,
+                not response speed
               </div>
               <div className="mt-3 flex flex-col gap-2">
                 <MetricBar
@@ -397,21 +435,37 @@ export default function DashboardPage() {
             Your visible projects at a glance
           </div>
           {projects.length === 0 ? (
-            <p className="mt-4 text-[12px] text-black/40 dark:text-white/[.32]">No visible projects.</p>
+            <p className="mt-4 text-[12px] text-black/40 dark:text-white/[.32]">
+              No visible projects.
+            </p>
           ) : (
             <div className="mt-4 flex items-center gap-[18px]">
               <HealthDonut health={health} total={projects.length} />
               <div className="flex flex-1 flex-col gap-[9px]">
-                <LegendRow color="#3DD68C" label="On track" count={health.onTrack} />
-                <LegendRow color="#E08A2C" label="At risk" count={health.atRisk} />
-                <LegendRow color="#E5484D" label="Blocked" count={health.blocked} />
+                <LegendRow
+                  color="#3DD68C"
+                  label="On track"
+                  count={health.onTrack}
+                />
+                <LegendRow
+                  color="#E08A2C"
+                  label="At risk"
+                  count={health.atRisk}
+                />
+                <LegendRow
+                  color="#E5484D"
+                  label="Blocked"
+                  count={health.blocked}
+                />
               </div>
             </div>
           )}
         </Panel>
 
         <Panel className="hidden xl:block">
-          <div className="text-[13.5px] font-semibold">Top lifecycle blockers</div>
+          <div className="text-[13.5px] font-semibold">
+            Top lifecycle blockers
+          </div>
           <div className="mt-[3px] text-[11px] text-black/45 dark:text-white/40">
             Most common reasons across your active order lines
           </div>
@@ -423,7 +477,9 @@ export default function DashboardPage() {
       <div className="mx-5 mt-4 grid items-start gap-4 lg:mx-7 xl:grid-cols-[1.45fr_1fr]">
         <section className="overflow-hidden rounded-xl border border-black/10 dark:border-white/[.08] bg-white dark:bg-[#232323]">
           <div className="flex items-center gap-2.5 px-5 pb-[13px] pt-4">
-            <span className="text-[17px] font-bold tracking-[-.4px]">My tasks</span>
+            <span className="text-[17px] font-bold tracking-[-.4px]">
+              My tasks
+            </span>
             {stats.overdue > 0 && (
               <span className="rounded-full bg-[#E5484D]/[.14] px-2 py-[3px] text-[10.5px] font-semibold text-[#D9363E] dark:text-[#FF5257]">
                 {stats.overdue} overdue
@@ -432,7 +488,10 @@ export default function DashboardPage() {
             <span className="ml-auto hidden text-[11px] font-medium text-black/40 dark:text-white/35 xl:inline">
               Sorted by days over ↓
             </span>
-            <Link href="/my-tasks" className="text-[12px] font-semibold text-[#3B6FB5] dark:text-[#6FA3E0]">
+            <Link
+              href="/my-tasks"
+              className="text-[12px] font-semibold text-[#3B6FB5] dark:text-[#6FA3E0]"
+            >
               View all
             </Link>
           </div>
@@ -443,7 +502,14 @@ export default function DashboardPage() {
           ) : (
             tasks
               .slice(0, TASK_CAP)
-              .map((t) => <TaskRow key={t.id} task={t} now={now} maxDaysOver={maxDaysOver} />)
+              .map((t) => (
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  now={now}
+                  maxDaysOver={maxDaysOver}
+                />
+              ))
           )}
         </section>
 
@@ -459,10 +525,16 @@ export default function DashboardPage() {
       {/* Tabbed lists — capped at 3 cards each; the rest lives behind View more. */}
       <div className="mx-5 mb-[30px] mt-4 overflow-hidden rounded-xl border border-black/10 dark:border-white/[.08] bg-white dark:bg-[#232323] lg:mx-7">
         <div className="flex items-center gap-1.5 border-b border-black/10 dark:border-white/[.08] px-5 py-[13px]">
-          <TabPill active={activeTab === 'projects'} onClick={() => setActiveTab('projects')}>
+          <TabPill
+            active={activeTab === 'projects'}
+            onClick={() => setActiveTab('projects')}
+          >
             Project progress
           </TabPill>
-          <TabPill active={activeTab === 'lifecycle'} onClick={() => setActiveTab('lifecycle')}>
+          <TabPill
+            active={activeTab === 'lifecycle'}
+            onClick={() => setActiveTab('lifecycle')}
+          >
             Product lifecycle work
           </TabPill>
           <Link
@@ -474,7 +546,9 @@ export default function DashboardPage() {
         </div>
         {activeTab === 'projects' ? (
           projectPreview.length === 0 ? (
-            <p className="px-5 py-[18px] text-[12px] text-black/40 dark:text-white/[.32]">No projects to show.</p>
+            <p className="px-5 py-[18px] text-[12px] text-black/40 dark:text-white/[.32]">
+              No projects to show.
+            </p>
           ) : (
             <div className="grid gap-px bg-black/[.08] dark:bg-white/[.07] md:grid-cols-3">
               {projectPreview.map((p) => (
@@ -500,9 +574,20 @@ export default function DashboardPage() {
 
 // ── Building blocks ─────────────────────────────────────────────────────────
 
-function Panel({ className, children }: { className?: string; children: React.ReactNode }) {
+function Panel({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className={cn('rounded-xl border border-black/10 dark:border-white/[.08] bg-white dark:bg-[#232323] px-5 py-[18px]', className)}>
+    <div
+      className={cn(
+        'rounded-xl border border-black/10 dark:border-white/[.08] bg-white dark:bg-[#232323] px-5 py-[18px]',
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -559,7 +644,12 @@ function Sparkline({ series, stroke }: { series: number[]; stroke: string }) {
       className="mt-2.5 block h-[26px] w-full"
       aria-hidden
     >
-      <polyline points={points} fill="none" style={{ stroke }} strokeWidth={2} />
+      <polyline
+        points={points}
+        fill="none"
+        style={{ stroke }}
+        strokeWidth={2}
+      />
     </svg>
   );
 }
@@ -600,11 +690,14 @@ function KpiTile({
       href={href}
       className={cn(
         'relative block bg-white dark:bg-[#232323] px-[18px] py-4 transition-colors hover:bg-black/[.03] dark:hover:bg-[#282828] xl:px-5 xl:py-[18px]',
-        danger && 'bg-gradient-to-b from-[#FDECEC] to-white dark:from-[#2A1E1F] dark:to-[#232323]',
+        danger &&
+          'bg-gradient-to-b from-[#FDECEC] to-white dark:from-[#2A1E1F] dark:to-[#232323]',
       )}
       aria-label={`View ${value} ${label.toLowerCase()} tasks`}
     >
-      {danger && <span className="absolute bottom-0 left-0 top-0 w-[3px] bg-[#E5484D]" />}
+      {danger && (
+        <span className="absolute bottom-0 left-0 top-0 w-[3px] bg-[#E5484D]" />
+      )}
       <div className="flex items-center justify-between">
         <span
           className={cn(
@@ -665,7 +758,12 @@ function Dial({
       }}
     >
       <div className="grid size-[56px] place-items-center rounded-full bg-white dark:bg-[#232323] xl:size-[70px]">
-        <span className={cn('text-[19px] font-extrabold tracking-[-.8px] xl:text-2xl xl:tracking-[-1px]', labelClass)}>
+        <span
+          className={cn(
+            'text-[19px] font-extrabold tracking-[-.8px] xl:text-2xl xl:tracking-[-1px]',
+            labelClass,
+          )}
+        >
           {label}
         </span>
       </div>
@@ -685,17 +783,23 @@ function MetricBar({
   badColor: string;
 }) {
   const pct = part?.percentage ?? null;
-  const color = pct === null ? 'var(--sd-faint)' : pct >= 50 ? goodColor : badColor;
+  const color =
+    pct === null ? 'var(--sd-faint)' : pct >= 50 ? goodColor : badColor;
   return (
     <div>
       <div className="flex justify-between text-[11px] font-medium text-black/60 dark:text-white/55">
         <span>{label}</span>
         <span className="font-bold" style={{ color }}>
-          {pct === null ? 'No eligible outcomes' : `${pct}% (${part!.onTime}/${part!.total})`}
+          {pct === null
+            ? 'No eligible outcomes'
+            : `${pct}% (${part!.onTime}/${part!.total})`}
         </span>
       </div>
       <div className="mt-1 h-[5px] overflow-hidden rounded-[3px] bg-black/10 dark:bg-white/[.08]">
-        <div className="h-full" style={{ width: `${pct ?? 0}%`, background: color }} />
+        <div
+          className="h-full"
+          style={{ width: `${pct ?? 0}%`, background: color }}
+        />
       </div>
     </div>
   );
@@ -724,21 +828,33 @@ function HealthDonut({
   return (
     <div
       className="grid size-[76px] flex-none place-items-center rounded-full xl:size-24"
-      style={{ background: `conic-gradient(${stops.join(',') || 'var(--sd-track) 0 100%'})` }}
+      style={{
+        background: `conic-gradient(${stops.join(',') || 'var(--sd-track) 0 100%'})`,
+      }}
     >
       <div className="grid size-[54px] place-items-center rounded-full bg-white dark:bg-[#232323] text-center xl:size-16">
         <div>
           <div className="text-[20px] font-extrabold leading-none tracking-[-.8px] xl:text-2xl xl:tracking-[-1px]">
             {total}
           </div>
-          <div className="text-[9px] text-black/50 dark:text-white/45 xl:text-[9.5px]">projects</div>
+          <div className="text-[9px] text-black/50 dark:text-white/45 xl:text-[9.5px]">
+            projects
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function LegendRow({ color, label, count }: { color: string; label: string; count: number }) {
+function LegendRow({
+  color,
+  label,
+  count,
+}: {
+  color: string;
+  label: string;
+  count: number;
+}) {
   return (
     <div
       className={cn(
@@ -753,16 +869,30 @@ function LegendRow({ color, label, count }: { color: string; label: string; coun
   );
 }
 
-function BlockerBars({ blockers }: { blockers: Array<{ reason: string; count: number }> }) {
+function BlockerBars({
+  blockers,
+}: {
+  blockers: Array<{ reason: string; count: number }>;
+}) {
   if (blockers.length === 0) {
-    return <p className="mt-4 text-[12px] text-black/40 dark:text-white/[.32]">No blockers logged.</p>;
+    return (
+      <p className="mt-4 text-[12px] text-black/40 dark:text-white/[.32]">
+        No blockers logged.
+      </p>
+    );
   }
   const max = blockers[0].count;
   return (
     <div className="mt-[18px]">
       {blockers.map((b, i) => (
-        <div key={b.reason} className={cn('flex items-center gap-3', i > 0 && 'mt-[9px]')}>
-          <span className="w-[170px] flex-none truncate text-[12px] font-medium text-black/75 dark:text-white/75" title={b.reason}>
+        <div
+          key={b.reason}
+          className={cn('flex items-center gap-3', i > 0 && 'mt-[9px]')}
+        >
+          <span
+            className="w-[170px] flex-none truncate text-[12px] font-medium text-black/75 dark:text-white/75"
+            title={b.reason}
+          >
             {b.reason}
           </span>
           <div className="flex h-[30px] flex-1 items-center overflow-hidden rounded-md bg-black/[.06] dark:bg-white/[.06]">
@@ -821,19 +951,27 @@ function TaskRow({
         style={{ color }}
       >
         {overdue ? daysOver : daysOver !== null ? Math.abs(daysOver) : '—'}
-        <span className="text-[9px] font-semibold tracking-normal xl:text-[10px]">d</span>
+        <span className="text-[9px] font-semibold tracking-normal xl:text-[10px]">
+          d
+        </span>
       </div>
       <div className="min-w-0">
-        <div className="truncate text-[13px] font-semibold xl:text-[13.5px]">{task.title}</div>
+        <div className="truncate text-[13px] font-semibold xl:text-[13.5px]">
+          {task.title}
+        </div>
         {task.boardName && (
-          <div className="mt-0.5 text-[10.5px] text-black/45 dark:text-white/40 xl:text-[11px]">{task.boardName}</div>
+          <div className="mt-0.5 text-[10.5px] text-black/45 dark:text-white/40 xl:text-[11px]">
+            {task.boardName}
+          </div>
         )}
       </div>
       <div className="hidden h-1.5 overflow-hidden rounded-[3px] bg-black/[.08] dark:bg-white/[.07] xl:block">
         <div
           className="h-full"
           style={{
-            width: overdue ? `${Math.round((daysOver / maxDaysOver) * 100)}%` : 0,
+            width: overdue
+              ? `${Math.round((daysOver / maxDaysOver) * 100)}%`
+              : 0,
             background: color,
           }}
         />
@@ -858,13 +996,16 @@ function PingsCard({
   now: Date;
   onChanged: () => void;
 }) {
+  const [activePingTab, setActivePingTab] = useState<'received' | 'sent'>(
+    'received',
+  );
   const visible = orderReceivedForDashboard(received);
   const act = async (id: string, status: 'ACKNOWLEDGED' | 'RESOLVED') => {
     await respondToPing(id, status);
     onChanged();
   };
   return (
-    <section className="overflow-hidden rounded-xl border border-black/10 dark:border-white/[.08] bg-white dark:bg-[#232323]">
+    <section className="flex h-[430px] min-h-0 flex-col overflow-hidden rounded-xl border border-black/10 bg-white dark:border-white/[.08] dark:bg-[#232323]">
       <div className="flex items-center gap-2.5 px-5 pb-[13px] pt-4">
         <span className="text-[17px] font-bold tracking-[-.4px]">Pings</span>
         {awaitingReply > 0 && (
@@ -872,118 +1013,195 @@ function PingsCard({
             {awaitingReply} awaiting reply
           </span>
         )}
-        <Link href="/my-pings" className="ml-auto text-[12px] font-semibold text-[#3B6FB5] dark:text-[#6FA3E0]">
+        <Link
+          href="/my-pings"
+          className="ml-auto text-[12px] font-semibold text-[#3B6FB5] dark:text-[#6FA3E0]"
+        >
           View all
         </Link>
       </div>
-      <PingGroupHeader>Received</PingGroupHeader>
-      {visible.length === 0 ? (
-        <p className="border-t border-black/[.07] dark:border-white/[.06] px-5 py-[18px] text-[12px] text-black/40 dark:text-white/[.32]">
-          No pings waiting.
-        </p>
-      ) : (
-        visible.slice(0, 6).map((row) => {
-          const hours = pingAgeHours(row.ping.createdAt, now);
-          const overdue = row.status === 'PENDING' && hours >= 24;
-          const href = linkedPingHref(row.ping.linkedRecordType, row.ping.linkedRecordId);
-          return (
-            <div key={row.id} className="flex gap-3 border-t border-black/[.07] dark:border-white/[.06] px-5 py-3.5">
-              <div
-                className="w-[3px] flex-none rounded-sm"
-                style={{
-                  background:
-                    row.status === 'PENDING' ? (overdue ? '#E5484D' : '#F2703A') : '#3DD68C',
-                }}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="text-[12.5px] font-medium leading-[1.45]">{row.ping.message}</div>
-                <div className="mt-1 text-[10.5px] text-black/45 dark:text-white/40">
-                  {row.ping.fromEmployee.fullName} · {hours}h ago
-                  {overdue ? ` · ${hours - 24}h overdue` : ''}
-                </div>
-                {href && (
-                  <Link href={href} className="mt-1 block text-[10.5px] font-semibold text-[#3B6FB5] dark:text-[#6FA3E0]">
-                    Open linked record
-                  </Link>
-                )}
-                {row.status === 'PENDING' ? (
-                  <div className="mt-2 flex gap-1.5">
-                    <button
-                      onClick={() => void act(row.id, 'ACKNOWLEDGED')}
-                      className="rounded-md border border-black/15 dark:border-white/[.14] px-2.5 py-1 text-[10.5px] font-semibold text-black/75 dark:text-white/75 hover:bg-black/[.05] dark:hover:bg-white/[.06]"
-                    >
-                      Acknowledge
-                    </button>
-                    <button
-                      onClick={() => void act(row.id, 'RESOLVED')}
-                      className="rounded-md bg-[#3B6FB5] px-2.5 py-1 text-[10.5px] font-bold text-white"
-                    >
-                      Resolve
-                    </button>
-                  </div>
-                ) : (
-                  <span className="mt-1.5 inline-block rounded-[5px] bg-[#3DD68C]/[.14] px-2 py-1 text-[10px] font-semibold text-[#1E9E63] dark:text-[#3DD68C]">
-                    {row.status === 'RESOLVED' ? 'Resolved' : 'Acknowledged'}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })
-      )}
-      <PingGroupHeader>Sent</PingGroupHeader>
-      {sent.length === 0 ? (
-        <p className="border-t border-black/[.07] dark:border-white/[.06] px-5 py-[18px] text-[12px] text-black/40 dark:text-white/[.32]">
-          No sent pings.
-        </p>
-      ) : (
-        // Tablet spec (2b): sent pings render 2-up; single column at desktop.
-        <div className="md:grid md:grid-cols-2 xl:block">
-        {sent.slice(0, 3).map((ping) => {
-          const anyPending = ping.recipients.some((r) => r.status === 'PENDING');
-          return (
-            <div key={ping.id} className="flex gap-3 border-t border-black/[.07] dark:border-white/[.06] px-5 py-3.5">
-              <div
-                className="w-[3px] flex-none rounded-sm"
-                style={{ background: anyPending ? '#E5484D' : '#3DD68C' }}
-              />
-              <div className="min-w-0">
-                <div className="text-[12.5px] font-medium leading-[1.45]">{ping.message}</div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {ping.recipients.map((r) => (
-                    <span
-                      key={r.id}
-                      className={cn(
-                        'rounded-[5px] px-2 py-1 text-[10px] font-semibold',
-                        r.status === 'PENDING'
-                          ? 'bg-[#E5484D]/[.14] text-[#C13438] dark:text-[#FF8A8D]'
-                          : 'bg-[#3DD68C]/[.14] text-[#1E9E63] dark:text-[#3DD68C]',
-                      )}
-                    >
-                      {r.employee.fullName}:{' '}
-                      {r.status === 'PENDING'
-                        ? 'Pending'
-                        : r.status === 'RESOLVED'
+
+      <div
+        className="flex border-y border-black/[.07] bg-black/[.025] px-3 pt-1 dark:border-white/[.06] dark:bg-white/[.025]"
+        role="tablist"
+        aria-label="Ping direction"
+      >
+        <PingTab
+          active={activePingTab === 'received'}
+          count={visible.length}
+          onClick={() => setActivePingTab('received')}
+        >
+          Received
+        </PingTab>
+        <PingTab
+          active={activePingTab === 'sent'}
+          count={sent.length}
+          onClick={() => setActivePingTab('sent')}
+        >
+          Sent
+        </PingTab>
+      </div>
+
+      <div
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        role="tabpanel"
+      >
+        {activePingTab === 'received' ? (
+          visible.length === 0 ? (
+            <p className="px-5 py-[18px] text-[12px] text-black/40 dark:text-white/[.32]">
+              No pings waiting.
+            </p>
+          ) : (
+            visible.map((row) => {
+              const hours = pingAgeHours(row.ping.createdAt, now);
+              const overdue = row.status === 'PENDING' && hours >= 24;
+              const href = linkedPingHref(
+                row.ping.linkedRecordType,
+                row.ping.linkedRecordId,
+              );
+              return (
+                <div
+                  key={row.id}
+                  className="flex gap-3 border-b border-black/[.07] px-5 py-3.5 last:border-b-0 dark:border-white/[.06]"
+                >
+                  <div
+                    className="w-[3px] flex-none rounded-sm"
+                    style={{
+                      background:
+                        row.status === 'PENDING'
+                          ? overdue
+                            ? '#E5484D'
+                            : '#F2703A'
+                          : '#3DD68C',
+                    }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12.5px] font-medium leading-[1.45]">
+                      {row.ping.message}
+                    </div>
+                    <div className="mt-1 text-[10.5px] text-black/45 dark:text-white/40">
+                      {row.ping.fromEmployee.fullName} · {hours}h ago
+                      {overdue ? ` · ${hours - 24}h overdue` : ''}
+                    </div>
+                    {href && (
+                      <Link
+                        href={href}
+                        className="mt-1 block text-[10.5px] font-semibold text-[#3B6FB5] dark:text-[#6FA3E0]"
+                      >
+                        Open linked record
+                      </Link>
+                    )}
+                    {row.status === 'PENDING' ? (
+                      <div className="mt-2 flex gap-1.5">
+                        <button
+                          onClick={() => void act(row.id, 'ACKNOWLEDGED')}
+                          className="rounded-md border border-black/15 px-2.5 py-1 text-[10.5px] font-semibold text-black/75 hover:bg-black/[.05] dark:border-white/[.14] dark:text-white/75 dark:hover:bg-white/[.06]"
+                        >
+                          Acknowledge
+                        </button>
+                        <button
+                          onClick={() => void act(row.id, 'RESOLVED')}
+                          className="rounded-md bg-[#3B6FB5] px-2.5 py-1 text-[10.5px] font-bold text-white"
+                        >
+                          Resolve
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="mt-1.5 inline-block rounded-[5px] bg-[#3DD68C]/[.14] px-2 py-1 text-[10px] font-semibold text-[#1E9E63] dark:text-[#3DD68C]">
+                        {row.status === 'RESOLVED'
                           ? 'Resolved'
                           : 'Acknowledged'}
-                    </span>
-                  ))}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )
+        ) : sent.length === 0 ? (
+          <p className="px-5 py-[18px] text-[12px] text-black/40 dark:text-white/[.32]">
+            No sent pings.
+          </p>
+        ) : (
+          sent.map((ping) => {
+            const anyPending = ping.recipients.some(
+              (recipient) => recipient.status === 'PENDING',
+            );
+            return (
+              <div
+                key={ping.id}
+                className="flex gap-3 border-b border-black/[.07] px-5 py-3.5 last:border-b-0 dark:border-white/[.06]"
+              >
+                <div
+                  className="w-[3px] flex-none rounded-sm"
+                  style={{ background: anyPending ? '#E5484D' : '#3DD68C' }}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[12.5px] font-medium leading-[1.45]">
+                    {ping.message}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {ping.recipients.map((recipient) => (
+                      <span
+                        key={recipient.id}
+                        className={cn(
+                          'rounded-[5px] px-2 py-1 text-[10px] font-semibold',
+                          recipient.status === 'PENDING'
+                            ? 'bg-[#E5484D]/[.14] text-[#C13438] dark:text-[#FF8A8D]'
+                            : 'bg-[#3DD68C]/[.14] text-[#1E9E63] dark:text-[#3DD68C]',
+                        )}
+                      >
+                        {recipient.employee.fullName}:{' '}
+                        {recipient.status === 'PENDING'
+                          ? 'Pending'
+                          : recipient.status === 'RESOLVED'
+                            ? 'Resolved'
+                            : 'Acknowledged'}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-        </div>
-      )}
+            );
+          })
+        )}
+      </div>
     </section>
   );
 }
 
-function PingGroupHeader({ children }: { children: React.ReactNode }) {
+function PingTab({
+  active,
+  count,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  count: number;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="border-t border-black/[.07] dark:border-white/[.06] bg-black/[.03] px-5 dark:bg-white/[.03] py-2 text-[10px] font-semibold uppercase tracking-[.14em] text-black/50 dark:text-white/[.42]">
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        'relative flex min-h-9 items-center gap-1.5 px-3 text-[11px] font-semibold transition-colors',
+        active
+          ? 'text-black dark:text-white'
+          : 'text-black/45 hover:text-black/70 dark:text-white/40 dark:hover:text-white/70',
+      )}
+    >
       {children}
-    </div>
+      <span className="rounded-full bg-black/[.07] px-1.5 py-0.5 text-[9px] dark:bg-white/[.08]">
+        {count}
+      </span>
+      {active && (
+        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#3B6FB5] dark:bg-[#6FA3E0]" />
+      )}
+    </button>
   );
 }
 
@@ -1001,7 +1219,9 @@ function TabPill({
       onClick={onClick}
       className={cn(
         'rounded-full px-3.5 py-[7px] text-[12px] font-bold transition-colors',
-        active ? 'bg-[#3B6FB5] text-white' : 'text-black/60 dark:text-white/55 hover:text-black/80 dark:hover:text-white/80',
+        active
+          ? 'bg-[#3B6FB5] text-white'
+          : 'text-black/60 dark:text-white/55 hover:text-black/80 dark:hover:text-white/80',
       )}
     >
       {children}
@@ -1009,15 +1229,28 @@ function TabPill({
   );
 }
 
-function HealthChip({ health }: { health: 'ON_TRACK' | 'AT_RISK' | 'BLOCKED' }) {
+function HealthChip({
+  health,
+}: {
+  health: 'ON_TRACK' | 'AT_RISK' | 'BLOCKED';
+}) {
   const styles = {
     ON_TRACK: 'bg-[#3DD68C]/[.14] text-[#1E9E63] dark:text-[#3DD68C]',
     AT_RISK: 'bg-[#E08A2C]/[.16] text-[#C9761B] dark:text-[#E08A2C]',
     BLOCKED: 'bg-[#E5484D]/[.16] text-[#C13438] dark:text-[#FF8A8D]',
   }[health];
-  const label = { ON_TRACK: 'On track', AT_RISK: 'At risk', BLOCKED: 'Blocked' }[health];
+  const label = {
+    ON_TRACK: 'On track',
+    AT_RISK: 'At risk',
+    BLOCKED: 'Blocked',
+  }[health];
   return (
-    <span className={cn('flex-none rounded-[5px] px-2 py-[3px] text-[10px] font-semibold', styles)}>
+    <span
+      className={cn(
+        'flex-none rounded-[5px] px-2 py-[3px] text-[10px] font-semibold',
+        styles,
+      )}
+    >
       {label}
     </span>
   );
@@ -1039,7 +1272,9 @@ function ProjectCard({ project }: { project: ProjectProgress }) {
       </div>
       <div className="mt-1.5 truncate text-[11px] tabular-nums text-black/45 dark:text-white/40">
         {project.orderNumber} · {prettyEnum(project.currentStage)}
-        {project.nextDueDate ? ` · Due ${new Date(project.nextDueDate).toLocaleDateString()}` : ''}
+        {project.nextDueDate
+          ? ` · Due ${new Date(project.nextDueDate).toLocaleDateString()}`
+          : ''}
       </div>
       <div className="mt-[13px] flex items-center gap-2">
         <div className="h-2 flex-1 overflow-hidden rounded bg-black/[.08] dark:bg-white/[.07]">
@@ -1053,7 +1288,10 @@ function ProjectCard({ project }: { project: ProjectProgress }) {
         </span>
       </div>
       {project.healthReason !== 'No active blockers' && (
-        <div className="mt-[9px] truncate text-[11px] leading-[1.5] text-black/45 dark:text-white/40" title={project.healthReason}>
+        <div
+          className="mt-[9px] truncate text-[11px] leading-[1.5] text-black/45 dark:text-white/40"
+          title={project.healthReason}
+        >
           {project.healthReason}
         </div>
       )}
