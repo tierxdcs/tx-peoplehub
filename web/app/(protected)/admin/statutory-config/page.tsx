@@ -4,9 +4,20 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { StatutoryConfig, StatutoryConfigType } from '../../../lib/types';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent } from '../../../components/ui/card';
+import {
+  Callout,
+  SCard,
+  SIGNAL_BTN_GHOST,
+  SIGNAL_BTN_OUTLINE,
+  SIGNAL_BTN_PRIMARY,
+  SIGNAL_DIALOG,
+  SIGNAL_DIALOG_TITLE,
+  SIGNAL_HAIRLINE,
+  SIGNAL_ROW_DIVIDER,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
+import { cn } from '../../../lib/utils';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
@@ -97,16 +108,16 @@ export default function StatutoryConfigPage() {
   }, [load]);
 
   return (
-    <PageContainer className="max-w-4xl">
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Statutory Config"
         description="Effective-dated salary structure, PF, ESI, PT, TDS and deduction rules used by onboarding and payroll."
-        action={<Button onClick={() => setShowForm(true)}>Add Config Version</Button>}
+        actions={<Button onClick={() => setShowForm(true)}>Add Config Version</Button>}
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
       {/* Compliance guardrail — load-bearing, keep prominent. */}
-      <div className="mb-6 flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-warning">
-        <AlertTriangle className="mt-0.5 size-5 shrink-0" />
+      <Callout variant="warning" className="mt-0">
         <p>
           <span className="font-semibold">Verify before use.</span> Statutory
           rates must be checked against current EPFO/ESIC/Income Tax sources
@@ -114,12 +125,11 @@ export default function StatutoryConfigPage() {
           compliance sign-off — every payslip generated from configs here is a
           test/placeholder computation until that sign-off is complete.
         </p>
-      </div>
+      </Callout>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
-      <Card>
-        <CardContent className="p-0">
+      <SCard className="overflow-hidden">
           {loading ? (
             <div className="space-y-2 p-6">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -177,8 +187,7 @@ export default function StatutoryConfigPage() {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+      </SCard>
 
       {showForm && (
         <ConfigForm
@@ -204,7 +213,8 @@ export default function StatutoryConfigPage() {
       {viewing && (
         <ViewConfigDialog config={viewing} onClose={() => setViewing(null)} />
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }
 
@@ -249,9 +259,9 @@ function ViewConfigDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={cn(SIGNAL_DIALOG, 'max-w-lg')}>
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className={SIGNAL_DIALOG_TITLE}>
             {config.configType}
             {config.state ? ` · ${config.state}` : ''}
           </DialogTitle>
@@ -264,11 +274,14 @@ function ViewConfigDialog({
 
         <div className="space-y-4">
           {scalarEntries.length > 0 && (
-            <dl className="rounded-md border">
+            <dl className={cn('rounded-md border', SIGNAL_HAIRLINE)}>
               {scalarEntries.map(([k, v]) => (
                 <div
                   key={k}
-                  className="flex justify-between gap-4 border-b px-3 py-2 text-sm last:border-0"
+                  className={cn(
+                    'flex justify-between gap-4 border-b px-3 py-2 text-sm last:border-0',
+                    SIGNAL_ROW_DIVIDER,
+                  )}
                 >
                   <dt className="text-muted-foreground">{humanizeKey(k)}</dt>
                   <dd className="font-medium tabular-nums">{formatValue(v)}</dd>
@@ -311,7 +324,12 @@ function ViewConfigDialog({
             </p>
           )}
 
-          <details className="rounded-md border bg-muted/30 p-3 text-xs">
+          <details
+            className={cn(
+              'rounded-md border bg-black/[.03] p-3 text-xs dark:bg-white/[.03]',
+              SIGNAL_HAIRLINE,
+            )}
+          >
             <summary className="cursor-pointer text-muted-foreground">
               Raw JSON
             </summary>
@@ -322,9 +340,9 @@ function ViewConfigDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <button type="button" className={SIGNAL_BTN_OUTLINE} onClick={onClose}>
             Close
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -408,9 +426,9 @@ function ConfigForm({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={cn(SIGNAL_DIALOG, 'max-w-lg')}>
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className={SIGNAL_DIALOG_TITLE}>
             {config ? 'Edit Config Version' : 'Add Config Version'}
           </DialogTitle>
           <DialogDescription className="text-warning">
@@ -460,12 +478,12 @@ function ConfigForm({
           </Field>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <button type="button" className={SIGNAL_BTN_GHOST} onClick={onClose}>
               Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
+            </button>
+            <button type="submit" className={SIGNAL_BTN_PRIMARY} disabled={submitting}>
               {submitting ? 'Saving…' : config ? 'Save Changes' : 'Save'}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -41,6 +41,9 @@ describe('PayrollComputationService', () => {
     status: EmployeeStatus.ACTIVE,
     deactivatedAt: null,
     accessStatus: 'ACTIVE' as any,
+    accessDeniedAt: null,
+    accessDeniedById: null,
+    accessDenialReason: null,
     tokenVersion: 0,
     mustChangePassword: false,
     isSalesHead: false,
@@ -451,14 +454,16 @@ describe('PayrollComputationService', () => {
 
       expect(result.warnings).toEqual([]);
       // gross = 56000 + 22400 + 36467 = 114867
-      expect(findRow(result.directComponents, 'Sub Total – Gross Salary').perMonth).toBe(
-        '114867',
-      );
+      expect(
+        findRow(result.directComponents, 'Sub Total – Gross Salary').perMonth,
+      ).toBe('114867');
       // PF capped at ceiling 15000 → 1800; gross > ESI threshold 21000 → "—".
       expect(findRow(result.employeeDeductions, 'Employee PF').perMonth).toBe(
         '1800',
       );
-      expect(findRow(result.employeeDeductions, 'Employee ESI').perMonth).toBeNull();
+      expect(
+        findRow(result.employeeDeductions, 'Employee ESI').perMonth,
+      ).toBeNull();
       expect(
         findRow(result.employeeDeductions, 'Professional Tax (PT)').perMonth,
       ).toBe('200');
@@ -468,10 +473,13 @@ describe('PayrollComputationService', () => {
       ).toBe('112867');
       // Employer PF mirrors employee PF; ESI "—".
       expect(
-        findRow(result.indirectBenefits, 'Employer Contribution to PF').perMonth,
+        findRow(result.indirectBenefits, 'Employer Contribution to PF')
+          .perMonth,
       ).toBe('1800');
       // Variable pay stored annual (60000) → monthly 5000.
-      expect(findRow(result.indirectBenefits, 'Variable Pay').perMonth).toBe('5000');
+      expect(findRow(result.indirectBenefits, 'Variable Pay').perMonth).toBe(
+        '5000',
+      );
       // CTC/mo = gross 114867 + employer PF 1800 = 116667.
       expect(result.grandTotal.perMonth).toBe('116667');
       // CTC/yr = 116667*12 + 60000 variable = 1460004.
@@ -497,7 +505,9 @@ describe('PayrollComputationService', () => {
       expect(tds.perMonth).toBeNull();
       expect(tds.note).toBeTruthy();
       // Net Take Home equals Salary Before Taxes (no TDS subtracted).
-      expect(findRow(result.employeeDeductions, 'Net Take Home Salary').perMonth).toBe(
+      expect(
+        findRow(result.employeeDeductions, 'Net Take Home Salary').perMonth,
+      ).toBe(
         findRow(result.employeeDeductions, 'Salary Before Taxes').perMonth,
       );
     });
@@ -508,9 +518,15 @@ describe('PayrollComputationService', () => {
       const result = await service.computeCtcBreakdown('emp-1');
 
       expect(result.warnings).toEqual(
-        expect.arrayContaining(['PF', 'ESI', 'Professional Tax (Bangalore HQ)']),
+        expect.arrayContaining([
+          'PF',
+          'ESI',
+          'Professional Tax (Bangalore HQ)',
+        ]),
       );
-      expect(findRow(result.employeeDeductions, 'Employee PF').perMonth).toBeNull();
+      expect(
+        findRow(result.employeeDeductions, 'Employee PF').perMonth,
+      ).toBeNull();
       expect(
         findRow(result.employeeDeductions, 'Professional Tax (PT)').perMonth,
       ).toBeNull();

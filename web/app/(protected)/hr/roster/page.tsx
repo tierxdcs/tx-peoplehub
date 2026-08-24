@@ -11,9 +11,7 @@ import {
   PaginatedResult,
   Vertical,
 } from '../../../lib/types';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent } from '../../../components/ui/card';
+import { SCard, SignalHeader, SignalPage } from '../../../components/ui/signal';
 import { Select } from '../../../components/ui/select';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
@@ -116,11 +114,12 @@ export default function RosterPage() {
   const colCount = isAdmin ? 10 : 8;
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Employee Roster"
         description="Company-wide directory of employees and onboarding status."
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
       <RegisterToolbar
         title="Employee Register"
@@ -171,8 +170,7 @@ export default function RosterPage() {
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
-      <Card>
-        <CardContent className="p-0">
+      <SCard className="overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -279,8 +277,7 @@ export default function RosterPage() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </SCard>
 
       <RegisterPagination
         page={page}
@@ -288,6 +285,7 @@ export default function RosterPage() {
         onPageChange={setPage}
         disabled={loading}
       />
+      </div>
 
       {detailTarget && (
         <SensitiveDetailPanel
@@ -296,6 +294,6 @@ export default function RosterPage() {
           onClose={() => setDetailTarget(null)}
         />
       )}
-    </PageContainer>
+    </SignalPage>
   );
 }

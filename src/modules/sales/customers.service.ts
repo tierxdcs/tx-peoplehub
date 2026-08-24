@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -35,6 +37,7 @@ export class CustomersService {
     user: AuthenticatedUser,
   ): Promise<CustomerEntity> {
     await this.access.assertSalesAccess(user);
+    this.assertValidPrimaryContacts(dto.contacts);
 
     const ownerId = await this.resolveOwnerId(dto.ownerId, user);
 
@@ -114,21 +117,151 @@ export class CustomersService {
       this.assertCanAssignOwner(user);
     }
 
-    const updated = await this.prisma.customer.update({
-      where: { id },
-      data: {
-        name: dto.name,
-        gstin: dto.gstin,
-        billingAddress: dto.billingAddress as Prisma.InputJsonValue | undefined,
-        shippingAddress: dto.shippingAddress as
-          Prisma.InputJsonValue | undefined,
-        industry: dto.industry,
-        status: dto.status,
-        ownerId: dto.ownerId,
-      },
-      include: { contacts: true },
+    this.assertValidPrimaryContacts(dto.contacts);
+    if (dto.contacts) {
+      const existingIds = new Set(
+        existing.contacts.map((contact) => contact.id),
+      );
+      const foreignId = dto.contacts.find(
+        (contact) => contact.id && !existingIds.has(contact.id),
+      );
+      if (foreignId) {
+        throw new BadRequestException(
+          'A supplied contact does not belong to this customer',
+        );
+      }
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (dto.contacts) {
+        const retainedIds = dto.contacts
+          .map((contact) => contact.id)
+          .filter((contactId): contactId is string => Boolean(contactId));
+        await tx.customerContact.deleteMany({
+          where: {
+            customerId: id,
+            ...(retainedIds.length ? { id: { notIn: retainedIds } } : {}),
+          },
+        });
+        for (const contact of dto.contacts) {
+          const data = {
+            name: contact.name.trim(),
+            email: contact.email?.trim() || null,
+            phone: contact.phone?.trim() || null,
+            designation: contact.designation?.trim() || null,
+            isPrimary: contact.isPrimary ?? false,
+          };
+          if (contact.id) {
+            await tx.customerContact.update({
+              where: { id: contact.id },
+              data,
+            });
+          } else {
+            await tx.customerContact.create({
+              data: { ...data, customerId: id },
+            });
+          }
+        }
+      }
+
+      return tx.customer.update({
+        where: { id },
+        data: {
+          name: dto.name,
+          gstin: dto.gstin,
+          billingAddress: dto.billingAddress as
+            Prisma.InputJsonValue | undefined,
+          shippingAddress: dto.shippingAddress as
+            Prisma.InputJsonValue | undefined,
+          industry: dto.industry,
+          status: dto.status,
+          ownerId: dto.ownerId,
+        },
+        include: { contacts: true },
+      });
     });
     return this.toEntity(updated);
+  }
+
+  async remove(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<{ id: string; deleted: true }> {
+    const canDelete =
+      isSuperAdmin(user) ||
+      (user.role === Role.MANAGER && (await this.access.isSalesStaff(user)));
+    if (!canDelete) {
+      throw new ForbiddenException(
+        'Only Sales Managers or CEO/SuperAdmin may delete customers',
+      );
+    }
+
+    await this.findRawOrThrow(id);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // Contacts are owned by the customer and cascade safely. Every other
+        // link, including nullable/SetNull links, is treated as real history
+        // and therefore blocks permanent deletion.
+        const referenceChecks = await Promise.all([
+          tx.opportunity.count({ where: { customerId: id } }),
+          tx.bid.count({ where: { customerId: id } }),
+          tx.order.count({ where: { customerId: id } }),
+          tx.salesInvoice.count({ where: { customerId: id } }),
+          tx.customerReceipt.count({ where: { customerId: id } }),
+          tx.deliveryChallan.count({ where: { customerId: id } }),
+          tx.designRequest.count({ where: { customerId: id } }),
+          tx.designProject.count({ where: { customerId: id } }),
+          tx.qmsCustomerComplaint.count({ where: { customerId: id } }),
+          tx.customerCreditControl.count({ where: { customerId: id } }),
+        ]);
+        const labels = [
+          'opportunities',
+          'bids',
+          'orders',
+          'sales invoices',
+          'customer receipts',
+          'delivery challans',
+          'design requests',
+          'design projects',
+          'customer complaints',
+          'credit-control records',
+        ];
+        const usedBy = referenceChecks
+          .map((count, index) => (count ? `${labels[index]} (${count})` : null))
+          .filter(Boolean);
+        if (usedBy.length) {
+          throw new ConflictException(
+            `This customer cannot be deleted because it is used by: ${usedBy.join(', ')}. Mark it inactive instead to preserve history.`,
+          );
+        }
+
+        await tx.customer.delete({ where: { id } });
+        return { id, deleted: true as const };
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new ConflictException(
+          'This customer cannot be deleted because it is referenced elsewhere in the system. Mark it inactive instead.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  private assertValidPrimaryContacts(
+    contacts: Array<{ isPrimary?: boolean }> | undefined,
+  ): void {
+    if (
+      contacts &&
+      contacts.filter((contact) => contact.isPrimary).length > 1
+    ) {
+      throw new BadRequestException(
+        'Only one customer contact can be marked as primary',
+      );
+    }
   }
 
   /**

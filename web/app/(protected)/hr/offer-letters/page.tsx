@@ -11,9 +11,11 @@ import {
 } from 'lucide-react';
 import { ApiError, apiFetch } from '../../../lib/api';
 import { Employee, EmployeeRoster, PaginatedResult } from '../../../lib/types';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent } from '../../../components/ui/card';
+import {
+  SCard,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
 import { Field } from '../../../components/ui/field';
 import { Select } from '../../../components/ui/select';
 import { Textarea } from '../../../components/ui/textarea';
@@ -256,19 +258,19 @@ export default function OfferLettersPage() {
   return (
     <>
       {document && <OfferLetterPrintDocument offer={document} />}
-      <PageContainer>
-        <PageHeader
+      <SignalPage>
+        <SignalHeader
           title="Offer Letters"
           description="Author the letter, submit it to the vertical owner for approval, and download it once approved."
         />
+        <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
         <RegisterToolbar
           title="Employee Offer Register"
           search={register.search}
           onSearchChange={register.setSearch}
           searchPlaceholder="Search employee, designation or status"
         />
-        <Card className="mb-6">
-          <CardContent className="p-0">
+        <SCard className="overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -316,15 +318,13 @@ export default function OfferLettersPage() {
                 )}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+        </SCard>
         <RegisterPagination
           page={register.page}
           pageCount={register.pageCount}
           onPageChange={register.setPage}
         />
-        <Card>
-          <CardContent className="space-y-5 p-6">
+        <SCard className="space-y-5 px-5 py-[18px]">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Employee" required>
                 <Select
@@ -480,9 +480,9 @@ export default function OfferLettersPage() {
                 <Printer /> Download Offer Letter
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      </PageContainer>
+        </SCard>
+        </div>
+      </SignalPage>
     </>
   );
 }
@@ -503,12 +503,21 @@ function StatusPanel({ offer }: { offer: OfferLetterDocument }) {
 
   const tone =
     offer.status === 'APPROVED'
-      ? 'border-success/40 bg-success/10'
+      ? 'border-[#1E9E63]/40 bg-[#3DD68C]/[.10] dark:border-[#3DD68C]/40'
       : offer.status === 'REJECTED'
-        ? 'border-destructive/40 bg-destructive/10'
+        ? 'border-[#E5484D]/40 bg-[#E5484D]/[.07]'
         : pending
-          ? 'border-warning/40 bg-warning/10'
-          : 'border-border bg-muted/40';
+          ? 'border-[#C9761B] bg-[#E08A2C]/[.09] dark:border-[#E08A2C]'
+          : 'border-black/10 bg-black/[.03] dark:border-white/[.08] dark:bg-white/[.03]';
+
+  const iconTone =
+    offer.status === 'APPROVED'
+      ? 'text-[#1E9E63] dark:text-[#3DD68C]'
+      : offer.status === 'REJECTED'
+        ? 'text-[#C13438] dark:text-[#FF8A8D]'
+        : pending
+          ? 'text-[#C9761B] dark:text-[#E08A2C]'
+          : 'text-black/45 dark:text-white/40';
 
   const Icon =
     offer.status === 'APPROVED'
@@ -520,8 +529,8 @@ function StatusPanel({ offer }: { offer: OfferLetterDocument }) {
           : FileText;
 
   return (
-    <div className={`flex gap-3 rounded-md border p-4 ${tone}`}>
-      <Icon className="mt-0.5 h-5 w-5 shrink-0" />
+    <div className={`flex gap-3 rounded-[9px] border p-4 ${tone}`}>
+      <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${iconTone}`} />
       <div className="space-y-1 text-sm">
         <div className="flex items-center gap-2">
           <StatusBadge value={offer.status} />

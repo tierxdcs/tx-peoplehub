@@ -100,7 +100,11 @@
       "Bash(awk -F/ '{print $1\"/\"$2}')",
       "Bash(echo \"exit-grep:$?\")",
       "Bash(echo \"exit grep: $?\")",
-      "Bash(echo \"exit-filtered: $?\")"
+      "Bash(echo \"exit-filtered: $?\")",
+      "Bash(echo \"exit-of-grep: $?\")",
+      "Bash(echo \"audit-exit:$?\")",
+      "Bash(echo \"audit exit: $?\")",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

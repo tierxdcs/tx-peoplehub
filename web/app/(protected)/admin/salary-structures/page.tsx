@@ -15,9 +15,22 @@ import {
   NumberFormatStyle,
   useNumberFormat,
 } from '../../../lib/number-format-context';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent } from '../../../components/ui/card';
+import {
+  SCard,
+  SCardTitle,
+  SIGNAL_BTN_GHOST,
+  SIGNAL_BTN_OUTLINE,
+  SIGNAL_BTN_PRIMARY,
+  SIGNAL_DIALOG,
+  SIGNAL_DIALOG_TITLE,
+  SIGNAL_EYEBROW,
+  SIGNAL_MUTED,
+  SignalHeader,
+  SignalPage,
+  Callout,
+  ToneChip,
+} from '../../../components/ui/signal';
+import { cn } from '../../../lib/utils';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
 import { Field } from '../../../components/ui/field';
@@ -102,14 +115,15 @@ export default function SalaryStructuresPage() {
   const latestIsUpcoming = !!latest && latest.effectiveFrom.slice(0, 10) > todayStr;
 
   return (
-    <PageContainer className="max-w-4xl">
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Salary Structures"
         description="View an employee's current CTC breakdown and its effective-dated history. Updates never overwrite history."
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
-      <Card className="mb-4">
-        <CardContent className="grid gap-4 p-4 sm:grid-cols-2">
+      <SCard className="px-5 py-[18px]">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Search employee">
             <Input
               placeholder="Name, ID, or email"
@@ -130,121 +144,110 @@ export default function SalaryStructuresPage() {
               ))}
             </Select>
           </Field>
-        </CardContent>
-      </Card>
+        </div>
+      </SCard>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
       {!employeeId ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
-            <IndianRupee className="size-8" />
-            <p className="text-sm">
-              Select an employee to view their salary structure.
-            </p>
-          </CardContent>
-        </Card>
+        <SCard className="px-5 py-10 text-center">
+          <p className={cn('text-sm', SIGNAL_MUTED)}>
+            Select an employee to view their salary structure.
+          </p>
+        </SCard>
       ) : loadingRecord ? (
-        <Card>
-          <CardContent className="space-y-3 p-6">
-            <Skeleton className="h-5 w-40" />
-            <Skeleton className="h-24 w-full" />
-          </CardContent>
-        </Card>
+        <SCard className="space-y-3 px-5 py-[18px]">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-24 w-full" />
+        </SCard>
       ) : (
         <>
-          <Card className="mb-6">
-            <CardContent className="p-6">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold">Current structure</h2>
-                  {latestIsUpcoming && (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-200">
-                      Upcoming
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {latest && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowBreakdown(true)}
-                    >
-                      View CTC breakdown
-                    </Button>
-                  )}
-                  <Button size="sm" onClick={() => setShowForm(true)}>
-                    Update structure
-                  </Button>
-                </div>
+          <SCard className="px-5 py-[18px]">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <SCardTitle title="Current structure" />
+                {latestIsUpcoming && <ToneChip tone="warning">Upcoming</ToneChip>}
               </div>
-              {latest ? (
-                <>
-                  {latestIsUpcoming && (
-                    <p className="mb-3 text-sm text-muted-foreground">
-                      This revision takes effect on{' '}
-                      {latest.effectiveFrom.slice(0, 10)} and isn&apos;t in
-                      effect for payroll yet.
-                    </p>
-                  )}
-                  <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
-                    <StatItem label="Effective from" value={latest.effectiveFrom.slice(0, 10)} />
-                    <StatItem label="Basic" value={formatINR(latest.basic, numberFormatStyle)} />
-                    <StatItem label="HRA" value={formatINR(latest.hra, numberFormatStyle)} />
-                    <StatItem label="Special allowance" value={formatINR(latest.specialAllowance, numberFormatStyle)} />
-                    <StatItem label="Other allowances" value={latest.otherAllowances ? formatINR(latest.otherAllowances, numberFormatStyle) : '—'} />
-                    <StatItem label="Variable pay (annual)" value={latest.variablePay ? formatINR(latest.variablePay, numberFormatStyle) : '—'} />
-                    <StatItem label="Annual CTC" value={formatINR(latest.ctcAnnual, numberFormatStyle)} emphasize />
-                  </dl>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No salary structure on file for this employee yet.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+              <div className="flex items-center gap-2">
+                {latest && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowBreakdown(true)}
+                  >
+                    View CTC breakdown
+                  </Button>
+                )}
+                <Button size="sm" onClick={() => setShowForm(true)}>
+                  Update structure
+                </Button>
+              </div>
+            </div>
+            {latest ? (
+              <>
+                {latestIsUpcoming && (
+                  <p className={cn('mb-3 text-sm', SIGNAL_MUTED)}>
+                    This revision takes effect on{' '}
+                    {latest.effectiveFrom.slice(0, 10)} and isn&apos;t in
+                    effect for payroll yet.
+                  </p>
+                )}
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3">
+                  <StatItem label="Effective from" value={latest.effectiveFrom.slice(0, 10)} />
+                  <StatItem label="Basic" value={formatINR(latest.basic, numberFormatStyle)} />
+                  <StatItem label="HRA" value={formatINR(latest.hra, numberFormatStyle)} />
+                  <StatItem label="Special allowance" value={formatINR(latest.specialAllowance, numberFormatStyle)} />
+                  <StatItem label="Other allowances" value={latest.otherAllowances ? formatINR(latest.otherAllowances, numberFormatStyle) : '—'} />
+                  <StatItem label="Variable pay (annual)" value={latest.variablePay ? formatINR(latest.variablePay, numberFormatStyle) : '—'} />
+                  <StatItem label="Annual CTC" value={formatINR(latest.ctcAnnual, numberFormatStyle)} emphasize />
+                </dl>
+              </>
+            ) : (
+              <p className={cn('text-sm', SIGNAL_MUTED)}>
+                No salary structure on file for this employee yet.
+              </p>
+            )}
+          </SCard>
 
-          <h2 className="mb-3 text-lg font-semibold">History</h2>
-          <Card>
-            <CardContent className="p-0">
-              {history.length === 0 ? (
-                <EmptyState
-                  icon={IndianRupee}
-                  title="No history yet"
-                  description="Salary revisions will appear here, newest first."
-                />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Effective From</TableHead>
-                      <TableHead className="text-right">Basic</TableHead>
-                      <TableHead className="text-right">HRA</TableHead>
-                      <TableHead className="text-right">Special</TableHead>
-                      <TableHead className="text-right">Other</TableHead>
-                      <TableHead className="text-right">Variable</TableHead>
-                      <TableHead className="text-right">Annual CTC</TableHead>
+          <SCard className="overflow-hidden">
+            <div className="px-5 pb-3.5 pt-[18px]">
+              <SCardTitle title="History" />
+            </div>
+            {history.length === 0 ? (
+              <EmptyState
+                icon={IndianRupee}
+                title="No history yet"
+                description="Salary revisions will appear here, newest first."
+              />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Effective From</TableHead>
+                    <TableHead className="text-right">Basic</TableHead>
+                    <TableHead className="text-right">HRA</TableHead>
+                    <TableHead className="text-right">Special</TableHead>
+                    <TableHead className="text-right">Other</TableHead>
+                    <TableHead className="text-right">Variable</TableHead>
+                    <TableHead className="text-right">Annual CTC</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {history.map((h) => (
+                    <TableRow key={h.id}>
+                      <TableCell className="tabular-nums">{h.effectiveFrom.slice(0, 10)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatINR(h.basic, numberFormatStyle)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatINR(h.hra, numberFormatStyle)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatINR(h.specialAllowance, numberFormatStyle)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{h.otherAllowances ? formatINR(h.otherAllowances, numberFormatStyle) : '—'}</TableCell>
+                      <TableCell className="text-right tabular-nums">{h.variablePay ? formatINR(h.variablePay, numberFormatStyle) : '—'}</TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">{formatINR(h.ctcAnnual, numberFormatStyle)}</TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {history.map((h) => (
-                      <TableRow key={h.id}>
-                        <TableCell>{h.effectiveFrom.slice(0, 10)}</TableCell>
-                        <TableCell className="text-right">{formatINR(h.basic, numberFormatStyle)}</TableCell>
-                        <TableCell className="text-right">{formatINR(h.hra, numberFormatStyle)}</TableCell>
-                        <TableCell className="text-right">{formatINR(h.specialAllowance, numberFormatStyle)}</TableCell>
-                        <TableCell className="text-right">{h.otherAllowances ? formatINR(h.otherAllowances, numberFormatStyle) : '—'}</TableCell>
-                        <TableCell className="text-right">{h.variablePay ? formatINR(h.variablePay, numberFormatStyle) : '—'}</TableCell>
-                        <TableCell className="text-right font-medium">{formatINR(h.ctcAnnual, numberFormatStyle)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </SCard>
         </>
       )}
 
@@ -268,7 +271,8 @@ export default function SalaryStructuresPage() {
           onClose={() => setShowBreakdown(false)}
         />
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }
 
@@ -283,10 +287,13 @@ function StatItem({
 }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-        {label}
-      </dt>
-      <dd className={emphasize ? 'text-lg font-semibold' : 'font-medium'}>
+      <dt className={SIGNAL_EYEBROW}>{label}</dt>
+      <dd
+        className={cn(
+          'mt-1 tabular-nums',
+          emphasize ? 'text-lg font-semibold' : 'font-medium',
+        )}
+      >
         {value}
       </dd>
     </div>
@@ -337,9 +344,13 @@ function CtcBreakdownDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+      <DialogContent
+        className={cn(SIGNAL_DIALOG, 'max-h-[85vh] max-w-2xl overflow-y-auto')}
+      >
         <DialogHeader>
-          <DialogTitle>CTC breakdown — {employeeName}</DialogTitle>
+          <DialogTitle className={SIGNAL_DIALOG_TITLE}>
+            CTC breakdown — {employeeName}
+          </DialogTitle>
           <DialogDescription>
             Fully derived from the current salary structure. Statutory rows
             (PF/ESI/PT and employer contributions) are computed the same way
@@ -358,7 +369,7 @@ function CtcBreakdownDialog({
         ) : data ? (
           <div className="space-y-6">
             {data.warnings.length > 0 && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+              <Callout variant="warning" className="mt-0">
                 <p className="font-medium">
                   Some statutory rates aren&apos;t configured yet
                 </p>
@@ -366,10 +377,10 @@ function CtcBreakdownDialog({
                   These rows show &ldquo;—&rdquo; and are excluded from the CTC
                   until set up in Statutory Config: {data.warnings.join(', ')}.
                 </p>
-              </div>
+              </Callout>
             )}
 
-            <p className="text-xs text-muted-foreground">
+            <p className={cn('text-xs', SIGNAL_MUTED)}>
               Effective from {data.effectiveFrom.slice(0, 10)}
             </p>
 
@@ -397,9 +408,9 @@ function CtcBreakdownDialog({
         ) : null}
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <button type="button" className={SIGNAL_BTN_OUTLINE} onClick={onClose}>
             Close
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -417,9 +428,7 @@ function BreakdownSection({
 }) {
   return (
     <div>
-      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-      </h3>
+      <h3 className={cn('mb-2', SIGNAL_EYEBROW)}>{title}</h3>
       <Table>
         <TableHeader>
           <TableRow>
@@ -446,8 +455,8 @@ function BreakdownSection({
                   <TableCell
                     className={
                       row.emphasize
-                        ? 'text-right font-semibold'
-                        : 'text-right'
+                        ? 'text-right font-semibold tabular-nums'
+                        : 'text-right tabular-nums'
                     }
                   >
                     {row.perMonth
@@ -457,8 +466,8 @@ function BreakdownSection({
                   <TableCell
                     className={
                       row.emphasize
-                        ? 'text-right font-semibold'
-                        : 'text-right'
+                        ? 'text-right font-semibold tabular-nums'
+                        : 'text-right tabular-nums'
                     }
                   >
                     {row.perAnnum
@@ -586,9 +595,13 @@ function UpdateStructureForm({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+      <DialogContent
+        className={cn(SIGNAL_DIALOG, 'max-h-[85vh] max-w-lg overflow-y-auto')}
+      >
         <DialogHeader>
-          <DialogTitle>Update structure — {employeeName}</DialogTitle>
+          <DialogTitle className={SIGNAL_DIALOG_TITLE}>
+            Update structure — {employeeName}
+          </DialogTitle>
           <DialogDescription>
             Enter the new monthly CTC — the full breakdown is recalculated
             automatically (same engine as onboarding). Saving appends a new
@@ -619,12 +632,12 @@ function UpdateStructureForm({
           )}
 
           {preview && (
-            <div className="space-y-4 rounded-md border bg-muted/40 p-4">
+            <div className="space-y-4 rounded-[9px] border border-black/10 bg-black/[.02] p-4 dark:border-white/[.08] dark:bg-white/[.02]">
               <div className="flex items-center justify-between">
-                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <div className={SIGNAL_EYEBROW}>
                   System-calculated salary structure
                 </div>
-                <div className="font-semibold">
+                <div className="font-semibold tabular-nums">
                   Annual CTC{' '}
                   {formatINR(Number(preview.annualCtc), numberFormatStyle)}
                 </div>
@@ -666,7 +679,7 @@ function UpdateStructureForm({
                 ]}
                 numberFormatStyle={numberFormatStyle}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className={cn('text-xs', SIGNAL_MUTED)}>
                 ESI is shown only when applicable. TDS remains “as applicable”
                 and is calculated during payroll.
               </p>
@@ -675,12 +688,16 @@ function UpdateStructureForm({
 
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <button type="button" className={SIGNAL_BTN_GHOST} onClick={onClose}>
               Cancel
-            </Button>
-            <Button type="submit" disabled={submitting || !preview}>
+            </button>
+            <button
+              type="submit"
+              className={SIGNAL_BTN_PRIMARY}
+              disabled={submitting || !preview}
+            >
               {submitting ? 'Saving…' : 'Save'}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -699,14 +716,12 @@ function PreviewSection({
 }) {
   return (
     <div>
-      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-      </h3>
+      <h3 className={cn('mb-1.5', SIGNAL_EYEBROW)}>{title}</h3>
       <dl className="space-y-1">
         {rows.map(([label, value]) => (
           <div key={label} className="flex items-center justify-between text-sm">
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="font-medium">
+            <dt className={SIGNAL_MUTED}>{label}</dt>
+            <dd className="font-medium tabular-nums">
               {value ? formatINR(Number(value), numberFormatStyle) : '—'}
             </dd>
           </div>

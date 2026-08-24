@@ -26,6 +26,7 @@ import { OnboardEmployeeDto } from './dto/onboard-employee.dto';
 import { UpdateBankDetailsDto } from './dto/update-bank-details.dto';
 import { UpdateStatutoryDto } from './dto/update-statutory.dto';
 import { GrantAccessDto } from './dto/grant-access.dto';
+import { DenyAccessDto } from './dto/deny-access.dto';
 import { UpdateSignatureDto } from './dto/update-signature.dto';
 import { RosterQueryDto } from './dto/roster-query.dto';
 import { EmployeeSearchQueryDto } from './dto/employee-search-query.dto';
@@ -254,6 +255,20 @@ export class EmployeesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.employeesService.grantAccess(id, dto, user);
+  }
+
+  @Patch(':id/deny-access')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Deny a pending ERP access request while retaining the employee HR record',
+  })
+  denyAccess(
+    @Param('id') id: string,
+    @Body() dto: DenyAccessDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.employeesService.denyAccess(id, dto.reason, user);
   }
 
   @Patch(':id/designate-sales-head')

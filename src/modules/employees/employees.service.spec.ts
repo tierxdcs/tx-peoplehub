@@ -963,6 +963,58 @@ describe('EmployeesService', () => {
     });
   });
 
+  describe('denyAccess', () => {
+    const pendingEmployee = {
+      ...employee,
+      id: 'pending-denial-1',
+      accessStatus: AccessStatus.PENDING_ACCESS,
+      accessDeniedAt: null,
+      accessDeniedById: null,
+      accessDenialReason: null,
+    };
+
+    it('denies login access while retaining the employee record and audit reason', async () => {
+      prisma.employee.findUnique.mockResolvedValueOnce(pendingEmployee);
+      prisma.employee.update.mockResolvedValue({
+        ...pendingEmployee,
+        accessStatus: AccessStatus.INACTIVE,
+        accessDeniedAt: new Date(),
+        accessDeniedById: adminUser.id,
+        accessDenialReason: 'Duplicate onboarding record',
+      });
+
+      const result = await service.denyAccess(
+        pendingEmployee.id,
+        'Duplicate onboarding record',
+        adminUser,
+      );
+
+      expect(result.accessStatus).toBe(AccessStatus.INACTIVE);
+      expect(result.accessDenialReason).toBe('Duplicate onboarding record');
+      expect(prisma.employee.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: pendingEmployee.id },
+          data: expect.objectContaining({
+            accessStatus: AccessStatus.INACTIVE,
+            accessDeniedById: adminUser.id,
+            passwordHash: null,
+          }),
+        }),
+      );
+    });
+
+    it('refuses to deny an access request that is no longer pending', async () => {
+      prisma.employee.findUnique.mockResolvedValueOnce({
+        ...pendingEmployee,
+        accessStatus: AccessStatus.ACTIVE,
+      });
+
+      await expect(
+        service.denyAccess(pendingEmployee.id, 'Not required', adminUser),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
   describe('getRoster', () => {
     const hrStaffUser: AuthenticatedUser = {
       id: 'hr-1',

@@ -423,6 +423,9 @@ model Employee {
   status             EmployeeStatus @default(ACTIVE)
   deactivatedAt      DateTime?
   accessStatus       AccessStatus   @default(PENDING_ACCESS)
+  accessDeniedAt     DateTime?
+  accessDeniedById   String?
+  accessDenialReason String?        @db.Text
 
   /// Bumped on an admin force-reset (and on a self-service change) to invalidate
   /// every previously-issued token: the access/refresh JWT carries the

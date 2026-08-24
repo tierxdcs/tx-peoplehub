@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
+import { useAuth } from '../../../lib/auth-context';
 import { Customer, PaginatedResult } from '../../../lib/types';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
@@ -10,6 +11,8 @@ import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { StatusBadge } from '../../../components/ui/status-badge';
+import { useConfirm } from '../../../components/ui/confirm';
+import { useToast } from '../../../components/ui/toaster';
 import {
   Table,
   TableBody,
@@ -39,6 +42,7 @@ function addressLine(addr: unknown): string {
 }
 
 interface ContactDraft {
+  id?: string;
   name: string;
   email: string;
   phone: string;
@@ -60,6 +64,10 @@ function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default function CustomersPage() {
+  const { user } = useAuth();
+  const canDelete = user?.role === 'MANAGER' || user?.role === 'SUPER_ADMIN';
+  const confirm = useConfirm();
+  const toast = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [summaryRows, setSummaryRows] = useState<Customer[]>([]);
   const [page, setPage] = useState(1);
@@ -68,6 +76,7 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Customer | 'new' | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -123,6 +132,31 @@ export default function CustomersPage() {
   );
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  async function deleteCustomer(customer: Customer) {
+    const accepted = await confirm({
+      title: 'Delete customer permanently?',
+      description: `${customer.name} will be permanently deleted along with its contacts. Deletion is allowed only if this customer has never been referenced anywhere in the system.`,
+      confirmLabel: 'Delete customer',
+      cancelLabel: 'Cancel',
+      destructive: true,
+    });
+    if (!accepted) return;
+
+    setDeletingId(customer.id);
+    try {
+      await apiFetch(`/customers/${customer.id}`, { method: 'DELETE' });
+      toast.success(`${customer.name} deleted.`);
+      if (filtered.length === 1 && page > 1) setPage((value) => value - 1);
+      else await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to delete customer',
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <PageContainer>
@@ -206,13 +240,30 @@ export default function CustomersPage() {
                       <StatusBadge value={customer.status} />
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditing(customer)}
-                      >
-                        Edit Customer
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditing(customer)}
+                        >
+                          Edit Customer
+                        </Button>
+                        {canDelete && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            disabled={deletingId === customer.id}
+                            onClick={() => deleteCustomer(customer)}
+                            aria-label={`Delete ${customer.name}`}
+                          >
+                            <Trash2 className="size-4" />
+                            {deletingId === customer.id
+                              ? 'Deleting…'
+                              : 'Delete'}
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -286,7 +337,16 @@ function CustomerForm({
         : '',
   );
   const [status, setStatus] = useState(customer?.status ?? 'ACTIVE');
-  const [contacts, setContacts] = useState<ContactDraft[]>([]);
+  const [contacts, setContacts] = useState<ContactDraft[]>(
+    customer?.contacts?.map((contact) => ({
+      id: contact.id,
+      name: contact.name,
+      email: contact.email ?? '',
+      phone: contact.phone ?? '',
+      designation: contact.designation ?? '',
+      isPrimary: contact.isPrimary,
+    })) ?? [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -335,6 +395,16 @@ function CustomerForm({
             billingAddress: parseAddress(billing),
             shippingAddress: shipping ? parseAddress(shipping) : undefined,
             status,
+            contacts: contacts
+              .filter((contact) => contact.name.trim())
+              .map((contact) => ({
+                id: contact.id,
+                name: contact.name.trim(),
+                email: contact.email.trim() || undefined,
+                phone: contact.phone.trim() || undefined,
+                designation: contact.designation.trim() || undefined,
+                isPrimary: contact.isPrimary,
+              })),
           }),
         });
       } else {
@@ -457,66 +527,68 @@ function CustomerForm({
           </div>
         )}
 
-        {/* Contacts: editable only at create time (backend PATCH doesn't
-            manage contacts); existing ones are shown read-only on edit. */}
-        {isEdit ? (
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', marginBottom: 4 }}>
-              Contacts
-            </label>
-            {customer!.contacts && customer!.contacts.length > 0 ? (
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {customer!.contacts.map((c) => (
-                  <li key={c.id}>
-                    {c.name}
-                    {c.isPrimary ? ' (primary)' : ''}
-                    {c.email ? ` — ${c.email}` : ''}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <span className="text-muted-foreground">No contacts.</span>
-            )}
-          </div>
-        ) : (
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', marginBottom: 4 }}>
-              Contacts
-            </label>
-            {contacts.map((c, i) => (
-              <div
-                key={i}
-                style={{
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: 4,
-                  padding: 8,
-                  marginBottom: 8,
-                }}
-              >
-                <input
-                  placeholder="Name"
-                  value={c.name}
-                  onChange={(e) =>
-                    setContacts((cs) =>
-                      cs.map((x, j) =>
-                        j === i ? { ...x, name: e.target.value } : x,
-                      ),
-                    )
-                  }
-                  style={{ ...fieldStyle, marginBottom: 4 }}
-                />
-                <input
-                  placeholder="Email"
-                  value={c.email}
-                  onChange={(e) =>
-                    setContacts((cs) =>
-                      cs.map((x, j) =>
-                        j === i ? { ...x, email: e.target.value } : x,
-                      ),
-                    )
-                  }
-                  style={{ ...fieldStyle, marginBottom: 4 }}
-                />
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', marginBottom: 4 }}>Contacts</label>
+          {contacts.map((c, i) => (
+            <div
+              key={i}
+              style={{
+                border: '1px solid hsl(var(--border))',
+                borderRadius: 4,
+                padding: 8,
+                marginBottom: 8,
+              }}
+            >
+              <input
+                placeholder="Name"
+                value={c.name}
+                onChange={(e) =>
+                  setContacts((cs) =>
+                    cs.map((x, j) =>
+                      j === i ? { ...x, name: e.target.value } : x,
+                    ),
+                  )
+                }
+                style={{ ...fieldStyle, marginBottom: 4 }}
+              />
+              <input
+                placeholder="Email"
+                type="email"
+                value={c.email}
+                onChange={(e) =>
+                  setContacts((cs) =>
+                    cs.map((x, j) =>
+                      j === i ? { ...x, email: e.target.value } : x,
+                    ),
+                  )
+                }
+                style={{ ...fieldStyle, marginBottom: 4 }}
+              />
+              <input
+                placeholder="Phone"
+                value={c.phone}
+                onChange={(e) =>
+                  setContacts((cs) =>
+                    cs.map((x, j) =>
+                      j === i ? { ...x, phone: e.target.value } : x,
+                    ),
+                  )
+                }
+                style={{ ...fieldStyle, marginBottom: 4 }}
+              />
+              <input
+                placeholder="Designation"
+                value={c.designation}
+                onChange={(e) =>
+                  setContacts((cs) =>
+                    cs.map((x, j) =>
+                      j === i ? { ...x, designation: e.target.value } : x,
+                    ),
+                  )
+                }
+                style={{ ...fieldStyle, marginBottom: 4 }}
+              />
+              <div className="flex items-center justify-between gap-3">
                 <label style={{ fontSize: 13 }}>
                   <input
                     type="radio"
@@ -530,18 +602,35 @@ function CustomerForm({
                   />{' '}
                   Primary
                 </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive"
+                  onClick={() =>
+                    setContacts((current) => {
+                      const next = current.filter((_, index) => index !== i);
+                      if (c.isPrimary && next.length > 0) {
+                        next[0] = { ...next[0], isPrimary: true };
+                      }
+                      return next;
+                    })
+                  }
+                >
+                  <Trash2 /> Remove
+                </Button>
               </div>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addContact}
-            >
-              + Add contact
-            </Button>
-          </div>
-        )}
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addContact}
+          >
+            + Add contact
+          </Button>
+        </div>
 
         {error && <p className="text-destructive">{error}</p>}
 

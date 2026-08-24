@@ -3,6 +3,7 @@
 /**
  * "Signal" design-language primitives — the shared building blocks of the
  * redesigned pages (dashboard, new purchase order, sales pipeline).
+ * The module-by-module conversion playbook lives in /SIGNAL_UI.md.
  *
  * The language in one paragraph: pages are full-bleed surfaces on the app grey
  * ramp (#F4F4F4 light / #1B1B1B dark) with white/#232323 cards separated by

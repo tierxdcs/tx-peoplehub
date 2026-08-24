@@ -4,9 +4,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, ShieldAlert } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { Employee, EmploymentType, Vertical } from '../../../lib/types';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent } from '../../../components/ui/card';
+import {
+  Callout,
+  SCard,
+  SCardTitle,
+  SIGNAL_EYEBROW,
+  SIGNAL_HAIRLINE,
+  SIGNAL_MUTED,
+  SIGNAL_ROW_DIVIDER,
+  SignalHeader,
+  SignalPage,
+  ToneChip,
+} from '../../../components/ui/signal';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
@@ -104,8 +113,14 @@ function SalarySection({
       <h3 className="mb-2 text-sm font-medium">{title}</h3>
       <dl className="grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2">
         {rows.map(([label, value]) => (
-          <div key={label} className="flex justify-between gap-4 border-b py-1.5 last:border-b-0">
-            <dt className="text-muted-foreground">{label}</dt>
+          <div
+            key={label}
+            className={cn(
+              'flex justify-between gap-4 border-b py-1.5 last:border-b-0',
+              SIGNAL_ROW_DIVIDER,
+            )}
+          >
+            <dt className={SIGNAL_MUTED}>{label}</dt>
             <dd className="whitespace-nowrap font-medium">
               {value === null
                 ? 'Not applicable'
@@ -423,19 +438,19 @@ export default function OnboardEmployeePage() {
 
   if (created) {
     return (
-      <PageContainer className="max-w-xl">
-        <PageHeader title="Employee onboarded" />
-        <Card>
-          <CardContent className="space-y-4 p-6">
+      <SignalPage>
+        <SignalHeader title="Employee onboarded" />
+        <div className="px-5 pb-7 pt-[18px] lg:px-7">
+          <SCard className="mx-auto w-full max-w-xl space-y-4 px-5 py-[18px]">
             <div className="flex items-center gap-3">
-              <span className="flex size-9 items-center justify-center rounded-full bg-success/15 text-success">
+              <span className="flex size-9 items-center justify-center rounded-full bg-[#1E9E63]/15 text-[#1E9E63] dark:bg-[#3DD68C]/[.14] dark:text-[#3DD68C]">
                 <Check className="size-5" />
               </span>
               <div>
                 <div className="font-medium">
                   {created.employeeId} — {created.firstName} {created.lastName}
                 </div>
-                <div className="text-sm text-muted-foreground">
+                <div className={cn('text-sm', SIGNAL_MUTED)}>
                   Onboarding complete
                 </div>
               </div>
@@ -447,7 +462,7 @@ export default function OnboardEmployeePage() {
                 className="bg-muted"
               />
             </Field>
-            <p className="rounded-md bg-primary/5 p-3 text-sm text-muted-foreground">
+            <p className="rounded-[9px] bg-[#3B6FB5]/[.07] p-3 text-sm text-black/60 dark:bg-[#6FA3E0]/[.09] dark:text-white/55">
               Pending ERP access grant from Admin — they cannot log in until an
               Admin grants access.
             </p>
@@ -460,23 +475,24 @@ export default function OnboardEmployeePage() {
             >
               Onboard another
             </Button>
-          </CardContent>
-        </Card>
-      </PageContainer>
+          </SCard>
+        </div>
+      </SignalPage>
     );
   }
 
   const current = STEPS[step];
 
   return (
-    <PageContainer className="max-w-2xl">
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Onboard Employee"
         description="Fill each section, then move to the next. Sensitive PII is stored encrypted."
       />
 
-      <Card className="mb-6">
-        <CardContent className="p-6">
+      <div className="px-5 pb-7 pt-[18px] lg:px-7">
+        <div className="mx-auto w-full max-w-2xl">
+      <SCard className="mb-6 px-5 py-[18px]">
           <Field label="Link to a Candidate Requisition (optional)">
             <Select
               value={candidateRequisitionId}
@@ -491,7 +507,7 @@ export default function OnboardEmployeePage() {
                 </option>
               ))}
             </Select>
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className={cn('mt-2 text-xs', SIGNAL_MUTED)}>
               Approved and Fulfilled requisitions appear. The candidate name,
               vertical, designation, and employment type are filled from the
               requisition; approved Offer Letter terms (compensation, joining
@@ -499,8 +515,7 @@ export default function OnboardEmployeePage() {
               HR review.
             </p>
           </Field>
-        </CardContent>
-      </Card>
+      </SCard>
 
       {/* Stepper — click a completed/earlier step to jump back. */}
       <ol className="mb-6 flex items-center gap-2">
@@ -523,11 +538,12 @@ export default function OnboardEmployeePage() {
                   className={cn(
                     'flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-medium',
                     active &&
-                      'border-primary bg-primary text-primary-foreground',
-                    done && 'border-success bg-success text-success-foreground',
+                      'border-[#3B6FB5] bg-[#3B6FB5] text-white dark:border-[#6FA3E0] dark:bg-[#6FA3E0] dark:text-[#1B1B1B]',
+                    done &&
+                      'border-[#1E9E63] bg-[#1E9E63] text-white dark:border-[#3DD68C] dark:bg-[#3DD68C] dark:text-[#1B1B1B]',
                     !active &&
                       !done &&
-                      'border-muted-foreground/30 text-muted-foreground',
+                      'border-black/15 text-black/45 dark:border-white/[.16] dark:text-white/40',
                   )}
                 >
                   {done ? <Check className="size-4" /> : i + 1}
@@ -536,30 +552,36 @@ export default function OnboardEmployeePage() {
                   className={cn(
                     'hidden sm:inline',
                     active
-                      ? 'font-medium text-foreground'
-                      : 'text-muted-foreground',
+                      ? 'font-medium text-[#1B1B1B] dark:text-[#EDEDED]'
+                      : SIGNAL_MUTED,
                   )}
                 >
                   {s.title}
                 </span>
               </button>
               {i < STEPS.length - 1 && (
-                <span className="h-px flex-1 bg-border" aria-hidden />
+                <span
+                  className="h-px flex-1 bg-black/10 dark:bg-white/[.12]"
+                  aria-hidden
+                />
               )}
             </li>
           );
         })}
       </ol>
 
-      <Card>
-        <CardContent className="p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">{current.title}</h2>
-            {current.sensitive && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning">
-                <ShieldAlert className="size-3.5" /> Sensitive — encrypted
-              </span>
-            )}
+      <SCard className="px-5 py-[18px]">
+          <div className="mb-4">
+            <SCardTitle
+              title={current.title}
+              right={
+                current.sensitive ? (
+                  <ToneChip tone="warning" className="gap-1">
+                    <ShieldAlert className="size-3.5" /> Sensitive — encrypted
+                  </ToneChip>
+                ) : undefined
+              }
+            />
           </div>
 
           {/* Only the current step's fields are mounted → true slide feel. */}
@@ -676,7 +698,7 @@ export default function OnboardEmployeePage() {
                   }}
                   placeholder={`firstname.lastname@${OFFICIAL_EMAIL_DOMAIN}`}
                 />
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className={cn('mt-1 text-xs', SIGNAL_MUTED)}>
                   Suggested automatically from the employee name. HR can edit it
                   before onboarding.
                 </p>
@@ -763,19 +785,30 @@ export default function OnboardEmployeePage() {
               </div>
 
               {previewLoading && (
-                <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
+                <div
+                  className={cn(
+                    'rounded-[9px] border bg-black/[.02] p-4 text-sm dark:bg-white/[.02]',
+                    SIGNAL_HAIRLINE,
+                    SIGNAL_MUTED,
+                  )}
+                >
                   Calculating from effective Statutory Config…
                 </div>
               )}
               {previewError && (
-                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+                <Callout variant="danger" className="mt-0">
                   {previewError}
-                </div>
+                </Callout>
               )}
               {compensationPreview && (
-                <div className="space-y-4 rounded-md border bg-muted/40 p-4">
+                <div
+                  className={cn(
+                    'space-y-4 rounded-[9px] border bg-black/[.02] p-4 dark:bg-white/[.02]',
+                    SIGNAL_HAIRLINE,
+                  )}
+                >
                   <div className="flex items-center justify-between">
-                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <div className={SIGNAL_EYEBROW}>
                       System-calculated salary structure
                     </div>
                     <div className="font-semibold">
@@ -816,7 +849,7 @@ export default function OnboardEmployeePage() {
                     ]}
                     numberFormatStyle={numberFormatStyle}
                   />
-                  <p className="text-xs text-muted-foreground">
+                  <p className={cn('text-xs', SIGNAL_MUTED)}>
                     ESI is shown only when applicable. TDS remains “as applicable” and is calculated during payroll.
                   </p>
                 </div>
@@ -880,14 +913,23 @@ export default function OnboardEmployeePage() {
             </div>
           )}
 
-          {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+          {error && (
+            <p className="mt-4 text-sm text-[#C13438] dark:text-[#FF8A8D]">
+              {error}
+            </p>
+          )}
 
           {/* Navigation */}
-          <div className="mt-6 flex items-center justify-between border-t pt-4">
+          <div
+            className={cn(
+              'mt-6 flex items-center justify-between border-t pt-4',
+              SIGNAL_HAIRLINE,
+            )}
+          >
             <Button variant="outline" onClick={goBack} disabled={step === 0}>
               <ChevronLeft className="size-4" /> Back
             </Button>
-            <span className="text-xs text-muted-foreground">
+            <span className={cn('text-xs', SIGNAL_MUTED)}>
               Step {step + 1} of {STEPS.length}
             </span>
             {isLast ? (
@@ -903,8 +945,9 @@ export default function OnboardEmployeePage() {
               </Button>
             )}
           </div>
-        </CardContent>
-      </Card>
-    </PageContainer>
+      </SCard>
+        </div>
+      </div>
+    </SignalPage>
   );
 }

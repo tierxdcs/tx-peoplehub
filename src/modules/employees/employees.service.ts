@@ -935,6 +935,39 @@ export class EmployeesService {
   }
 
   /**
+   * Reject a pending ERP access request without deleting or deactivating the
+   * underlying employment record. The reason and decision actor are retained
+   * for audit, while INACTIVE guarantees the employee cannot authenticate.
+   */
+  async denyAccess(
+    id: string,
+    reason: string,
+    currentUser: AuthenticatedUser,
+  ): Promise<EmployeeEntity> {
+    const current = await this.findRawOrThrow(id);
+    if (current.accessStatus !== AccessStatus.PENDING_ACCESS) {
+      throw new BadRequestException(
+        'Only a pending access request can be denied',
+      );
+    }
+
+    const employee = await this.prisma.employee.update({
+      where: { id },
+      data: {
+        accessStatus: AccessStatus.INACTIVE,
+        accessDeniedAt: new Date(),
+        accessDeniedById: currentUser.id,
+        accessDenialReason: reason.trim(),
+        passwordHash: null,
+        mustChangePassword: false,
+        tokenVersion: { increment: 1 },
+      },
+    });
+
+    return this.toEntity(employee);
+  }
+
+  /**
    * Designate this employee as the (single) Sales Head. Atomic: unset any
    * existing holder and set the new one in one transaction, so there is
    * never a window with two holders or none. Idempotent if the target is
@@ -1684,6 +1717,9 @@ export class EmployeesService {
       status: employee.status,
       deactivatedAt: employee.deactivatedAt,
       accessStatus: employee.accessStatus,
+      accessDeniedAt: employee.accessDeniedAt,
+      accessDeniedById: employee.accessDeniedById,
+      accessDenialReason: employee.accessDenialReason,
       isSalesHead: employee.isSalesHead,
       isScrumMaster: employee.isScrumMaster,
       isProjectManager: employee.isProjectManager,

@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../../lib/api';
-import { PageContainer } from '../../../../../components/ui/page-container';
-import { PageHeader } from '../../../../../components/ui/page-header';
-import { Card, CardContent } from '../../../../../components/ui/card';
+import {
+  SCard,
+  SignalHeader,
+  SignalPage,
+} from '../../../../../components/ui/signal';
 import { Button } from '../../../../../components/ui/button';
 import { Field } from '../../../../../components/ui/field';
 import { Textarea } from '../../../../../components/ui/textarea';
@@ -123,85 +124,73 @@ export default function OfferLetterReviewPage() {
 
   if (forbidden) {
     return (
-      <PageContainer>
-        <PageHeader title="Offer Letter Review" />
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
+      <SignalPage>
+        <SignalHeader
+          backHref="/hr/offer-letters/pending-approval"
+          backLabel="Approval Queue"
+          title="Offer Letter Review"
+        />
+        <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+          <SCard className="p-6 text-sm text-muted-foreground">
             You are not authorized to review this offer letter. Only the new
             hire’s vertical owner or the CEO may act on it.
-          </CardContent>
-        </Card>
-      </PageContainer>
+          </SCard>
+        </div>
+      </SignalPage>
     );
   }
 
   return (
-    <>
+    <SignalPage>
       {/* The frozen document is rendered for the on-screen preview; the shared
           @media print CSS scopes actual printing to .print-document. */}
-      <PageContainer>
-        <div className="mb-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push('/hr/offer-letters/pending-approval')}
-          >
-            <ArrowLeft /> Back to queue
-          </Button>
-        </div>
-        <PageHeader
-          title="Review Offer Letter"
-          description="Review the submitted offer letter below, then approve or reject. This is exactly the document that will be issued on approval."
-        />
-
+      <SignalHeader
+        backHref="/hr/offer-letters/pending-approval"
+        backLabel="Approval Queue"
+        title="Review Offer Letter"
+        description="Review the submitted offer letter below, then approve or reject. This is exactly the document that will be issued on approval."
+      />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
         {loading ? (
           <Skeleton className="h-96 w-full" />
         ) : error ? (
-          <Card>
-            <CardContent className="p-6 text-sm text-destructive">
-              {error}
-            </CardContent>
-          </Card>
+          <SCard className="p-6 text-sm text-destructive">{error}</SCard>
         ) : offer ? (
-          <div className="space-y-6">
-            <Card>
-              <CardContent className="p-6">
-                <div className="mx-auto max-w-4xl">
-                  <OfferLetterPrintDocument offer={offer} preview />
-                </div>
-              </CardContent>
-            </Card>
+          <>
+            <SCard className="p-6">
+              <div className="mx-auto max-w-4xl">
+                <OfferLetterPrintDocument offer={offer} preview />
+              </div>
+            </SCard>
 
-            <Card>
-              <CardContent className="space-y-4 p-6">
-                <Field
-                  label="Comment"
-                  hint="Required to reject; optional to approve"
+            <SCard className="space-y-4 p-6">
+              <Field
+                label="Comment"
+                hint="Required to reject; optional to approve"
+              >
+                <Textarea
+                  rows={4}
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Add a note for the author…"
+                />
+              </Field>
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button
+                  variant="destructive"
+                  disabled={acting}
+                  onClick={() => void act('reject')}
                 >
-                  <Textarea
-                    rows={4}
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="Add a note for the author…"
-                  />
-                </Field>
-                <div className="flex flex-wrap justify-end gap-3">
-                  <Button
-                    variant="destructive"
-                    disabled={acting}
-                    onClick={() => void act('reject')}
-                  >
-                    Reject
-                  </Button>
-                  <Button disabled={acting} onClick={() => void act('approve')}>
-                    Approve
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                  Reject
+                </Button>
+                <Button disabled={acting} onClick={() => void act('approve')}>
+                  Approve
+                </Button>
+              </div>
+            </SCard>
+          </>
         ) : null}
-      </PageContainer>
-    </>
+      </div>
+    </SignalPage>
   );
 }

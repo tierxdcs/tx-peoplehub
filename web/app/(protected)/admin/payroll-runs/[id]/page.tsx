@@ -2,13 +2,17 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { Employee, PayrollRun, Payslip } from '../../../../lib/types';
 import { formatINR } from '../../../../lib/sales';
 import { useNumberFormat } from '../../../../lib/number-format-context';
-import { PageContainer } from '../../../../components/ui/page-container';
-import { Card, CardContent } from '../../../../components/ui/card';
+import {
+  SCard,
+  SIGNAL_EYEBROW,
+  SignalHeader,
+  SignalPage,
+} from '../../../../components/ui/signal';
 import { Button } from '../../../../components/ui/button';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { EmptyState } from '../../../../components/ui/empty-state';
@@ -132,67 +136,59 @@ export default function PayrollRunDetailPage() {
 
   if (loading) {
     return (
-      <PageContainer className="max-w-4xl">
-        <Skeleton className="mb-4 h-6 w-24" />
-        <Skeleton className="mb-6 h-9 w-64" />
-        <Skeleton className="h-40 w-full" />
-      </PageContainer>
+      <SignalPage>
+        <div className="px-5 pb-7 pt-[18px] lg:px-7">
+          <Skeleton className="mb-4 h-6 w-24" />
+          <Skeleton className="mb-6 h-9 w-64" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      </SignalPage>
     );
   }
   if (error || !run) {
     return (
-      <PageContainer className="max-w-4xl">
-        <p className="text-destructive">{error ?? 'Payroll run not found.'}</p>
-      </PageContainer>
+      <SignalPage>
+        <div className="px-5 pb-7 pt-[18px] lg:px-7">
+          <p className="text-destructive">{error ?? 'Payroll run not found.'}</p>
+        </div>
+      </SignalPage>
     );
   }
 
   return (
-    <PageContainer className="max-w-4xl">
-      <button
-        onClick={() => router.push('/admin/payroll-runs')}
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Payroll Runs
-      </button>
+    <SignalPage>
+      <SignalHeader
+        backHref="/admin/payroll-runs"
+        backLabel="Payroll Runs"
+        title={`${MONTH_NAMES[run.month - 1]} ${run.year}`}
+        chip={<StatusBadge value={run.status} />}
+      />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {MONTH_NAMES[run.month - 1]} {run.year}
-        </h1>
-        <StatusBadge value={run.status} />
-      </div>
-
-      <Card className="mb-6">
-        <CardContent className="grid gap-6 p-6 sm:grid-cols-3">
+      <SCard className="px-5 py-[18px]">
+        <div className="grid gap-6 sm:grid-cols-3">
           <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Status
-            </div>
+            <div className={SIGNAL_EYEBROW}>Status</div>
             <div className="mt-1"><StatusBadge value={run.status} /></div>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Processed at
-            </div>
-            <div className="mt-1 text-sm font-medium">
+            <div className={SIGNAL_EYEBROW}>Processed at</div>
+            <div className="mt-1 text-sm font-medium tabular-nums">
               {run.processedAt ? new Date(run.processedAt).toLocaleString() : '—'}
             </div>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Locked at
-            </div>
-            <div className="mt-1 text-sm font-medium">
+            <div className={SIGNAL_EYEBROW}>Locked at</div>
+            <div className="mt-1 text-sm font-medium tabular-nums">
               {run.lockedAt ? new Date(run.lockedAt).toLocaleString() : '—'}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </SCard>
 
       {run.status === 'DRAFT' && (
-        <Card className="mb-6">
-          <CardContent className="flex flex-col gap-3 p-6">
+        <SCard className="px-5 py-[18px]">
+          <div className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground">
               Generate payslips for all active employees using the current
               statutory config.
@@ -205,22 +201,22 @@ export default function PayrollRunDetailPage() {
             {processError && (
               <p className="max-w-xl text-sm text-destructive">{processError}</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SCard>
       )}
 
       {run.status === 'PROCESSING' && (
-        <Card className="mb-6">
-          <CardContent className="p-6 text-sm text-muted-foreground">
+        <SCard className="px-5 py-[18px]">
+          <p className="text-sm text-muted-foreground">
             Processing is in progress…
-          </CardContent>
-        </Card>
+          </p>
+        </SCard>
       )}
 
       {(run.status === 'COMPLETED' || run.status === 'LOCKED') && (
-        <>
+        <div>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Payslips</h2>
+            <h2 className="text-[15px] font-bold">Payslips</h2>
             {run.status === 'COMPLETED' && (
               <Button variant="outline" size="sm" onClick={handleLock} disabled={locking}>
                 <Lock className="size-4" /> {locking ? 'Locking…' : 'Lock Run'}
@@ -235,8 +231,7 @@ export default function PayrollRunDetailPage() {
           {processError && (
             <p className="mb-3 text-sm text-destructive">{processError}</p>
           )}
-          <Card>
-            <CardContent className="p-0">
+          <SCard className="overflow-hidden">
               {payslips.length === 0 ? (
                 <EmptyState title="No payslips" />
               ) : (
@@ -256,8 +251,8 @@ export default function PayrollRunDetailPage() {
                         <TableCell className="font-medium">
                           {employeeNames[p.employeeId] ?? '…'}
                         </TableCell>
-                        <TableCell className="text-right">{formatINR(p.grossEarnings, numberFormatStyle)}</TableCell>
-                        <TableCell className="text-right font-medium">{formatINR(p.netPay, numberFormatStyle)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatINR(p.grossEarnings, numberFormatStyle)}</TableCell>
+                        <TableCell className="text-right font-medium tabular-nums">{formatINR(p.netPay, numberFormatStyle)}</TableCell>
                         <TableCell><StatusBadge value={p.status} /></TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -277,10 +272,10 @@ export default function PayrollRunDetailPage() {
                   </TableBody>
                 </Table>
               )}
-            </CardContent>
-          </Card>
-        </>
+          </SCard>
+        </div>
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

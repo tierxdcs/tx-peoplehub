@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, CalendarClock } from 'lucide-react';
+import { CheckCircle2, CalendarClock } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { todayDateStr } from '../../../lib/date';
 import { Attendance, Employee, PaginatedResult } from '../../../lib/types';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent } from '../../../components/ui/card';
+import {
+  Callout,
+  SCard,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
 import { Field } from '../../../components/ui/field';
@@ -110,15 +113,16 @@ export default function AttendanceCorrectionsPage() {
   const selectedEmployee = employees.find((e) => e.id === employeeId);
 
   return (
-    <PageContainer className="max-w-2xl">
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Attendance Corrections"
         description="Manually create or correct an employee's attendance for a specific date. Every change is audited."
       />
 
+      <div className="mx-auto w-full max-w-2xl space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
       {/* Selection card — pick who and which day. */}
-      <Card className="mb-4">
-        <CardContent className="grid gap-4 p-4 sm:grid-cols-3">
+      <SCard>
+        <div className="grid gap-4 p-4 sm:grid-cols-3">
           <Field label="Search employee">
             <Input
               placeholder="Name, ID, or email"
@@ -146,23 +150,23 @@ export default function AttendanceCorrectionsPage() {
               onChange={(e) => setDate(e.target.value)}
             />
           </Field>
-        </CardContent>
-      </Card>
+        </div>
+      </SCard>
 
-      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       {!employeeId ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
+        <SCard>
+          <div className="flex flex-col items-center gap-2 py-10 text-center text-black/40 dark:text-white/[.32]">
             <CalendarClock className="size-8" />
             <p className="text-sm">
               Select an employee and date to view or correct their attendance.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </SCard>
       ) : (
-        <Card>
-          <CardContent className="p-6">
+        <SCard>
+          <div className="p-6">
             {loadingRecord ? (
               <div className="space-y-4">
                 <Skeleton className="h-4 w-64" />
@@ -208,14 +212,11 @@ export default function AttendanceCorrectionsPage() {
                   </Field>
                 </div>
 
-                <div className="mt-4 flex items-start gap-2 rounded-md bg-warning/10 p-3 text-sm text-warning">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                  <span>
-                    This will be recorded as an admin correction and audited.
-                  </span>
-                </div>
+                <Callout>
+                  This will be recorded as an admin correction and audited.
+                </Callout>
 
-                <div className="mt-4 flex items-center gap-3 border-t pt-4">
+                <div className="mt-4 flex items-center gap-3 border-t border-black/[.07] pt-4 dark:border-white/[.06]">
                   <Button onClick={handleSave} disabled={saving}>
                     {saving ? 'Saving…' : 'Save Correction'}
                   </Button>
@@ -228,9 +229,10 @@ export default function AttendanceCorrectionsPage() {
                 </div>
               </>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SCard>
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

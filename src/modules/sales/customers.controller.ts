@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -67,5 +68,14 @@ export class CustomersController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.customersService.update(id, dto, user);
+  }
+
+  @Delete(':id')
+  @Roles(Role.MANAGER, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Delete an entirely unused customer (Sales Manager and above)',
+  })
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.customersService.remove(id, user);
   }
 }

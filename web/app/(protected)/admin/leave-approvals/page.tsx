@@ -11,11 +11,13 @@ import {
 } from '../../../lib/types';
 import { useToast } from '../../../components/ui/toaster';
 import { useConfirm } from '../../../components/ui/confirm';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
+import {
+  SCard,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
 import { RegisterToolbar } from '../../../components/ui/register-toolbar';
 import { RegisterPagination } from '../../../components/ui/register-pagination';
-import { Card, CardContent } from '../../../components/ui/card';
 import { Select } from '../../../components/ui/select';
 import { Input } from '../../../components/ui/input';
 import { Button } from '../../../components/ui/button';
@@ -120,8 +122,12 @@ export default function AdminLeaveApprovalsPage() {
   }
 
   return (
-    <PageContainer>
-      <PageHeader title="Leave Approvals" description="Review pending leave requests across the company." />
+    <SignalPage>
+      <SignalHeader
+        title="Leave Approvals"
+        description="Review pending leave requests across the company."
+      />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
       <RegisterToolbar title="Approval Queue" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search requester, status, type or vertical" filters={<Select
           value={verticalFilter}
           onChange={(e) => setVerticalFilter(e.target.value)}
@@ -139,7 +145,7 @@ export default function AdminLeaveApprovalsPage() {
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
-        <Card><CardContent className="p-0"><Table>
+        <SCard className="overflow-hidden"><Table>
           <TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Vertical</TableHead><TableHead>Type</TableHead><TableHead>Dates</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Requested</TableHead><TableHead>Comment</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
           <TableBody>
             {register.visibleItems.map((r) => {
@@ -167,9 +173,10 @@ export default function AdminLeaveApprovalsPage() {
               );
             })}
             {!register.visibleItems.length && <TableRow><TableCell colSpan={9} className="p-0"><EmptyState icon={ClipboardCheck} title="No pending leave requests match your filters" tone="positive" /></TableCell></TableRow>}
-          </TableBody></Table></CardContent></Card>
+          </TableBody></Table></SCard>
       )}
       <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

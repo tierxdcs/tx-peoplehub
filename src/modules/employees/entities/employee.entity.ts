@@ -57,6 +57,15 @@ export class EmployeeEntity {
   @ApiProperty({ enum: AccessStatus })
   accessStatus!: AccessStatus;
 
+  @ApiProperty({ nullable: true })
+  accessDeniedAt!: Date | null;
+
+  @ApiProperty({ nullable: true })
+  accessDeniedById!: string | null;
+
+  @ApiProperty({ nullable: true })
+  accessDenialReason!: string | null;
+
   @ApiProperty({
     description: 'Whether this employee is the current Sales Head',
   })

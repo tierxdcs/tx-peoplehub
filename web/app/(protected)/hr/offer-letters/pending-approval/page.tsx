@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { FileCheck } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { dateOnlyStr } from '../../../../lib/date';
-import { PageContainer } from '../../../../components/ui/page-container';
-import { PageHeader } from '../../../../components/ui/page-header';
-import { Card, CardContent } from '../../../../components/ui/card';
+import {
+  SCard,
+  SignalHeader,
+  SignalPage,
+} from '../../../../components/ui/signal';
 import { Button } from '../../../../components/ui/button';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { EmptyState } from '../../../../components/ui/empty-state';
@@ -84,31 +86,33 @@ export default function OfferLetterApprovalQueuePage() {
 
   if (forbidden) {
     return (
-      <PageContainer>
-        <PageHeader title="Offer Letter Approvals" />
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
+      <SignalPage>
+        <SignalHeader title="Offer Letter Approvals" />
+        <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+          <SCard className="p-6 text-sm text-muted-foreground">
             This queue is visible only to vertical owners and the CEO.
-          </CardContent>
-        </Card>
-      </PageContainer>
+          </SCard>
+        </div>
+      </SignalPage>
     );
   }
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Offer Letter Approvals"
         description="Offer letters awaiting your approval — as the new hire’s vertical owner (first sign-off) or, for the CEO, the final sign-off. Open one to review and decide."
       />
-      <RegisterToolbar title="Approval Queue" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search candidate, reference or status" />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+        <RegisterToolbar title="Approval Queue" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search candidate, reference or status" />
 
-      <Card>
-        <CardContent className="pt-6">
+        <SCard className="overflow-hidden">
           {loading ? (
-            <Skeleton className="h-40 w-full" />
+            <div className="p-6">
+              <Skeleton className="h-40 w-full" />
+            </div>
           ) : error ? (
-            <p className="text-sm text-destructive">{error}</p>
+            <p className="p-6 text-sm text-destructive">{error}</p>
           ) : (
             <Table>
               <TableHeader>
@@ -176,9 +180,9 @@ export default function OfferLetterApprovalQueuePage() {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
-      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
-    </PageContainer>
+        </SCard>
+        <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
+      </div>
+    </SignalPage>
   );
 }

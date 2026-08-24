@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, KeyRound, UserCheck } from 'lucide-react';
+import { Ban, CheckCircle2, KeyRound, UserCheck } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { Employee, PaginatedResult, Vertical } from '../../../lib/types';
@@ -46,6 +46,7 @@ export default function PendingAccessPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [grantTarget, setGrantTarget] = useState<Employee | null>(null);
+  const [denyTarget, setDenyTarget] = useState<Employee | null>(null);
   const [granted, setGranted] = useState<Employee | null>(null);
 
   const load = useCallback(async () => {
@@ -139,7 +140,14 @@ export default function PendingAccessPage() {
                     <TableCell>
                       {new Date(employee.createdAt).toLocaleDateString()}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="space-x-2 text-right">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => setDenyTarget(employee)}
+                      >
+                        <Ban /> Deny Access
+                      </Button>
                       <Button
                         size="sm"
                         onClick={() => setGrantTarget(employee)}
@@ -169,6 +177,17 @@ export default function PendingAccessPage() {
         />
       )}
 
+      {denyTarget && (
+        <DenyAccessDialog
+          employee={denyTarget}
+          onClose={() => setDenyTarget(null)}
+          onDenied={() => {
+            setDenyTarget(null);
+            load();
+          }}
+        />
+      )}
+
       {granted && (
         <Dialog open onOpenChange={(open) => !open && setGranted(null)}>
           <DialogContent>
@@ -192,6 +211,71 @@ export default function PendingAccessPage() {
         </Dialog>
       )}
     </PageContainer>
+  );
+}
+
+function DenyAccessDialog({
+  employee,
+  onClose,
+  onDenied,
+}: {
+  employee: Employee;
+  onClose: () => void;
+  onDenied: () => void;
+}) {
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function deny() {
+    if (reason.trim().length < 3) {
+      setError('Please provide a reason for denying access');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await apiFetch(`/employees/${employee.id}/deny-access`, {
+        method: 'PATCH',
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      onDenied();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to deny access');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Deny ERP access?</DialogTitle>
+          <DialogDescription>
+            {employee.firstName} {employee.lastName} will remain in the employee
+            roster, but will not be able to sign in. This decision is audited.
+          </DialogDescription>
+        </DialogHeader>
+        <Field label="Reason" required>
+          <Input
+            autoFocus
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Why is access being denied?"
+          />
+        </Field>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={deny} disabled={submitting}>
+            {submitting ? 'Denying…' : 'Deny Access'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

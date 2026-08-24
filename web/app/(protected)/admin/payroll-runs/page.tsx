@@ -5,9 +5,15 @@ import { useRouter } from 'next/navigation';
 import { CalendarRange } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { PayrollRun } from '../../../lib/types';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent } from '../../../components/ui/card';
+import {
+  SCard,
+  SIGNAL_BTN_GHOST,
+  SIGNAL_BTN_PRIMARY,
+  SIGNAL_DIALOG,
+  SIGNAL_DIALOG_TITLE,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
 import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
 import { Field } from '../../../components/ui/field';
@@ -15,6 +21,7 @@ import { Input } from '../../../components/ui/input';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { StatusBadge } from '../../../components/ui/status-badge';
+import { cn } from '../../../lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -60,17 +67,17 @@ export default function PayrollRunsPage() {
   }, [load]);
 
   return (
-    <PageContainer className="max-w-3xl">
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Payroll Runs"
         description="Monthly payroll cycles. Process to generate payslips, then lock to finalize."
-        action={<Button onClick={() => setShowForm(true)}>New Payroll Run</Button>}
+        actions={<Button onClick={() => setShowForm(true)}>New Payroll Run</Button>}
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
-      <Card>
-        <CardContent className="p-0">
+      <SCard className="overflow-hidden">
           {loading ? (
             <div className="space-y-2 p-6">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -121,8 +128,7 @@ export default function PayrollRunsPage() {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+      </SCard>
 
       {showForm && (
         <NewRunForm
@@ -133,7 +139,8 @@ export default function PayrollRunsPage() {
           }}
         />
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }
 
@@ -169,9 +176,9 @@ function NewRunForm({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className={cn('max-w-sm', SIGNAL_DIALOG)}>
         <DialogHeader>
-          <DialogTitle>New Payroll Run</DialogTitle>
+          <DialogTitle className={SIGNAL_DIALOG_TITLE}>New Payroll Run</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label="Month">
@@ -186,12 +193,12 @@ function NewRunForm({
           </Field>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <button type="button" className={SIGNAL_BTN_GHOST} onClick={onClose}>
               Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
+            </button>
+            <button type="submit" className={SIGNAL_BTN_PRIMARY} disabled={submitting}>
               {submitting ? 'Creating…' : 'Create'}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>
