@@ -32,6 +32,9 @@ const INVOICE_INCLUDE = {
   customer: true,
   order: true,
   milestone: true,
+  createdBy: { select: { id: true, firstName: true, lastName: true, employeeId: true } },
+  submittedBy: { select: { id: true, firstName: true, lastName: true, employeeId: true } },
+  approvedBy: { select: { id: true, firstName: true, lastName: true, employeeId: true } },
   lines: { include: { product: true }, orderBy: { sequence: 'asc' as const } },
   gstSubmissions: { orderBy: { createdAt: 'desc' as const } },
 };
