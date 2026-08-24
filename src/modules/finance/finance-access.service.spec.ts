@@ -16,12 +16,12 @@ describe('FinanceAccessService', () => {
     await expect(service.assertAccountsHead(user)).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('gives Super Admin operational finance access without approval authority', async () => {
+  it('gives an active Super Admin full finance approval authority', async () => {
     const superAdmin = { ...user, role: Role.SUPER_ADMIN };
     prisma.employee.findUnique.mockResolvedValue({ status: EmployeeStatus.ACTIVE, isAccountsHead: false, vertical: null });
-    await expect(service.accessFor(superAdmin)).resolves.toEqual({ isFinanceUser: true, isAccountsHead: false, isFinanceAuditor: false });
+    await expect(service.accessFor(superAdmin)).resolves.toEqual({ isFinanceUser: true, isAccountsHead: true, isFinanceAuditor: false });
     await expect(service.assertCanUseFinance(superAdmin)).resolves.toBeUndefined();
-    await expect(service.assertAccountsHead(superAdmin)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.assertAccountsHead(superAdmin)).resolves.toBeUndefined();
   });
 
   it('allows an active auditor grant to view reports without mutation access', async () => {

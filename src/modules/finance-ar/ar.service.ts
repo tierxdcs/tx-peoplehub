@@ -462,7 +462,7 @@ export class ArService {
     const inv = await this.findInvoice(id);
     if (inv.status !== SalesInvoiceStatus.PENDING_APPROVAL)
       throw new BadRequestException('Only pending invoices can be approved');
-    if (inv.createdById === user.id)
+    if (inv.createdById === user.id && user.role !== 'SUPER_ADMIN')
       throw new BadRequestException(
         'The Finance Head cannot approve an invoice they created',
       );

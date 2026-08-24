@@ -30,7 +30,8 @@ export class FinanceAccessService {
         employee?.status === 'ACTIVE' &&
         (user.role === 'SUPER_ADMIN' || employee.vertical?.code === 'ACCOUNTS'),
       isAccountsHead:
-        employee?.status === 'ACTIVE' && employee.isAccountsHead === true,
+        employee?.status === 'ACTIVE' &&
+        (employee.isAccountsHead === true || user.role === 'SUPER_ADMIN'),
       isFinanceAuditor:
         !!grant?.isActive && (!grant.expiresAt || grant.expiresAt > new Date()),
     };
@@ -59,7 +60,7 @@ export class FinanceAccessService {
     const access = await this.accessFor(user);
     if (access.isAccountsHead) return;
     throw new ForbiddenException(
-      'Only the designated Finance/Accounts Head may approve or post finance transactions',
+      'Only the designated Finance/Accounts Head or CEO/SuperAdmin may approve or post finance transactions',
     );
   }
 }
