@@ -172,11 +172,12 @@ export function sharedNav(access: Access): NavGroup[] {
   // to individual kickoffs is decided server-side. Hidden from HR-vertical
   // staff (project kickoffs aren't part of the HR function) and from
   // Accounts-vertical staff (not part of the Accounts function either).
-  // isFinanceUser is true for SUPER_ADMIN too (company-wide override), so it
-  // must be combined with !isSuperAdmin here to avoid hiding this from them.
+  // isFinanceUser AND isAccountsHead are both true for SUPER_ADMIN too
+  // (company-wide overrides), so both must be combined with !isSuperAdmin here
+  // to avoid hiding this group from them.
   const isAccountsVerticalStaff =
-    (access.isFinanceUser && !flags(access.user).isSuperAdmin) ||
-    access.isAccountsHead;
+    !flags(access.user).isSuperAdmin &&
+    (access.isFinanceUser || access.isAccountsHead);
   if (!access.isHrStaff && !isAccountsVerticalStaff) {
     groups.push({
       heading: 'Projects',

@@ -374,6 +374,22 @@ describe('sidebarNav — the reported bug', () => {
     expect(shown).toContain('Product Lifecycle');
   });
 
+  it('SUPER_ADMIN sees the Projects group with the REAL backend flags (isFinanceUser AND isAccountsHead both true)', () => {
+    // /finance/access returns both overrides as true for SUPER_ADMIN — the
+    // fixture default of isAccountsHead:false previously masked a bug where
+    // the accounts-staff carve-out only excluded SUPER_ADMIN from one flag.
+    const a = {
+      ...access('SUPER_ADMIN', { isFinanceUser: true }),
+      isAccountsHead: true,
+    };
+    const shown = labels(
+      a,
+      activeModule('/finance/ar/invoices', availableModules(a)),
+    );
+    expect(shown).toContain('Project Kickoff');
+    expect(shown).toContain('Product Lifecycle');
+  });
+
   it('Finance shows the Tally-style voucher/report labels and hides the leaf-module items', () => {
     const a = access('EMPLOYEE', { isFinanceUser: true });
     const shown = labels(
