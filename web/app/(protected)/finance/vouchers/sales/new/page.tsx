@@ -7,6 +7,7 @@ import { apiFetch, ApiError } from '../../../../../lib/api';
 import { formatINR } from '../../../../../lib/sales';
 import { useNumberFormat } from '../../../../../lib/number-format-context';
 import { Input } from '../../../../../components/ui/input';
+import { Textarea } from '../../../../../components/ui/textarea';
 import { Field } from '../../../../../components/ui/field';
 import { Button } from '../../../../../components/ui/button';
 import { useToast } from '../../../../../components/ui/toaster';
@@ -190,7 +191,7 @@ export default function NewSalesVoucherPage() {
             id: crypto.randomUUID(),
             productId: line.productId,
             description: line.customerFacingDescription
-              ? `${facingName} — ${line.customerFacingDescription}`
+              ? `${facingName}\n${line.customerFacingDescription}`
               : facingName,
             hsnSacCode: line.product?.hsnCode ?? '',
             quantity: String(line.quantity),
@@ -352,7 +353,11 @@ export default function NewSalesVoucherPage() {
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <Field label="Description" required>
-                    <Input
+                    {/* Textarea, not Input: order-seeded descriptions put the
+                        customer-facing description on its own line under the
+                        name, and that newline prints on the invoice. */}
+                    <Textarea
+                      rows={2}
                       value={line.description}
                       onChange={(event) =>
                         updateLine(line.id, 'description', event.target.value)

@@ -378,7 +378,9 @@ export function SalesInvoicePrintDocument({
                     >
                       <td style={td}>{index + 1}</td>
                       <td style={td}>
-                        <div style={{ fontWeight: 600 }}>
+                        {/* pre-line: the customer-facing description sits on
+                            its own line under the name in the saved text. */}
+                        <div style={{ fontWeight: 600, whiteSpace: 'pre-line' }}>
                           {line.description}
                         </div>
                         {/* This prints on the customer's tax invoice: when the

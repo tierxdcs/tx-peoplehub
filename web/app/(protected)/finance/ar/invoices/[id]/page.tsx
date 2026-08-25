@@ -308,7 +308,9 @@ export default function SalesInvoiceDetailPage() {
                 {invoice.lines.map((line) => (
                   <TableRow key={line.id}>
                     <TableCell className="pl-6">
-                      <div className="font-medium">{line.description}</div>
+                      <div className="whitespace-pre-line font-medium">
+                        {line.description}
+                      </div>
                       {line.product && (
                         <div className="text-xs text-muted-foreground">
                           {line.product.sku} · {line.product.name}
