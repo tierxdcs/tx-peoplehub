@@ -2,19 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../../lib/api';
 import { formatINR } from '../../../../../lib/sales';
 import { useNumberFormat } from '../../../../../lib/number-format-context';
 import { Input } from '../../../../../components/ui/input';
-import { Textarea } from '../../../../../components/ui/textarea';
 import { Field } from '../../../../../components/ui/field';
-import { Button } from '../../../../../components/ui/button';
 import {
   Callout,
   SCard,
   SCardTitle,
-  SIGNAL_HAIRLINE,
   SIGNAL_ROW_DIVIDER,
   SIGNAL_TABLE_HEAD,
   SummaryRow,
@@ -64,7 +61,10 @@ interface OrderReference {
 interface VoucherLine {
   id: string;
   productId: string | null;
-  description: string;
+  /** Read-only: what the order says this line is called. */
+  productName: string;
+  /** Read-only: the line's description, printed under the name. */
+  productDescription: string;
   hsnSacCode: string;
   quantity: string;
   unitOfMeasure: string;
@@ -72,17 +72,25 @@ interface VoucherLine {
   discountPercent: string;
 }
 
-function newLine(): VoucherLine {
-  return {
-    id: crypto.randomUUID(),
-    productId: null,
-    description: '',
-    hsnSacCode: '',
-    quantity: '1',
-    unitOfMeasure: 'NOS',
-    unitPrice: '',
-    discountPercent: '0',
-  };
+/**
+ * The name and description an invoice line must carry, taken from the order
+ * line: Sales' customer-facing override wins over the internal master wording,
+ * because the customer's own PO names the item their way.
+ */
+function orderLineWording(line: OrderReference['lineItems'][number]) {
+  const name =
+    line.customerFacingProductName ??
+    line.product?.name ??
+    line.adHocProductName ??
+    '';
+  const description =
+    line.customerFacingDescription ??
+    line.product?.description ??
+    line.adHocDescription ??
+    '';
+  // An ad-hoc line may carry a description and no name at all; promote it so
+  // the invoice line is never nameless.
+  return name ? { name, description } : { name: description, description: '' };
 }
 
 function lineAmounts(line: VoucherLine) {
@@ -110,7 +118,9 @@ export default function NewSalesVoucherPage() {
   const [dueDate, setDueDate] = useState(
     new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
   );
-  const [lines, setLines] = useState<VoucherLine[]>(() => [newLine()]);
+  // Empty until an order is picked: every line's name and description come
+  // from the order, so there is nothing to show (or invoice) before that.
+  const [lines, setLines] = useState<VoucherLine[]>([]);
   const [igstRate, setIgstRate] = useState('18');
   const [cgstRate, setCgstRate] = useState('0');
   const [sgstRate, setSgstRate] = useState('0');
@@ -158,7 +168,7 @@ export default function NewSalesVoucherPage() {
   ].every((rate) => rate >= 0 && rate <= 100);
   const linesValid = lines.every(
     (line) =>
-      line.description.trim() &&
+      line.productName.trim() &&
       line.hsnSacCode.trim() &&
       line.unitOfMeasure.trim() &&
       Number(line.quantity) > 0 &&
@@ -193,28 +203,20 @@ export default function NewSalesVoucherPage() {
     setOrderId(order.id);
     setCustomerId(order.customerId);
     setLines(
-      order.lineItems.length > 0
-        ? order.lineItems.map((line) => {
-            const facingName =
-              line.customerFacingProductName ??
-              line.product?.name ??
-              line.adHocProductName ??
-              line.adHocDescription ??
-              '';
-            return {
-              id: crypto.randomUUID(),
-              productId: line.productId,
-              description: line.customerFacingDescription
-                ? `${facingName}\n${line.customerFacingDescription}`
-                : facingName,
-              hsnSacCode: line.product?.hsnCode ?? '',
-              quantity: String(line.quantity),
-              unitOfMeasure: line.product?.unitOfMeasure ?? 'NOS',
-              unitPrice: String(line.unitPrice),
-              discountPercent: '0',
-            };
-          })
-        : [newLine()],
+      order.lineItems.map((line) => {
+        const wording = orderLineWording(line);
+        return {
+          id: crypto.randomUUID(),
+          productId: line.productId,
+          productName: wording.name,
+          productDescription: wording.description,
+          hsnSacCode: line.product?.hsnCode ?? '',
+          quantity: String(line.quantity),
+          unitOfMeasure: line.product?.unitOfMeasure ?? 'NOS',
+          unitPrice: String(line.unitPrice),
+          discountPercent: '0',
+        };
+      }),
     );
 
     if (order.lineItems.length === 0) {
@@ -247,7 +249,15 @@ export default function NewSalesVoucherPage() {
           placeOfSupplyStateCode: stateCode,
           lines: lines.map((line) => ({
             productId: line.productId ?? undefined,
-            description: line.description.trim(),
+            // One `description` column holds both: the name first, the
+            // description on the next line. Every renderer (voucher, invoice
+            // detail, printed tax invoice) preserves that newline.
+            description: [
+              line.productName.trim(),
+              line.productDescription.trim(),
+            ]
+              .filter(Boolean)
+              .join('\n'),
             hsnSacCode: line.hsnSacCode.trim(),
             quantity: Number(line.quantity),
             unitOfMeasure: line.unitOfMeasure.trim(),
@@ -351,7 +361,7 @@ export default function NewSalesVoucherPage() {
                   )}
                 >
                   <span>#</span>
-                  <span>Description</span>
+                  <span>Product &amp; description</span>
                   <span>HSN/SAC</span>
                   <span className="text-right">Qty</span>
                   <span>UOM</span>
@@ -373,17 +383,19 @@ export default function NewSalesVoucherPage() {
                     <span className="pt-2 text-[11.5px] font-semibold tabular-nums text-black/40 dark:text-white/35">
                       {String(index + 1).padStart(2, '0')}
                     </span>
-                    {/* Textarea, not Input: order-seeded descriptions put the
-                          customer-facing description on its own line under the
-                          name, and that newline prints on the invoice. */}
-                    <Textarea
-                      aria-label="Description"
-                      rows={2}
-                      value={line.description}
-                      onChange={(event) =>
-                        updateLine(line.id, 'description', event.target.value)
-                      }
-                    />
+                    {/* Read-only: the name and description are the order's
+                        wording (Sales' customer-facing override when set), not
+                        something Accounts retypes per invoice. */}
+                    <div className="min-w-0 py-1.5">
+                      <div className="text-[13px] font-semibold leading-snug">
+                        {line.productName}
+                      </div>
+                      {line.productDescription && (
+                        <div className="mt-1 whitespace-pre-line text-[12px] leading-normal text-black/55 dark:text-white/50">
+                          {line.productDescription}
+                        </div>
+                      )}
+                    </div>
                     <Input
                       aria-label="HSN/SAC"
                       value={line.hsnSacCode}
@@ -453,22 +465,13 @@ export default function NewSalesVoucherPage() {
                     )}
                   </div>
                 ))}
+                {lines.length === 0 && (
+                  <div className="px-5 py-7 text-center text-[12.5px] text-black/45 dark:text-white/40">
+                    Pick an Order ID above — its lines load here with the
+                    product name and description as the order states them.
+                  </div>
+                )}
               </div>
-            </div>
-            <div
-              className={cn(
-                'flex flex-wrap items-center gap-2.5 border-t bg-black/[.02] px-5 py-3 dark:bg-white/[.02]',
-                SIGNAL_HAIRLINE,
-              )}
-            >
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setLines((current) => [...current, newLine()])}
-              >
-                <Plus className="mr-1 size-4" /> Add line
-              </Button>
             </div>
           </SCard>
 
