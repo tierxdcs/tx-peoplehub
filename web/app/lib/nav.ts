@@ -202,6 +202,7 @@ export function sharedNav(access: Access): NavGroup[] {
         { label: 'Vendors', href: '/scm/vendors' },
         { label: 'Suppliers', href: '/scm/suppliers' },
         { label: 'RFQs', href: '/scm/rfqs' },
+        { label: 'Product BOM Lookup', href: '/scm/product-bom-lookup' },
         { label: 'Purchase Orders', href: '/stores/purchase-orders' },
         { label: 'Item Master', href: '/scm/items' },
         { label: 'Resource Planning', href: '/scm/resource-plans' },

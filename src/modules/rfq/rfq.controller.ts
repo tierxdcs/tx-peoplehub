@@ -67,6 +67,22 @@ export class RfqController {
     return this.service.quoteStageOptions(user);
   }
 
+  @Get('product-bom-options')
+  @ApiOperation({ summary: 'List active products for direct BOM lookup' })
+  productBomOptions(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.productBomOptions(user);
+  }
+
+  @Get('product-bom-options/:productId/explosion')
+  @ApiOperation({ summary: 'Explode a product BOM into BUY sourcing requirements' })
+  productBomExplosion(
+    @Param('productId') productId: string,
+    @Query('quantity') quantity: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.productBomExplosion(productId, quantity, user);
+  }
+
   @Get('quote-stage-options/:intakeId/sourcing-lines')
   quoteStageSourcingLines(
     @Param('intakeId') intakeId: string,

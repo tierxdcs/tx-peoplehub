@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import {
@@ -11,6 +11,7 @@ import {
   getRfqSourcingLines,
   getRfqQuoteStageSourcingLines,
   listRfqQuoteStageOptions,
+  getRfqProductBomExplosion,
   type CreateRfqInput,
   type RfqProjectOption,
   type RfqQuoteStageOption,
@@ -46,6 +47,7 @@ let lineKeySeq = 1;
 
 export default function NewRfqPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const { style: numberFormatStyle } = useNumberFormat();
 
@@ -87,6 +89,13 @@ export default function NewRfqPage() {
         setItems(itemRows);
         setProjects(projectRows);
         setQuoteStageOptions(intakeRows);
+        const directProductId = searchParams.get('productId');
+        const directQuantity = Number(searchParams.get('quantity') ?? '1');
+        if (directProductId && Number.isFinite(directQuantity) && directQuantity > 0) {
+          const result = await getRfqProductBomExplosion(directProductId, directQuantity);
+          applySourcingLines(result.lines);
+          setTitle(`Procurement — ${result.product.name} × ${directQuantity}`);
+        }
       } catch {
         toast.error('Failed to load items.');
       } finally {
@@ -94,7 +103,7 @@ export default function NewRfqPage() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams]);
 
   function updateLine(key: number, patch: Partial<LineDraft>) {
     setLines((prev) =>

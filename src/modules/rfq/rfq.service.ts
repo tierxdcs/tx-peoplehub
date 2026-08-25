@@ -11,6 +11,7 @@ import { PurchaseOrderService } from '../scm-purchasing/purchase-order.service';
 import { StockReportService } from '../bom/stock-report.service';
 import { ExplodableBom, explodeProcurementBom } from '../bom/bom-explosion';
 import { round } from '../bom/stock-calc';
+import { ItemCostService } from '../bom/item-cost.service';
 import {
   generateInviteToken,
   hashInvitePassword,
@@ -129,6 +130,7 @@ export class RfqService {
     private readonly numbering: SalesNumberingService,
     private readonly purchaseOrders: PurchaseOrderService,
     private readonly stockReport: StockReportService,
+    private readonly itemCosts: ItemCostService,
   ) {}
 
   // ── Shortfall-to-RFQ (from the Kickoff stock report) ─────────────────
@@ -294,6 +296,144 @@ export class RfqService {
         lineTotal: line.lineTotal.toString(),
       })),
     }));
+  }
+
+  /** Active catalogue products available as a direct BOM/RFQ starting point. */
+  async productBomOptions(user: AuthenticatedUser) {
+    await this.access.assertCanReadRfqs(user);
+    const rows = await this.prisma.product.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        item: {
+          select: {
+            id: true,
+            itemCode: true,
+            name: true,
+            itemType: true,
+            baseUnitOfMeasure: true,
+            boms: {
+              where: { status: BomStatus.RELEASED },
+              select: { id: true },
+              take: 1,
+            },
+          },
+        },
+      },
+      orderBy: [{ sku: 'asc' }],
+    });
+    return rows.map((row) => ({
+      productId: row.id,
+      sku: row.sku,
+      productName: row.name,
+      itemId: row.item?.id ?? null,
+      itemCode: row.item?.itemCode ?? null,
+      itemName: row.item?.name ?? null,
+      itemType: row.item?.itemType ?? 'FINISHED_GOOD',
+      unitOfMeasure: row.item?.baseUnitOfMeasure ?? 'each',
+      hasReleasedBom: Boolean(row.item?.boms.length),
+    }));
+  }
+
+  /**
+   * Direct product sourcing view. Uses the same Make/Buy-aware explosion as
+   * order and quote-stage RFQs; `quantity` merely scales the per-unit result.
+   */
+  async productBomExplosion(
+    productId: string,
+    quantityInput: string | undefined,
+    user: AuthenticatedUser,
+  ) {
+    await this.access.assertCanReadRfqs(user);
+    if (!(await this.itemCosts.canViewCost(user))) {
+      throw new BadRequestException('Item cost is not available to this user');
+    }
+    let quantity: Prisma.Decimal;
+    try {
+      quantity = new Prisma.Decimal(quantityInput ?? '1');
+    } catch {
+      throw new BadRequestException('Quantity must be a valid number');
+    }
+    if (!quantity.isPositive()) {
+      throw new BadRequestException('Quantity must be greater than zero');
+    }
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, isActive: true },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        item: {
+          select: {
+            id: true,
+            itemCode: true,
+            name: true,
+            baseUnitOfMeasure: true,
+          },
+        },
+      },
+    });
+    if (!product) throw new NotFoundException('Active product not found');
+    if (!product.item) {
+      return { product, quantity: quantity.toString(), isCostComplete: false, lines: [] };
+    }
+    const released = await this.prisma.bom.findMany({
+      where: { status: BomStatus.RELEASED },
+      orderBy: { revisionNumber: 'desc' },
+      select: {
+        itemId: true,
+        revisionNumber: true,
+        lines: {
+          select: {
+            itemId: true,
+            quantityPerUnit: true,
+            wastagePercent: true,
+            unitOfMeasure: true,
+            makeBuy: true,
+          },
+        },
+      },
+    });
+    const byItem = new Map<string, ExplodableBom>();
+    for (const bom of released) if (!byItem.has(bom.itemId)) byItem.set(bom.itemId, bom);
+    const leaves = byItem.has(product.item.id)
+      ? explodeProcurementBom(product.item.id, (id) => byItem.get(id) ?? null)
+      : [];
+    const aggregate = new Map<string, { quantity: Prisma.Decimal; unitOfMeasure: string }>();
+    for (const leaf of leaves) {
+      const required = round(leaf.quantityPerTopUnit.times(quantity));
+      const current = aggregate.get(leaf.itemId);
+      if (current) current.quantity = round(current.quantity.plus(required));
+      else aggregate.set(leaf.itemId, { quantity: required, unitOfMeasure: leaf.unitOfMeasure });
+    }
+    const items = await this.prisma.item.findMany({
+      where: { id: { in: [...aggregate.keys()] }, isActive: true },
+      select: { id: true, itemCode: true, name: true, itemType: true, baseUnitOfMeasure: true },
+    });
+    const lines = await Promise.all(items.map(async (item) => {
+      const required = aggregate.get(item.id)!;
+      const cost = await this.itemCosts.currentCost(item.id);
+      return {
+        itemId: item.id,
+        itemCode: item.itemCode,
+        itemName: item.name,
+        itemType: item.itemType,
+        requiredQuantity: required.quantity.toString(),
+        unitOfMeasure: required.unitOfMeasure || item.baseUnitOfMeasure,
+        unitCost: cost.amount?.toString() ?? null,
+        costSource: cost.source,
+        extendedCost: cost.amount ? round(cost.amount.times(required.quantity)).toString() : null,
+      };
+    }));
+    lines.sort((a, b) => a.itemCode.localeCompare(b.itemCode));
+    return {
+      product,
+      quantity: quantity.toString(),
+      isCostComplete: lines.length > 0 && lines.every((line) => line.unitCost !== null),
+      lines,
+    };
   }
 
   /**

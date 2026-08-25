@@ -132,6 +132,35 @@ export interface RfqSourcingLine {
   unitOfMeasure: string;
 }
 
+export interface RfqProductBomOption {
+  productId: string;
+  sku: string;
+  productName: string;
+  itemId: string | null;
+  itemCode: string | null;
+  itemName: string | null;
+  itemType: import('./scm-item-master').ItemType;
+  unitOfMeasure: string;
+  hasReleasedBom: boolean;
+}
+
+export interface RfqProductBomExplosion {
+  product: {
+    id: string;
+    sku: string;
+    name: string;
+    item: null | { id: string; itemCode: string; name: string; baseUnitOfMeasure: string };
+  };
+  quantity: string;
+  isCostComplete: boolean;
+  lines: Array<RfqSourcingLine & {
+    itemType: import('./scm-item-master').ItemType;
+    unitCost: string | null;
+    costSource: string | null;
+    extendedCost: string | null;
+  }>;
+}
+
 export interface RfqLineInput {
   itemId: string;
   quantity: number;
@@ -213,6 +242,14 @@ export function listRfqProjectOptions() {
 }
 export function listRfqQuoteStageOptions() {
   return apiFetch<RfqQuoteStageOption[]>('/rfqs/quote-stage-options');
+}
+export function listRfqProductBomOptions() {
+  return apiFetch<RfqProductBomOption[]>('/rfqs/product-bom-options');
+}
+export function getRfqProductBomExplosion(productId: string, quantity = 1) {
+  return apiFetch<RfqProductBomExplosion>(
+    `/rfqs/product-bom-options/${productId}/explosion?quantity=${encodeURIComponent(String(quantity))}`,
+  );
 }
 export function getRfqQuoteStageSourcingLines(intakeId: string) {
   return apiFetch<RfqSourcingLine[]>(
