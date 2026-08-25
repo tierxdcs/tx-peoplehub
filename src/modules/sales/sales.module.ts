@@ -25,7 +25,11 @@ import { BidAssessmentsService } from './bid-assessments.service';
 import { ConfirmationSheetsController } from './confirmation-sheets.controller';
 import { ConfirmationSheetsService } from './confirmation-sheets.service';
 import { FinanceModule } from '../finance/finance.module';
-import { CustomerBomIntakeController } from './customer-bom-intake.controller';
+import { PingsModule } from '../pings/pings.module';
+import {
+  CustomerBomIntakeController,
+  CustomerBomIntakeRegisterController,
+} from './customer-bom-intake.controller';
 import { CustomerBomIntakeService } from './customer-bom-intake.service';
 import { BidStrategyMeetingsController } from './bid-strategy-meetings.controller';
 import { BidStrategyMeetingsService } from './bid-strategy-meetings.service';
@@ -37,7 +41,7 @@ import { BidStrategyMeetingsService } from './bid-strategy-meetings.service';
  * SalesAccessService's manager scoping.
  */
 @Module({
-  imports: [EmployeesModule, VaultModule, FinanceModule],
+  imports: [EmployeesModule, VaultModule, FinanceModule, PingsModule],
   controllers: [
     CustomersController,
     ProductsController,
@@ -50,6 +54,7 @@ import { BidStrategyMeetingsService } from './bid-strategy-meetings.service';
     OrdersController,
     ConfirmationSheetsController,
     CustomerBomIntakeController,
+    CustomerBomIntakeRegisterController,
     BidStrategyMeetingsController,
   ],
   providers: [

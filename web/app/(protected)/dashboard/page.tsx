@@ -46,7 +46,6 @@ import {
 } from '../../lib/dashboard-portfolio';
 import { prettyEnum } from '../../lib/sales';
 
-const TASK_CAP = 8;
 const PORTFOLIO_PREVIEW_CAP = 3;
 const DAY_MS = 86_400_000;
 
@@ -475,7 +474,7 @@ export default function DashboardPage() {
 
       {/* Work row: task queue + pings. */}
       <div className="mx-5 mt-4 grid items-start gap-4 lg:mx-7 xl:grid-cols-[1.45fr_1fr]">
-        <section className="overflow-hidden rounded-xl border border-black/10 dark:border-white/[.08] bg-white dark:bg-[#232323]">
+        <section className="flex h-[430px] min-h-0 flex-col overflow-hidden rounded-xl border border-black/10 bg-white dark:border-white/[.08] dark:bg-[#232323]">
           <div className="flex items-center gap-2.5 px-5 pb-[13px] pt-4">
             <span className="text-[17px] font-bold tracking-[-.4px]">
               My tasks
@@ -495,14 +494,13 @@ export default function DashboardPage() {
               View all
             </Link>
           </div>
-          {tasks.length === 0 ? (
-            <p className="border-t border-black/[.07] dark:border-white/[.06] px-5 py-[18px] text-[12px] text-black/40 dark:text-white/[.32]">
-              No tasks assigned to you.
-            </p>
-          ) : (
-            tasks
-              .slice(0, TASK_CAP)
-              .map((t) => (
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-black/[.07] dark:border-white/[.06]">
+            {tasks.length === 0 ? (
+              <p className="px-5 py-[18px] text-[12px] text-black/40 dark:text-white/[.32]">
+                No tasks assigned to you.
+              </p>
+            ) : (
+              tasks.map((t) => (
                 <TaskRow
                   key={t.id}
                   task={t}
@@ -510,7 +508,8 @@ export default function DashboardPage() {
                   maxDaysOver={maxDaysOver}
                 />
               ))
-          )}
+            )}
+          </div>
         </section>
 
         <PingsCard

@@ -459,6 +459,7 @@ export function salesNav(access: Access): NavGroup[] {
     { label: 'Opportunities', href: '/sales/opportunities' },
     { label: 'Bids', href: '/sales/bids' },
     { label: 'Orders', href: '/sales/orders' },
+    { label: 'BOM Intake', href: '/sales/bom-intake' },
   ];
   if (isManager || isSuperAdmin) {
     pipeline.push({

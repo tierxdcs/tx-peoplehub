@@ -38,7 +38,9 @@ export default function NewSalesVoucherPage() {
   const [hsn, setHsn] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [price, setPrice] = useState('');
-  const [gstRate, setGstRate] = useState('18');
+  const [igstRate, setIgstRate] = useState('18');
+  const [cgstRate, setCgstRate] = useState('0');
+  const [sgstRate, setSgstRate] = useState('0');
   const [state, setState] = useState('Karnataka');
   const [stateCode, setStateCode] = useState('29');
   const [narration, setNarration] = useState('');
@@ -52,8 +54,15 @@ export default function NewSalesVoucherPage() {
   }, []);
 
   const lineTotal = (Number(quantity) || 0) * (Number(price) || 0);
-  const gstAmount = (lineTotal * (Number(gstRate) || 0)) / 100;
+  const igst = Number(igstRate) || 0;
+  const cgst = Number(cgstRate) || 0;
+  const sgst = Number(sgstRate) || 0;
+  const gstAmount = (lineTotal * (igst + cgst + sgst)) / 100;
   const total = lineTotal + gstAmount;
+  // GST rule of thumb: IGST is for inter-state supplies, CGST+SGST for
+  // intra-state — they are mutually exclusive on a line. Soft warning only;
+  // saving is never blocked (the preparer may know better).
+  const mixedGst = igst > 0 && (cgst > 0 || sgst > 0);
   // A single-line tax invoice is inherently balanced once it has a positive
   // total — there is no separate Dr/Cr entry for the preparer to unbalance.
   const balanced = !!customerId && !!description && !!hsn && total > 0;
@@ -81,7 +90,9 @@ export default function NewSalesVoucherPage() {
               quantity: Number(quantity),
               unitOfMeasure: 'NOS',
               unitPrice: Number(price),
-              igstRate: Number(gstRate),
+              igstRate: igst,
+              cgstRate: cgst,
+              sgstRate: sgst,
             },
           ],
         }),
@@ -141,10 +152,32 @@ export default function NewSalesVoucherPage() {
           <Field label="Unit Price" required>
             <Input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
           </Field>
-          <Field label="IGST %">
-            <Input type="number" step="0.01" value={gstRate} onChange={(e) => setGstRate(e.target.value)} />
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <Field
+            label="IGST %"
+            hint="Inter-state supply — use IGST alone (typically 18)."
+          >
+            <Input type="number" step="0.01" min={0} value={igstRate} onChange={(e) => setIgstRate(e.target.value)} />
+          </Field>
+          <Field
+            label="CGST %"
+            hint="Intra-state — pair with SGST (typically 9 + 9)."
+          >
+            <Input type="number" step="0.01" min={0} placeholder="9" value={cgstRate} onChange={(e) => setCgstRate(e.target.value)} />
+          </Field>
+          <Field label="SGST %">
+            <Input type="number" step="0.01" min={0} placeholder="9" value={sgstRate} onChange={(e) => setSgstRate(e.target.value)} />
           </Field>
         </div>
+        {mixedGst && (
+          <div className="mt-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+            IGST is combined with CGST/SGST on this line. A supply is either
+            inter-state (IGST alone) or intra-state (CGST + SGST) — using both
+            is usually a GST filing error. You can still save if this is
+            intentional.
+          </div>
+        )}
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Field label="Place of Supply (State)" required>
             <Input value={state} onChange={(e) => setState(e.target.value)} />

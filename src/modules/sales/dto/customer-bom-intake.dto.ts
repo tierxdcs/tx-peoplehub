@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
   MinLength,
   ValidateNested,
@@ -30,6 +31,20 @@ export class CustomerBomIntakeLineDto {
   @IsString() @MinLength(1) unitOfMeasure!: string;
   @IsOptional() @IsString() existingItemId?: string;
   @IsBoolean() confirmCreateNew!: boolean;
+}
+
+/**
+ * Sales quote-stage revision of an intake's DRAFT BOM. The full replacement
+ * line set (same shape/validation as creation) plus a mandatory "what changed"
+ * note that becomes the new revision's revisionNotes — the history entry.
+ */
+export class ReviseCustomerBomIntakeDto {
+  @IsString() @MinLength(3) @MaxLength(2000) revisionNotes!: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CustomerBomIntakeLineDto)
+  lines!: CustomerBomIntakeLineDto[];
 }
 
 export class CreateCustomerBomIntakeDto {

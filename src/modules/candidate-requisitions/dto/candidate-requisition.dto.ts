@@ -2,6 +2,7 @@ import { CandidateHiringStage, EmploymentType } from '@prisma/client';
 import {
   IsDateString,
   IsEnum,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -24,6 +25,10 @@ export class CreateCandidateRequisitionDto {
   @Max(999999999999)
   budgetAnnualCtc!: number;
   @IsOptional() @IsDateString() targetJoiningDate?: string;
+  /** Raise N identical requisitions in one submit (same title, budget, JD).
+   * Each position stays its own approval → offer → onboarding unit, so this
+   * multiplies rows rather than adding a headcount column. Default 1. */
+  @IsOptional() @IsInt() @Min(1) @Max(20) numberOfPositions?: number;
 }
 
 export class RejectCandidateRequisitionDto {

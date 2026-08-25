@@ -84,30 +84,41 @@ export class CandidateRequisitionsService {
       throw new BadRequestException(
         'An annual CTC budget greater than zero is required',
       );
+    // Bulk raise: N identical positions in one atomic submit. Each row keeps
+    // the 1-requisition-per-candidate lifecycle (own approval, offer letter,
+    // onboarding), so ten openings for the same role are ten rows with
+    // consecutive REQ numbers — all created or none.
+    const count = dto.numberOfPositions ?? 1;
     return this.prisma.$transaction(async (tx) => {
-      const requisitionNumber = await this.numbering.nextNumber(
-        'REQ',
-        'candidate_requisition',
-        new Date().getFullYear(),
-        tx,
-      );
-      return tx.candidateRequisition.create({
-        data: {
-          requisitionNumber,
-          requestedById: user.id,
-          verticalId: user.verticalId!,
-          positionTitle,
-          employmentType: dto.employmentType,
-          justification,
-          keyResponsibilities,
-          keyPerformanceIndicators,
-          budgetAnnualCtc: dto.budgetAnnualCtc,
-          targetJoiningDate: dto.targetJoiningDate
-            ? new Date(dto.targetJoiningDate)
-            : null,
-        },
-        include,
-      });
+      const created = [];
+      for (let i = 0; i < count; i++) {
+        const requisitionNumber = await this.numbering.nextNumber(
+          'REQ',
+          'candidate_requisition',
+          new Date().getFullYear(),
+          tx,
+        );
+        created.push(
+          await tx.candidateRequisition.create({
+            data: {
+              requisitionNumber,
+              requestedById: user.id,
+              verticalId: user.verticalId!,
+              positionTitle,
+              employmentType: dto.employmentType,
+              justification,
+              keyResponsibilities,
+              keyPerformanceIndicators,
+              budgetAnnualCtc: dto.budgetAnnualCtc,
+              targetJoiningDate: dto.targetJoiningDate
+                ? new Date(dto.targetJoiningDate)
+                : null,
+            },
+            include,
+          }),
+        );
+      }
+      return created;
     });
   }
 

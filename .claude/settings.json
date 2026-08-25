@@ -104,7 +104,13 @@
       "Bash(echo \"exit-of-grep: $?\")",
       "Bash(echo \"audit-exit:$?\")",
       "Bash(echo \"audit exit: $?\")",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(echo \"NEST_BUILD: $?\")",
+      "Bash(grep -rn \"customerBomIntake\" src/modules --include='*.ts' -l | grep -v sales/ | grep -v spec; echo \"===\"; sed -n '7160,7215p' prisma/schema.prisma | grep -nE \"createdBy|model Rfq\"; echo \"=== CreatePingDto ===\"; sed -n '1,40p' src/modules/pings/dto/*.ts 2>/dev/null | head -40; echo \"=== PingsModule exports ===\"; grep -n \"exports\" src/modules/pings/pings.module.ts)",
+      "Bash(grep -n \"{ label: 'Orders', href: '/sales/orders' },\" app/lib/nav.ts)"
+    ],
+    "additionalDirectories": [
+      "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto"
     ]
   }
 }

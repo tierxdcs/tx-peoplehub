@@ -132,6 +132,7 @@ export default function CandidateRequisitionsPage() {
   const [keyResponsibilities, setKeyResponsibilities] = useState('');
   const [keyPerformanceIndicators, setKeyPerformanceIndicators] = useState('');
   const [budgetAnnualCtc, setBudgetAnnualCtc] = useState('');
+  const [numberOfPositions, setNumberOfPositions] = useState('1');
   const [targetJoiningDate, setTargetJoiningDate] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -173,9 +174,16 @@ export default function CandidateRequisitionsPage() {
       toast.error('Enter an annual CTC budget greater than zero');
       return;
     }
+    const count = Math.floor(Number(numberOfPositions)) || 1;
+    if (count < 1 || count > 20) {
+      toast.error('Number of positions must be between 1 and 20');
+      return;
+    }
     if (
       !window.confirm(
-        'Submit this requisition for approval? It will be routed to the vertical owner (or the CEO if the vertical has no owner).',
+        count > 1
+          ? `Submit ${count} identical requisitions for approval? Each position is approved, offered and onboarded separately, and each will be routed to the vertical owner (or the CEO if the vertical has no owner).`
+          : 'Submit this requisition for approval? It will be routed to the vertical owner (or the CEO if the vertical has no owner).',
       )
     )
       return;
@@ -190,6 +198,7 @@ export default function CandidateRequisitionsPage() {
           keyPerformanceIndicators,
           budgetAnnualCtc: budget,
           targetJoiningDate: targetJoiningDate || undefined,
+          ...(count > 1 ? { numberOfPositions: count } : {}),
         }),
       });
       setPositionTitle('');
@@ -198,7 +207,12 @@ export default function CandidateRequisitionsPage() {
       setKeyPerformanceIndicators('');
       setBudgetAnnualCtc('');
       setTargetJoiningDate('');
-      toast.success('Requisition submitted for approval');
+      setNumberOfPositions('1');
+      toast.success(
+        count > 1
+          ? `${count} requisitions submitted for approval`
+          : 'Requisition submitted for approval',
+      );
       await load();
     } catch (error) {
       toast.error(
@@ -317,6 +331,25 @@ export default function CandidateRequisitionsPage() {
                   onChange={(event) => setBudgetAnnualCtc(event.target.value)}
                   required
                 />
+              </label>
+              <label className="text-sm font-medium">
+                Number of positions
+                <Input
+                  className="mt-1"
+                  type="number"
+                  min={1}
+                  max={20}
+                  step={1}
+                  value={numberOfPositions}
+                  onChange={(event) =>
+                    setNumberOfPositions(event.target.value)
+                  }
+                  required
+                />
+                <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                  Raises that many identical requisitions — each is approved
+                  and filled separately.
+                </span>
               </label>
               <label className="text-sm font-medium sm:col-span-2">
                 Business justification

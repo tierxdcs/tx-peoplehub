@@ -47,7 +47,7 @@ describe('CandidateRequisitionsService', () => {
     prisma.candidateRequisition.create.mockImplementation(
       ({ data }: any) => data,
     );
-    const result: any = await service.create(
+    const [result]: any = await service.create(
       {
         positionTitle: 'Engineer',
         employmentType: 'FULL_TIME_PERMANENT' as any,
@@ -63,6 +63,41 @@ describe('CandidateRequisitionsService', () => {
     expect(result.budgetAnnualCtc).toBe(1200000);
     expect(result.keyResponsibilities).toBe('Own delivery');
     expect(result.keyPerformanceIndicators).toBe('On-time delivery %');
+  });
+
+  it('bulk-raises N identical requisitions with consecutive REQ numbers in one transaction', async () => {
+    let seq = 0;
+    numbering.nextNumber.mockImplementation(() =>
+      Promise.resolve(`REQ-2026-000${++seq}`),
+    );
+    prisma.candidateRequisition.create.mockImplementation(
+      ({ data }: any) => data,
+    );
+    const results: any = await service.create(
+      {
+        positionTitle: 'Engineer',
+        employmentType: 'FULL_TIME_PERMANENT' as any,
+        justification: 'Growth',
+        keyResponsibilities: 'Own delivery',
+        keyPerformanceIndicators: 'On-time delivery %',
+        budgetAnnualCtc: 1200000,
+        numberOfPositions: 3,
+      },
+      manager,
+    );
+    expect(results).toHaveLength(3);
+    expect(results.map((r: any) => r.requisitionNumber)).toEqual([
+      'REQ-2026-0001',
+      'REQ-2026-0002',
+      'REQ-2026-0003',
+    ]);
+    // Every position is its own row with the same JD/budget.
+    expect(
+      results.every((r: any) => r.positionTitle === 'Engineer'),
+    ).toBe(true);
+    expect(prisma.candidateRequisition.create).toHaveBeenCalledTimes(3);
+    // One transaction wraps the whole batch — all or nothing.
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a requisition without a positive CTC budget', async () => {

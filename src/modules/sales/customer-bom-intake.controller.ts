@@ -12,6 +12,7 @@ import {
   CreateCustomerBomIntakeDto,
   CustomerBomMatchDto,
   CustomerBomUploadUrlDto,
+  ReviseCustomerBomIntakeDto,
 } from './dto/customer-bom-intake.dto';
 
 @ApiTags('customer-bom-intake')
@@ -56,5 +57,42 @@ export class CustomerBomIntakeController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.create(opportunityId, dto, user);
+  }
+}
+
+/**
+ * Opportunity-independent surface: the "Open BOM Intake" register and per-
+ * intake detail/revision. Same guards and service as the nested controller —
+ * ownership scoping happens in the service (visibleOwnerIds / owner check).
+ */
+@ApiTags('customer-bom-intake')
+@ApiBearerAuth()
+@UseGuards(RolesGuard)
+@Roles(Role.MANAGER, Role.EMPLOYEE, Role.SUPER_ADMIN)
+@Controller('customer-bom-intakes')
+export class CustomerBomIntakeRegisterController {
+  constructor(private readonly service: CustomerBomIntakeService) {}
+
+  @Get()
+  register(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.register(user);
+  }
+
+  @Get(':id')
+  detail(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.detail(id, user);
+  }
+
+  @Post(':id/revise')
+  @ApiOperation({
+    summary:
+      'Sales quote-stage revision of a DRAFT intake BOM (new Bom revision row; blocked once RELEASED)',
+  })
+  revise(
+    @Param('id') id: string,
+    @Body() dto: ReviseCustomerBomIntakeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.revise(id, dto, user);
   }
 }

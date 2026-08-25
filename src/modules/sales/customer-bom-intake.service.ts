@@ -2,13 +2,16 @@ import { randomBytes } from 'crypto';
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
+  BomEventType,
   BomStatus,
   GoodsReceiptNoteStatus,
   ItemType,
   Prisma,
+  RfqStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -23,12 +26,41 @@ import {
   ExplodableBom,
   explodeProcurementBom,
 } from '../bom/bom-explosion';
+import { PingsService } from '../pings/pings.service';
 import {
   CreateCustomerBomIntakeDto,
+  CustomerBomIntakeLineDto,
   CustomerBomUploadUrlDto,
+  ReviseCustomerBomIntakeDto,
 } from './dto/customer-bom-intake.dto';
 
 type Candidate = { id: string; itemCode: string; name: string; score: number };
+
+export type IntakeDerivedStatus =
+  | 'DRAFT'
+  | 'PENDING_APPROVAL'
+  | 'RFQ_FLOATED'
+  | 'PRICED'
+  | 'RELEASED';
+
+/**
+ * Register-page lifecycle label, derived — no stored status to drift. Priced
+ * (an awarded RFQ quote exists) outranks merely-floated; a RELEASED BOM
+ * outranks everything (the intake has graduated to a real engineering doc).
+ */
+export function deriveIntakeStatus(
+  bomStatus: BomStatus | null,
+  rfqStatuses: RfqStatus[],
+): IntakeDerivedStatus {
+  if (bomStatus === BomStatus.RELEASED) return 'RELEASED';
+  if (rfqStatuses.includes(RfqStatus.AWARDED)) return 'PRICED';
+  if (
+    rfqStatuses.some((s) => s === RfqStatus.ISSUED || s === RfqStatus.CLOSED)
+  )
+    return 'RFQ_FLOATED';
+  if (bomStatus === BomStatus.PENDING_APPROVAL) return 'PENDING_APPROVAL';
+  return 'DRAFT';
+}
 
 function tokens(value: string): Set<string> {
   return new Set(
@@ -53,11 +85,14 @@ export function fuzzyItemScore(query: string, candidate: string): number {
 
 @Injectable()
 export class CustomerBomIntakeService {
+  private readonly logger = new Logger(CustomerBomIntakeService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: SalesAccessService,
     private readonly numbering: SalesNumberingService,
     private readonly storage: VaultStorageService,
+    private readonly pings: PingsService,
   ) {}
 
   async uploadUrl(dto: CustomerBomUploadUrlDto, user: AuthenticatedUser) {
@@ -145,23 +180,7 @@ export class CustomerBomIntakeService {
     if (!businessUnit)
       throw new BadRequestException('Business unit is inactive or unknown');
 
-    // Re-run fuzzy matching server-side. Creation is impossible unless Sales
-    // either chose a real Item or explicitly acknowledged the candidates.
-    const prepared: Array<{
-      input: (typeof dto.lines)[number];
-      candidates: Candidate[];
-    }> = [];
-    for (const input of dto.lines) {
-      if (!!input.existingItemId === input.confirmCreateNew) {
-        throw new BadRequestException(
-          'Each BOM line must select an existing match or explicitly confirm creation of a new item',
-        );
-      }
-      prepared.push({
-        input,
-        candidates: await this.matches(input.description, user),
-      });
-    }
+    const prepared = await this.prepareLines(dto.lines, user);
 
     const intake = await this.prisma.$transaction(async (tx) => {
       const fgCode = await this.numbering.nextContinuousNumber(
@@ -177,39 +196,7 @@ export class CustomerBomIntakeService {
           baseUnitOfMeasure: dto.unitOfMeasure,
         },
       });
-      const resolved: Array<{
-        itemId: string;
-        created: boolean;
-        row: (typeof prepared)[number];
-      }> = [];
-      for (const row of prepared) {
-        if (row.input.existingItemId) {
-          const existing = await tx.item.findFirst({
-            where: { id: row.input.existingItemId, isActive: true },
-          });
-          if (!existing)
-            throw new BadRequestException(
-              'A selected Item Master match is unavailable',
-            );
-          resolved.push({ itemId: existing.id, created: false, row });
-        } else {
-          const itemCode = await this.numbering.nextContinuousNumber(
-            'CM',
-            'item_component',
-            tx,
-          );
-          const created = await tx.item.create({
-            data: {
-              itemCode,
-              name: row.input.description.trim(),
-              description: row.input.customerPartReference?.trim() || null,
-              itemType: ItemType.COMPONENT,
-              baseUnitOfMeasure: row.input.unitOfMeasure,
-            },
-          });
-          resolved.push({ itemId: created.id, created: true, row });
-        }
-      }
+      const resolved = await this.resolveItems(tx, prepared);
       const bom = await tx.bom.create({
         data: {
           itemId: finishedGood.id,
@@ -280,6 +267,330 @@ export class CustomerBomIntakeService {
     return this.list(opportunityId, user).then((rows) =>
       rows.find((row) => row.id === intake.id),
     );
+  }
+
+  /** Every intake visible to this user (owner/hierarchy-scoped like the rest
+   * of Sales), with the derived lifecycle status for the register page. */
+  async register(user: AuthenticatedUser) {
+    await this.access.assertSalesAccess(user);
+    const ownerIds = await this.access.visibleOwnerIds(user);
+    const rows = await this.prisma.customerBomIntake.findMany({
+      where: ownerIds ? { opportunity: { ownerId: { in: ownerIds } } } : {},
+      include: {
+        opportunity: {
+          select: {
+            id: true,
+            name: true,
+            customer: { select: { name: true } },
+          },
+        },
+        businessUnit: { select: { name: true } },
+        product: { select: { sku: true, name: true } },
+        bom: { select: { id: true, status: true, revisionNumber: true } },
+        rfqs: { select: { status: true } },
+        createdBy: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((row) => ({
+      ...row,
+      derivedStatus: deriveIntakeStatus(
+        row.bom?.status ?? null,
+        row.rfqs.map((rfq) => rfq.status),
+      ),
+    }));
+  }
+
+  /** One intake with its current revision's BOM lines, the full revision
+   * history (every Bom row on the finished-good item), linked RFQs, and the
+   * quote-stage pricing estimate. */
+  async detail(id: string, user: AuthenticatedUser) {
+    await this.access.assertSalesAccess(user);
+    const row = await this.prisma.customerBomIntake.findUnique({
+      where: { id },
+      include: {
+        opportunity: {
+          select: {
+            id: true,
+            name: true,
+            ownerId: true,
+            customer: { select: { name: true } },
+          },
+        },
+        businessUnit: { select: { name: true } },
+        product: {
+          select: { id: true, sku: true, name: true, targetMarginPercent: true },
+        },
+        bom: {
+          include: {
+            lines: {
+              orderBy: { sequence: 'asc' },
+              include: {
+                item: { select: { id: true, itemCode: true, name: true } },
+              },
+            },
+          },
+        },
+        rfqs: {
+          select: {
+            id: true,
+            rfqNumber: true,
+            title: true,
+            status: true,
+            createdAt: true,
+            createdBy: { select: { firstName: true, lastName: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        createdBy: { select: { firstName: true, lastName: true } },
+      },
+    });
+    if (!row) throw new NotFoundException('Customer BOM intake not found');
+    await this.access.assertCanAccessOwned(user, row.opportunity.ownerId);
+    const revisions = row.finishedGoodItemId
+      ? await this.prisma.bom.findMany({
+          where: { itemId: row.finishedGoodItemId },
+          orderBy: { revisionNumber: 'desc' },
+          select: {
+            id: true,
+            revisionNumber: true,
+            status: true,
+            revisionNotes: true,
+            createdAt: true,
+            createdBy: { select: { firstName: true, lastName: true } },
+          },
+        })
+      : [];
+    const pricing = await this.quoteStagePricing(
+      row.finishedGoodItemId,
+      row.product?.targetMarginPercent,
+    );
+    return {
+      ...row,
+      revisions,
+      ...pricing,
+      derivedStatus: deriveIntakeStatus(
+        row.bom?.status ?? null,
+        row.rfqs.map((rfq) => rfq.status),
+      ),
+    };
+  }
+
+  /**
+   * Sales quote-stage revision. Reuses the engineering BOM revision mechanism
+   * exactly: a NEW Bom row on the same finished-good item with the next
+   * revisionNumber — the prior revision's rows are never mutated, so history
+   * is a byte-preserved snapshot. Allowed only while the current revision is
+   * still DRAFT (or REJECTED): once R&D has RELEASED the BOM it is a formal
+   * engineering document and further changes go through the normal BOM
+   * revision + approval cycle instead.
+   */
+  async revise(
+    id: string,
+    dto: ReviseCustomerBomIntakeDto,
+    user: AuthenticatedUser,
+  ) {
+    await this.access.assertSalesAccess(user);
+    const intake = await this.prisma.customerBomIntake.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        productName: true,
+        finishedGoodItemId: true,
+        opportunity: { select: { ownerId: true } },
+        bom: { select: { id: true, status: true, revisionNumber: true } },
+      },
+    });
+    if (!intake) throw new NotFoundException('Customer BOM intake not found');
+    await this.access.assertCanAccessOwned(user, intake.opportunity.ownerId);
+    if (!intake.bom || !intake.finishedGoodItemId)
+      throw new BadRequestException('This intake has no BOM to revise');
+    if (
+      intake.bom.status === BomStatus.RELEASED ||
+      intake.bom.status === BomStatus.OBSOLETE
+    )
+      throw new BadRequestException(
+        'This BOM has been released by R&D and is now a formal engineering document — quote-stage self-revision is closed. Request changes through the engineering BOM revision and approval flow instead.',
+      );
+    if (intake.bom.status === BomStatus.PENDING_APPROVAL)
+      throw new BadRequestException(
+        'This BOM is awaiting R&D approval — it cannot be revised until R&D approves or rejects it.',
+      );
+
+    const prepared = await this.prepareLines(dto.lines, user);
+    const previousRevision = intake.bom.revisionNumber;
+    const newRevisionNumber = await this.prisma.$transaction(async (tx) => {
+      const resolved = await this.resolveItems(tx, prepared);
+      const latest = await tx.bom.findFirst({
+        where: { itemId: intake.finishedGoodItemId! },
+        orderBy: { revisionNumber: 'desc' },
+        select: { revisionNumber: true },
+      });
+      const bom = await tx.bom.create({
+        data: {
+          itemId: intake.finishedGoodItemId!,
+          revisionNumber: (latest?.revisionNumber ?? 0) + 1,
+          status: BomStatus.DRAFT,
+          revisionNotes: dto.revisionNotes.trim(),
+          createdById: user.id,
+          lines: {
+            create: resolved.map((entry, sequence) => ({
+              itemId: entry.itemId,
+              quantityPerUnit: new Prisma.Decimal(entry.row.input.quantity),
+              unitOfMeasure: entry.row.input.unitOfMeasure,
+              wastagePercent: new Prisma.Decimal(0),
+              makeBuy: 'BUY' as const,
+              notes: entry.row.input.customerPartReference?.trim() || null,
+              sequence,
+            })),
+          },
+        },
+      });
+      await tx.bomEvent.create({
+        data: {
+          bomId: bom.id,
+          type: BomEventType.REVISION_CREATED,
+          actorId: user.id,
+          comment: `Quote-stage revision by Sales from Rev ${previousRevision}`,
+        },
+      });
+      // The intake's provenance lines mirror the CURRENT revision (the
+      // opportunity page and RFQ auto-populate read "current" from here /
+      // bomId); the prior line set survives verbatim in the old Bom row.
+      await tx.customerBomIntakeLine.deleteMany({ where: { intakeId: id } });
+      await tx.customerBomIntake.update({
+        where: { id },
+        data: {
+          bomId: bom.id,
+          lines: {
+            create: resolved.map((entry, sequence) => ({
+              description: entry.row.input.description.trim(),
+              customerPartReference:
+                entry.row.input.customerPartReference?.trim() || null,
+              quantity: new Prisma.Decimal(entry.row.input.quantity),
+              unitOfMeasure: entry.row.input.unitOfMeasure,
+              resolvedItemId: entry.itemId,
+              createdNewItem: entry.created,
+              fuzzyCandidates: entry.row
+                .candidates as unknown as Prisma.InputJsonValue,
+              sequence,
+            })),
+          },
+        },
+      });
+      return bom.revisionNumber;
+    });
+
+    await this.notifyStaleRfqs(
+      intake.id,
+      intake.productName,
+      newRevisionNumber,
+      user,
+    );
+    return this.detail(id, user);
+  }
+
+  /**
+   * Stale-RFQ gap: SCM may have floated an RFQ from an earlier revision; a
+   * later revision silently invalidates it. Ping each live RFQ's owner via
+   * the normal Pings mechanism (sender = the revising Sales user). Best
+   * effort — a notification failure never rolls back the committed revision.
+   */
+  private async notifyStaleRfqs(
+    intakeId: string,
+    productName: string,
+    revisionNumber: number,
+    user: AuthenticatedUser,
+  ) {
+    const rfqs = await this.prisma.rfq.findMany({
+      where: {
+        customerBomIntakeId: intakeId,
+        status: { in: [RfqStatus.DRAFT, RfqStatus.ISSUED] },
+      },
+      select: { id: true, rfqNumber: true, createdById: true },
+    });
+    for (const rfq of rfqs) {
+      if (rfq.createdById === user.id) continue;
+      try {
+        await this.pings.create(user, {
+          message: `${productName}: the quote-stage BOM was revised to Rev ${revisionNumber} after ${rfq.rfqNumber} was created — please review the RFQ for missing or changed components.`,
+          recipientIds: [rfq.createdById],
+          linkedRecordType: 'RFQ',
+          linkedRecordId: rfq.id,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Stale-RFQ ping for ${rfq.rfqNumber} failed: ${error instanceof Error ? error.message : error}`,
+        );
+      }
+    }
+  }
+
+  /** Validates each line's resolution choice and re-runs fuzzy matching
+   * server-side — shared by create() and revise(). */
+  private async prepareLines(
+    lines: CustomerBomIntakeLineDto[],
+    user: AuthenticatedUser,
+  ) {
+    const prepared: Array<{
+      input: CustomerBomIntakeLineDto;
+      candidates: Candidate[];
+    }> = [];
+    for (const input of lines) {
+      if (!!input.existingItemId === input.confirmCreateNew) {
+        throw new BadRequestException(
+          'Each BOM line must select an existing match or explicitly confirm creation of a new item',
+        );
+      }
+      prepared.push({
+        input,
+        candidates: await this.matches(input.description, user),
+      });
+    }
+    return prepared;
+  }
+
+  /** Resolves each prepared line to an Item id, creating new COMPONENT items
+   * where Sales explicitly confirmed no match — shared by create() and
+   * revise(). */
+  private async resolveItems(
+    tx: Prisma.TransactionClient,
+    prepared: Array<{ input: CustomerBomIntakeLineDto; candidates: Candidate[] }>,
+  ) {
+    const resolved: Array<{
+      itemId: string;
+      created: boolean;
+      row: (typeof prepared)[number];
+    }> = [];
+    for (const row of prepared) {
+      if (row.input.existingItemId) {
+        const existing = await tx.item.findFirst({
+          where: { id: row.input.existingItemId, isActive: true },
+        });
+        if (!existing)
+          throw new BadRequestException(
+            'A selected Item Master match is unavailable',
+          );
+        resolved.push({ itemId: existing.id, created: false, row });
+      } else {
+        const itemCode = await this.numbering.nextContinuousNumber(
+          'CM',
+          'item_component',
+          tx,
+        );
+        const created = await tx.item.create({
+          data: {
+            itemCode,
+            name: row.input.description.trim(),
+            description: row.input.customerPartReference?.trim() || null,
+            itemType: ItemType.COMPONENT,
+            baseUnitOfMeasure: row.input.unitOfMeasure,
+          },
+        });
+        resolved.push({ itemId: created.id, created: true, row });
+      }
+    }
+    return resolved;
   }
 
   private async ownedOpportunity(id: string, user: AuthenticatedUser) {
