@@ -879,7 +879,25 @@ export async function seed(prisma: PrismaClient): Promise<void> {
     },
   ];
   const financePasswordHash = await bcrypt.hash(password, 10);
+  // Exactly one employee may hold isAccountsHead (partial unique index
+  // employees_single_accounts_head_idx). A live environment normally has a REAL
+  // Accounts Head by now, so the seed must never try to take the designation:
+  // it would fail with P2002 and abort the rest of the seed. The demo head is
+  // then created without the designation instead.
+  const currentAccountsHead = await prisma.employee.findFirst({
+    where: { isAccountsHead: true },
+    select: { email: true },
+  });
   for (const u of financeUsers) {
+    const claimsHead =
+      u.isAccountsHead &&
+      (!currentAccountsHead || currentAccountsHead.email === u.email);
+    if (u.isAccountsHead && !claimsHead) {
+      console.log(
+        `Accounts Head designation left with ${currentAccountsHead?.email} — ` +
+          `${u.email} seeded without it.`,
+      );
+    }
     const existingUser = await prisma.employee.findUnique({
       where: { email: u.email },
     });
@@ -890,7 +908,7 @@ export async function seed(prisma: PrismaClient): Promise<void> {
         where: { id: existingUser.id },
         data: {
           verticalId: accountsVertical.id,
-          isAccountsHead: u.isAccountsHead,
+          isAccountsHead: claimsHead,
         },
       });
     } else {
@@ -904,7 +922,7 @@ export async function seed(prisma: PrismaClient): Promise<void> {
           role: Role.EMPLOYEE,
           accessStatus: AccessStatus.ACTIVE,
           verticalId: accountsVertical.id,
-          isAccountsHead: u.isAccountsHead,
+          isAccountsHead: claimsHead,
           reportingManagerId: superAdmin.id,
         },
       });
