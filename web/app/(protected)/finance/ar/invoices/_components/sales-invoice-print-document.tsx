@@ -381,9 +381,15 @@ export function SalesInvoicePrintDocument({
                         <div style={{ fontWeight: 600 }}>
                           {line.description}
                         </div>
+                        {/* This prints on the customer's tax invoice: when the
+                            preparer wrote customer-facing wording (it differs
+                            from the Product Master name), keep the internal
+                            name off the document and print the SKU alone. */}
                         {line.product && (
                           <div style={{ color: MUTED, marginTop: 2 }}>
-                            {line.product.sku} · {line.product.name}
+                            {line.description === line.product.name
+                              ? `${line.product.sku} · ${line.product.name}`
+                              : line.product.sku}
                           </div>
                         )}
                       </td>

@@ -30,6 +30,10 @@ interface OrderReference {
     productId: string | null;
     adHocProductName: string | null;
     adHocDescription: string | null;
+    /** Customer's own PO wording for this line, when Sales set one — the
+     * invoice must carry this, not the internal Product Master name. */
+    customerFacingProductName: string | null;
+    customerFacingDescription: string | null;
     quantity: string;
     unitPrice: string;
     product: {
@@ -175,20 +179,26 @@ export default function NewSalesVoucherPage() {
     setCustomerId(order.customerId);
     setLines(
       order.lineItems.length > 0
-        ? order.lineItems.map((line) => ({
-            id: crypto.randomUUID(),
-            productId: line.productId,
-            description:
+        ? order.lineItems.map((line) => {
+            const facingName =
+              line.customerFacingProductName ??
               line.product?.name ??
               line.adHocProductName ??
               line.adHocDescription ??
-              '',
+              '';
+            return {
+            id: crypto.randomUUID(),
+            productId: line.productId,
+            description: line.customerFacingDescription
+              ? `${facingName} — ${line.customerFacingDescription}`
+              : facingName,
             hsnSacCode: line.product?.hsnCode ?? '',
             quantity: String(line.quantity),
             unitOfMeasure: line.product?.unitOfMeasure ?? 'NOS',
             unitPrice: String(line.unitPrice),
             discountPercent: '0',
-          }))
+          };
+          })
         : [newLine()],
     );
 
