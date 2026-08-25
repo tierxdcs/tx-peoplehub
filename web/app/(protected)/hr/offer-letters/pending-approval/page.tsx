@@ -161,7 +161,7 @@ export default function OfferLetterApprovalQueuePage() {
                           );
                         }}
                       >
-                        Review →
+                        Review &amp; decide →
                       </Button>
                     </TableCell>
                   </TableRow>

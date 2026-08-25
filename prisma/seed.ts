@@ -9,6 +9,7 @@ import {
   NormalBalance,
   ProvisioningApproverType,
   VaultFolderType,
+  VaultGranteeType,
   VaultVisibilityScope,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -448,6 +449,12 @@ const DEFAULT_FOLDERS: Array<{
   verticalCode: string | null;
   versioningEnabled: boolean;
   maxVersionsRetained: number | null;
+  /**
+   * Verticals granted explicit READ beyond the folder's own scope. Vault
+   * grants are additive, so this widens who can read without moving the
+   * folder out of its owning vertical.
+   */
+  readGrantVerticalCodes?: string[];
 }> = [
   // Company-wide
   {
@@ -531,6 +538,18 @@ const DEFAULT_FOLDERS: Array<{
     verticalCode: 'SCM',
     versioningEnabled: false,
     maxVersionsRetained: 5,
+  },
+  {
+    // Home for vendor/supplier RFQ quotes (see RfqQuote). SCM-scoped because
+    // sourcing owns the RFQ, plus an explicit Accounts read grant so Finance
+    // can check a PO's price against the winning quote without asking SCM.
+    // Versioned: a vendor may resubmit against the same RFQ, and the earlier
+    // quote is the record of what was originally offered.
+    name: 'RFQ Quotes',
+    verticalCode: 'SCM',
+    versioningEnabled: true,
+    maxVersionsRetained: 5,
+    readGrantVerticalCodes: ['ACCOUNTS'],
   },
 ];
 
@@ -789,20 +808,47 @@ export async function seed(prisma: PrismaClient): Promise<void> {
         scopeVerticalId,
       },
     });
-    if (alreadyThere) continue;
 
-    await prisma.vaultFolder.create({
-      data: {
-        name: f.name,
-        type: VaultFolderType.DEFAULT,
-        ownerId: superAdmin.id,
-        visibilityScope,
-        scopeVerticalId,
-        versioningEnabled: f.versioningEnabled,
-        maxVersionsRetained: f.maxVersionsRetained,
-      },
-    });
-    foldersCreated += 1;
+    // Cross-vertical read grants are upserted even for a folder that already
+    // exists, so adding a grant to an existing entry takes effect on re-seed.
+    let folder = alreadyThere;
+    if (!folder) {
+      folder = await prisma.vaultFolder.create({
+        data: {
+          name: f.name,
+          type: VaultFolderType.DEFAULT,
+          ownerId: superAdmin.id,
+          visibilityScope,
+          scopeVerticalId,
+          versioningEnabled: f.versioningEnabled,
+          maxVersionsRetained: f.maxVersionsRetained,
+        },
+      });
+      foldersCreated += 1;
+    }
+
+    for (const code of f.readGrantVerticalCodes ?? []) {
+      const grantee = await prisma.vertical.findUniqueOrThrow({
+        where: { code },
+      });
+      await prisma.vaultFolderPermission.upsert({
+        where: {
+          folderId_granteeType_granteeId: {
+            folderId: folder.id,
+            granteeType: VaultGranteeType.VERTICAL,
+            granteeId: grantee.id,
+          },
+        },
+        update: { canRead: true },
+        create: {
+          folderId: folder.id,
+          granteeType: VaultGranteeType.VERTICAL,
+          granteeId: grantee.id,
+          canRead: true,
+          grantedById: superAdmin.id,
+        },
+      });
+    }
   }
 
   // ── Finance prerequisites ────────────────────────────────────────────

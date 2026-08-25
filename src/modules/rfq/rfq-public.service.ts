@@ -23,6 +23,7 @@ import {
   PublicTechnicalDownloadDto,
 } from './dto/rfq-public.dto';
 import { RfqTechnicalService } from './rfq-technical.service';
+import { RfqQuoteVaultService } from './rfq-quote-vault.service';
 
 /**
  * Public (unauthenticated, token-authed) RFQ quote submission — mirrors the
@@ -37,6 +38,7 @@ export class RfqPublicService {
     private readonly prisma: PrismaService,
     private readonly storage: VaultStorageService,
     private readonly technical: RfqTechnicalService,
+    private readonly quoteVault: RfqQuoteVaultService,
   ) {}
 
   /** Resolve + validate a token; marks the invitee VIEWED. Returns the public RFQ shape. */
@@ -103,6 +105,9 @@ export class RfqPublicService {
         data: { totalQuotedValue: total },
       });
     });
+    // File the PDF copy after the quote is committed, and never let it fail the
+    // submission — the vendor's part is done, Vault filing is our bookkeeping.
+    await this.quoteVault.tryFileSubmittedQuote(invitee.id);
     return this.publicView(invitee.id);
   }
 

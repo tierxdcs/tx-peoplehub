@@ -157,13 +157,14 @@ export default function OfferLetterReviewPage() {
           <SCard className="p-6 text-sm text-destructive">{error}</SCard>
         ) : offer ? (
           <>
-            <SCard className="p-6">
-              <div className="mx-auto max-w-4xl">
-                <OfferLetterPrintDocument offer={offer} preview />
-              </div>
-            </SCard>
-
             <SCard className="space-y-4 p-6">
+              <div>
+                <h2 className="text-base font-semibold">Approval decision</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Review the submitted document below, then record your decision
+                  here. Your approval forwards it to the CEO for final sign-off.
+                </p>
+              </div>
               <Field
                 label="Comment"
                 hint="Required to reject; optional to approve"
@@ -186,6 +187,12 @@ export default function OfferLetterReviewPage() {
                 <Button disabled={acting} onClick={() => void act('approve')}>
                   Approve
                 </Button>
+              </div>
+            </SCard>
+
+            <SCard className="p-6">
+              <div className="mx-auto max-w-4xl">
+                <OfferLetterPrintDocument offer={offer} preview />
               </div>
             </SCard>
           </>

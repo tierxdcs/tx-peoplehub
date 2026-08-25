@@ -9,17 +9,25 @@ import { RfqService } from './rfq.service';
 import { RfqPublicService } from './rfq-public.service';
 import { RfqAccessService } from './rfq-access.service';
 import { RfqTechnicalService } from './rfq-technical.service';
+import { RfqQuoteVaultService } from './rfq-quote-vault.service';
 
 /**
  * RFQ Builder (SCM). Imports:
  *  - SalesModule: shared year-prefixed RFQ- numbering (SalesNumberingService)
  *  - BomModule: StockReportService, for the shortfall-to-RFQ trigger
- *  - VaultModule: VaultStorageService + guardrails, for quote attachments
+ *  - VaultModule: VaultStorageService + guardrails, for quote attachments and
+ *    the rendered quote PDF filed into the seeded "RFQ Quotes" folder
  *  - ScmPurchasingModule: PurchaseOrderService, to pre-fill a DRAFT PO on award
  */
 @Module({
   imports: [SalesModule, BomModule, VaultModule, ScmPurchasingModule],
   controllers: [RfqController, RfqPublicController],
-  providers: [RfqService, RfqPublicService, RfqAccessService, RfqTechnicalService],
+  providers: [
+    RfqService,
+    RfqPublicService,
+    RfqAccessService,
+    RfqTechnicalService,
+    RfqQuoteVaultService,
+  ],
 })
 export class RfqModule {}

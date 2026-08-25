@@ -114,7 +114,17 @@
       "Bash(git -C /Users/nithin/Documents/GitHub/tx-peoplehub log --oneline -3)",
       "Bash(cd web *)",
       "Bash(grep -n \"xl:grid-cols-\\\\|xl:sticky\\\\|SummaryRow\\\\|SIGNAL_BTN\\\\|form=\\\\|FORM_ID\\\\|SignalHeader\" \"app/\\(protected\\)/sales/bids/new/page.tsx\" | head -30; echo === ; sed -n '/xl:sticky/,/^          <\\\\/SCard>/p' \"app/\\(protected\\)/sales/bids/new/page.tsx\" | head -70)",
-      "Bash(npx prettier *)"
+      "Bash(npx prettier *)",
+      "Bash(grep -rn -i \"docker\\\\|postgres\" package.json | head -20; echo \"=== docs mentions:\"; grep -rn -i \"docker run\\\\|docker compose\\\\|postgres\" README.md CLAUDE.md 2>/dev/null | head -20; echo \"=== docker desktop:\"; ls -d /Applications/Docker.app 2>/dev/null)",
+      "Read(//Applications/Docker.app/**)",
+      "Bash(docker exec *)",
+      "Bash(echo \"=== exit: $?\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\(Object.keys\\(p.dependencies\\).filter\\(d=>/pdf/i.test\\(d\\)\\), Object.keys\\(p.devDependencies\\).filter\\(d=>/pdf/i.test\\(d\\)\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\(JSON.stringify\\(p.dependencies,null,1\\)\\)\")",
+      "Bash(sips -s format png --out /tmp/rfq-quote-preview.png /tmp/rfq-quote-preview.pdf)",
+      "Bash(node -e \"console.log\\(require\\('pdfkit/package.json'\\).version\\)\")",
+      "Bash(curl -s localhost:3001/health)",
+      "Bash(curl -s localhost:3000/health)"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",
