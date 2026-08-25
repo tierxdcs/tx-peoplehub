@@ -22,6 +22,7 @@ import { BidActionDto } from './dto/bid-action.dto';
 import { BidStatusDto } from './dto/bid-status.dto';
 import { PromoteInternalOrderDto } from './dto/promote-internal-order.dto';
 import { ResolveBidLineItemDto } from './dto/resolve-bid-line-item.dto';
+import { ConvertBidToOrderDto } from './dto/customer-facing-line.dto';
 import { BidsService } from './bids.service';
 import { OrdersService } from './orders.service';
 
@@ -131,12 +132,16 @@ export class BidsController {
   }
 
   @Post(':id/convert-to-order')
-  @ApiOperation({ summary: 'Convert an ACCEPTED bid into a CONFIRMED order' })
+  @ApiOperation({
+    summary:
+      'Convert an ACCEPTED bid into a CONFIRMED order (optionally with per-line customer-facing naming overrides)',
+  })
   convertToOrder(
     @Param('id') id: string,
+    @Body() dto: ConvertBidToOrderDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.ordersService.convertFromBid(id, user);
+    return this.ordersService.convertFromBid(id, user, dto);
   }
 
   @Post(':id/promote-internal-order')

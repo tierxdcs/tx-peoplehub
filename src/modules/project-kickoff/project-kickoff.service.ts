@@ -1191,7 +1191,12 @@ export class ProjectKickoffService {
   private toDeliveryItem(li: DeliveryItemRow): KickoffDeliveryItemEntity {
     return new KickoffDeliveryItemEntity({
       id: li.id,
-      productName: li.product?.name ?? li.adHocProductName ?? 'Unnamed product',
+      // Customer-facing override first — kickoff is an order-context surface.
+      productName:
+        li.customerFacingProductName ??
+        li.product?.name ??
+        li.adHocProductName ??
+        'Unnamed product',
       productSku: li.product?.sku ?? 'Ad-hoc',
       quantity: li.quantity.toString(),
       splits: li.deliverySplits.map(

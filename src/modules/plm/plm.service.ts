@@ -265,7 +265,9 @@ export class PlmService {
           orderId: tracker.orderId,
           orderNumber: tracker.order.orderNumber,
           customerName: tracker.order.customer?.name ?? null,
+          // Customer-facing override first — PLM rows reference the order.
           productName:
+            tracker.orderLine.customerFacingProductName ??
             tracker.orderLine.product?.name ??
             tracker.orderLine.adHocProductName ??
             'Unnamed product',
@@ -331,7 +333,7 @@ export class PlmService {
       actorId: user.id,
       type: NotificationType.PLM_STAGE_ADVANCED,
       trackerId: tracker.id,
-      message: `${tracker.order.orderNumber} · ${tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'} advanced to ${to.replaceAll('_', ' ')}`,
+      message: `${tracker.order.orderNumber} · ${tracker.orderLine.customerFacingProductName ?? tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'} advanced to ${to.replaceAll('_', ' ')}`,
     });
     return updated;
   }
@@ -390,7 +392,7 @@ export class PlmService {
           actorId: user.id,
           type: NotificationType.PLM_DESIGN_REVIEW_REQUESTED,
           trackerId: tracker.id,
-          message: `Design Review requested for ${tracker.order.orderNumber} · ${tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
+          message: `Design Review requested for ${tracker.order.orderNumber} · ${tracker.orderLine.customerFacingProductName ?? tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
         }),
       ),
     );
@@ -627,7 +629,7 @@ export class PlmService {
           actorId: user.id,
           type: NotificationType.PLM_DESIGN_REVIEW_DECIDED,
           trackerId: tracker.id,
-          message: `Design Review ${decision} for ${tracker.order.orderNumber} · ${tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
+          message: `Design Review ${decision} for ${tracker.order.orderNumber} · ${tracker.orderLine.customerFacingProductName ?? tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
         }),
       ),
     );

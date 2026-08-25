@@ -74,7 +74,9 @@ export default function CustomerBomIntakePage() {
   }, [toast]);
 
   useEffect(() => {
-    void listCustomerBomIntakes(id).then(setCreatedIntakes).catch(() => undefined);
+    void listCustomerBomIntakes(id)
+      .then(setCreatedIntakes)
+      .catch(() => undefined);
   }, [id]);
 
   const patchLine = (key: number, patch: Partial<DraftLine>) =>
@@ -109,7 +111,6 @@ export default function CustomerBomIntakePage() {
   }
 
   const ready =
-    !!file &&
     !!productName.trim() &&
     !!businessUnitId &&
     lines.length > 0 &&
@@ -122,15 +123,19 @@ export default function CustomerBomIntakePage() {
     );
 
   async function submit() {
-    if (!ready || !file) return;
+    if (!ready) return;
     setSubmitting(true);
     try {
-      const signed = await customerBomUploadUrl(id, {
-        fileName: file.name,
-        mimeType: file.type || 'application/octet-stream',
-        fileSize: file.size,
-      });
-      await uploadToPresignedUrl(signed.uploadUrl, file);
+      let uploadedFile: { fileKey: string; fileName: string } | undefined;
+      if (file) {
+        const signed = await customerBomUploadUrl(id, {
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          fileSize: file.size,
+        });
+        await uploadToPresignedUrl(signed.uploadUrl, file);
+        uploadedFile = { fileKey: signed.fileKey, fileName: file.name };
+      }
       await createCustomerBomIntake(id, {
         businessUnitId,
         productName: productName.trim(),
@@ -138,8 +143,7 @@ export default function CustomerBomIntakePage() {
         ...(targetMarginPercent !== ''
           ? { targetMarginPercent: Number(targetMarginPercent) }
           : {}),
-        fileKey: signed.fileKey,
-        fileName: file.name,
+        ...uploadedFile,
         lines: lines.map((line) => ({
           description: line.description.trim(),
           ...(line.customerPartReference.trim()
@@ -179,241 +183,255 @@ export default function CustomerBomIntakePage() {
         description="Transcribe the customer's parts list without entering engineering classifications or internal costs."
       />
       <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
-
-      <SCard className="px-5 py-[18px]">
-        <SCardTitle title="Customer document and product" />
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <Field label="Customer BOM file" required>
-            <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm">
-              <Upload className="size-4" />{' '}
-              {file?.name ?? 'Choose Excel or PDF'}
-              <input
-                type="file"
-                className="sr-only"
-                accept=".pdf,.xls,.xlsx,.csv"
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+        <SCard className="px-5 py-[18px]">
+          <SCardTitle title="Customer document and product" />
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <Field label="Customer BOM file (optional)">
+              <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm">
+                <Upload className="size-4" />{' '}
+                {file?.name ?? 'Choose Excel or PDF'}
+                <input
+                  type="file"
+                  className="sr-only"
+                  accept=".pdf,.xls,.xlsx,.csv"
+                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                />
+              </label>
+            </Field>
+            <Field label="Business Unit" required>
+              <Select
+                value={businessUnitId}
+                onChange={(event) => setBusinessUnitId(event.target.value)}
+              >
+                <option value="">Select business unit</option>
+                {businessUnits.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Product name" required>
+              <Input
+                value={productName}
+                onChange={(event) => setProductName(event.target.value)}
               />
-            </label>
-          </Field>
-          <Field label="Business Unit" required>
-            <Select
-              value={businessUnitId}
-              onChange={(event) => setBusinessUnitId(event.target.value)}
-            >
-              <option value="">Select business unit</option>
-              {businessUnits.map((unit) => (
-                <option key={unit.id} value={unit.id}>
-                  {unit.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Product name" required>
-            <Input
-              value={productName}
-              onChange={(event) => setProductName(event.target.value)}
-            />
-          </Field>
-          <Field label="Product unit" required>
-            <Input
-              value={unitOfMeasure}
-              onChange={(event) => setUnitOfMeasure(event.target.value)}
-            />
-          </Field>
-          <Field label="Target margin % (optional)">
-            <Input
-              type="number"
-              min="0"
-              max="99.99"
-              step="0.01"
-              value={targetMarginPercent}
-              onChange={(event) => setTargetMarginPercent(event.target.value)}
-            />
-          </Field>
-        </div>
-      </SCard>
+            </Field>
+            <Field label="Product unit" required>
+              <Input
+                value={unitOfMeasure}
+                onChange={(event) => setUnitOfMeasure(event.target.value)}
+              />
+            </Field>
+            <Field label="Target margin % (optional)">
+              <Input
+                type="number"
+                min="0"
+                max="99.99"
+                step="0.01"
+                value={targetMarginPercent}
+                onChange={(event) => setTargetMarginPercent(event.target.value)}
+              />
+            </Field>
+          </div>
+        </SCard>
 
-      <SCard className="px-5 py-[18px]">
-        <SCardTitle
-          title="Customer BOM lines"
-          subtitle="Search Item Master for every line before choosing an existing match or explicitly creating new."
-          right={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setLines((current) => [...current, emptyLine()])}
-            >
-              <Plus className="size-4" /> Add line
-            </Button>
-          }
-        />
-        <div className="mt-4 space-y-4">
-          {lines.map((line, index) => (
-            <div key={line.key} className="rounded-lg border p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <strong className="text-sm">Line {index + 1}</strong>
-                {lines.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() =>
-                      setLines((current) =>
-                        current.filter((item) => item.key !== line.key),
-                      )
-                    }
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                )}
-              </div>
-              <div className="grid gap-3 md:grid-cols-[2fr_1fr_0.7fr_0.8fr_auto]">
-                <Field label="Description" required>
-                  <Input
-                    value={line.description}
-                    onChange={(event) =>
-                      patchLine(line.key, {
-                        description: event.target.value,
-                        searchedDescription: null,
-                        candidates: [],
-                        existingItemId: '',
-                        confirmCreateNew: false,
-                      })
-                    }
-                  />
-                </Field>
-                <Field label="Customer part ref">
-                  <Input
-                    value={line.customerPartReference}
-                    onChange={(event) =>
-                      patchLine(line.key, {
-                        customerPartReference: event.target.value,
-                      })
-                    }
-                  />
-                </Field>
-                <Field label="Quantity" required>
-                  <Input
-                    type="number"
-                    min="0.0001"
-                    step="any"
-                    value={line.quantity}
-                    onChange={(event) =>
-                      patchLine(line.key, { quantity: event.target.value })
-                    }
-                  />
-                </Field>
-                <Field label="Unit" required>
-                  <Input
-                    value={line.unitOfMeasure}
-                    onChange={(event) =>
-                      patchLine(line.key, { unitOfMeasure: event.target.value })
-                    }
-                  />
-                </Field>
-                <div className="pt-6">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={line.searching}
-                    onClick={() => void searchLine(line)}
-                  >
-                    <Search className="size-4" />{' '}
-                    {line.searching ? 'Searching' : 'Search'}
-                  </Button>
-                </div>
-              </div>
-              {line.searchedDescription && (
-                <div className="mt-3 rounded-md bg-black/[.03] p-3 text-sm dark:bg-white/[.03]">
-                  <p className="mb-2 font-medium">
-                    Candidate Item Master matches
-                  </p>
-                  {line.candidates.length ? (
-                    line.candidates.map((candidate) => (
-                      <label
-                        key={candidate.id}
-                        className="mb-2 flex cursor-pointer items-center gap-2 rounded border p-2"
-                      >
-                        <input
-                          type="radio"
-                          name={`resolution-${line.key}`}
-                          checked={line.existingItemId === candidate.id}
-                          onChange={() =>
-                            patchLine(line.key, {
-                              existingItemId: candidate.id,
-                              confirmCreateNew: false,
-                            })
-                          }
-                        />
-                        <span>
-                          <strong>{candidate.itemCode}</strong> —{' '}
-                          {candidate.name}{' '}
-                          <span className="text-xs text-muted-foreground">
-                            ({Math.round(candidate.score * 100)}% match)
-                          </span>
-                        </span>
-                      </label>
-                    ))
-                  ) : (
-                    <p className="mb-2 text-muted-foreground">
-                      No likely matches found.
-                    </p>
+        <SCard className="px-5 py-[18px]">
+          <SCardTitle
+            title="Customer BOM lines"
+            subtitle="Search Item Master for every line before choosing an existing match or explicitly creating new."
+            right={
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setLines((current) => [...current, emptyLine()])}
+              >
+                <Plus className="size-4" /> Add line
+              </Button>
+            }
+          />
+          <div className="mt-4 space-y-4">
+            {lines.map((line, index) => (
+              <div key={line.key} className="rounded-lg border p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <strong className="text-sm">Line {index + 1}</strong>
+                  {lines.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() =>
+                        setLines((current) =>
+                          current.filter((item) => item.key !== line.key),
+                        )
+                      }
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
                   )}
-                  <label className="flex cursor-pointer items-center gap-2 rounded border border-dashed p-2">
-                    <input
-                      type="radio"
-                      name={`resolution-${line.key}`}
-                      checked={line.confirmCreateNew}
-                      onChange={() =>
+                </div>
+                <div className="grid gap-3 md:grid-cols-[2fr_1fr_0.7fr_0.8fr_auto]">
+                  <Field label="Description" required>
+                    <Input
+                      value={line.description}
+                      onChange={(event) =>
                         patchLine(line.key, {
+                          description: event.target.value,
+                          searchedDescription: null,
+                          candidates: [],
                           existingItemId: '',
-                          confirmCreateNew: true,
+                          confirmCreateNew: false,
                         })
                       }
                     />
-                    None of these match — create a new Component item
-                  </label>
+                  </Field>
+                  <Field label="Customer part ref">
+                    <Input
+                      value={line.customerPartReference}
+                      onChange={(event) =>
+                        patchLine(line.key, {
+                          customerPartReference: event.target.value,
+                        })
+                      }
+                    />
+                  </Field>
+                  <Field label="Quantity" required>
+                    <Input
+                      type="number"
+                      min="0.0001"
+                      step="any"
+                      value={line.quantity}
+                      onChange={(event) =>
+                        patchLine(line.key, { quantity: event.target.value })
+                      }
+                    />
+                  </Field>
+                  <Field label="Unit" required>
+                    <Input
+                      value={line.unitOfMeasure}
+                      onChange={(event) =>
+                        patchLine(line.key, {
+                          unitOfMeasure: event.target.value,
+                        })
+                      }
+                    />
+                  </Field>
+                  <div className="pt-6">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={line.searching}
+                      onClick={() => void searchLine(line)}
+                    >
+                      <Search className="size-4" />{' '}
+                      {line.searching ? 'Searching' : 'Search'}
+                    </Button>
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
-          <div className="flex justify-end">
-            <Button
-              disabled={!ready || submitting}
-              onClick={() => void submit()}
-            >
-              {submitting ? 'Creating records…' : 'Create Product & Draft BOM'}
-            </Button>
-          </div>
-        </div>
-      </SCard>
-
-      {createdIntakes.length > 0 && (
-        <SCard className="px-5 py-[18px]">
-          <SCardTitle title="Quote-stage BOMs" />
-          <div className="mt-4 space-y-3">
-            {createdIntakes.map((intake) => (
-              <div key={intake.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm">
-                <div>
-                  <strong>{intake.productName}</strong>
-                  <p className="text-muted-foreground">
-                    BOM {intake.bom?.status ?? '—'} · {intake.rawFileName}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p>
-                    Live BOM estimate:{' '}
-                    <strong>{intake.liveBomCostEstimate ? `₹${intake.liveBomCostEstimate}` : 'Awaiting item costs'}</strong>
-                  </p>
-                  <p className="text-muted-foreground">
-                    Suggested unit price: {intake.suggestedUnitPrice ? `₹${intake.suggestedUnitPrice}` : 'Set margin / award RFQ'}
-                  </p>
-                </div>
+                {line.searchedDescription && (
+                  <div className="mt-3 rounded-md bg-black/[.03] p-3 text-sm dark:bg-white/[.03]">
+                    <p className="mb-2 font-medium">
+                      Candidate Item Master matches
+                    </p>
+                    {line.candidates.length ? (
+                      line.candidates.map((candidate) => (
+                        <label
+                          key={candidate.id}
+                          className="mb-2 flex cursor-pointer items-center gap-2 rounded border p-2"
+                        >
+                          <input
+                            type="radio"
+                            name={`resolution-${line.key}`}
+                            checked={line.existingItemId === candidate.id}
+                            onChange={() =>
+                              patchLine(line.key, {
+                                existingItemId: candidate.id,
+                                confirmCreateNew: false,
+                              })
+                            }
+                          />
+                          <span>
+                            <strong>{candidate.itemCode}</strong> —{' '}
+                            {candidate.name}{' '}
+                            <span className="text-xs text-muted-foreground">
+                              ({Math.round(candidate.score * 100)}% match)
+                            </span>
+                          </span>
+                        </label>
+                      ))
+                    ) : (
+                      <p className="mb-2 text-muted-foreground">
+                        No likely matches found.
+                      </p>
+                    )}
+                    <label className="flex cursor-pointer items-center gap-2 rounded border border-dashed p-2">
+                      <input
+                        type="radio"
+                        name={`resolution-${line.key}`}
+                        checked={line.confirmCreateNew}
+                        onChange={() =>
+                          patchLine(line.key, {
+                            existingItemId: '',
+                            confirmCreateNew: true,
+                          })
+                        }
+                      />
+                      None of these match — create a new Component item
+                    </label>
+                  </div>
+                )}
               </div>
             ))}
+            <div className="flex justify-end">
+              <Button
+                disabled={!ready || submitting}
+                onClick={() => void submit()}
+              >
+                {submitting
+                  ? 'Creating records…'
+                  : 'Create Product & Draft BOM'}
+              </Button>
+            </div>
           </div>
         </SCard>
-      )}
+
+        {createdIntakes.length > 0 && (
+          <SCard className="px-5 py-[18px]">
+            <SCardTitle title="Quote-stage BOMs" />
+            <div className="mt-4 space-y-3">
+              {createdIntakes.map((intake) => (
+                <div
+                  key={intake.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm"
+                >
+                  <div>
+                    <strong>{intake.productName}</strong>
+                    <p className="text-muted-foreground">
+                      BOM {intake.bom?.status ?? '—'} ·{' '}
+                      {intake.rawFileName ?? 'Manual entry — no file attached'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p>
+                      Live BOM estimate:{' '}
+                      <strong>
+                        {intake.liveBomCostEstimate
+                          ? `₹${intake.liveBomCostEstimate}`
+                          : 'Awaiting item costs'}
+                      </strong>
+                    </p>
+                    <p className="text-muted-foreground">
+                      Suggested unit price:{' '}
+                      {intake.suggestedUnitPrice
+                        ? `₹${intake.suggestedUnitPrice}`
+                        : 'Set margin / award RFQ'}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SCard>
+        )}
       </div>
     </SignalPage>
   );

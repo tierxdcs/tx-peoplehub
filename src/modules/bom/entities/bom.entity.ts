@@ -114,7 +114,7 @@ export class BomEntity {
   customerBomIntake?: {
     id: string;
     opportunityName: string;
-    rawFileName: string;
+    rawFileName: string | null;
     lines: Array<{
       description: string;
       resolvedItemId: string;

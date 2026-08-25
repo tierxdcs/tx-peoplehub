@@ -650,7 +650,13 @@ export interface OrderLineItem {
   adHocProductName: string | null;
   adHocDescription: string | null;
   isAdHoc: boolean;
+  /** Customer-facing display name: the per-line override when set, else the
+   * real Product name. Order-context surfaces should render this. */
   productName: string;
+  /** The real Product name regardless of any override — internal reference. */
+  internalProductName: string;
+  customerFacingProductName: string | null;
+  customerFacingDescription: string | null;
   productSku: string;
   quantity: string;
   unitPrice: string;

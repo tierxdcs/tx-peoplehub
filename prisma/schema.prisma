@@ -1662,6 +1662,13 @@ model OrderLineItem {
   product          Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
   adHocProductName String?
   adHocDescription String?
+  /// Customer-facing display override for THIS line only — the customer's own
+  /// PO wording. Purely presentational on order-context/customer surfaces;
+  /// the shared Product record, BOM, costing and PLM keep referencing the
+  /// real Product/Item. Internal engineering/procurement screens (Item
+  /// Master, BOM, Resource Planning) deliberately ignore these.
+  customerFacingProductName String?
+  customerFacingDescription String? @db.Text
   quantity         Decimal  @db.Decimal(14, 2)
   unitPrice        Decimal  @db.Decimal(14, 2)
   lineTotal        Decimal  @db.Decimal(14, 2)
@@ -3882,10 +3889,10 @@ model CustomerBomIntake {
   businessUnit       BusinessUnit            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
   productName        String
   unitOfMeasure      String                  @default("each")
-  rawFileKey         String
-  rawFileName        String
-  rawFileSize        Int
-  rawMimeType        String
+  rawFileKey         String?
+  rawFileName        String?
+  rawFileSize        Int?
+  rawMimeType        String?
   status             CustomerBomIntakeStatus @default(DRAFT)
   finishedGoodItemId String?                 @unique
   finishedGoodItem   Item?                   @relation("CustomerBomIntakeFinishedGood", fields: [finishedGoodItemId], references: [id], onDelete: SetNull)

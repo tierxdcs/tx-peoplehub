@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   BidStatus,
   OrderFinalQcStatus,
@@ -223,6 +223,136 @@ describe('OrdersService', () => {
       expect(result.ownerId).toBe('emp-1');
       // Booked value includes flat AMC accepted on the quotation.
       expect(result.totalAmount).toBe('62937500');
+    });
+
+    it('captures per-line customer-facing overrides at conversion and resolves display names override-first', async () => {
+      prisma.bid.findUnique.mockResolvedValue({
+        id: 'bid-1',
+        status: BidStatus.ACCEPTED,
+        createdById: 'emp-1',
+        customerId: 'cust-1',
+        totalAmount: new Prisma.Decimal(1000),
+        amcCharges: [],
+        lineItems: [
+          {
+            id: 'bli-1',
+            productId: 'prod-1',
+            quantity: new Prisma.Decimal(1),
+            unitPrice: new Prisma.Decimal(1000),
+            lineTotal: new Prisma.Decimal(1000),
+          },
+          {
+            id: 'bli-2',
+            productId: 'prod-2',
+            quantity: new Prisma.Decimal(2),
+            unitPrice: new Prisma.Decimal(0),
+            lineTotal: new Prisma.Decimal(0),
+          },
+        ],
+      });
+      prisma.order.findFirst.mockResolvedValue(null);
+      const orderCreate = jest.fn().mockImplementation(({ data }: any) => ({
+        id: 'order-1',
+        orderNumber: data.orderNumber,
+        bidId: data.bidId,
+        customerId: data.customerId,
+        ownerId: data.ownerId,
+        owner: { firstName: 'Sales', lastName: 'Rep' },
+        status: OrderStatus.CONFIRMED,
+        totalAmount: data.totalAmount,
+        productionRunId: null,
+        shipmentId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lineItems: data.lineItems.create.map((li: any, i: number) => ({
+          ...li,
+          id: `oli-${i}`,
+          orderId: 'order-1',
+          product: { name: `Internal ${li.productId}`, sku: `SKU-${i}` },
+        })),
+      }));
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({ order: { create: orderCreate } }),
+      );
+
+      const result = await service.convertFromBid('bid-1', rep, {
+        lineOverrides: [
+          {
+            bidLineItemId: 'bli-1',
+            customerFacingProductName: '  ACME Cooling Rack 42U  ',
+            customerFacingDescription: 'As per customer PO #4711',
+          },
+        ],
+      });
+
+      // Stored trimmed on the overridden line; null on the untouched line.
+      const created = orderCreate.mock.calls[0][0].data.lineItems.create;
+      expect(created[0].customerFacingProductName).toBe('ACME Cooling Rack 42U');
+      expect(created[0].customerFacingDescription).toBe(
+        'As per customer PO #4711',
+      );
+      expect(created[1].customerFacingProductName).toBeNull();
+
+      // Entity resolution: override-first display name, internal preserved.
+      expect(result.lineItems?.[0].productName).toBe('ACME Cooling Rack 42U');
+      expect(result.lineItems?.[0].internalProductName).toBe('Internal prod-1');
+      expect(result.lineItems?.[1].productName).toBe('Internal prod-2');
+    });
+  });
+
+  describe('updateLineCustomerFacing', () => {
+    it('sets trimmed overrides and clears them when blank, without touching the Product', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        id: 'order-1',
+        ownerId: 'emp-1',
+        lineItems: [],
+      });
+      prisma.orderLineItem.findUnique = jest
+        .fn()
+        .mockResolvedValue({ orderId: 'order-1' });
+      prisma.orderLineItem.update = jest.fn().mockResolvedValue({});
+      jest
+        .spyOn(service, 'findOne')
+        .mockResolvedValue({ id: 'order-1' } as any);
+
+      await service.updateLineCustomerFacing(
+        'order-1',
+        'line-1',
+        {
+          customerFacingProductName: '  Customer Name  ',
+          customerFacingDescription: '   ',
+        },
+        rep,
+      );
+      expect(prisma.orderLineItem.update).toHaveBeenCalledWith({
+        where: { id: 'line-1' },
+        data: {
+          customerFacingProductName: 'Customer Name',
+          customerFacingDescription: null,
+        },
+      });
+    });
+
+    it('404s when the line does not belong to the order', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        id: 'order-1',
+        ownerId: 'emp-1',
+        lineItems: [],
+      });
+      prisma.orderLineItem.findUnique = jest
+        .fn()
+        .mockResolvedValue({ orderId: 'other-order' });
+      prisma.orderLineItem.update = jest.fn();
+
+      await expect(
+        service.updateLineCustomerFacing(
+          'order-1',
+          'line-1',
+          { customerFacingProductName: 'X' },
+          rep,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.orderLineItem.update).not.toHaveBeenCalled();
     });
   });
 

@@ -5,11 +5,7 @@ import { apiFetch } from './api';
 /** BOM client (§3–4). Author = R&D vertical; approve/reject = R&D Head (backend-enforced). */
 
 export type BomStatus =
-  | 'DRAFT'
-  | 'PENDING_APPROVAL'
-  | 'REJECTED'
-  | 'RELEASED'
-  | 'OBSOLETE';
+  'DRAFT' | 'PENDING_APPROVAL' | 'REJECTED' | 'RELEASED' | 'OBSOLETE';
 
 export type BomLineSource = 'MAKE' | 'BUY';
 
@@ -37,11 +33,7 @@ export interface BomEvent {
 }
 
 export type ItemType =
-  | 'RAW_MATERIAL'
-  | 'COMPONENT'
-  | 'SUBASSEMBLY'
-  | 'FINISHED_GOOD'
-  | 'CONSUMABLE';
+  'RAW_MATERIAL' | 'COMPONENT' | 'SUBASSEMBLY' | 'FINISHED_GOOD' | 'CONSUMABLE';
 
 export interface Bom {
   id: string;
@@ -69,12 +61,17 @@ export interface Bom {
   customerBomIntake?: {
     id: string;
     opportunityName: string;
-    rawFileName: string;
+    rawFileName: string | null;
     lines: Array<{
       description: string;
       resolvedItemId: string;
       createdNewItem: boolean;
-      fuzzyCandidates: Array<{ id: string; itemCode: string; name: string; score: number }> | null;
+      fuzzyCandidates: Array<{
+        id: string;
+        itemCode: string;
+        name: string;
+        score: number;
+      }> | null;
     }>;
   } | null;
   lines: BomLine[];
@@ -136,7 +133,10 @@ export function getBom(id: string) {
 }
 
 export function createBom(input: CreateBomInput) {
-  return apiFetch<Bom>('/boms', { method: 'POST', body: JSON.stringify(input) });
+  return apiFetch<Bom>('/boms', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 // ── Item ↔ Supplier links (release hard-gate) ─────────────────────────
@@ -173,7 +173,10 @@ export function unlinkItemSupplier(itemId: string, linkId: string) {
 }
 
 export function updateBom(id: string, input: UpdateBomInput) {
-  return apiFetch<Bom>(`/boms/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  return apiFetch<Bom>(`/boms/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
 }
 
 export function submitBom(id: string) {

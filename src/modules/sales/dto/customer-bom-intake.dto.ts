@@ -56,8 +56,8 @@ export class CreateCustomerBomIntakeDto {
   @Min(0)
   @Max(99.99)
   targetMarginPercent?: number;
-  @IsString() @MinLength(1) fileKey!: string;
-  @IsString() @MinLength(1) fileName!: string;
+  @IsOptional() @IsString() @MinLength(1) fileKey?: string;
+  @IsOptional() @IsString() @MinLength(1) fileName?: string;
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

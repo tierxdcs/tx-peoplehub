@@ -177,6 +177,7 @@ export class DeliveryChallanService {
             quantity: true,
             productId: true,
             adHocProductName: true,
+            customerFacingProductName: true,
             product: { select: { name: true, sku: true } },
           },
         },
@@ -189,8 +190,12 @@ export class DeliveryChallanService {
       lineItems: order.lineItems.map((line) => ({
         ...line,
         quantity: line.quantity.toString(),
+        // Challans are customer-facing — the line's override wording first.
         productName:
-          line.product?.name ?? line.adHocProductName ?? 'Unnamed product',
+          line.customerFacingProductName ??
+          line.product?.name ??
+          line.adHocProductName ??
+          'Unnamed product',
         productSku: line.product?.sku ?? 'Ad-hoc',
       })),
     }));
@@ -700,7 +705,12 @@ export class DeliveryChallanService {
       return {
         item: { connect: { id: orderLine.product.itemId } },
         orderLine: { connect: { id: orderLine.id } },
-        description: l.description ?? orderLine.product.name,
+        // Snapshot the customer-facing wording: this description prints on
+        // the challan and seeds the dispatch-triggered draft invoice line.
+        description:
+          l.description ??
+          orderLine.customerFacingProductName ??
+          orderLine.product.name,
         hsnCode: orderLine.product.hsnCode ?? null,
         quantity: qty,
         unitOfMeasure: orderLine.product.unitOfMeasure,
@@ -782,10 +792,13 @@ export class DeliveryChallanService {
           new OverDispatchWarningEntity({
             orderLineId: line.id,
             description:
-              line.product?.name ?? line.adHocProductName ?? 'Unnamed product',
+              line.customerFacingProductName ??
+              line.product?.name ??
+              line.adHocProductName ??
+              'Unnamed product',
             orderedQuantity: line.quantity.toString(),
             cumulativeDispatched: got.toString(),
-            message: `Over-dispatch: ${got} dispatched against ${line.quantity} ordered for ${line.product?.name ?? line.adHocProductName ?? 'Unnamed product'}.`,
+            message: `Over-dispatch: ${got} dispatched against ${line.quantity} ordered for ${line.customerFacingProductName ?? line.product?.name ?? line.adHocProductName ?? 'Unnamed product'}.`,
           }),
         );
       }

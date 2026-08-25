@@ -18,6 +18,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CreateInternalOrderDto } from './dto/create-internal-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
+import { UpdateLineCustomerFacingDto } from './dto/customer-facing-line.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { ResolveBidLineItemDto } from './dto/resolve-bid-line-item.dto';
 import { OrdersService } from './orders.service';
@@ -61,6 +62,25 @@ export class OrdersController {
   @ApiOperation({ summary: 'View one order (ownership-scoped)' })
   findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.ordersService.findOne(id, user);
+  }
+
+  @Patch(':id/line-items/:lineItemId/customer-facing')
+  @ApiOperation({
+    summary:
+      "Set/clear the customer-facing display name/description for one line (display-only; never touches the Product record)",
+  })
+  updateLineCustomerFacing(
+    @Param('id') id: string,
+    @Param('lineItemId') lineItemId: string,
+    @Body() dto: UpdateLineCustomerFacingDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ordersService.updateLineCustomerFacing(
+      id,
+      lineItemId,
+      dto,
+      user,
+    );
   }
 
   @Patch(':id/status')

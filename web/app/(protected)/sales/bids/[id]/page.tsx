@@ -12,6 +12,10 @@ import { todayDateStr } from '../../../../lib/date';
 import {
   SCard,
   SCardTitle,
+  SIGNAL_BTN_GHOST,
+  SIGNAL_BTN_PRIMARY,
+  SIGNAL_DIALOG,
+  SIGNAL_DIALOG_TITLE,
   SIGNAL_EYEBROW,
   SIGNAL_LINK,
   SIGNAL_MUTED,
@@ -19,6 +23,14 @@ import {
   SignalPage,
 } from '../../../../components/ui/signal';
 import { Button } from '../../../../components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../../components/ui/dialog';
 import { Input } from '../../../../components/ui/input';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
@@ -145,17 +157,42 @@ export default function BidDetailPage() {
     }
   }
 
-  async function convertToOrder() {
-    const ok = await confirm({
-      title: 'Convert to order?',
-      description: 'This will create a confirmed order from the accepted bid.',
+  // Conversion dialog: doubles as the confirmation step and lets Sales set an
+  // optional customer-facing name/description per line (the customer's own PO
+  // wording). Display-only — the real Product keeps driving BOM/PLM/costing.
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [lineOverrides, setLineOverrides] = useState<
+    Record<string, { name: string; description: string }>
+  >({});
+
+  function setOverride(
+    lineId: string,
+    patch: Partial<{ name: string; description: string }>,
+  ) {
+    setLineOverrides((current) => {
+      const existing = current[lineId] ?? { name: '', description: '' };
+      return { ...current, [lineId]: { ...existing, ...patch } };
     });
-    if (!ok) return;
+  }
+
+  async function convertToOrder() {
     setActing(true);
     try {
+      const overrides = Object.entries(lineOverrides)
+        .filter(([, v]) => v.name.trim() || v.description.trim())
+        .map(([bidLineItemId, v]) => ({
+          bidLineItemId,
+          customerFacingProductName: v.name.trim() || undefined,
+          customerFacingDescription: v.description.trim() || undefined,
+        }));
       const order = await apiFetch<{ id: string }>(
         `/bids/${id}/convert-to-order`,
-        { method: 'POST' },
+        {
+          method: 'POST',
+          body: JSON.stringify(
+            overrides.length ? { lineOverrides: overrides } : {},
+          ),
+        },
       );
       router.push(`/sales/orders/${order.id}`);
     } catch (err) {
@@ -335,7 +372,10 @@ export default function BidDetailPage() {
                           ? 'Resolve all ad-hoc line items before converting'
                           : undefined
                       }
-                      onClick={convertToOrder}
+                      onClick={() => {
+                        setLineOverrides({});
+                        setConvertOpen(true);
+                      }}
                     >
                       Convert to Order
                     </Button>
@@ -652,6 +692,72 @@ export default function BidDetailPage() {
         onPromoted={(orderId) => router.push(`/sales/orders/${orderId}`)}
         canCreateProduct={canCreateProduct}
       />
+
+      {/* Convert-to-order confirmation, with optional per-line customer-facing
+          wording (editable later from the order's line items too). */}
+      <Dialog
+        open={convertOpen}
+        onOpenChange={(open) => !open && setConvertOpen(false)}
+      >
+        <DialogContent className={`${SIGNAL_DIALOG} max-h-[85vh] overflow-y-auto sm:max-w-[560px]`}>
+          <DialogHeader>
+            <DialogTitle className={SIGNAL_DIALOG_TITLE}>
+              Convert to order?
+            </DialogTitle>
+            <DialogDescription>
+              This will create a confirmed order from the accepted bid.
+              Optionally set the customer&apos;s own wording per line — it
+              appears on the order, its documents, and the customer portal,
+              while internal screens keep the real product name.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {(bid.lineItems ?? []).map((li) => (
+              <div
+                key={li.id}
+                className="rounded-md border border-black/[.07] p-3 dark:border-white/[.08]"
+              >
+                <div className="text-sm font-medium">{li.productName}</div>
+                <div className="mt-2 space-y-2">
+                  <Input
+                    placeholder="Customer-facing product name (optional)"
+                    value={lineOverrides[li.id]?.name ?? ''}
+                    onChange={(e) =>
+                      setOverride(li.id, { name: e.target.value })
+                    }
+                    maxLength={300}
+                  />
+                  <Input
+                    placeholder="Customer-facing description (optional)"
+                    value={lineOverrides[li.id]?.description ?? ''}
+                    onChange={(e) =>
+                      setOverride(li.id, { description: e.target.value })
+                    }
+                    maxLength={2000}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setConvertOpen(false)}
+              className={SIGNAL_BTN_GHOST}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={acting}
+              onClick={() => void convertToOrder()}
+              className={SIGNAL_BTN_PRIMARY}
+            >
+              {acting ? 'Converting…' : 'Convert to Order'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

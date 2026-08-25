@@ -132,7 +132,7 @@ export function PlmSection({ orderId, trackerId }: PlmSectionProps) {
             <details key={tracker.id} className="group rounded-lg border bg-background" open={trackers.length === 1}>
               <summary className="cursor-pointer list-none p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div><div className="font-medium">{tracker.orderLine.product.name}</div><div className="text-xs text-muted-foreground">{tracker.orderLine.product.sku} · {prettyEnum(tracker.flowType)} · Owner: {tracker.owner.firstName} {tracker.owner.lastName}</div></div>
+                  <div><div className="font-medium">{tracker.orderLine.customerFacingProductName ?? tracker.orderLine.product.name}</div><div className="text-xs text-muted-foreground">{tracker.orderLine.product.sku} · {prettyEnum(tracker.flowType)} · Owner: {tracker.owner.firstName} {tracker.owner.lastName}</div></div>
                   <StatusBadge value={tracker.currentStage} />
                 </div>
                 <div className="mt-3 overflow-x-auto"><StageStrip tracker={tracker} /></div>

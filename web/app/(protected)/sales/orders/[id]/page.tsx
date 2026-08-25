@@ -3,11 +3,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ReceiptText, UserRound } from 'lucide-react';
+import { PenLine, ReceiptText, UserRound } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
 import { useIsSalesHead } from '../../../../lib/use-is-sales-head';
-import { Customer, Order, OrderStatus } from '../../../../lib/types';
+import {
+  Customer,
+  Order,
+  OrderLineItem,
+  OrderStatus,
+} from '../../../../lib/types';
 import {
   ORDER_NEXT_STATUSES,
   formatINR,
@@ -17,12 +22,27 @@ import { useNumberFormat } from '../../../../lib/number-format-context';
 import {
   SCard,
   SCardTitle,
+  SIGNAL_BTN_GHOST,
+  SIGNAL_BTN_PRIMARY,
+  SIGNAL_DIALOG,
+  SIGNAL_DIALOG_TITLE,
   SIGNAL_EYEBROW,
   SIGNAL_LINK,
   SignalHeader,
   SignalPage,
 } from '../../../../components/ui/signal';
 import { Button } from '../../../../components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../../components/ui/dialog';
+import { Field } from '../../../../components/ui/field';
+import { Input } from '../../../../components/ui/input';
+import { Textarea } from '../../../../components/ui/textarea';
 import { Select } from '../../../../components/ui/select';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
@@ -68,6 +88,47 @@ export default function OrderDetailPage() {
   const handleLatestExecutedChange = useCallback((executed: boolean) => {
     setLatestExecuted(executed);
   }, []);
+
+  // Per-line customer-facing wording editor (display-only override — the
+  // underlying Product/BOM/PLM keying is untouched by design).
+  const [editingLine, setEditingLine] = useState<OrderLineItem | null>(null);
+  const [cfName, setCfName] = useState('');
+  const [cfDescription, setCfDescription] = useState('');
+  const [savingCf, setSavingCf] = useState(false);
+
+  function openCustomerFacingEditor(li: OrderLineItem) {
+    setCfName(li.customerFacingProductName ?? '');
+    setCfDescription(li.customerFacingDescription ?? '');
+    setEditingLine(li);
+  }
+
+  async function saveCustomerFacing() {
+    if (!editingLine) return;
+    setSavingCf(true);
+    try {
+      await apiFetch(
+        `/orders/${id}/line-items/${editingLine.id}/customer-facing`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            customerFacingProductName: cfName.trim() || null,
+            customerFacingDescription: cfDescription.trim() || null,
+          }),
+        },
+      );
+      toast.success('Customer-facing wording updated');
+      setEditingLine(null);
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to update customer-facing wording',
+      );
+    } finally {
+      setSavingCf(false);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -239,7 +300,25 @@ export default function OrderDetailPage() {
                       {li.isAdHoc && (
                         <Badge variant="warning">Awaiting setup</Badge>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => openCustomerFacingEditor(li)}
+                        title="Edit customer-facing wording"
+                        className="text-black/40 transition-colors hover:text-black/70 dark:text-white/40 dark:hover:text-white/70"
+                      >
+                        <PenLine className="size-3.5" />
+                      </button>
                     </div>
+                    {li.customerFacingProductName && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        Internal: {li.internalProductName}
+                      </div>
+                    )}
+                    {li.customerFacingDescription && (
+                      <div className="mt-0.5 max-w-[420px] truncate text-xs text-muted-foreground">
+                        {li.customerFacingDescription}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">{li.quantity}</TableCell>
                   <TableCell className="text-right">
@@ -323,6 +402,65 @@ export default function OrderDetailPage() {
       <PlmSection orderId={order.id} />
       <CustomerProgressLinks orderId={order.id} />
       </div>
+
+      {/* Customer-facing wording override — shows on the order, kickoff, PLM,
+          customer portal, challans, and invoices; internal screens (Item
+          Master, BOM, Resource Planning) keep the real product name. */}
+      <Dialog
+        open={editingLine !== null}
+        onOpenChange={(open) => !open && setEditingLine(null)}
+      >
+        <DialogContent className={SIGNAL_DIALOG}>
+          <DialogHeader>
+            <DialogTitle className={SIGNAL_DIALOG_TITLE}>
+              Customer-facing wording
+            </DialogTitle>
+            <DialogDescription>
+              Shown to the customer on this order, its documents, and the
+              order portal. Internal screens keep the real product name
+              {editingLine ? ` (${editingLine.internalProductName})` : ''}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Field
+              label="Customer-facing product name"
+              hint="Leave blank to use the internal product name."
+            >
+              <Input
+                value={cfName}
+                onChange={(e) => setCfName(e.target.value)}
+                placeholder={editingLine?.internalProductName ?? ''}
+                maxLength={300}
+              />
+            </Field>
+            <Field label="Customer-facing description">
+              <Textarea
+                value={cfDescription}
+                onChange={(e) => setCfDescription(e.target.value)}
+                rows={3}
+                maxLength={2000}
+              />
+            </Field>
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setEditingLine(null)}
+              className={SIGNAL_BTN_GHOST}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={savingCf}
+              onClick={() => void saveCustomerFacing()}
+              className={SIGNAL_BTN_PRIMARY}
+            >
+              {savingCf ? 'Saving…' : 'Save'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SignalPage>
   );
 }

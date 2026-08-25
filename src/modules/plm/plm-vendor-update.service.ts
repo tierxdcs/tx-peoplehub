@@ -165,7 +165,7 @@ export class PlmVendorUpdateService {
       actorId: null,
       type: NotificationType.PLM_PRODUCTION_UPDATE,
       trackerId: tracker.id,
-      message: `${tracker.vendor!.companyName} reported production progress for ${tracker.order.orderNumber} · ${tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
+      message: `${tracker.vendor!.companyName} reported production progress for ${tracker.order.orderNumber} · ${tracker.orderLine.customerFacingProductName ?? tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
     });
     return update;
   }
@@ -189,7 +189,7 @@ export class PlmVendorUpdateService {
       actorId: null,
       type: NotificationType.PLM_PRODUCTION_UPDATE,
       trackerId: tracker.id,
-      message: `${tracker.vendor!.companyName} added a production comment for ${tracker.order.orderNumber} · ${tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
+      message: `${tracker.vendor!.companyName} added a production comment for ${tracker.order.orderNumber} · ${tracker.orderLine.customerFacingProductName ?? tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
     });
     return update;
   }
@@ -231,7 +231,7 @@ export class PlmVendorUpdateService {
       actorId: user.id,
       type: NotificationType.PLM_PRODUCTION_UPDATE,
       trackerId: tracker.id,
-      message: `Site-visit production update recorded for ${tracker.order.orderNumber} · ${tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
+      message: `Site-visit production update recorded for ${tracker.order.orderNumber} · ${tracker.orderLine.customerFacingProductName ?? tracker.orderLine.product?.name ?? tracker.orderLine.adHocProductName ?? 'Unnamed product'}`,
     });
     return update;
   }

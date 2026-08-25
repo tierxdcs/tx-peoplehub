@@ -1,17 +1,52 @@
 import { BadRequestException } from '@nestjs/common';
 import {
   CustomerBomIntakeService,
+  customerBomFileInput,
   deriveIntakeStatus,
   fuzzyItemScore,
 } from './customer-bom-intake.service';
 
+describe('customerBomFileInput', () => {
+  it('allows a manually transcribed intake with no source file', () => {
+    expect(customerBomFileInput({})).toBeNull();
+  });
+
+  it('retains complete optional upload provenance', () => {
+    expect(
+      customerBomFileInput({
+        fileKey: 'customer-bom/file',
+        fileName: 'bom.pdf',
+      }),
+    ).toEqual({ key: 'customer-bom/file', name: 'bom.pdf' });
+  });
+
+  it('rejects partial upload provenance', () => {
+    expect(() =>
+      customerBomFileInput({ fileKey: 'customer-bom/file' }),
+    ).toThrow(BadRequestException);
+    expect(() => customerBomFileInput({ fileName: 'bom.pdf' })).toThrow(
+      BadRequestException,
+    );
+  });
+});
+
 describe('deriveIntakeStatus — register lifecycle label', () => {
   it('follows the precedence RELEASED > PRICED > RFQ_FLOATED > PENDING_APPROVAL > DRAFT', () => {
-    expect(deriveIntakeStatus('RELEASED' as any, ['AWARDED' as any])).toBe('RELEASED');
-    expect(deriveIntakeStatus('DRAFT' as any, ['AWARDED' as any])).toBe('PRICED');
-    expect(deriveIntakeStatus('DRAFT' as any, ['ISSUED' as any])).toBe('RFQ_FLOATED');
-    expect(deriveIntakeStatus('DRAFT' as any, ['CLOSED' as any])).toBe('RFQ_FLOATED');
-    expect(deriveIntakeStatus('PENDING_APPROVAL' as any, ['DRAFT' as any])).toBe('PENDING_APPROVAL');
+    expect(deriveIntakeStatus('RELEASED' as any, ['AWARDED' as any])).toBe(
+      'RELEASED',
+    );
+    expect(deriveIntakeStatus('DRAFT' as any, ['AWARDED' as any])).toBe(
+      'PRICED',
+    );
+    expect(deriveIntakeStatus('DRAFT' as any, ['ISSUED' as any])).toBe(
+      'RFQ_FLOATED',
+    );
+    expect(deriveIntakeStatus('DRAFT' as any, ['CLOSED' as any])).toBe(
+      'RFQ_FLOATED',
+    );
+    expect(
+      deriveIntakeStatus('PENDING_APPROVAL' as any, ['DRAFT' as any]),
+    ).toBe('PENDING_APPROVAL');
     expect(deriveIntakeStatus('DRAFT' as any, [])).toBe('DRAFT');
     expect(deriveIntakeStatus(null, [])).toBe('DRAFT');
   });
@@ -155,7 +190,10 @@ describe('CustomerBomIntakeService.revise', () => {
 describe('Customer BOM intake fuzzy matching', () => {
   it('matches reordered technical wording', () => {
     expect(
-      fuzzyItemScore('stainless steel mounting bracket', 'Mounting bracket, stainless steel'),
+      fuzzyItemScore(
+        'stainless steel mounting bracket',
+        'Mounting bracket, stainless steel',
+      ),
     ).toBe(1);
   });
 

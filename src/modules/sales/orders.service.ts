@@ -20,6 +20,10 @@ import { CreateInternalOrderDto } from './dto/create-internal-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { PromoteInternalOrderDto } from './dto/promote-internal-order.dto';
 import { ResolveBidLineItemDto } from './dto/resolve-bid-line-item.dto';
+import {
+  ConvertBidToOrderDto,
+  UpdateLineCustomerFacingDto,
+} from './dto/customer-facing-line.dto';
 import { SalesAccessService } from './common/sales-access.service';
 import { SalesNumberingService } from './common/sales-numbering.service';
 import { ConfirmationSheetsService } from './confirmation-sheets.service';
@@ -73,6 +77,7 @@ export class OrdersService {
   async convertFromBid(
     bidId: string,
     user: AuthenticatedUser,
+    dto?: ConvertBidToOrderDto,
   ): Promise<OrderEntity> {
     await this.access.assertSalesAccess(user);
     const bid = await this.prisma.bid.findUnique({
@@ -155,12 +160,23 @@ export class OrdersService {
           totalAmount: bid.totalAmount.plus(amcTotal),
           lineItems: {
             // productId is guaranteed non-null by the formalization gate above.
-            create: bid.lineItems.map((li) => ({
-              productId: li.productId!,
-              quantity: li.quantity,
-              unitPrice: li.unitPrice,
-              lineTotal: li.lineTotal,
-            })),
+            // Customer-facing overrides (the customer PO's own wording) are
+            // captured per BID line at conversion time — display-only.
+            create: bid.lineItems.map((li) => {
+              const override = dto?.lineOverrides?.find(
+                (o) => o.bidLineItemId === li.id,
+              );
+              return {
+                productId: li.productId!,
+                quantity: li.quantity,
+                unitPrice: li.unitPrice,
+                lineTotal: li.lineTotal,
+                customerFacingProductName:
+                  override?.customerFacingProductName?.trim() || null,
+                customerFacingDescription:
+                  override?.customerFacingDescription?.trim() || null,
+              };
+            }),
           },
         },
         include: {
@@ -541,6 +557,49 @@ export class OrdersService {
     return this.toEntity(order);
   }
 
+  /**
+   * Customer-facing display override on one order line — the customer's own
+   * PO wording. Display-only by design: never mutates the shared Product,
+   * and never affects BOM / cost roll-up / PLM which key on productId.
+   * Editable any time (a customer PO often arrives after the order exists).
+   * Empty/whitespace values clear the override back to the real name.
+   */
+  async updateLineCustomerFacing(
+    orderId: string,
+    lineItemId: string,
+    dto: UpdateLineCustomerFacingDto,
+    user: AuthenticatedUser,
+  ): Promise<OrderEntity> {
+    await this.access.assertSalesAccess(user);
+    const order = await this.findRawOrThrow(orderId);
+    await this.access.assertCanAccessOwned(user, order.ownerId);
+    const line = await this.prisma.orderLineItem.findUnique({
+      where: { id: lineItemId },
+      select: { orderId: true },
+    });
+    if (!line || line.orderId !== orderId) {
+      throw new NotFoundException('Order line item not found on this order');
+    }
+    await this.prisma.orderLineItem.update({
+      where: { id: lineItemId },
+      data: {
+        ...(dto.customerFacingProductName !== undefined
+          ? {
+              customerFacingProductName:
+                dto.customerFacingProductName?.trim() || null,
+            }
+          : {}),
+        ...(dto.customerFacingDescription !== undefined
+          ? {
+              customerFacingDescription:
+                dto.customerFacingDescription?.trim() || null,
+            }
+          : {}),
+      },
+    });
+    return this.findOne(orderId, user);
+  }
+
   async updateStatus(
     id: string,
     target: OrderStatus,
@@ -700,8 +759,17 @@ export class OrdersService {
             adHocProductName: li.adHocProductName,
             adHocDescription: li.adHocDescription,
             isAdHoc: li.productId === null,
+            // Order-context surfaces show the customer's own wording when an
+            // override exists; internal name stays available alongside.
             productName:
+              li.customerFacingProductName ??
+              li.product?.name ??
+              li.adHocProductName ??
+              'Unnamed product',
+            internalProductName:
               li.product?.name ?? li.adHocProductName ?? 'Unnamed product',
+            customerFacingProductName: li.customerFacingProductName,
+            customerFacingDescription: li.customerFacingDescription,
             productSku: li.product?.sku ?? 'Ad-hoc',
             quantity: li.quantity.toString(),
             unitPrice: li.unitPrice.toString(),

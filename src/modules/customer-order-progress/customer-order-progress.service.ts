@@ -286,6 +286,7 @@ export class CustomerOrderProgressService {
           select: {
             id: true,
             adHocProductName: true,
+            customerFacingProductName: true,
             product: { select: { name: true } },
             deliveryChallanLines: {
               where: {
@@ -384,8 +385,12 @@ export class CustomerOrderProgressService {
       ];
       return {
         lineId: line.id,
+        // The portal is THE customer-facing surface — their wording first.
         productName:
-          line.product?.name ?? line.adHocProductName ?? 'Unnamed product',
+          line.customerFacingProductName ??
+          line.product?.name ??
+          line.adHocProductName ??
+          'Unnamed product',
         currentStage: publicStages[currentIndex],
         stages: publicStages.map((stage, index) => ({
           ...stage,

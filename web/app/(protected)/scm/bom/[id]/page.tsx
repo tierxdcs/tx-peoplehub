@@ -16,7 +16,12 @@ import {
   type Bom,
 } from '../../../../lib/scm-bom';
 import { PageContainer } from '../../../../components/ui/page-container';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '../../../../components/ui/card';
 import { Button } from '../../../../components/ui/button';
 import { Textarea } from '../../../../components/ui/textarea';
 import { Skeleton } from '../../../../components/ui/skeleton';
@@ -79,7 +84,8 @@ export default function BomDetailPage() {
     if (
       !(await confirm({
         title: 'Submit for approval?',
-        description: 'The BOM will be locked and sent to an R&D Head for approval.',
+        description:
+          'The BOM will be locked and sent to an R&D Head for approval.',
         confirmLabel: 'Submit',
       }))
     )
@@ -100,7 +106,8 @@ export default function BomDetailPage() {
     if (
       !(await confirm({
         title: 'Approve this BOM?',
-        description: 'Approving releases the BOM. This is recorded against your name.',
+        description:
+          'Approving releases the BOM. This is recorded against your name.',
         confirmLabel: 'Approve',
       }))
     )
@@ -140,7 +147,9 @@ export default function BomDetailPage() {
       toast.success('New revision created.');
       router.push('/scm/bom/' + created.id);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to create revision.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to create revision.',
+      );
       setBusy(false);
     }
   }
@@ -186,32 +195,56 @@ export default function BomDetailPage() {
         <h1 className="text-2xl font-semibold tracking-tight">
           {bom.itemCode ? `${bom.itemCode} — ${bom.itemName ?? ''}` : 'BOM'}
         </h1>
-        <span className="text-lg text-muted-foreground">Rev {bom.revisionNumber}</span>
+        <span className="text-lg text-muted-foreground">
+          Rev {bom.revisionNumber}
+        </span>
         <StatusBadge value={bom.status} />
       </div>
 
       {bom.customerBomIntake && bom.status !== 'RELEASED' && (
         <Card className="mb-4 border-warning/50 bg-warning/10">
           <CardHeader>
-            <CardTitle>Sales-created quote-stage BOM — R&amp;D review required</CardTitle>
+            <CardTitle>
+              Sales-created quote-stage BOM — R&amp;D review required
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 pt-0 text-sm">
             <p>
-              Created from customer file <strong>{bom.customerBomIntake.rawFileName}</strong>{' '}
+              {bom.customerBomIntake.rawFileName ? (
+                <>
+                  Created from customer file{' '}
+                  <strong>{bom.customerBomIntake.rawFileName}</strong>
+                </>
+              ) : (
+                <>Created from manually entered customer BOM lines</>
+              )}{' '}
               for {bom.customerBomIntake.opportunityName}. Verify descriptions,
-              quantities, Make/Buy choices and possible duplicate Items before release.
+              quantities, Make/Buy choices and possible duplicate Items before
+              release.
             </p>
             {bom.customerBomIntake.lines.some(
-              (line) => line.createdNewItem && (line.fuzzyCandidates?.length ?? 0) > 0,
+              (line) =>
+                line.createdNewItem && (line.fuzzyCandidates?.length ?? 0) > 0,
             ) && (
               <div className="rounded-md border border-warning/40 p-3">
                 <strong>Possible missed Item matches</strong>
                 <ul className="mt-2 list-disc space-y-1 pl-5">
                   {bom.customerBomIntake.lines
-                    .filter((line) => line.createdNewItem && (line.fuzzyCandidates?.length ?? 0) > 0)
+                    .filter(
+                      (line) =>
+                        line.createdNewItem &&
+                        (line.fuzzyCandidates?.length ?? 0) > 0,
+                    )
                     .map((line, index) => (
                       <li key={`${line.resolvedItemId}-${index}`}>
-                        {line.description}: {line.fuzzyCandidates!.slice(0, 3).map((candidate) => `${candidate.itemCode} ${candidate.name}`).join(', ')}
+                        {line.description}:{' '}
+                        {line
+                          .fuzzyCandidates!.slice(0, 3)
+                          .map(
+                            (candidate) =>
+                              `${candidate.itemCode} ${candidate.name}`,
+                          )
+                          .join(', ')}
                       </li>
                     ))}
                 </ul>
@@ -411,8 +444,8 @@ export default function BomDetailPage() {
           <DialogHeader>
             <DialogTitle>Reject BOM</DialogTitle>
             <DialogDescription>
-              Explain what needs to change. A comment is required and shown to the
-              author.
+              Explain what needs to change. A comment is required and shown to
+              the author.
             </DialogDescription>
           </DialogHeader>
           <Textarea

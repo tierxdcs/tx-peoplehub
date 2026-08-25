@@ -22,10 +22,7 @@ import {
 } from '../vault/vault-guardrails';
 import { SalesAccessService } from './common/sales-access.service';
 import { SalesNumberingService } from './common/sales-numbering.service';
-import {
-  ExplodableBom,
-  explodeProcurementBom,
-} from '../bom/bom-explosion';
+import { ExplodableBom, explodeProcurementBom } from '../bom/bom-explosion';
 import { PingsService } from '../pings/pings.service';
 import {
   CreateCustomerBomIntakeDto,
@@ -37,11 +34,7 @@ import {
 type Candidate = { id: string; itemCode: string; name: string; score: number };
 
 export type IntakeDerivedStatus =
-  | 'DRAFT'
-  | 'PENDING_APPROVAL'
-  | 'RFQ_FLOATED'
-  | 'PRICED'
-  | 'RELEASED';
+  'DRAFT' | 'PENDING_APPROVAL' | 'RFQ_FLOATED' | 'PRICED' | 'RELEASED';
 
 /**
  * Register-page lifecycle label, derived — no stored status to drift. Priced
@@ -54,9 +47,7 @@ export function deriveIntakeStatus(
 ): IntakeDerivedStatus {
   if (bomStatus === BomStatus.RELEASED) return 'RELEASED';
   if (rfqStatuses.includes(RfqStatus.AWARDED)) return 'PRICED';
-  if (
-    rfqStatuses.some((s) => s === RfqStatus.ISSUED || s === RfqStatus.CLOSED)
-  )
+  if (rfqStatuses.some((s) => s === RfqStatus.ISSUED || s === RfqStatus.CLOSED))
     return 'RFQ_FLOATED';
   if (bomStatus === BomStatus.PENDING_APPROVAL) return 'PENDING_APPROVAL';
   return 'DRAFT';
@@ -81,6 +72,21 @@ export function fuzzyItemScore(query: string, candidate: string): number {
   let overlap = 0;
   for (const token of left) if (right.has(token)) overlap += 1;
   return (2 * overlap) / (left.size + right.size);
+}
+
+/** The source document is optional, but partial upload provenance is invalid. */
+export function customerBomFileInput(dto: {
+  fileKey?: string;
+  fileName?: string;
+}): { key: string; name: string } | null {
+  if (!!dto.fileKey !== !!dto.fileName) {
+    throw new BadRequestException(
+      'Customer BOM file key and file name must be provided together',
+    );
+  }
+  return dto.fileKey && dto.fileName
+    ? { key: dto.fileKey, name: dto.fileName }
+    : null;
 }
 
 @Injectable()
@@ -151,7 +157,10 @@ export class CustomerBomIntakeService {
     return Promise.all(
       rows.map(async (row) => ({
         ...row,
-        ...(await this.quoteStagePricing(row.finishedGoodItemId, row.product?.targetMarginPercent)),
+        ...(await this.quoteStagePricing(
+          row.finishedGoodItemId,
+          row.product?.targetMarginPercent,
+        )),
       })),
     );
   }
@@ -162,16 +171,32 @@ export class CustomerBomIntakeService {
     user: AuthenticatedUser,
   ) {
     const opportunity = await this.ownedOpportunity(opportunityId, user);
-    if (!dto.fileKey.startsWith(`customer-bom-intake/${user.id}/`)) {
-      throw new BadRequestException('Invalid customer BOM file key');
+    const fileInput = customerBomFileInput(dto);
+
+    let uploadedFile: {
+      key: string;
+      name: string;
+      sizeBytes: number;
+      contentType: string;
+    } | null = null;
+    if (fileInput) {
+      if (!fileInput.key.startsWith(`customer-bom-intake/${user.id}/`)) {
+        throw new BadRequestException('Invalid customer BOM file key');
+      }
+      assertExtensionAllowed(fileInput.name);
+      const head = await this.storage.headObject(fileInput.key);
+      if (!head)
+        throw new BadRequestException(
+          'Customer BOM upload was not found in storage',
+        );
+      assertSizeWithinCap(head.sizeBytes);
+      uploadedFile = {
+        key: fileInput.key,
+        name: fileInput.name,
+        sizeBytes: head.sizeBytes,
+        contentType: head.contentType ?? 'application/octet-stream',
+      };
     }
-    assertExtensionAllowed(dto.fileName);
-    const head = await this.storage.headObject(dto.fileKey);
-    if (!head)
-      throw new BadRequestException(
-        'Customer BOM upload was not found in storage',
-      );
-    assertSizeWithinCap(head.sizeBytes);
 
     const businessUnit = await this.prisma.businessUnit.findFirst({
       where: { id: dto.businessUnitId, isActive: true },
@@ -238,10 +263,10 @@ export class CustomerBomIntakeService {
           businessUnitId: dto.businessUnitId,
           productName: dto.productName.trim(),
           unitOfMeasure: dto.unitOfMeasure,
-          rawFileKey: dto.fileKey,
-          rawFileName: dto.fileName,
-          rawFileSize: head.sizeBytes,
-          rawMimeType: head.contentType ?? 'application/octet-stream',
+          rawFileKey: uploadedFile?.key ?? null,
+          rawFileName: uploadedFile?.name ?? null,
+          rawFileSize: uploadedFile?.sizeBytes ?? null,
+          rawMimeType: uploadedFile?.contentType ?? null,
           status: 'CREATED',
           finishedGoodItemId: finishedGood.id,
           productId: product.id,
@@ -319,7 +344,12 @@ export class CustomerBomIntakeService {
         },
         businessUnit: { select: { name: true } },
         product: {
-          select: { id: true, sku: true, name: true, targetMarginPercent: true },
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            targetMarginPercent: true,
+          },
         },
         bom: {
           include: {
@@ -555,7 +585,10 @@ export class CustomerBomIntakeService {
    * revise(). */
   private async resolveItems(
     tx: Prisma.TransactionClient,
-    prepared: Array<{ input: CustomerBomIntakeLineDto; candidates: Candidate[] }>,
+    prepared: Array<{
+      input: CustomerBomIntakeLineDto;
+      candidates: Candidate[];
+    }>,
   ) {
     const resolved: Array<{
       itemId: string;
@@ -681,14 +714,14 @@ export class CustomerBomIntakeService {
         accepted?.purchaseOrderLine.unitPrice ??
         awarded?.unitPrice ??
         manual?.manualStandardCost;
-      if (!cost)
-        return { liveBomCostEstimate: null, suggestedUnitPrice: null };
+      if (!cost) return { liveBomCostEstimate: null, suggestedUnitPrice: null };
       total = total.plus(cost.mul(leaf.quantityPerTopUnit));
     }
-    const margin = targetMarginPercent
-      ? targetMarginPercent.div(100)
-      : null;
-    const suggested = margin && margin.lt(1) ? total.div(new Prisma.Decimal(1).minus(margin)) : null;
+    const margin = targetMarginPercent ? targetMarginPercent.div(100) : null;
+    const suggested =
+      margin && margin.lt(1)
+        ? total.div(new Prisma.Decimal(1).minus(margin))
+        : null;
     return {
       liveBomCostEstimate: total.toFixed(2),
       suggestedUnitPrice: suggested?.toFixed(2) ?? null,

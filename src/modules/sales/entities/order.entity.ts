@@ -26,8 +26,26 @@ export class OrderLineItemEntity {
   @ApiProperty({ description: 'Whether this line still awaits Product setup' })
   isAdHoc!: boolean;
 
-  @ApiProperty({ description: 'Resolved product name (for display)' })
+  @ApiProperty({
+    description:
+      'Display name for order-context/customer surfaces: the customer-facing override when set, else the real Product name',
+  })
   productName!: string;
+
+  @ApiProperty({
+    description:
+      'The real Product name, regardless of any customer-facing override — for internal cross-reference',
+  })
+  internalProductName!: string;
+
+  @ApiProperty({
+    nullable: true,
+    description: "Customer's own PO wording for this line (display override)",
+  })
+  customerFacingProductName!: string | null;
+
+  @ApiProperty({ nullable: true })
+  customerFacingDescription!: string | null;
 
   @ApiProperty({ description: 'Resolved product SKU (for display)' })
   productSku!: string;

@@ -12,7 +12,7 @@ export interface CustomerBomCandidate {
 export interface CustomerBomIntake {
   id: string;
   productName: string;
-  rawFileName: string;
+  rawFileName: string | null;
   status: string;
   product: { id: string; sku: string; name: string } | null;
   bom: { id: string; status: string; revisionNumber: number } | null;
@@ -58,8 +58,8 @@ export const createCustomerBomIntake = (
     businessUnitId: string;
     productName: string;
     unitOfMeasure: string;
-    fileKey: string;
-    fileName: string;
+    fileKey?: string;
+    fileName?: string;
     lines: Array<{
       description: string;
       customerPartReference?: string;
@@ -78,11 +78,7 @@ export const createCustomerBomIntake = (
 // ── Open BOM Intake register / detail / revision ─────────────────────────────
 
 export type IntakeDerivedStatus =
-  | 'DRAFT'
-  | 'PENDING_APPROVAL'
-  | 'RFQ_FLOATED'
-  | 'PRICED'
-  | 'RELEASED';
+  'DRAFT' | 'PENDING_APPROVAL' | 'RFQ_FLOATED' | 'PRICED' | 'RELEASED';
 
 export interface BomIntakeRegisterRow {
   id: string;
@@ -103,7 +99,7 @@ export interface BomIntakeDetail {
   id: string;
   productName: string;
   unitOfMeasure: string;
-  rawFileName: string;
+  rawFileName: string | null;
   createdAt: string;
   derivedStatus: IntakeDerivedStatus;
   opportunity: { id: string; name: string; customer: { name: string } | null };

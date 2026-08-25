@@ -149,7 +149,9 @@ export default function BomIntakeDetailPage() {
   async function saveRevision() {
     if (!detail) return;
     if (revisionNotes.trim().length < 3) {
-      toast.error('Describe what changed — it becomes the revision history entry');
+      toast.error(
+        'Describe what changed — it becomes the revision history entry',
+      );
       return;
     }
     const invalid = lines.some(
@@ -171,8 +173,7 @@ export default function BomIntakeDetailPage() {
         revisionNotes: revisionNotes.trim(),
         lines: lines.map((line) => ({
           description: line.description.trim(),
-          customerPartReference:
-            line.customerPartReference.trim() || undefined,
+          customerPartReference: line.customerPartReference.trim() || undefined,
           quantity: Number(line.quantity),
           unitOfMeasure: line.unitOfMeasure.trim(),
           ...(line.existingItemId
@@ -235,7 +236,7 @@ export default function BomIntakeDetailPage() {
             )}
           </>
         }
-        description={`${detail.opportunity.name}${detail.opportunity.customer ? ` · ${detail.opportunity.customer.name}` : ''} · ${detail.businessUnit.name} · from ${detail.rawFileName}`}
+        description={`${detail.opportunity.name}${detail.opportunity.customer ? ` · ${detail.opportunity.customer.name}` : ''} · ${detail.businessUnit.name}${detail.rawFileName ? ` · from ${detail.rawFileName}` : ' · manually entered'}`}
         actions={
           canSelfRevise && !editing ? (
             <button
@@ -253,11 +254,14 @@ export default function BomIntakeDetailPage() {
         <div className="flex min-w-0 flex-col gap-3.5">
           {bomStatus === 'RELEASED' && (
             <Callout className="mt-0">
-              This BOM has been released by R&D — it is now a formal
-              engineering document and Sales can no longer self-revise it.
-              Request changes through the{' '}
+              This BOM has been released by R&D — it is now a formal engineering
+              document and Sales can no longer self-revise it. Request changes
+              through the{' '}
               {detail.bom ? (
-                <Link href={`/scm/bom/${detail.bom.id}`} className={SIGNAL_LINK}>
+                <Link
+                  href={`/scm/bom/${detail.bom.id}`}
+                  className={SIGNAL_LINK}
+                >
                   engineering BOM revision &amp; approval flow
                 </Link>
               ) : (
@@ -268,8 +272,8 @@ export default function BomIntakeDetailPage() {
           )}
           {bomStatus === 'PENDING_APPROVAL' && (
             <Callout className="mt-0">
-              This BOM is awaiting R&D approval — revisions are paused until
-              R&D approves or rejects it.
+              This BOM is awaiting R&D approval — revisions are paused until R&D
+              approves or rejects it.
             </Callout>
           )}
 
@@ -332,13 +336,7 @@ export default function BomIntakeDetailPage() {
                   Prior revisions are preserved unchanged in history
                 </span>
               </div>
-              <div
-                className={cn(
-                  LINE_GRID,
-                  SIGNAL_TABLE_HEAD,
-                  'py-[9px]',
-                )}
-              >
+              <div className={cn(LINE_GRID, SIGNAL_TABLE_HEAD, 'py-[9px]')}>
                 <span>#</span>
                 <span>Component description</span>
                 <span>Customer ref</span>
@@ -349,9 +347,7 @@ export default function BomIntakeDetailPage() {
               {lines.map((line, index) => (
                 <div
                   key={line.key}
-                  className={cn(
-                    index > 0 && `border-t ${SIGNAL_ROW_DIVIDER}`,
-                  )}
+                  className={cn(index > 0 && `border-t ${SIGNAL_ROW_DIVIDER}`)}
                 >
                   <div className={cn(LINE_GRID, 'pb-1 pt-[11px]')}>
                     <span className="text-[11.5px] font-semibold tabular-nums text-black/40 dark:text-white/35">
@@ -422,7 +418,9 @@ export default function BomIntakeDetailPage() {
                             onClick={() => void searchLine(line)}
                           >
                             <Search className="size-4" />{' '}
-                            {line.searching ? 'Searching…' : 'Search Item Master'}
+                            {line.searching
+                              ? 'Searching…'
+                              : 'Search Item Master'}
                           </Button>
                           {line.searchedDescription && (
                             <label className="flex cursor-pointer items-center gap-2 text-[12px]">

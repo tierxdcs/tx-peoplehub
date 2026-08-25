@@ -89,6 +89,8 @@ export interface PlmTracker {
   orderLine: {
     id: string;
     quantity: string;
+    /** Customer's own PO wording for this line, when Sales set one. */
+    customerFacingProductName: string | null;
     product: { id: string; name: string; sku: string };
   };
   events: Array<{
