@@ -107,7 +107,9 @@
       "Bash(python3 -c ' *)",
       "Bash(echo \"NEST_BUILD: $?\")",
       "Bash(grep -rn \"customerBomIntake\" src/modules --include='*.ts' -l | grep -v sales/ | grep -v spec; echo \"===\"; sed -n '7160,7215p' prisma/schema.prisma | grep -nE \"createdBy|model Rfq\"; echo \"=== CreatePingDto ===\"; sed -n '1,40p' src/modules/pings/dto/*.ts 2>/dev/null | head -40; echo \"=== PingsModule exports ===\"; grep -n \"exports\" src/modules/pings/pings.module.ts)",
-      "Bash(grep -n \"{ label: 'Orders', href: '/sales/orders' },\" app/lib/nav.ts)"
+      "Bash(grep -n \"{ label: 'Orders', href: '/sales/orders' },\" app/lib/nav.ts)",
+      "Bash(sed -n '1,60p' web/app/components/../app/\\\\\\(protected\\\\\\)/vault/_components/employee-picker.tsx 2>/dev/null || sed -n '1,60p' \"web/app/\\(protected\\)/vault/_components/employee-picker.tsx\"; echo \"=== lib addMilestone/updateMilestone + milestone type ===\"; grep -n \"addMilestone\\\\|updateMilestone\\\\|ownerId\\\\|ownerName\" web/app/lib/project-kickoff.ts | head -12)",
+      "Read(//Users/nithin/Documents/GitHub/tx-peoplehub/web/app/app/\\\\\\(protected\\\\\\)/vault/_components/**)"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto"

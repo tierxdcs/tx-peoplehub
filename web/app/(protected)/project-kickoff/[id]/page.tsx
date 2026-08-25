@@ -771,6 +771,10 @@ function MilestonesSection({
     customName: '',
     targetDate: '',
   });
+  const [owner, setOwner] = useState<{ id: string; name: string } | null>(
+    null,
+  );
+  const [editingOwnerFor, setEditingOwnerFor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [templates, setTemplates] = useState<KickoffMilestoneTemplate[]>([]);
   const milestones = kickoff.milestones ?? [];
@@ -803,8 +807,10 @@ function MilestonesSection({
       await addMilestone(kickoff.id, {
         name: effectiveName,
         targetDate: form.targetDate,
+        ...(owner ? { ownerId: owner.id } : {}),
       });
       setForm({ choice: '', customName: '', targetDate: '' });
+      setOwner(null);
       setAdding(false);
       onChanged();
     } catch (err) {
@@ -817,6 +823,19 @@ function MilestonesSection({
   async function setStatus(milestoneId: string, status: MilestoneStatus) {
     try {
       await updateMilestone(kickoff.id, milestoneId, { status });
+      onChanged();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Update failed.');
+    }
+  }
+
+  async function setMilestoneOwner(
+    milestoneId: string,
+    ownerId: string | null,
+  ) {
+    try {
+      await updateMilestone(kickoff.id, milestoneId, { ownerId });
+      setEditingOwnerFor(null);
       onChanged();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Update failed.');
@@ -906,6 +925,25 @@ function MilestonesSection({
               onChange={(e) => setForm({ ...form, targetDate: e.target.value })}
               className="w-44"
             />
+            {owner ? (
+              <span className="inline-flex h-9 items-center gap-2 rounded-md border px-2.5 text-sm">
+                {owner.name}
+                <button
+                  type="button"
+                  aria-label="Clear owner"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => setOwner(null)}
+                >
+                  ✕
+                </button>
+              </span>
+            ) : (
+              <div className="w-56">
+                <EmployeePicker
+                  onSelect={(e) => setOwner({ id: e.id, name: e.fullName })}
+                />
+              </div>
+            )}
             <Button
               size="sm"
               onClick={add}
@@ -940,7 +978,53 @@ function MilestonesSection({
                 <TableRow key={m.id}>
                   <TableCell className="font-medium">{m.name}</TableCell>
                   <TableCell>{fmtDate(m.targetDate)}</TableCell>
-                  <TableCell>{m.ownerName ?? '—'}</TableCell>
+                  <TableCell>
+                    {editingOwnerFor === m.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-56">
+                          <EmployeePicker
+                            onSelect={(e) =>
+                              void setMilestoneOwner(m.id, e.id)
+                            }
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="Cancel owner change"
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={() => setEditingOwnerFor(null)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <span>{m.ownerName ?? '—'}</span>
+                        {canManage && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs text-muted-foreground"
+                              onClick={() => setEditingOwnerFor(m.id)}
+                            >
+                              {m.ownerName ? 'Change' : 'Assign'}
+                            </Button>
+                            {m.ownerName && (
+                              <button
+                                type="button"
+                                aria-label="Unassign owner"
+                                className="text-xs text-muted-foreground hover:text-foreground"
+                                onClick={() => void setMilestoneOwner(m.id, null)}
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Select
                       value={m.status}

@@ -27,9 +27,6 @@ interface VoucherLine {
   unitOfMeasure: string;
   unitPrice: string;
   discountPercent: string;
-  igstRate: string;
-  cgstRate: string;
-  sgstRate: string;
 }
 
 function newLine(): VoucherLine {
@@ -41,9 +38,6 @@ function newLine(): VoucherLine {
     unitOfMeasure: 'NOS',
     unitPrice: '',
     discountPercent: '0',
-    igstRate: '18',
-    cgstRate: '0',
-    sgstRate: '0',
   };
 }
 
@@ -51,13 +45,7 @@ function lineAmounts(line: VoucherLine) {
   const gross = (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0);
   const discount = (gross * (Number(line.discountPercent) || 0)) / 100;
   const taxable = gross - discount;
-  const gst =
-    (taxable *
-      ((Number(line.igstRate) || 0) +
-        (Number(line.cgstRate) || 0) +
-        (Number(line.sgstRate) || 0))) /
-    100;
-  return { gross, discount, taxable, gst, total: taxable + gst };
+  return { gross, discount, taxable };
 }
 
 /**
@@ -78,6 +66,9 @@ export default function NewSalesVoucherPage() {
     new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
   );
   const [lines, setLines] = useState<VoucherLine[]>(() => [newLine()]);
+  const [igstRate, setIgstRate] = useState('18');
+  const [cgstRate, setCgstRate] = useState('0');
+  const [sgstRate, setSgstRate] = useState('0');
   const [state, setState] = useState('Karnataka');
   const [stateCode, setStateCode] = useState('29');
   const [narration, setNarration] = useState('');
@@ -94,16 +85,23 @@ export default function NewSalesVoucherPage() {
   const subtotal = amounts.reduce((sum, line) => sum + line.gross, 0);
   const discountAmount = amounts.reduce((sum, line) => sum + line.discount, 0);
   const taxableAmount = amounts.reduce((sum, line) => sum + line.taxable, 0);
-  const gstAmount = amounts.reduce((sum, line) => sum + line.gst, 0);
-  const total = amounts.reduce((sum, line) => sum + line.total, 0);
+  const numericIgstRate = Number(igstRate) || 0;
+  const numericCgstRate = Number(cgstRate) || 0;
+  const numericSgstRate = Number(sgstRate) || 0;
+  const gstAmount =
+    (taxableAmount * (numericIgstRate + numericCgstRate + numericSgstRate)) /
+    100;
+  const total = taxableAmount + gstAmount;
   // GST rule of thumb: IGST is for inter-state supplies, CGST+SGST for
-  // intra-state — they are mutually exclusive on a line. Soft warning only;
+  // intra-state — they are mutually exclusive on an invoice. Soft warning only;
   // saving is never blocked (the preparer may know better).
-  const mixedGst = lines.some(
-    (line) =>
-      Number(line.igstRate) > 0 &&
-      (Number(line.cgstRate) > 0 || Number(line.sgstRate) > 0),
-  );
+  const mixedGst =
+    numericIgstRate > 0 && (numericCgstRate > 0 || numericSgstRate > 0);
+  const gstRatesValid = [
+    numericIgstRate,
+    numericCgstRate,
+    numericSgstRate,
+  ].every((rate) => rate >= 0 && rate <= 100);
   const linesValid = lines.every(
     (line) =>
       line.description.trim() &&
@@ -114,7 +112,12 @@ export default function NewSalesVoucherPage() {
       Number(line.discountPercent) >= 0 &&
       Number(line.discountPercent) <= 100,
   );
-  const balanced = !!customerId && lines.length > 0 && linesValid && total > 0;
+  const balanced =
+    !!customerId &&
+    lines.length > 0 &&
+    linesValid &&
+    gstRatesValid &&
+    total > 0;
 
   function updateLine(
     id: string,
@@ -157,9 +160,12 @@ export default function NewSalesVoucherPage() {
             unitOfMeasure: line.unitOfMeasure.trim(),
             unitPrice: Number(line.unitPrice),
             discountPercent: Number(line.discountPercent) || 0,
-            igstRate: Number(line.igstRate) || 0,
-            cgstRate: Number(line.cgstRate) || 0,
-            sgstRate: Number(line.sgstRate) || 0,
+            // The current invoice API stores rates on its line records. The
+            // voucher exposes one invoice-level selection and applies that
+            // same selection uniformly to every persisted line.
+            igstRate: numericIgstRate,
+            cgstRate: numericCgstRate,
+            sgstRate: numericSgstRate,
           })),
         }),
       });
@@ -320,56 +326,61 @@ export default function NewSalesVoucherPage() {
                       }
                     />
                   </Field>
-                  <Field label="IGST %">
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={line.igstRate}
-                      onChange={(event) =>
-                        updateLine(line.id, 'igstRate', event.target.value)
-                      }
-                    />
-                  </Field>
-                  <Field label="CGST %">
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={line.cgstRate}
-                      onChange={(event) =>
-                        updateLine(line.id, 'cgstRate', event.target.value)
-                      }
-                    />
-                  </Field>
-                  <Field label="SGST %">
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={line.sgstRate}
-                      onChange={(event) =>
-                        updateLine(line.id, 'sgstRate', event.target.value)
-                      }
-                    />
-                  </Field>
                 </div>
-                <div className="mt-3 flex flex-wrap justify-end gap-x-5 gap-y-1 border-t pt-3 text-xs text-muted-foreground">
-                  <span>
-                    Taxable: {formatINR(amount.taxable, numberFormatStyle)}
-                  </span>
-                  <span>GST: {formatINR(amount.gst, numberFormatStyle)}</span>
+                <div className="mt-3 flex justify-end border-t pt-3 text-xs text-muted-foreground">
                   <strong className="text-foreground">
-                    Line total: {formatINR(amount.total, numberFormatStyle)}
+                    Taxable line value:{' '}
+                    {formatINR(amount.taxable, numberFormatStyle)}
                   </strong>
                 </div>
               </div>
             );
           })}
         </div>
+        <div className="mt-4 rounded-md border bg-muted/20 p-3">
+          <div className="mb-3">
+            <h4 className="text-sm font-semibold">Overall GST</h4>
+            <p className="mt-1 text-xs text-muted-foreground">
+              These rates are applied once to the combined taxable value of all
+              line items.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="IGST %">
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={igstRate}
+                onChange={(event) => setIgstRate(event.target.value)}
+              />
+            </Field>
+            <Field label="CGST %">
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={cgstRate}
+                onChange={(event) => setCgstRate(event.target.value)}
+              />
+            </Field>
+            <Field label="SGST %">
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={sgstRate}
+                onChange={(event) => setSgstRate(event.target.value)}
+              />
+            </Field>
+          </div>
+        </div>
         {mixedGst && (
           <div className="mt-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
-            IGST is combined with CGST/SGST on this line. A supply is either
+            IGST is combined with CGST/SGST on this invoice. A supply is either
             inter-state (IGST alone) or intra-state (CGST + SGST) — using both
             is usually a GST filing error. You can still save if this is
             intentional.

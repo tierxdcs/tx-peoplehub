@@ -277,7 +277,11 @@ export function addMilestone(kickoffId: string, input: CreateMilestoneInput) {
 export function updateMilestone(
   kickoffId: string,
   milestoneId: string,
-  input: Partial<CreateMilestoneInput> & { ownerId?: string | null },
+  // ownerId: null explicitly unassigns; the plain intersection with
+  // Partial<CreateMilestoneInput> would narrow null away, hence the Omit.
+  input: Omit<Partial<CreateMilestoneInput>, 'ownerId'> & {
+    ownerId?: string | null;
+  },
 ) {
   return apiFetch<KickoffMilestone>(
     `/project-kickoffs/${kickoffId}/milestones/${milestoneId}`,
