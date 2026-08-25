@@ -25,7 +25,7 @@ import {
   SignalPage,
 } from '../../../../components/ui/signal';
 import { Badge } from '../../../../components/ui/badge';
-import { Button, buttonVariants } from '../../../../components/ui/button';
+import { Button } from '../../../../components/ui/button';
 import { Select } from '../../../../components/ui/select';
 import { Textarea } from '../../../../components/ui/textarea';
 import { Field } from '../../../../components/ui/field';
@@ -207,23 +207,9 @@ export default function OpportunityDetailPage() {
         </SCard>
       )}
 
-      <SCard className="px-5 py-[18px]">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <span className="text-[14px] font-bold">Customer BOM intake</span>
-            <p className="mt-1 text-[12px] text-black/45 dark:text-white/45">
-              Turn a customer file into traceable Items, a Product, and a
-              quote-stage BOM for SCM sourcing.
-            </p>
-          </div>
-          <Link
-            className={buttonVariants()}
-            href={`/sales/opportunities/${opp.id}/customer-bom-intake`}
-          >
-            Open BOM intake
-          </Link>
-        </div>
-      </SCard>
+      {/* Customer BOM intake moved to the Sales → BOM Intake register, which
+          starts the flow customer-first and routes back to this opportunity's
+          intake page. */}
 
       {/* Update stage — compact form card */}
       <SCard className="max-w-[400px] px-5 py-[18px]">

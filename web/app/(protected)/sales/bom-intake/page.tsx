@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PackageSearch } from 'lucide-react';
+import { apiFetch } from '../../../lib/api';
+import type { Customer, Opportunity, PaginatedResult } from '../../../lib/types';
 import {
   INTAKE_STATUS_LABEL,
   INTAKE_STATUS_TONE,
@@ -13,10 +15,23 @@ import {
 import { useRegisterList } from '../../../lib/use-register-list';
 import {
   SCard,
+  SIGNAL_BTN_GHOST,
+  SIGNAL_BTN_PRIMARY,
+  SIGNAL_DIALOG,
+  SIGNAL_DIALOG_TITLE,
   SignalHeader,
   SignalPage,
   ToneChip,
 } from '../../../components/ui/signal';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../components/ui/dialog';
+import { Field } from '../../../components/ui/field';
 import { RegisterToolbar } from '../../../components/ui/register-toolbar';
 import { RegisterPagination } from '../../../components/ui/register-pagination';
 import { Select } from '../../../components/ui/select';
@@ -38,13 +53,34 @@ export default function BomIntakeRegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [opportunityFilter, setOpportunityFilter] = useState('');
+  const [showNew, setShowNew] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [allOpportunities, setAllOpportunities] = useState<Opportunity[]>([]);
+  const [newCustomerId, setNewCustomerId] = useState('');
+  const [newOpportunityId, setNewOpportunityId] = useState('');
 
   useEffect(() => {
     listBomIntakeRegister()
       .then(setRows)
       .catch(() => setError('Failed to load BOM intake requests'))
       .finally(() => setLoading(false));
+    // For the customer-first "New BOM Intake" flow. Same list endpoints the
+    // rest of Sales uses; failures leave the dialog empty but the register up.
+    apiFetch<PaginatedResult<Customer>>('/customers?page=1&limit=100')
+      .then((res) => setCustomers(res.items))
+      .catch(() => undefined);
+    apiFetch<PaginatedResult<Opportunity>>('/opportunities?page=1&limit=100')
+      .then((res) => setAllOpportunities(res.items))
+      .catch(() => undefined);
   }, []);
+
+  const customerOpportunities = useMemo(
+    () =>
+      newCustomerId
+        ? allOpportunities.filter((opp) => opp.customerId === newCustomerId)
+        : [],
+    [allOpportunities, newCustomerId],
+  );
 
   const opportunities = useMemo(() => {
     const seen = new Map<string, string>();
@@ -75,6 +111,15 @@ export default function BomIntakeRegisterPage() {
       <SignalHeader
         title="Open BOM Intake"
         description="Every quote-stage customer BOM Sales has raised — follow each from draft transcription through RFQ pricing to R&D release."
+        actions={
+          <button
+            type="button"
+            onClick={() => setShowNew(true)}
+            className={SIGNAL_BTN_PRIMARY}
+          >
+            New BOM Intake
+          </button>
+        }
       />
       <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
         <RegisterToolbar
@@ -193,6 +238,91 @@ export default function BomIntakeRegisterPage() {
           disabled={loading}
         />
       </div>
+
+      {/* Customer-first entry: pick the customer, then one of their
+          opportunities — the intake itself stays opportunity-scoped. */}
+      <Dialog open={showNew} onOpenChange={(open) => !open && setShowNew(false)}>
+        <DialogContent className={SIGNAL_DIALOG}>
+          <DialogHeader>
+            <DialogTitle className={SIGNAL_DIALOG_TITLE}>
+              New BOM Intake
+            </DialogTitle>
+            <DialogDescription>
+              Turn a customer file into traceable Items, a Product, and a
+              quote-stage BOM for SCM sourcing.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Field label="Customer" required>
+              <Select
+                value={newCustomerId}
+                onChange={(event) => {
+                  setNewCustomerId(event.target.value);
+                  setNewOpportunityId('');
+                }}
+              >
+                <option value="">Select a customer…</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label="Opportunity"
+              required
+              hint="The intake is raised against one of this customer's opportunities."
+            >
+              <Select
+                value={newOpportunityId}
+                onChange={(event) => setNewOpportunityId(event.target.value)}
+                disabled={!newCustomerId}
+              >
+                <option value="">
+                  {newCustomerId
+                    ? customerOpportunities.length
+                      ? 'Select an opportunity…'
+                      : 'No opportunities for this customer'
+                    : 'Pick a customer first'}
+                </option>
+                {customerOpportunities.map((opp) => (
+                  <option key={opp.id} value={opp.id}>
+                    {opp.name} · {opp.stage.replaceAll('_', ' ')}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {newCustomerId && customerOpportunities.length === 0 && (
+              <p className="text-[12px] text-black/45 dark:text-white/45">
+                This customer has no opportunities yet — create one under
+                Sales → Opportunities first.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setShowNew(false)}
+              className={SIGNAL_BTN_GHOST}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!newOpportunityId}
+              onClick={() =>
+                router.push(
+                  `/sales/opportunities/${newOpportunityId}/customer-bom-intake`,
+                )
+              }
+              className={SIGNAL_BTN_PRIMARY}
+            >
+              Continue
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SignalPage>
   );
 }
