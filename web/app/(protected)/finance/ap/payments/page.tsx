@@ -8,11 +8,9 @@ import { useFinanceAccess } from '../../../../lib/use-finance-access';
 import { formatINR } from '../../../../lib/sales';
 import { useNumberFormat } from '../../../../lib/number-format-context';
 import { Button } from '../../../../components/ui/button';
-import { Card, CardContent } from '../../../../components/ui/card';
 import { Input } from '../../../../components/ui/input';
 import { Select } from '../../../../components/ui/select';
-import { PageContainer } from '../../../../components/ui/page-container';
-import { PageHeader } from '../../../../components/ui/page-header';
+import { SCard, SignalHeader, SignalPage } from '../../../../components/ui/signal';
 import { useToast } from '../../../../components/ui/toaster';
 import { RegisterPagination } from '../../../../components/ui/register-pagination';
 import { serverPageCount } from '../../../../lib/server-pagination';
@@ -112,18 +110,18 @@ export default function VendorPaymentsPage() {
     }
   }
   return (
-    <PageContainer>
-      <div className="mb-1 flex items-center justify-between">
-        <PageHeader
-          title="Vendor Payments"
-          description="Plan, approve and record vendor payments; unallocated amounts remain supplier advances"
-        />
-        <Link href="/finance/vouchers/payment/new">
-          <Button variant="outline">New Payment Voucher</Button>
-        </Link>
-      </div>
-      <Card className="mb-6">
-        <CardContent className="p-5">
+    <SignalPage>
+      <SignalHeader
+        title="Vendor Payments"
+        description="Plan, approve and record vendor payments; unallocated amounts remain supplier advances"
+        actions={
+          <Link href="/finance/vouchers/payment/new">
+            <Button variant="outline">New Payment Voucher</Button>
+          </Link>
+        }
+      />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+      <SCard className="px-5 py-[18px]">
           <form onSubmit={create} className="grid gap-3 md:grid-cols-6">
             <Select
               value={type}
@@ -181,14 +179,12 @@ export default function VendorPaymentsPage() {
             />
             <Button type="submit">Plan payment</Button>
           </form>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          <Table className="w-full text-sm">
+      </SCard>
+      <SCard className="overflow-hidden">
+          <Table>
             <TableHeader>
-              <TableRow className="border-b text-left">
-                <TableHead className="p-3">Payment</TableHead>
+              <TableRow>
+                <TableHead>Payment</TableHead>
                 <TableHead>Party</TableHead>
                 <TableHead>Planned</TableHead>
                 <TableHead>Amount</TableHead>
@@ -198,11 +194,11 @@ export default function VendorPaymentsPage() {
             </TableHeader>
             <TableBody>
               {payments.map((p) => (
-                <TableRow className="border-b" key={p.id}>
-                  <TableCell className="p-3 font-mono">{p.paymentNumber}</TableCell>
+                <TableRow key={p.id}>
+                  <TableCell className="font-medium tabular-nums">{p.paymentNumber}</TableCell>
                   <TableCell>{p.supplier?.companyName || p.vendor?.companyName}</TableCell>
                   <TableCell>{p.plannedDate.slice(0, 10)}</TableCell>
-                  <TableCell>{formatINR(p.amount, numberFormatStyle)}</TableCell>
+                  <TableCell className="tabular-nums">{formatINR(p.amount, numberFormatStyle)}</TableCell>
                   <TableCell>{p.status.replaceAll('_', ' ')}</TableCell>
                   <TableCell className="space-x-1">
                     {['DRAFT', 'REJECTED'].includes(p.status) && (
@@ -254,9 +250,9 @@ export default function VendorPaymentsPage() {
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </SCard>
       <RegisterPagination page={page} pageCount={serverPageCount(total, PAGE_SIZE)} onPageChange={setPage} />
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

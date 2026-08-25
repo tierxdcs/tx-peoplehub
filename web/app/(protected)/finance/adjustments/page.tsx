@@ -7,11 +7,9 @@ import { useFinanceAccess } from '../../../lib/use-finance-access';
 import { formatINR } from '../../../lib/sales';
 import { useNumberFormat } from '../../../lib/number-format-context';
 import { Button } from '../../../components/ui/button';
-import { Card, CardContent } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
+import { SCard, SignalHeader, SignalPage } from '../../../components/ui/signal';
 import { useToast } from '../../../components/ui/toaster';
 import { RegisterPagination } from '../../../components/ui/register-pagination';
 import { serverPageCount } from '../../../lib/server-pagination';
@@ -111,13 +109,13 @@ export default function AdjustmentsPage() {
     }
   }
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Credit & Debit Notes"
         description="Controlled AR/AP adjustments with GST reversal, Finance Head approval and automatic ledger posting"
       />
-      <Card className="mb-6">
-        <CardContent className="p-5">
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+      <SCard className="px-5 py-[18px]">
           <form onSubmit={create} className="grid gap-3 md:grid-cols-4">
             <Select
               value={side}
@@ -186,14 +184,12 @@ export default function AdjustmentsPage() {
             />
             <Button type="submit">Create note</Button>
           </form>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          <Table className="w-full text-sm">
+      </SCard>
+      <SCard className="overflow-hidden">
+          <Table>
             <TableHeader>
-              <TableRow className="border-b text-left">
-                <TableHead className="p-3">Note</TableHead>
+              <TableRow>
+                <TableHead>Note</TableHead>
                 <TableHead>Side / Type</TableHead>
                 <TableHead>Invoice</TableHead>
                 <TableHead>Amount</TableHead>
@@ -204,8 +200,8 @@ export default function AdjustmentsPage() {
             </TableHeader>
             <TableBody>
               {notes.map((n) => (
-                <TableRow className="border-b" key={n.id}>
-                  <TableCell className="p-3 font-mono">{n.noteNumber}</TableCell>
+                <TableRow key={n.id}>
+                  <TableCell className="font-medium tabular-nums">{n.noteNumber}</TableCell>
                   <TableCell>
                     {n.side.replace('ACCOUNTS_', '')} /{' '}
                     {n.noteType.replace('_', ' ')}
@@ -214,7 +210,7 @@ export default function AdjustmentsPage() {
                     {n.salesInvoice?.invoiceNumber ||
                       n.apInvoice?.internalBillNumber}
                   </TableCell>
-                  <TableCell>{formatINR(n.totalAmount, numberFormatStyle)}</TableCell>
+                  <TableCell className="tabular-nums">{formatINR(n.totalAmount, numberFormatStyle)}</TableCell>
                   <TableCell>{n.reason}</TableCell>
                   <TableCell>{n.status}</TableCell>
                   <TableCell className="space-x-1">
@@ -253,13 +249,13 @@ export default function AdjustmentsPage() {
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </SCard>
       <RegisterPagination
         page={page}
         pageCount={serverPageCount(total, PAGE_SIZE)}
         onPageChange={setPage}
       />
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

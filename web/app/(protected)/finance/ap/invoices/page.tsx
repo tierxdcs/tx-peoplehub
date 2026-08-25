@@ -8,11 +8,14 @@ import { useFinanceAccess } from '../../../../lib/use-finance-access';
 import { formatINR } from '../../../../lib/sales';
 import { useNumberFormat } from '../../../../lib/number-format-context';
 import { Button } from '../../../../components/ui/button';
-import { Card, CardContent } from '../../../../components/ui/card';
 import { Input } from '../../../../components/ui/input';
 import { Select } from '../../../../components/ui/select';
-import { PageContainer } from '../../../../components/ui/page-container';
-import { PageHeader } from '../../../../components/ui/page-header';
+import {
+  SCard,
+  SignalHeader,
+  SignalPage,
+  SIGNAL_MUTED,
+} from '../../../../components/ui/signal';
 import { useToast } from '../../../../components/ui/toaster';
 import { RegisterPagination } from '../../../../components/ui/register-pagination';
 import { serverPageCount } from '../../../../lib/server-pagination';
@@ -178,18 +181,18 @@ export default function VendorInvoicesPage() {
     }
   }
   return (
-    <PageContainer>
-      <div className="mb-1 flex items-center justify-between">
-        <PageHeader
-          title="Vendor Invoice Register (AP)"
-          description="Capture supplier bills, compare PO–accepted GRN–invoice, and route exceptions to the Finance Head"
-        />
-        <Link href="/finance/vouchers/purchase/new">
-          <Button variant="outline">New Purchase Voucher</Button>
-        </Link>
-      </div>
-      <Card className="mb-6">
-        <CardContent className="p-5">
+    <SignalPage>
+      <SignalHeader
+        title="Vendor Invoice Register (AP)"
+        description="Capture supplier bills, compare PO–accepted GRN–invoice, and route exceptions to the Finance Head"
+        actions={
+          <Link href="/finance/vouchers/purchase/new">
+            <Button variant="outline">New Purchase Voucher</Button>
+          </Link>
+        }
+      />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+        <SCard className="p-5">
           <form onSubmit={create} className="grid gap-3 md:grid-cols-4">
             <Select value={poId} onChange={(e) => choosePo(e.target.value)}>
               <option value="">Non-PO invoice</option>
@@ -313,10 +316,9 @@ export default function VendorInvoicesPage() {
             />
             <Button type="submit">Capture invoice</Button>
           </form>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="overflow-x-auto p-0">
+        </SCard>
+        <SCard className="overflow-hidden">
+          <div className="overflow-x-auto">
           <Table className="w-full text-sm">
             <TableHeader>
               <TableRow className="border-b text-left">
@@ -332,14 +334,14 @@ export default function VendorInvoicesPage() {
             <TableBody>
               {invoices.map((i) => (
                 <TableRow className="border-b" key={i.id}>
-                  <TableCell className="p-3 font-mono">
+                  <TableCell className="p-3 font-medium tabular-nums">
                     {i.internalBillNumber}
                     <br />
-                    <span className="text-xs">{i.externalInvoiceNumber}</span>
+                    <span className={`text-xs ${SIGNAL_MUTED}`}>{i.externalInvoiceNumber}</span>
                   </TableCell>
                   <TableCell>{i.supplier?.companyName || i.vendor?.companyName}</TableCell>
                   <TableCell>{i.dueDate.slice(0, 10)}</TableCell>
-                  <TableCell>
+                  <TableCell className="tabular-nums">
                     {formatINR(i.totalAmount, numberFormatStyle)}
                     <br />
                     {formatINR(i.outstandingAmount, numberFormatStyle)} open
@@ -403,9 +405,10 @@ export default function VendorInvoicesPage() {
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
-      <RegisterPagination page={page} pageCount={serverPageCount(total, PAGE_SIZE)} onPageChange={setPage} />
-    </PageContainer>
+          </div>
+        </SCard>
+        <RegisterPagination page={page} pageCount={serverPageCount(total, PAGE_SIZE)} onPageChange={setPage} />
+      </div>
+    </SignalPage>
   );
 }

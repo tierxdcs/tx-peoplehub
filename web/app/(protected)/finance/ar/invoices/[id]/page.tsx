@@ -1,22 +1,17 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../../lib/api';
 import { useFinanceAccess } from '../../../../../lib/use-finance-access';
 import { formatINR } from '../../../../../lib/sales';
 import { useNumberFormat } from '../../../../../lib/number-format-context';
-import { Button, buttonVariants } from '../../../../../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../../../components/ui/card';
-import { PageContainer } from '../../../../../components/ui/page-container';
-import { PageHeader } from '../../../../../components/ui/page-header';
+import { Button } from '../../../../../components/ui/button';
+import { SCard, SCardTitle, SignalHeader, SignalPage } from '../../../../../components/ui/signal';
 import { Spinner } from '../../../../../components/ui/spinner';
 import { StatusBadge } from '../../../../../components/ui/status-badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../../../components/ui/table';
 import { useToast } from '../../../../../components/ui/toaster';
-import { cn } from '../../../../../lib/utils';
 
 interface Person {
   firstName: string;
@@ -155,90 +150,103 @@ export default function SalesInvoiceDetailPage() {
     }
   }
 
-  if (loading) return <div className="flex min-h-64 items-center justify-center"><Spinner /></div>;
-  if (!invoice) return <PageContainer><p>Sales invoice could not be loaded.</p></PageContainer>;
+  if (loading)
+    return (
+      <SignalPage>
+        <div className="flex min-h-64 items-center justify-center"><Spinner /></div>
+      </SignalPage>
+    );
+  if (!invoice)
+    return (
+      <SignalPage>
+        <div className="px-5 pb-7 pt-[18px] lg:px-7">
+          <p>Sales invoice could not be loaded.</p>
+        </div>
+      </SignalPage>
+    );
 
   return (
-    <PageContainer>
-      <Link href="/finance/ar/invoices" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'mb-3')}>
-        <ArrowLeft /> Sales Invoices
-      </Link>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <PageHeader title={invoice.invoiceNumber} description={`Sales invoice for ${invoice.customer.name}`} />
-        <div className="flex items-center gap-2">
-          <StatusBadge value={invoice.status} />
-          {isAccountsHead && invoice.status === 'PENDING_APPROVAL' && (
+    <SignalPage>
+      <SignalHeader
+        backHref="/finance/ar/invoices"
+        backLabel="Sales Invoices"
+        title={invoice.invoiceNumber}
+        description={`Sales invoice for ${invoice.customer.name}`}
+        chip={<StatusBadge value={invoice.status} />}
+        actions={
+          isAccountsHead && invoice.status === 'PENDING_APPROVAL' ? (
             <>
               <Button disabled={acting} onClick={() => action('approve')}>Approve</Button>
               <Button disabled={acting} variant="destructive" onClick={() => action('reject')}>Reject</Button>
             </>
-          )}
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+        <SCard className="px-5 py-[18px]">
+          <SCardTitle title="Invoice details" />
+          <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <Detail label="Customer" value={invoice.customer.name} />
+            <Detail label="Customer GSTIN" value={invoice.customerGstinSnapshot} />
+            <Detail label="Invoice date" value={invoice.invoiceDate.slice(0, 10)} />
+            <Detail label="Due date" value={invoice.dueDate.slice(0, 10)} />
+            <Detail label="Order" value={invoice.order?.orderNumber} />
+            <Detail label="Customer PO reference" value={invoice.customerPoReference} />
+            <Detail label="Place of supply" value={`${invoice.placeOfSupplyState} (${invoice.placeOfSupplyStateCode})`} />
+            <Detail label="Currency" value={`${invoice.currencyCode} · rate ${invoice.exchangeRateToInr}`} />
+            <Detail label="Payment terms" value={invoice.paymentTerms} />
+            <Detail label="Billing address" value={addressText(invoice.billingAddressSnapshot)} />
+            <Detail label="Shipping address" value={addressText(invoice.shippingAddressSnapshot)} />
+            {invoice.rejectionComment && <Detail label="Rejection reason" value={invoice.rejectionComment} />}
+          </div>
+        </SCard>
 
-      <Card className="mb-6">
-        <CardHeader><CardTitle>Invoice details</CardTitle></CardHeader>
-        <CardContent className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <Detail label="Customer" value={invoice.customer.name} />
-          <Detail label="Customer GSTIN" value={invoice.customerGstinSnapshot} />
-          <Detail label="Invoice date" value={invoice.invoiceDate.slice(0, 10)} />
-          <Detail label="Due date" value={invoice.dueDate.slice(0, 10)} />
-          <Detail label="Order" value={invoice.order?.orderNumber} />
-          <Detail label="Customer PO reference" value={invoice.customerPoReference} />
-          <Detail label="Place of supply" value={`${invoice.placeOfSupplyState} (${invoice.placeOfSupplyStateCode})`} />
-          <Detail label="Currency" value={`${invoice.currencyCode} · rate ${invoice.exchangeRateToInr}`} />
-          <Detail label="Payment terms" value={invoice.paymentTerms} />
-          <Detail label="Billing address" value={addressText(invoice.billingAddressSnapshot)} />
-          <Detail label="Shipping address" value={addressText(invoice.shippingAddressSnapshot)} />
-          {invoice.rejectionComment && <Detail label="Rejection reason" value={invoice.rejectionComment} />}
-        </CardContent>
-      </Card>
-
-      <Card className="mb-6">
-        <CardHeader><CardTitle>Line items</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto p-0">
+        <SCard className="overflow-hidden">
+          <div className="px-5 pb-3.5 pt-[18px]">
+            <SCardTitle title="Line items" />
+          </div>
           <Table>
             <TableHeader><TableRow><TableHead className="pl-6">Item</TableHead><TableHead>HSN/SAC</TableHead><TableHead>Qty</TableHead><TableHead>Unit price</TableHead><TableHead>Taxable</TableHead><TableHead>GST</TableHead><TableHead className="pr-6 text-right">Total</TableHead></TableRow></TableHeader>
             <TableBody>{invoice.lines.map((line) => (
               <TableRow key={line.id}>
                 <TableCell className="pl-6"><div className="font-medium">{line.description}</div>{line.product && <div className="text-xs text-muted-foreground">{line.product.sku} · {line.product.name}</div>}</TableCell>
                 <TableCell>{line.hsnSacCode}</TableCell>
-                <TableCell>{line.quantity} {line.unitOfMeasure}</TableCell>
-                <TableCell>{formatINR(line.unitPrice, style)}</TableCell>
-                <TableCell>{formatINR(line.taxableAmount, style)}</TableCell>
+                <TableCell className="tabular-nums">{line.quantity} {line.unitOfMeasure}</TableCell>
+                <TableCell className="tabular-nums">{formatINR(line.unitPrice, style)}</TableCell>
+                <TableCell className="tabular-nums">{formatINR(line.taxableAmount, style)}</TableCell>
                 <TableCell className="text-xs">CGST {line.cgstRate}% · SGST {line.sgstRate}% · IGST {line.igstRate}%</TableCell>
-                <TableCell className="pr-6 text-right font-medium">{formatINR(line.lineTotal, style)}</TableCell>
+                <TableCell className="pr-6 text-right font-medium tabular-nums">{formatINR(line.lineTotal, style)}</TableCell>
               </TableRow>
             ))}</TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </SCard>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        <Card>
-          <CardHeader><CardTitle>Approval and GST trail</CardTitle></CardHeader>
-          <CardContent className="grid gap-5 sm:grid-cols-2">
-            <Detail label="Created by" value={personName(invoice.createdBy)} />
-            <Detail label="Submitted by" value={personName(invoice.submittedBy)} />
-            <Detail label="Submitted at" value={dateTime(invoice.submittedAt)} />
-            <Detail label="Approved by" value={personName(invoice.approvedBy)} />
-            <Detail label="Approved at" value={dateTime(invoice.approvedAt)} />
-            <Detail label="Issued at" value={dateTime(invoice.issuedAt)} />
-            <Detail label="IRN" value={invoice.irn} />
-            <Detail label="E-way bill" value={invoice.eWayBillNumber} />
-            <Detail label="Latest GST submission" value={invoice.gstSubmissions[0]?.status} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>Amount summary</CardTitle></CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            {[['Subtotal', invoice.subtotal], ['Discount', invoice.discountAmount], ['Taxable amount', invoice.taxableAmount], ['CGST', invoice.cgstAmount], ['SGST', invoice.sgstAmount], ['IGST', invoice.igstAmount], ['Other charges', invoice.otherCharges], ['Round off', invoice.roundOff]].map(([label, value]) => <div className="flex justify-between" key={label}><span className="text-muted-foreground">{label}</span><span>{formatINR(value, style)}</span></div>)}
-            <div className="flex justify-between border-t pt-3 text-base font-semibold"><span>Total</span><span>{formatINR(invoice.totalAmount, style)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Paid</span><span>{formatINR(invoice.paidAmount, style)}</span></div>
-            <div className="flex justify-between text-base font-semibold"><span>Outstanding</span><span>{formatINR(invoice.outstandingAmount, style)}</span></div>
-          </CardContent>
-        </Card>
+        <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+          <SCard className="px-5 py-[18px]">
+            <SCardTitle title="Approval and GST trail" />
+            <div className="mt-4 grid gap-5 sm:grid-cols-2">
+              <Detail label="Created by" value={personName(invoice.createdBy)} />
+              <Detail label="Submitted by" value={personName(invoice.submittedBy)} />
+              <Detail label="Submitted at" value={dateTime(invoice.submittedAt)} />
+              <Detail label="Approved by" value={personName(invoice.approvedBy)} />
+              <Detail label="Approved at" value={dateTime(invoice.approvedAt)} />
+              <Detail label="Issued at" value={dateTime(invoice.issuedAt)} />
+              <Detail label="IRN" value={invoice.irn} />
+              <Detail label="E-way bill" value={invoice.eWayBillNumber} />
+              <Detail label="Latest GST submission" value={invoice.gstSubmissions[0]?.status} />
+            </div>
+          </SCard>
+          <SCard className="px-5 py-[18px]">
+            <SCardTitle title="Amount summary" />
+            <div className="mt-4 space-y-3 text-sm">
+              {[['Subtotal', invoice.subtotal], ['Discount', invoice.discountAmount], ['Taxable amount', invoice.taxableAmount], ['CGST', invoice.cgstAmount], ['SGST', invoice.sgstAmount], ['IGST', invoice.igstAmount], ['Other charges', invoice.otherCharges], ['Round off', invoice.roundOff]].map(([label, value]) => <div className="flex justify-between" key={label}><span className="text-muted-foreground">{label}</span><span className="tabular-nums">{formatINR(value, style)}</span></div>)}
+              <div className="flex justify-between border-t pt-3 text-base font-semibold"><span>Total</span><span className="tabular-nums">{formatINR(invoice.totalAmount, style)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Paid</span><span className="tabular-nums">{formatINR(invoice.paidAmount, style)}</span></div>
+              <div className="flex justify-between text-base font-semibold"><span>Outstanding</span><span className="tabular-nums">{formatINR(invoice.outstandingAmount, style)}</span></div>
+            </div>
+          </SCard>
+        </div>
       </div>
-    </PageContainer>
+    </SignalPage>
   );
 }

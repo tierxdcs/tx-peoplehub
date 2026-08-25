@@ -9,9 +9,7 @@ import { useFinanceAccess } from '../../../lib/use-finance-access';
 import { formatINR } from '../../../lib/sales';
 import { useNumberFormat } from '../../../lib/number-format-context';
 import { Button } from '../../../components/ui/button';
-import { Card, CardContent } from '../../../components/ui/card';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
+import { SCard, SignalHeader, SignalPage } from '../../../components/ui/signal';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { useToast } from '../../../components/ui/toaster';
@@ -72,15 +70,18 @@ export default function ContraVouchersPage() {
   }
 
   return (
-    <PageContainer>
-      <div className="mb-5 flex items-center justify-between">
-        <PageHeader title="Contra Vouchers" description="Bank-to-cash, cash-to-bank, and inter-bank transfers" />
-        <Link href="/finance/vouchers/contra/new">
-          <Button>New Contra Voucher</Button>
-        </Link>
-      </div>
-      <Card>
-        <CardContent className="p-0">
+    <SignalPage>
+      <SignalHeader
+        title="Contra Vouchers"
+        description="Bank-to-cash, cash-to-bank, and inter-bank transfers"
+        actions={
+          <Link href="/finance/vouchers/contra/new">
+            <Button>New Contra Voucher</Button>
+          </Link>
+        }
+      />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+      <SCard className="overflow-hidden">
           {!loading && vouchers.length === 0 ? (
             <EmptyState
               icon={ArrowLeftRight}
@@ -104,11 +105,11 @@ export default function ContraVouchersPage() {
                 <TableBody>
                   {vouchers.map((v) => (
                     <TableRow className="border-b" key={v.id}>
-                      <TableCell className="p-3 font-mono">{v.voucherNumber}</TableCell>
+                      <TableCell className="p-3 font-medium tabular-nums">{v.voucherNumber}</TableCell>
                       <TableCell>{v.voucherDate.slice(0, 10)}</TableCell>
                       <TableCell>{v.fromLedgerAccount.name}</TableCell>
                       <TableCell>{v.toLedgerAccount.name}</TableCell>
-                      <TableCell>{formatINR(v.amount, numberFormatStyle)}</TableCell>
+                      <TableCell className="tabular-nums">{formatINR(v.amount, numberFormatStyle)}</TableCell>
                       <TableCell>
                         <StatusBadge value={v.status} />
                       </TableCell>
@@ -135,14 +136,14 @@ export default function ContraVouchersPage() {
               </Table>
             </div>
           )}
-        </CardContent>
-      </Card>
+      </SCard>
       <RegisterPagination
         page={page}
         pageCount={serverPageCount(total, PAGE_SIZE)}
         onPageChange={setPage}
         disabled={loading}
       />
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

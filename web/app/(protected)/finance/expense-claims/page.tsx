@@ -9,9 +9,13 @@ import { formatINR } from '../../../lib/sales';
 import { useNumberFormat } from '../../../lib/number-format-context';
 import { dateOnlyStr } from '../../../lib/date';
 import { useToast } from '../../../components/ui/toaster';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
+import {
+  SCard,
+  SCardTitle,
+  SIGNAL_LINK,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { Skeleton } from '../../../components/ui/skeleton';
@@ -52,25 +56,26 @@ export default function ExpenseClaimReviewPage() {
   const approved = claims.filter((c) => c.status === 'APPROVED');
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Expense Claims"
         description="Review submitted employee expense claims — approve to post the general-ledger journal, or reject with a reason. Approved claims await reimbursement (Mark as paid) on the claim page."
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
       {loading ? (
-        <Card>
-          <CardContent className="space-y-2 p-4">
+        <SCard>
+          <div className="space-y-2 p-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="h-10 w-full" />
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </SCard>
       ) : error ? (
-        <Card>
-          <CardContent className="p-6 text-sm text-destructive">
+        <SCard>
+          <div className="p-6 text-sm text-destructive">
             {error}
-          </CardContent>
-        </Card>
+          </div>
+        </SCard>
       ) : (
         <>
           <ClaimQueue
@@ -89,7 +94,8 @@ export default function ExpenseClaimReviewPage() {
           />
         </>
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }
 
@@ -107,58 +113,56 @@ function ClaimQueue({
   onOpen: (id: string) => void;
 }) {
   return (
-    <Card className="mb-4">
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        {claims.length === 0 ? (
-          <EmptyState icon={ReceiptText} title={emptyLabel} tone="positive" />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Claim</TableHead>
-                <TableHead>Claimant</TableHead>
-                <TableHead>Title</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead>Status</TableHead>
+    <SCard className="overflow-hidden">
+      <div className="px-5 pb-3 pt-[18px]">
+        <SCardTitle title={title} />
+      </div>
+      {claims.length === 0 ? (
+        <EmptyState icon={ReceiptText} title={emptyLabel} tone="positive" />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Claim</TableHead>
+              <TableHead>Claimant</TableHead>
+              <TableHead>Title</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+              <TableHead>Submitted</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {claims.map((c) => (
+              <TableRow
+                key={c.id}
+                className="cursor-pointer"
+                onClick={() => onOpen(c.id)}
+              >
+                <TableCell className="font-medium">
+                  <Link
+                    href={`/expense-claims/${c.id}`}
+                    className={SIGNAL_LINK}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {c.claimNumber}
+                  </Link>
+                </TableCell>
+                <TableCell>{c.employeeName ?? '—'}</TableCell>
+                <TableCell>{c.title}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatINR(c.totalAmount, style)}
+                </TableCell>
+                <TableCell>
+                  {c.submittedAt ? dateOnlyStr(c.submittedAt) : '—'}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge value={c.status} />
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {claims.map((c) => (
-                <TableRow
-                  key={c.id}
-                  className="cursor-pointer"
-                  onClick={() => onOpen(c.id)}
-                >
-                  <TableCell className="font-medium">
-                    <Link
-                      href={`/expense-claims/${c.id}`}
-                      className="text-primary hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {c.claimNumber}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{c.employeeName ?? '—'}</TableCell>
-                  <TableCell>{c.title}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatINR(c.totalAmount, style)}
-                  </TableCell>
-                  <TableCell>
-                    {c.submittedAt ? dateOnlyStr(c.submittedAt) : '—'}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge value={c.status} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </SCard>
   );
 }

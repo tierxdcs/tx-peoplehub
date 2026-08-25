@@ -86,6 +86,11 @@ audit for unpaired tokens:
   Offer Letter approval queue + review detail
 - ✅ Payroll — Payroll Runs register + run detail + payslip detail, Statutory
   Config, Salary Structures (dialogs included)
+- ✅ Finance Vouchers — Day Book, Sales Vouchers register + invoice detail,
+  Purchase Vouchers, Receipts, Payments, Credit & Debit Notes, Journals,
+  Contra, Expense Claims, and the shared VoucherShell (covers all six
+  voucher-entry forms). Convention set here: voucher/document numbers use the
+  app font + tabular-nums, not a mono face.
 - ✅ Leave & Attendance (admin) — Leave Approvals queue, Attendance Corrections.
   NOTE: /leave, /attendance, /team/leave-approvals, /team/attendance are thin
   routes around dual-mode `_sections/*` components that also render as profile

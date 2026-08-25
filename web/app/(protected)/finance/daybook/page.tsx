@@ -5,12 +5,18 @@ import Link from 'next/link';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { formatINR } from '../../../lib/sales';
 import { useNumberFormat } from '../../../lib/number-format-context';
-import { Card, CardContent } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
 import { Button } from '../../../components/ui/button';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
+import {
+  SCard,
+  SIGNAL_LINK,
+  SIGNAL_ROW_DIVIDER,
+  SIGNAL_ROW_HOVER,
+  SIGNAL_TABLE_HEAD,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { Skeleton } from '../../../components/ui/skeleton';
@@ -89,13 +95,14 @@ export default function DayBookPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title={FINANCE_LABELS.dayBook}
         description="Every voucher, newest first · sales, purchase, receipt, payment, journal"
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
-      <div className="mb-5 flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-end gap-3">
         <label className="text-sm">
           From
           <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -120,8 +127,7 @@ export default function DayBookPage() {
         </Button>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
+      <SCard className="overflow-hidden">
           {loading ? (
             <div className="space-y-2 p-4">
               <Skeleton className="h-8 w-full" />
@@ -138,7 +144,7 @@ export default function DayBookPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-left">
+                  <tr className={`${SIGNAL_TABLE_HEAD} text-left`}>
                     <th className="p-3">Date</th>
                     <th>Type</th>
                     <th>Voucher No.</th>
@@ -149,11 +155,14 @@ export default function DayBookPage() {
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={`${r.voucherType}-${r.id}`} className="border-b hover:bg-accent/50">
+                    <tr
+                      key={`${r.voucherType}-${r.id}`}
+                      className={`border-b ${SIGNAL_ROW_DIVIDER} ${SIGNAL_ROW_HOVER}`}
+                    >
                       <td className="p-3 whitespace-nowrap">{r.date.slice(0, 10)}</td>
                       <td>{voucherTypeLabel(r.voucherType)}</td>
-                      <td className="font-mono">
-                        <Link href={r.detailHref} className="text-primary hover:underline">
+                      <td className="tabular-nums">
+                        <Link href={r.detailHref} className={SIGNAL_LINK}>
                           {r.voucherNumber}
                         </Link>
                       </td>
@@ -172,11 +181,10 @@ export default function DayBookPage() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+      </SCard>
 
       {total > 0 && (
-        <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>
             Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
           </span>
@@ -203,6 +211,7 @@ export default function DayBookPage() {
           </div>
         </div>
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }
