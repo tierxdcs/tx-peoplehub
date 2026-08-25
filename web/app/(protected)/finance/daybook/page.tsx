@@ -81,7 +81,9 @@ export default function DayBookPage() {
       setRows(res.rows);
       setTotal(res.total);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : 'Failed to load Day Book');
+      toast.error(
+        e instanceof ApiError ? e.message : 'Failed to load Day Book',
+      );
     } finally {
       setLoading(false);
     }
@@ -101,33 +103,43 @@ export default function DayBookPage() {
         description="Every voucher, newest first · sales, purchase, receipt, payment, journal"
       />
       <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-sm">
+            From
+            <Input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+          </label>
+          <label className="text-sm">
+            To
+            <Input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </label>
+          <label className="text-sm">
+            Voucher type
+            <Select
+              value={voucherType}
+              onChange={(e) => setVoucherType(e.target.value)}
+            >
+              <option value="">All</option>
+              {DAYBOOK_VOUCHER_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <Button variant="outline" onClick={() => void load()}>
+            Refresh
+          </Button>
+        </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm">
-          From
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </label>
-        <label className="text-sm">
-          To
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </label>
-        <label className="text-sm">
-          Voucher type
-          <Select value={voucherType} onChange={(e) => setVoucherType(e.target.value)}>
-            <option value="">All</option>
-            {DAYBOOK_VOUCHER_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <Button variant="outline" onClick={() => void load()}>
-          Refresh
-        </Button>
-      </div>
-
-      <SCard className="overflow-hidden">
+        <SCard className="overflow-hidden">
           {loading ? (
             <div className="space-y-2 p-4">
               <Skeleton className="h-8 w-full" />
@@ -144,13 +156,16 @@ export default function DayBookPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
+                  {/* Every cell carries its own padding — without it the
+                      right-aligned Amount butts straight into the Status
+                      badge. */}
                   <tr className={`${SIGNAL_TABLE_HEAD} text-left`}>
                     <th className="p-3">Date</th>
-                    <th>Type</th>
-                    <th>Voucher No.</th>
-                    <th>Party / Ledger</th>
-                    <th className="text-right">Amount</th>
-                    <th>Status</th>
+                    <th className="p-3">Type</th>
+                    <th className="p-3">Voucher No.</th>
+                    <th className="p-3">Party / Ledger</th>
+                    <th className="p-3 text-right">Amount</th>
+                    <th className="p-3">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -159,20 +174,25 @@ export default function DayBookPage() {
                       key={`${r.voucherType}-${r.id}`}
                       className={`border-b ${SIGNAL_ROW_DIVIDER} ${SIGNAL_ROW_HOVER}`}
                     >
-                      <td className="p-3 whitespace-nowrap">{r.date.slice(0, 10)}</td>
-                      <td>{voucherTypeLabel(r.voucherType)}</td>
-                      <td className="tabular-nums">
+                      <td className="whitespace-nowrap p-3">
+                        {r.date.slice(0, 10)}
+                      </td>
+                      <td className="p-3">{voucherTypeLabel(r.voucherType)}</td>
+                      <td className="p-3 tabular-nums">
                         <Link href={r.detailHref} className={SIGNAL_LINK}>
                           {r.voucherNumber}
                         </Link>
                       </td>
-                      <td className="max-w-xs truncate" title={r.party ?? ''}>
+                      <td
+                        className="max-w-xs truncate p-3"
+                        title={r.party ?? ''}
+                      >
                         {r.party ?? '—'}
                       </td>
-                      <td className="text-right tabular-nums">
+                      <td className="whitespace-nowrap p-3 text-right tabular-nums">
                         {formatINR(r.amount, numberFormatStyle)}
                       </td>
-                      <td>
+                      <td className="p-3">
                         <StatusBadge value={r.status} />
                       </td>
                     </tr>
@@ -181,36 +201,37 @@ export default function DayBookPage() {
               </table>
             </div>
           )}
-      </SCard>
+        </SCard>
 
-      {total > 0 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>
-            Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              Previous
-            </Button>
-            <span className="px-2 py-1">
-              Page {page} of {totalPages}
+        {total > 0 && (
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>
+              Showing {(page - 1) * PAGE_SIZE + 1}–
+              {Math.min(page * PAGE_SIZE, total)} of {total}
             </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Next
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <span className="px-2 py-1">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
     </SignalPage>
   );
