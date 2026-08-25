@@ -1,3 +1,7 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
 import { amountToIndianWords } from '../../../../../lib/indian-number-words';
 import { formatINR } from '../../../../../lib/sales';
 import { COMPANY } from '../../../../../lib/theme';
@@ -41,6 +45,9 @@ interface PrintableSalesInvoice {
   totalAmount: string;
   paymentTerms: string | null;
   irn: string | null;
+  irnAcknowledgementNumber: string | null;
+  irnAcknowledgementDate: string | null;
+  signedQrCode: string | null;
   eWayBillNumber: string | null;
   customer: { name: string };
   order: { orderNumber: string } | null;
@@ -203,6 +210,23 @@ export function SalesInvoicePrintDocument({
   invoice: PrintableSalesInvoice;
   generatedOn: string;
 }) {
+  const [qrImage, setQrImage] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    const value = invoice.signedQrCode;
+    if (!value) {
+      setQrImage(null);
+      return () => { active = false; };
+    }
+    if (value.startsWith('data:image/')) {
+      setQrImage(value);
+      return () => { active = false; };
+    }
+    QRCode.toDataURL(value, { errorCorrectionLevel: 'M', margin: 0, width: 144 })
+      .then((dataUrl) => active && setQrImage(dataUrl))
+      .catch(() => active && setQrImage(null));
+    return () => { active = false; };
+  }, [invoice.signedQrCode]);
   const th: React.CSSProperties = {
     color: '#fff',
     fontSize: 9.5,
@@ -434,8 +458,18 @@ export function SalesInvoicePrintDocument({
                     </div>
                   )}
                   {(invoice.irn || invoice.eWayBillNumber) && (
-                    <div style={{ color: MUTED, marginTop: 18 }}>
-                      {invoice.irn && <div>IRN: {invoice.irn}</div>}
+                    <div className="print-avoid-break" style={{ color: MUTED, marginTop: 18 }}>
+                      {qrImage && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img alt="GST e-invoice signed QR code" src={qrImage} style={{ height: 112, marginBottom: 8, width: 112 }} />
+                      )}
+                      {invoice.irn && <div style={{ overflowWrap: 'anywhere' }}>IRN: {invoice.irn}</div>}
+                      {invoice.irnAcknowledgementNumber && (
+                        <div>Ack No.: {invoice.irnAcknowledgementNumber}</div>
+                      )}
+                      {invoice.irnAcknowledgementDate && (
+                        <div>Ack Date: {new Date(invoice.irnAcknowledgementDate).toLocaleString('en-IN')}</div>
+                      )}
                       {invoice.eWayBillNumber && (
                         <div>E-way bill: {invoice.eWayBillNumber}</div>
                       )}

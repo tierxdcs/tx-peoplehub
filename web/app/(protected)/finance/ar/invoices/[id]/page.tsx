@@ -26,6 +26,7 @@ import {
 } from '../../../../../components/ui/table';
 import { useToast } from '../../../../../components/ui/toaster';
 import { SalesInvoicePrintDocument } from '../_components/sales-invoice-print-document';
+import { ManualIrnDialog } from '../_components/manual-irn-dialog';
 
 interface Person {
   firstName: string;
@@ -84,6 +85,9 @@ interface InvoiceDetail {
   approvedAt: string | null;
   issuedAt: string | null;
   irn: string | null;
+  irnAcknowledgementNumber: string | null;
+  irnAcknowledgementDate: string | null;
+  signedQrCode: string | null;
   eWayBillNumber: string | null;
   customer: { name: string };
   order: { orderNumber: string } | null;
@@ -137,6 +141,7 @@ export default function SalesInvoiceDetailPage() {
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
+  const [manualIrnOpen, setManualIrnOpen] = useState(false);
 
   const load = async () => {
     try {
@@ -237,6 +242,30 @@ export default function SalesInvoiceDetailPage() {
                     onClick={() => action('reject')}
                   >
                     Reject
+                  </Button>
+                </>
+              )}
+              {isAccountsHead && invoice.status === 'GST_PENDING' && invoice.gstSubmissions[0] && (
+                <>
+                  <Button
+                    disabled={acting}
+                    onClick={async () => {
+                      setActing(true);
+                      try {
+                        await apiFetch(`/finance/ar/gst-submissions/${invoice.gstSubmissions[0].id}/process`, { method: 'POST' });
+                        toast.success('GST e-invoice generated');
+                        await load();
+                      } catch (error) {
+                        toast.error(error instanceof ApiError ? error.message : 'Failed to generate GST e-invoice');
+                      } finally {
+                        setActing(false);
+                      }
+                    }}
+                  >
+                    Generate GST e-Invoice / IRN
+                  </Button>
+                  <Button variant="outline" onClick={() => setManualIrnOpen(true)}>
+                    Enter IRN manually
                   </Button>
                 </>
               )}
@@ -366,6 +395,8 @@ export default function SalesInvoiceDetailPage() {
                 />
                 <Detail label="Issued at" value={dateTime(invoice.issuedAt)} />
                 <Detail label="IRN" value={invoice.irn} />
+                <Detail label="IRN acknowledgement no." value={invoice.irnAcknowledgementNumber} />
+                <Detail label="IRN acknowledgement date" value={dateTime(invoice.irnAcknowledgementDate)} />
                 <Detail label="E-way bill" value={invoice.eWayBillNumber} />
                 <Detail
                   label="Latest GST submission"
@@ -415,6 +446,12 @@ export default function SalesInvoiceDetailPage() {
             </SCard>
           </div>
         </div>
+        <ManualIrnDialog
+          invoiceId={invoice.id}
+          open={manualIrnOpen}
+          onOpenChange={setManualIrnOpen}
+          onSaved={load}
+        />
       </SignalPage>
     </>
   );

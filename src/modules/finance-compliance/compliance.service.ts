@@ -345,6 +345,7 @@ export class ComplianceService {
           status: {
             in: [
               SalesInvoiceStatus.ISSUED,
+              SalesInvoiceStatus.E_INVOICE_GENERATED,
               SalesInvoiceStatus.PARTIALLY_PAID,
               SalesInvoiceStatus.OVERDUE,
             ],
@@ -782,6 +783,7 @@ export class ComplianceService {
       side === FinanceNoteSide.ACCOUNTS_RECEIVABLE
         ? [
             SalesInvoiceStatus.ISSUED,
+            SalesInvoiceStatus.E_INVOICE_GENERATED,
             SalesInvoiceStatus.PARTIALLY_PAID,
             SalesInvoiceStatus.OVERDUE,
           ]

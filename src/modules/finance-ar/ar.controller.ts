@@ -12,6 +12,7 @@ import {
   CreateMilestoneDto,
   CreateSalesInvoiceDto,
   GenerateEwayBillDto,
+  RecordManualIrnDto,
   RejectArDto,
 } from './dto/ar.dto';
 
@@ -96,6 +97,13 @@ export class ArController {
     @CurrentUser() u: AuthenticatedUser,
   ) {
     return this.ar.processGst(id, u);
+  }
+  @Post('invoices/:id/manual-irn') recordManualIrn(
+    @Param('id') id: string,
+    @Body() d: RecordManualIrnDto,
+    @CurrentUser() u: AuthenticatedUser,
+  ) {
+    return this.ar.recordManualIrn(id, d, u);
   }
   @Post('gst-submissions/:id/cancel') cancelGst(
     @Param('id') id: string,

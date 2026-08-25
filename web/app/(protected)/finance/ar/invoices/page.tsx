@@ -20,6 +20,7 @@ import { useNumberFormat } from '../../../../lib/number-format-context';
 import { cn } from '../../../../lib/utils';
 import { RegisterPagination } from '../../../../components/ui/register-pagination';
 import { serverPageCount } from '../../../../lib/server-pagination';
+import { ManualIrnDialog } from './_components/manual-irn-dialog';
 
 interface Customer {
   id: string;
@@ -55,6 +56,7 @@ export default function SalesInvoicesPage() {
     [invoices, setInvoices] = useState<Invoice[]>([]);
   const [page, setPage] = useState(1),
     [total, setTotal] = useState(0);
+  const [manualIrnInvoiceId, setManualIrnInvoiceId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState(''),
     [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10)),
     [dueDate, setDueDate] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
@@ -209,17 +211,22 @@ export default function SalesInvoicesPage() {
                         </>
                       )}
                       {isAccountsHead && i.status === 'GST_PENDING' && i.gstSubmissions[0] && (
-                        <Button
-                          className="whitespace-nowrap"
-                          size="sm"
-                          onClick={() =>
-                            apiFetch(`/finance/ar/gst-submissions/${i.gstSubmissions[0].id}/process`, { method: 'POST' })
-                              .then(load)
-                              .catch((e) => toast.error(e.message))
-                          }
-                        >
-                          Generate GST e-Invoice / IRN
-                        </Button>
+                        <>
+                          <Button
+                            className="whitespace-nowrap"
+                            size="sm"
+                            onClick={() =>
+                              apiFetch(`/finance/ar/gst-submissions/${i.gstSubmissions[0].id}/process`, { method: 'POST' })
+                                .then(load)
+                                .catch((e) => toast.error(e.message))
+                            }
+                          >
+                            Generate GST e-Invoice / IRN
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setManualIrnInvoiceId(i.id)}>
+                            Enter IRN manually
+                          </Button>
+                        </>
                       )}
                     </div>
                   </TableCell>
@@ -229,6 +236,14 @@ export default function SalesInvoicesPage() {
           </Table>
         </SCard>
         <RegisterPagination page={page} pageCount={serverPageCount(total, PAGE_SIZE)} onPageChange={setPage} />
+        {manualIrnInvoiceId && (
+          <ManualIrnDialog
+            invoiceId={manualIrnInvoiceId}
+            open
+            onOpenChange={(next) => !next && setManualIrnInvoiceId(null)}
+            onSaved={load}
+          />
+        )}
       </div>
     </SignalPage>
   );

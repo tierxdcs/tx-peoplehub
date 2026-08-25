@@ -25,6 +25,7 @@ import {
   CreateMilestoneDto,
   CreateSalesInvoiceDto,
   GenerateEwayBillDto,
+  RecordManualIrnDto,
 } from './dto/ar.dto';
 import { GstGatewayService } from './gst-gateway.service';
 
@@ -440,7 +441,7 @@ export class ArService {
     if (inv.creditOverrideApprovedById) return;
     const control = await this.prisma.customerCreditControl.findUnique({ where: { customerId: inv.customerId } });
     if (!control) return;
-    const open = await this.prisma.salesInvoice.findMany({ where: { customerId: inv.customerId, id: { not: inv.id }, status: { in: [SalesInvoiceStatus.ISSUED, SalesInvoiceStatus.PARTIALLY_PAID, SalesInvoiceStatus.OVERDUE] } } });
+    const open = await this.prisma.salesInvoice.findMany({ where: { customerId: inv.customerId, id: { not: inv.id }, status: { in: [SalesInvoiceStatus.ISSUED, SalesInvoiceStatus.E_INVOICE_GENERATED, SalesInvoiceStatus.PARTIALLY_PAID, SalesInvoiceStatus.OVERDUE] } } });
     const exposure = open.reduce((s, x) => s.plus(x.outstandingAmount.times(x.exchangeRateToInr)), new Prisma.Decimal(0));
     const proposed = exposure.plus(inv.totalAmount.times(inv.exchangeRateToInr));
     if (control.blockOnLimit && proposed.gt(control.creditLimitInr)) throw new BadRequestException(`Customer credit limit exceeded: proposed exposure INR ${proposed.toFixed(2)} exceeds INR ${control.creditLimitInr.toFixed(2)}. Finance Head override is required.`);
@@ -509,6 +510,7 @@ export class ArService {
     if (
       ![
         SalesInvoiceStatus.ISSUED,
+        SalesInvoiceStatus.E_INVOICE_GENERATED,
         SalesInvoiceStatus.PARTIALLY_PAID,
         SalesInvoiceStatus.PAID,
         SalesInvoiceStatus.OVERDUE,
@@ -654,6 +656,64 @@ export class ArService {
     }
   }
 
+  async recordManualIrn(
+    invoiceId: string,
+    dto: RecordManualIrnDto,
+    user: AuthenticatedUser,
+  ) {
+    await this.access.assertAccountsHead(user);
+    const invoice = await this.findInvoice(invoiceId);
+    if (invoice.status !== SalesInvoiceStatus.GST_PENDING)
+      throw new BadRequestException(
+        'Manual IRN entry is only available for GST-pending invoices',
+      );
+
+    const existingIrn = await this.prisma.salesInvoice.findFirst({
+      where: { irn: dto.irn, id: { not: invoiceId } },
+      select: { invoiceNumber: true },
+    });
+    if (existingIrn)
+      throw new BadRequestException(
+        `This IRN is already recorded against ${existingIrn.invoiceNumber}`,
+      );
+
+    const submission = invoice.gstSubmissions.find(
+      (entry: any) => entry.documentType === GstDocumentType.TAX_INVOICE,
+    );
+    if (!submission)
+      throw new BadRequestException(
+        'This invoice has no pending e-invoice submission record',
+      );
+
+    await this.prisma.$transaction([
+      this.prisma.gstSubmission.update({
+        where: { id: submission.id },
+        data: {
+          status: GstSubmissionStatus.SUCCEEDED,
+          responsePayload: {
+            source: 'MANUAL_IRP_ENTRY',
+            irn: dto.irn,
+            acknowledgementNumber: dto.acknowledgementNumber,
+            acknowledgementDate: dto.acknowledgementDate,
+          },
+          errorCode: null,
+          errorMessage: null,
+          lastAttemptAt: new Date(),
+        },
+      }),
+      this.prisma.salesInvoice.update({
+        where: { id: invoiceId },
+        data: {
+          irn: dto.irn,
+          irnAcknowledgementNumber: dto.acknowledgementNumber.trim(),
+          irnAcknowledgementDate: new Date(dto.acknowledgementDate),
+          signedQrCode: dto.signedQrCode,
+        },
+      }),
+    ]);
+    return this.issueAndPost(invoiceId, user.id);
+  }
+
   async cancelGst(submissionId: string, reason: string, user: AuthenticatedUser) {
     await this.access.assertAccountsHead(user);
     if (!reason?.trim()) throw new BadRequestException('A GST cancellation reason is required');
@@ -686,6 +746,7 @@ export class ArService {
     });
     const openStatuses = new Set<SalesInvoiceStatus>([
       SalesInvoiceStatus.ISSUED,
+      SalesInvoiceStatus.E_INVOICE_GENERATED,
       SalesInvoiceStatus.PARTIALLY_PAID,
       SalesInvoiceStatus.OVERDUE,
     ]);
@@ -816,6 +877,7 @@ export class ArService {
             status: {
               in: [
                 SalesInvoiceStatus.ISSUED,
+                SalesInvoiceStatus.E_INVOICE_GENERATED,
                 SalesInvoiceStatus.PARTIALLY_PAID,
                 SalesInvoiceStatus.PAID,
                 SalesInvoiceStatus.OVERDUE,
@@ -830,6 +892,7 @@ export class ArService {
             status: {
               in: [
                 SalesInvoiceStatus.ISSUED,
+                SalesInvoiceStatus.E_INVOICE_GENERATED,
                 SalesInvoiceStatus.PARTIALLY_PAID,
                 SalesInvoiceStatus.PAID,
                 SalesInvoiceStatus.OVERDUE,
@@ -964,7 +1027,9 @@ export class ArService {
       return tx.salesInvoice.update({
         where: { id },
         data: {
-          status: SalesInvoiceStatus.ISSUED,
+          status: inv.irn
+            ? SalesInvoiceStatus.E_INVOICE_GENERATED
+            : SalesInvoiceStatus.ISSUED,
           approvedById: approverId,
           approvedAt: inv.approvedAt ?? new Date(),
           issuedAt: new Date(),

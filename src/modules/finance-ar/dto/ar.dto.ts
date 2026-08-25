@@ -5,6 +5,7 @@ import {
   IsArray,
   IsDateString,
   IsInt,
+  MaxLength,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -181,4 +182,27 @@ export class GenerateEwayBillDto {
   @ApiProperty() @IsDateString() transportDocumentDate!: string;
   @ApiPropertyOptional() @IsOptional() @IsString() vehicleNumber?: string;
   @ApiProperty() @Type(() => Number) @IsInt() @Min(1) distanceKm!: number;
+}
+
+export class RecordManualIrnDto {
+  @ApiProperty({ description: '64-character IRP Invoice Reference Number' })
+  @IsString()
+  @Length(64, 64)
+  @Matches(/^[A-Fa-f0-9]{64}$/, { message: 'IRN must contain exactly 64 hexadecimal characters' })
+  irn!: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  acknowledgementNumber!: string;
+
+  @ApiProperty()
+  @IsDateString()
+  acknowledgementDate!: string;
+
+  @ApiProperty({ description: 'Signed QR payload returned by IRP, or a QR image data URL' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(350000)
+  signedQrCode!: string;
 }
