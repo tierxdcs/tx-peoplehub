@@ -13,14 +13,38 @@ import { useToast } from '../../../../../components/ui/toaster';
 import { VoucherShell } from '../../_components/voucher-shell';
 import { PartyPicker } from '../../_components/party-picker';
 
-interface Customer {
+interface OrderCustomer {
   id: string;
   name: string;
   gstin: string | null;
 }
 
+interface OrderReference {
+  id: string;
+  orderNumber: string;
+  orderType: 'CUSTOMER' | 'INTERNAL';
+  status: string;
+  customerId: string | null;
+  customer: OrderCustomer | null;
+  lineItems: Array<{
+    productId: string | null;
+    adHocProductName: string | null;
+    adHocDescription: string | null;
+    quantity: string;
+    unitPrice: string;
+    product: {
+      name: string;
+      description: string | null;
+      sku: string;
+      hsnCode: string | null;
+      unitOfMeasure: string;
+    } | null;
+  }>;
+}
+
 interface VoucherLine {
   id: string;
+  productId: string | null;
   description: string;
   hsnSacCode: string;
   quantity: string;
@@ -32,6 +56,7 @@ interface VoucherLine {
 function newLine(): VoucherLine {
   return {
     id: crypto.randomUUID(),
+    productId: null,
     description: '',
     hsnSacCode: '',
     quantity: '1',
@@ -59,7 +84,8 @@ export default function NewSalesVoucherPage() {
   const router = useRouter();
   const toast = useToast();
   const { style: numberFormatStyle } = useNumberFormat();
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [orders, setOrders] = useState<OrderReference[]>([]);
+  const [orderId, setOrderId] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(
@@ -75,9 +101,18 @@ export default function NewSalesVoucherPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    apiFetch<Customer[]>('/finance/ar/reference/customers')
-      .then(setCustomers)
-      .catch(() => toast.error('Failed to load customers'));
+    apiFetch<OrderReference[]>('/finance/ar/reference/orders')
+      .then((rows) =>
+        setOrders(
+          rows.filter(
+            (order) =>
+              order.orderType === 'CUSTOMER' &&
+              order.status !== 'CANCELLED' &&
+              !!order.customerId,
+          ),
+        ),
+      )
+      .catch(() => toast.error('Failed to load customer orders'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -113,6 +148,7 @@ export default function NewSalesVoucherPage() {
       Number(line.discountPercent) <= 100,
   );
   const balanced =
+    !!orderId &&
     !!customerId &&
     lines.length > 0 &&
     linesValid &&
@@ -129,6 +165,36 @@ export default function NewSalesVoucherPage() {
         line.id === id ? { ...line, [field]: value } : line,
       ),
     );
+  }
+
+  function selectOrder(id: string) {
+    const order = orders.find((candidate) => candidate.id === id);
+    if (!order || !order.customerId) return;
+
+    setOrderId(order.id);
+    setCustomerId(order.customerId);
+    setLines(
+      order.lineItems.length > 0
+        ? order.lineItems.map((line) => ({
+            id: crypto.randomUUID(),
+            productId: line.productId,
+            description:
+              line.product?.name ??
+              line.adHocProductName ??
+              line.adHocDescription ??
+              '',
+            hsnSacCode: line.product?.hsnCode ?? '',
+            quantity: String(line.quantity),
+            unitOfMeasure: line.product?.unitOfMeasure ?? 'NOS',
+            unitPrice: String(line.unitPrice),
+            discountPercent: '0',
+          }))
+        : [newLine()],
+    );
+
+    if (order.lineItems.length === 0) {
+      toast.error('This order has no line items to invoice.');
+    }
   }
 
   function removeLine(id: string) {
@@ -148,12 +214,14 @@ export default function NewSalesVoucherPage() {
         method: 'POST',
         body: JSON.stringify({
           customerId,
+          orderId,
           invoiceDate: date,
           dueDate,
           currencyCode: 'INR',
           placeOfSupplyState: state,
           placeOfSupplyStateCode: stateCode,
           lines: lines.map((line) => ({
+            productId: line.productId ?? undefined,
             description: line.description.trim(),
             hsnSacCode: line.hsnSacCode.trim(),
             quantity: Number(line.quantity),
@@ -208,16 +276,16 @@ export default function NewSalesVoucherPage() {
       onSubmitForApproval={() => void create(true)}
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Party (Customer)" required>
+        <Field label="Order ID" required>
           <PartyPicker
-            options={customers.map((c) => ({
-              id: c.id,
-              label: c.name,
-              sublabel: c.gstin ?? undefined,
+            options={orders.map((order) => ({
+              id: order.id,
+              label: order.orderNumber,
+              sublabel: order.customer?.name ?? undefined,
             }))}
-            value={customerId}
-            onChange={setCustomerId}
-            placeholder="Search customers…"
+            value={orderId}
+            onChange={selectOrder}
+            placeholder="Search order ID or customer…"
           />
         </Field>
         <Field label="Due Date" required>
@@ -225,6 +293,15 @@ export default function NewSalesVoucherPage() {
             type="date"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
+          />
+        </Field>
+        <Field label="Party (Customer)">
+          <Input
+            readOnly
+            value={
+              orders.find((order) => order.id === orderId)?.customer?.name ?? ''
+            }
+            placeholder="Selected automatically from the order"
           />
         </Field>
       </div>
