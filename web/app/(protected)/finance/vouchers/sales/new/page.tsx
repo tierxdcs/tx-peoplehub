@@ -10,9 +10,23 @@ import { Input } from '../../../../../components/ui/input';
 import { Textarea } from '../../../../../components/ui/textarea';
 import { Field } from '../../../../../components/ui/field';
 import { Button } from '../../../../../components/ui/button';
+import {
+  Callout,
+  SCard,
+  SCardTitle,
+  SIGNAL_HAIRLINE,
+  SIGNAL_ROW_DIVIDER,
+  SIGNAL_TABLE_HEAD,
+  SummaryRow,
+} from '../../../../../components/ui/signal';
+import { cn } from '../../../../../lib/utils';
 import { useToast } from '../../../../../components/ui/toaster';
 import { VoucherShell } from '../../_components/voucher-shell';
 import { PartyPicker } from '../../_components/party-picker';
+
+/** Shared column template for the line-item table header + body rows. */
+const LINE_GRID =
+  'grid grid-cols-[26px_minmax(240px,1.7fr)_110px_84px_80px_112px_78px_120px_32px] gap-2.5 px-5';
 
 interface OrderCustomer {
   id: string;
@@ -188,17 +202,17 @@ export default function NewSalesVoucherPage() {
               line.adHocDescription ??
               '';
             return {
-            id: crypto.randomUUID(),
-            productId: line.productId,
-            description: line.customerFacingDescription
-              ? `${facingName}\n${line.customerFacingDescription}`
-              : facingName,
-            hsnSacCode: line.product?.hsnCode ?? '',
-            quantity: String(line.quantity),
-            unitOfMeasure: line.product?.unitOfMeasure ?? 'NOS',
-            unitPrice: String(line.unitPrice),
-            discountPercent: '0',
-          };
+              id: crypto.randomUUID(),
+              productId: line.productId,
+              description: line.customerFacingDescription
+                ? `${facingName}\n${line.customerFacingDescription}`
+                : facingName,
+              hsnSacCode: line.product?.hsnCode ?? '',
+              quantity: String(line.quantity),
+              unitOfMeasure: line.product?.unitOfMeasure ?? 'NOS',
+              unitPrice: String(line.unitPrice),
+              discountPercent: '0',
+            };
           })
         : [newLine()],
     );
@@ -285,129 +299,134 @@ export default function NewSalesVoucherPage() {
       submitting={submitting}
       onSaveDraft={() => void create(false)}
       onSubmitForApproval={() => void create(true)}
-    >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Order ID" required>
-          <PartyPicker
-            options={orders.map((order) => ({
-              id: order.id,
-              label: order.orderNumber,
-              sublabel: order.customer?.name ?? undefined,
-            }))}
-            value={orderId}
-            onChange={selectOrder}
-            placeholder="Search order ID or customer…"
-          />
-        </Field>
-        <Field label="Due Date" required>
-          <Input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-          />
-        </Field>
-        <Field label="Party (Customer)">
-          <Input
-            readOnly
-            value={
-              orders.find((order) => order.id === orderId)?.customer?.name ?? ''
-            }
-            placeholder="Selected automatically from the order"
-          />
-        </Field>
-      </div>
-
-      <div className="rounded-md border p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="text-sm font-medium text-muted-foreground">
-            Line items
-          </h3>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setLines((current) => [...current, newLine()])}
-          >
-            <Plus className="mr-1 size-4" /> Add line
-          </Button>
-        </div>
-        <div className="space-y-4">
-          {lines.map((line, index) => {
-            const amount = amounts[index];
-            return (
-              <div key={line.id} className="rounded-md border bg-muted/20 p-3">
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="text-sm font-semibold">
-                    Item {index + 1}
-                  </span>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    disabled={lines.length === 1}
-                    aria-label={`Remove item ${index + 1}`}
-                    onClick={() => removeLine(line.id)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+      summary={
+        <SCard className="px-5 py-[18px]">
+          <SCardTitle title="Voucher summary" />
+          <div className="mt-3.5 flex flex-col">
+            <SummaryRow
+              label="Subtotal"
+              value={formatINR(subtotal, numberFormatStyle)}
+            />
+            <SummaryRow
+              label="Discount"
+              value={`−${formatINR(discountAmount, numberFormatStyle)}`}
+            />
+            <SummaryRow
+              label="Taxable"
+              value={formatINR(taxableAmount, numberFormatStyle)}
+            />
+            <SummaryRow
+              label={`GST (${numericIgstRate + numericCgstRate + numericSgstRate}%)`}
+              value={formatINR(gstAmount, numberFormatStyle)}
+            />
+            <div className="flex items-baseline justify-between gap-3 pt-3">
+              <span className="text-[12.5px] font-semibold">Total</span>
+              <span className="text-2xl font-bold tabular-nums tracking-[-1px]">
+                {formatINR(total, numberFormatStyle)}
+              </span>
+            </div>
+          </div>
+        </SCard>
+      }
+      sections={
+        <>
+          {/* Line items — aligned table (Signal form exemplar) */}
+          <SCard className="overflow-hidden">
+            <div className="flex flex-wrap items-center gap-2.5 px-5 pb-3.5 pt-[18px]">
+              <span className="text-[14px] font-bold">Line items</span>
+              <span className="rounded-full bg-black/10 px-2 py-[3px] text-[10.5px] font-semibold text-black/65 dark:bg-white/[.08] dark:text-white/60">
+                {lines.length} {lines.length === 1 ? 'line' : 'lines'}
+              </span>
+              <span className="ml-auto text-[11.5px] text-black/40 dark:text-white/35">
+                Amounts in ₹
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="min-w-[1000px]">
+                <div
+                  className={cn(
+                    LINE_GRID,
+                    SIGNAL_TABLE_HEAD,
+                    'items-center py-[9px]',
+                  )}
+                >
+                  <span>#</span>
+                  <span>Description</span>
+                  <span>HSN/SAC</span>
+                  <span className="text-right">Qty</span>
+                  <span>UOM</span>
+                  <span className="text-right">Unit price</span>
+                  <span className="text-right">Disc %</span>
+                  <span className="text-right">Taxable</span>
+                  <span />
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Field label="Description" required>
+                {lines.map((line, index) => (
+                  <div
+                    key={line.id}
+                    className={cn(
+                      LINE_GRID,
+                      'items-start pb-3 pt-[11px]',
+                      index > 0 && 'border-t',
+                      index > 0 && SIGNAL_ROW_DIVIDER,
+                    )}
+                  >
+                    <span className="pt-2 text-[11.5px] font-semibold tabular-nums text-black/40 dark:text-white/35">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
                     {/* Textarea, not Input: order-seeded descriptions put the
-                        customer-facing description on its own line under the
-                        name, and that newline prints on the invoice. */}
+                          customer-facing description on its own line under the
+                          name, and that newline prints on the invoice. */}
                     <Textarea
+                      aria-label="Description"
                       rows={2}
                       value={line.description}
                       onChange={(event) =>
                         updateLine(line.id, 'description', event.target.value)
                       }
                     />
-                  </Field>
-                  <Field label="HSN/SAC" required>
                     <Input
+                      aria-label="HSN/SAC"
                       value={line.hsnSacCode}
                       onChange={(event) =>
                         updateLine(line.id, 'hsnSacCode', event.target.value)
                       }
                     />
-                  </Field>
-                  <Field label="Quantity" required>
                     <Input
+                      aria-label="Quantity"
                       type="number"
                       min={0.0001}
                       step="0.0001"
+                      className="text-right tabular-nums"
                       value={line.quantity}
                       onChange={(event) =>
                         updateLine(line.id, 'quantity', event.target.value)
                       }
                     />
-                  </Field>
-                  <Field label="UOM" required>
                     <Input
+                      aria-label="UOM"
                       value={line.unitOfMeasure}
                       onChange={(event) =>
                         updateLine(line.id, 'unitOfMeasure', event.target.value)
                       }
                     />
-                  </Field>
-                  <Field label="Unit Price" required>
                     <Input
+                      aria-label="Unit price"
                       type="number"
                       min={0}
                       step="0.01"
+                      className="text-right tabular-nums"
                       value={line.unitPrice}
                       onChange={(event) =>
                         updateLine(line.id, 'unitPrice', event.target.value)
                       }
                     />
-                  </Field>
-                  <Field label="Discount %">
                     <Input
+                      aria-label="Discount %"
                       type="number"
                       min={0}
                       max={100}
                       step="0.01"
+                      className="text-right tabular-nums"
                       value={line.discountPercent}
                       onChange={(event) =>
                         updateLine(
@@ -417,88 +436,124 @@ export default function NewSalesVoucherPage() {
                         )
                       }
                     />
-                  </Field>
-                </div>
-                <div className="mt-3 flex justify-end border-t pt-3 text-xs text-muted-foreground">
-                  <strong className="text-foreground">
-                    Taxable line value:{' '}
-                    {formatINR(amount.taxable, numberFormatStyle)}
-                  </strong>
-                </div>
+                    <div className="pt-2 text-right text-[13px] font-bold tabular-nums">
+                      {formatINR(amounts[index].taxable, numberFormatStyle)}
+                    </div>
+                    {lines.length > 1 ? (
+                      <button
+                        type="button"
+                        aria-label={`Remove item ${index + 1}`}
+                        onClick={() => removeLine(line.id)}
+                        className="mt-1 grid size-8 place-items-center justify-self-center rounded-md text-black/35 hover:bg-black/5 hover:text-black/70 dark:text-white/35 dark:hover:bg-white/5 dark:hover:text-white/70"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    ) : (
+                      <span />
+                    )}
+                  </div>
+                ))}
               </div>
-            );
-          })}
-        </div>
-        <div className="mt-4 rounded-md border bg-muted/20 p-3">
-          <div className="mb-3">
-            <h4 className="text-sm font-semibold">Overall GST</h4>
+            </div>
+            <div
+              className={cn(
+                'flex flex-wrap items-center gap-2.5 border-t bg-black/[.02] px-5 py-3 dark:bg-white/[.02]',
+                SIGNAL_HAIRLINE,
+              )}
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setLines((current) => [...current, newLine()])}
+              >
+                <Plus className="mr-1 size-4" /> Add line
+              </Button>
+            </div>
+          </SCard>
+
+          {/* GST — invoice-level rates applied to the combined taxable value */}
+          <SCard className="px-5 py-[18px]">
+            <SCardTitle title="GST" />
             <p className="mt-1 text-xs text-muted-foreground">
               These rates are applied once to the combined taxable value of all
               line items.
             </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="IGST %">
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                step="0.01"
-                value={igstRate}
-                onChange={(event) => setIgstRate(event.target.value)}
-              />
-            </Field>
-            <Field label="CGST %">
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                step="0.01"
-                value={cgstRate}
-                onChange={(event) => setCgstRate(event.target.value)}
-              />
-            </Field>
-            <Field label="SGST %">
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                step="0.01"
-                value={sgstRate}
-                onChange={(event) => setSgstRate(event.target.value)}
-              />
-            </Field>
-          </div>
-        </div>
-        {mixedGst && (
-          <div className="mt-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
-            IGST is combined with CGST/SGST on this invoice. A supply is either
-            inter-state (IGST alone) or intra-state (CGST + SGST) — using both
-            is usually a GST filing error. You can still save if this is
-            intentional.
-          </div>
-        )}
-        <div className="mt-4 flex flex-wrap justify-end gap-6 border-t pt-3 text-sm">
-          <span>
-            Subtotal: <strong>{formatINR(subtotal, numberFormatStyle)}</strong>
-          </span>
-          <span>
-            Discount:{' '}
-            <strong>{formatINR(discountAmount, numberFormatStyle)}</strong>
-          </span>
-          <span>
-            Taxable:{' '}
-            <strong>{formatINR(taxableAmount, numberFormatStyle)}</strong>
-          </span>
-          <span>
-            GST: <strong>{formatINR(gstAmount, numberFormatStyle)}</strong>
-          </span>
-          <span>
-            Total: <strong>{formatINR(total, numberFormatStyle)}</strong>
-          </span>
-        </div>
-      </div>
-
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <Field label="IGST %">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  className="text-right tabular-nums"
+                  value={igstRate}
+                  onChange={(event) => setIgstRate(event.target.value)}
+                />
+              </Field>
+              <Field label="CGST %">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  className="text-right tabular-nums"
+                  value={cgstRate}
+                  onChange={(event) => setCgstRate(event.target.value)}
+                />
+              </Field>
+              <Field label="SGST %">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  className="text-right tabular-nums"
+                  value={sgstRate}
+                  onChange={(event) => setSgstRate(event.target.value)}
+                />
+              </Field>
+            </div>
+            {mixedGst && (
+              <Callout>
+                IGST is combined with CGST/SGST on this invoice. A supply is
+                either inter-state (IGST alone) or intra-state (CGST + SGST) —
+                using both is usually a GST filing error. You can still save if
+                this is intentional.
+              </Callout>
+            )}
+          </SCard>
+        </>
+      }
+    >
+      <Field label="Order ID" required>
+        <PartyPicker
+          options={orders.map((order) => ({
+            id: order.id,
+            label: order.orderNumber,
+            sublabel: order.customer?.name ?? undefined,
+          }))}
+          value={orderId}
+          onChange={selectOrder}
+          placeholder="Search order ID or customer…"
+        />
+      </Field>
+      <Field label="Due Date" required>
+        <Input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+        />
+      </Field>
+      <Field label="Party (Customer)">
+        <Input
+          readOnly
+          value={
+            orders.find((order) => order.id === orderId)?.customer?.name ?? ''
+          }
+          placeholder="Selected automatically from the order"
+        />
+      </Field>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Place of Supply (State)" required>
           <Input value={state} onChange={(e) => setState(e.target.value)} />
@@ -506,6 +561,7 @@ export default function NewSalesVoucherPage() {
         <Field label="State Code" required>
           <Input
             maxLength={2}
+            className="tabular-nums"
             value={stateCode}
             onChange={(e) => setStateCode(e.target.value)}
           />

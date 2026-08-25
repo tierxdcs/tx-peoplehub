@@ -112,11 +112,14 @@
       "Read(//Users/nithin/Documents/GitHub/tx-peoplehub/web/app/app/\\\\\\(protected\\\\\\)/vault/_components/**)",
       "Bash(echo \"audit done, exit=$?\")",
       "Bash(git -C /Users/nithin/Documents/GitHub/tx-peoplehub log --oneline -3)",
-      "Bash(cd web *)"
+      "Bash(cd web *)",
+      "Bash(grep -n \"xl:grid-cols-\\\\|xl:sticky\\\\|SummaryRow\\\\|SIGNAL_BTN\\\\|form=\\\\|FORM_ID\\\\|SignalHeader\" \"app/\\(protected\\)/sales/bids/new/page.tsx\" | head -30; echo === ; sed -n '/xl:sticky/,/^          <\\\\/SCard>/p' \"app/\\(protected\\)/sales/bids/new/page.tsx\" | head -70)",
+      "Bash(npx prettier *)"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",
-      "/Users/nithin/Documents/GitHub/tx-peoplehub/app/(protected)/sales/orders/[id]"
+      "/Users/nithin/Documents/GitHub/tx-peoplehub/app/(protected)/sales/orders/[id]",
+      "/Users/nithin/Documents/GitHub/tx-peoplehub/web/app/(protected)/sales/bids/new"
     ]
   }
 }

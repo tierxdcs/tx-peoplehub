@@ -90,7 +90,12 @@ audit for unpaired tokens:
   Purchase Vouchers, Receipts, Payments, Credit & Debit Notes, Journals,
   Contra, Expense Claims, and the shared VoucherShell (covers all six
   voucher-entry forms). Convention set here: voucher/document numbers use the
-  app font + tabular-nums, not a mono face.
+  app font + tabular-nums, not a mono face. VoucherShell has two layouts:
+  compact (one centred card — Receipt, Payment, Contra, Journal, Purchase) and
+  wide, enabled by passing `summary`, which switches to the form exemplar
+  (`[1fr_316px]` grid, sticky totals rail, actions in the header, `sections` as
+  full-bleed cards). Sales Voucher uses wide because it has a real line-item
+  table — stacked "Item N" sub-cards inside the compact card read as clutter.
 - ✅ Leave & Attendance (admin) — Leave Approvals queue, Attendance Corrections.
   NOTE: /leave, /attendance, /team/leave-approvals, /team/attendance are thin
   routes around dual-mode `_sections/*` components that also render as profile
