@@ -170,7 +170,7 @@ export default function SalesInvoicesPage() {
                 <TableHead>Total</TableHead>
                 <TableHead>Outstanding</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
+                <TableHead className="min-w-[18rem]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -188,37 +188,40 @@ export default function SalesInvoicesPage() {
                   <TableCell className="tabular-nums">{formatINR(i.totalAmount, numberFormatStyle)}</TableCell>
                   <TableCell className="tabular-nums">{formatINR(i.outstandingAmount, numberFormatStyle)}</TableCell>
                   <TableCell>{i.status.replaceAll('_', ' ')}</TableCell>
-                  <TableCell className="space-x-1">
-                    <Link className={cn(buttonVariants({ size: 'sm', variant: 'outline' }))} href={`/finance/ar/invoices/${i.id}`}>
-                      View
-                    </Link>
-                    {(i.status === 'DRAFT' || i.status === 'REJECTED') && (
-                      <Button size="sm" variant="outline" onClick={() => action(i.id, 'submit')}>
-                        Submit
-                      </Button>
-                    )}
-                    {isAccountsHead && i.status === 'PENDING_APPROVAL' && (
-                      <>
-                        <Button size="sm" onClick={() => action(i.id, 'approve')}>
-                          Approve
+                  <TableCell className="min-w-[18rem]">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Link className={cn(buttonVariants({ size: 'sm', variant: 'outline' }))} href={`/finance/ar/invoices/${i.id}`}>
+                        View
+                      </Link>
+                      {(i.status === 'DRAFT' || i.status === 'REJECTED') && (
+                        <Button size="sm" variant="outline" onClick={() => action(i.id, 'submit')}>
+                          Submit
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => action(i.id, 'reject', { comment: window.prompt('Reason') || '' })}>
-                          Reject
+                      )}
+                      {isAccountsHead && i.status === 'PENDING_APPROVAL' && (
+                        <>
+                          <Button size="sm" onClick={() => action(i.id, 'approve')}>
+                            Approve
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => action(i.id, 'reject', { comment: window.prompt('Reason') || '' })}>
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                      {isAccountsHead && i.status === 'GST_PENDING' && i.gstSubmissions[0] && (
+                        <Button
+                          className="whitespace-nowrap"
+                          size="sm"
+                          onClick={() =>
+                            apiFetch(`/finance/ar/gst-submissions/${i.gstSubmissions[0].id}/process`, { method: 'POST' })
+                              .then(load)
+                              .catch((e) => toast.error(e.message))
+                          }
+                        >
+                          Generate GST e-Invoice / IRN
                         </Button>
-                      </>
-                    )}
-                    {isAccountsHead && i.status === 'GST_PENDING' && i.gstSubmissions[0] && (
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          apiFetch(`/finance/ar/gst-submissions/${i.gstSubmissions[0].id}/process`, { method: 'POST' })
-                            .then(load)
-                            .catch((e) => toast.error(e.message))
-                        }
-                      >
-                        Send GST
-                      </Button>
-                    )}
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
