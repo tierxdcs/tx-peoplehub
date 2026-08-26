@@ -433,6 +433,25 @@ export class EmployeesController {
     return this.employeesService.revokeDesignHead(id);
   }
 
+  @Patch(':id/designate-scm-head')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Designate the sole SCM Head and assign them as SCM vertical owner',
+  })
+  designateScmHead(@Param('id') id: string) {
+    return this.employeesService.designateScmHead(id);
+  }
+
+  @Patch(':id/revoke-scm-head')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Revoke SCM Head and clear their SCM vertical ownership',
+  })
+  revokeScmHead(@Param('id') id: string) {
+    return this.employeesService.revokeScmHead(id);
+  }
+
   @Patch(':id/reset-password')
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
   @ApiOperation({

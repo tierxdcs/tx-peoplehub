@@ -1091,6 +1091,71 @@ export class EmployeesService {
   }
 
   /**
+   * Designate the sole SCM Head and make that same employee the SCM vertical
+   * owner. Both writes happen in one transaction so approval routing and the
+   * visible designation cannot disagree.
+   */
+  async designateScmHead(id: string): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (target.status !== EmployeeStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Only an active employee can be designated as SCM Head',
+      );
+    }
+
+    const scmVertical = await this.prisma.vertical.findFirst({
+      where: { code: { equals: 'SCM', mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (!scmVertical) {
+      throw new BadRequestException('The SCM vertical is not configured');
+    }
+    if (target.verticalId !== scmVertical.id) {
+      throw new BadRequestException(
+        'Only an employee in the SCM vertical can be designated as SCM Head',
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.employee.updateMany({
+        where: { isScmHead: true, id: { not: id } },
+        data: { isScmHead: false },
+      });
+      const employee = await tx.employee.update({
+        where: { id },
+        data: { isScmHead: true },
+      });
+      await tx.vertical.update({
+        where: { id: scmVertical.id },
+        data: { ownerId: id },
+      });
+      return employee;
+    });
+    return this.toEntity(updated);
+  }
+
+  async revokeScmHead(id: string): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (!target.isScmHead) return this.toEntity(target);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const employee = await tx.employee.update({
+        where: { id },
+        data: { isScmHead: false },
+      });
+      await tx.vertical.updateMany({
+        where: {
+          code: { equals: 'SCM', mode: 'insensitive' },
+          ownerId: id,
+        },
+        data: { ownerId: null },
+      });
+      return employee;
+    });
+    return this.toEntity(updated);
+  }
+
+  /**
    * Designate / revoke a Scrum Master. Unlike Sales Head, MULTIPLE holders are
    * allowed (company-wide capability), so this is a simple per-employee flag
    * set — no "unset others" step.
@@ -1728,6 +1793,7 @@ export class EmployeesService {
       isQmsHead: employee.isQmsHead,
       isDesignHead: employee.isDesignHead,
       isProductionHead: employee.isProductionHead,
+      isScmHead: employee.isScmHead,
       isRdHead: employee.isRdHead,
       isAccountsHead: employee.isAccountsHead,
       officialEmail: employee.officialEmail,

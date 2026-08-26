@@ -109,6 +109,12 @@ export class EmployeeEntity {
 
   @ApiProperty({
     description:
+      'Whether this employee is the sole SCM Head and SCM vertical owner',
+  })
+  isScmHead!: boolean;
+
+  @ApiProperty({
+    description:
       'Whether this employee is a designated R&D Head (technical BOM approval authority)',
   })
   isRdHead!: boolean;

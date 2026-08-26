@@ -493,6 +493,11 @@ model Employee {
   /// allowed; MANAGER-or-above only. SUPER_ADMIN is implicit in PLM access.
   isProductionHead Boolean @default(false)
 
+  /// Sole SCM Head capability and SCM vertical ownership designation. Assigned
+  /// only by SUPER_ADMIN; designation atomically replaces the previous holder
+  /// and sets the SCM Vertical.ownerId to the same employee.
+  isScmHead Boolean @default(false)
+
   /// Internal e-signature (a display layer, NOT a legally-binding e-sign).
   /// Self-service typed text rendered in a chosen signature-style font;
   /// snapshotted onto approval records at approval time.

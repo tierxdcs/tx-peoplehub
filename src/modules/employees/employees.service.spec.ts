@@ -82,6 +82,7 @@ describe('EmployeesService', () => {
       },
       vertical: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
       },
       salaryStructure: {
         findUnique: jest.fn(),
@@ -371,6 +372,85 @@ describe('EmployeesService', () => {
         data: { isAccountsHead: false },
       });
       expect(result.isAccountsHead).toBe(true);
+    });
+  });
+
+  describe('SCM Head designation', () => {
+    const scmVertical = { id: 'v-scm', code: 'SCM' };
+
+    it('rejects an employee outside the SCM vertical', async () => {
+      prisma.employee.findUnique.mockResolvedValue({
+        ...employee,
+        verticalId: salesVertical.id,
+        isScmHead: false,
+      });
+      prisma.vertical.findFirst.mockResolvedValue(scmVertical);
+
+      await expect(service.designateScmHead(employee.id)).rejects.toThrow(
+        'Only an employee in the SCM vertical can be designated as SCM Head',
+      );
+    });
+
+    it('atomically replaces the holder and assigns the SCM vertical owner', async () => {
+      const target = {
+        ...employee,
+        verticalId: scmVertical.id,
+        isScmHead: false,
+      };
+      const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      const update = jest
+        .fn()
+        .mockResolvedValue({ ...target, isScmHead: true });
+      const verticalUpdate = jest.fn().mockResolvedValue({
+        ...scmVertical,
+        ownerId: employee.id,
+      });
+      prisma.employee.findUnique.mockResolvedValue(target);
+      prisma.vertical.findFirst.mockResolvedValue(scmVertical);
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          employee: { updateMany, update },
+          vertical: { update: verticalUpdate },
+        }),
+      );
+
+      const result = await service.designateScmHead(employee.id);
+
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { isScmHead: true, id: { not: employee.id } },
+        data: { isScmHead: false },
+      });
+      expect(verticalUpdate).toHaveBeenCalledWith({
+        where: { id: scmVertical.id },
+        data: { ownerId: employee.id },
+      });
+      expect(result.isScmHead).toBe(true);
+    });
+
+    it('revokes the capability and clears SCM ownership held by that employee', async () => {
+      const target = { ...employee, isScmHead: true };
+      const update = jest
+        .fn()
+        .mockResolvedValue({ ...target, isScmHead: false });
+      const verticalUpdateMany = jest.fn().mockResolvedValue({ count: 1 });
+      prisma.employee.findUnique.mockResolvedValue(target);
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          employee: { update },
+          vertical: { updateMany: verticalUpdateMany },
+        }),
+      );
+
+      const result = await service.revokeScmHead(employee.id);
+
+      expect(verticalUpdateMany).toHaveBeenCalledWith({
+        where: {
+          code: { equals: 'SCM', mode: 'insensitive' },
+          ownerId: employee.id,
+        },
+        data: { ownerId: null },
+      });
+      expect(result.isScmHead).toBe(false);
     });
   });
 

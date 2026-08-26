@@ -26,6 +26,7 @@ export interface Employee {
   isProjectManager: boolean;
   isInternalAuditor: boolean;
   isProductionHead: boolean;
+  isScmHead: boolean;
   isQcInspector: boolean;
   isQmsHead: boolean;
   isDesignHead: boolean;

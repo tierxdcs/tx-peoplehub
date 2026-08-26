@@ -418,6 +418,34 @@ export default function EditEmployeePage() {
     }
   }
 
+  async function setScmHead(next: boolean) {
+    if (!employee) return;
+    const ok = await confirm({
+      title: next ? 'Designate SCM Head' : 'Revoke SCM Head',
+      description: next
+        ? `Designate ${employee.firstName} ${employee.lastName} as the sole SCM Head and SCM vertical owner? Any existing SCM Head will be replaced.`
+        : 'This will also clear this employee as the SCM vertical owner. Assign a replacement to restore SCM owner-based routing.',
+      confirmLabel: next ? 'Designate' : 'Revoke',
+      destructive: !next,
+    });
+    if (!ok) return;
+    setDesignating(true);
+    try {
+      await apiFetch(
+        `/employees/${employee.id}/${next ? 'designate' : 'revoke'}-scm-head`,
+        { method: 'PATCH' },
+      );
+      toast.success(next ? 'SCM Head designated' : 'SCM Head revoked');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to update SCM Head',
+      );
+    } finally {
+      setDesignating(false);
+    }
+  }
+
   async function handleDelete() {
     if (!employee) return;
     const ok = await confirm({
@@ -538,6 +566,9 @@ export default function EditEmployeePage() {
   const rndVerticalId = verticals.find((v) => v.code === 'RND')?.id;
   const isRndVertical =
     !!rndVerticalId && employee.verticalId === rndVerticalId;
+  const scmVerticalId = verticals.find((v) => v.code === 'SCM')?.id;
+  const isScmVertical =
+    !!scmVerticalId && employee.verticalId === scmVerticalId;
   // R&D Head eligibility mirrors the backend: R&D-vertical employees, or a
   // SUPER_ADMIN (exempt from the vertical requirement — company-wide holder).
   const rdHeadEligible = isRndVertical || employee.role === 'SUPER_ADMIN';
@@ -557,7 +588,8 @@ export default function EditEmployeePage() {
     employee.isAccountsHead ||
     employee.isQmsHead ||
     employee.isDesignHead ||
-    employee.isProductionHead;
+    employee.isProductionHead ||
+    employee.isScmHead;
 
   return (
     <PageContainer className="max-w-2xl">
@@ -592,6 +624,7 @@ export default function EditEmployeePage() {
             {employee.isProductionHead && (
               <Badge variant="info">Production Head</Badge>
             )}
+            {employee.isScmHead && <Badge variant="info">SCM Head</Badge>}
           </span>
         }
       />
@@ -838,6 +871,36 @@ export default function EditEmployeePage() {
                 {employee.isQmsHead
                   ? 'Revoke QMS Head'
                   : 'Designate as QMS Head'}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {(isSuperAdmin || employee.isScmHead) && (
+        <Card className="mb-4">
+          <CardContent className="flex items-center justify-between gap-4 p-4">
+            <div className="text-sm">
+              <div className="font-medium">SCM Head designation</div>
+              <div className="text-muted-foreground">
+                {employee.isScmHead
+                  ? 'This employee is the sole SCM Head and the owner of the SCM vertical.'
+                  : isScmVertical
+                    ? 'Designate as the sole SCM Head and automatically assign this employee as the SCM vertical owner.'
+                    : 'Only an active employee in the SCM vertical can be designated as SCM Head. Move this employee to SCM first.'}
+              </div>
+            </div>
+            {isSuperAdmin && (
+              <Button
+                variant={employee.isScmHead ? 'destructive' : 'outline'}
+                disabled={
+                  designating || (!employee.isScmHead && !isScmVertical)
+                }
+                onClick={() => setScmHead(!employee.isScmHead)}
+              >
+                {employee.isScmHead
+                  ? 'Revoke SCM Head'
+                  : 'Designate as SCM Head'}
               </Button>
             )}
           </CardContent>
