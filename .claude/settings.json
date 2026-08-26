@@ -126,7 +126,8 @@
       "Bash(curl -s localhost:3001/health)",
       "Bash(curl -s localhost:3000/health)",
       "Bash(awk '/^const DEFAULT_FOLDERS/,/^\\\\];/' prisma/seed.ts)",
-      "Bash(unset TS_NODE_COMPILER_OPTIONS)"
+      "Bash(unset TS_NODE_COMPILER_OPTIONS)",
+      "Bash(echo \"tsc-exit:$?\")"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",
