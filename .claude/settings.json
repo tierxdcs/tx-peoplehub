@@ -130,7 +130,15 @@
       "Bash(echo \"tsc-exit:$?\")",
       "Bash(awk 'NR>=5225 && NR<=5270' prisma/schema.prisma)",
       "Bash(awk 'NR>=7125 && NR<=7160' prisma/schema.prisma)",
-      "Bash(awk 'NR>=4225 && NR<=4270' prisma/schema.prisma)"
+      "Bash(awk 'NR>=4225 && NR<=4270' prisma/schema.prisma)",
+      "Bash(ps -eo pid,etime,command)",
+      "Bash(curl -s -o /dev/null -w \"api 3000: %{http_code}\\\\n\" http://localhost:3000/health)",
+      "Bash(curl -s -o /dev/null -w \"web 3001: %{http_code}\\\\n\" http://localhost:3001/)",
+      "Bash(curl -s -X DELETE http://localhost:3000/rfqs/probe-id -H \"Content-Type: application/json\")",
+      "Bash(kill 86467 33642 33900)",
+      "Bash(curl -s -X DELETE http://localhost:3000/rfqs/probe-id)",
+      "Bash(grep -c \"Mapped {/rfqs/:id, DELETE}\" /tmp/peoplehub-api.log)",
+      "Bash(grep \"Mapped {/rfqs/:id, DELETE}\\\\|Mapped {/rfqs/:id, PATCH}\" /tmp/peoplehub-api.log)"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",
