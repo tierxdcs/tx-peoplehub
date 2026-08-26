@@ -21,6 +21,11 @@ export class RfqLineInputDto {
   @IsString()
   unitOfMeasure?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() specificationNotes?: string;
+  @ApiPropertyOptional({ description: 'Optional target unit price for this line' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  targetPrice?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) sequence?: number;
 }
 

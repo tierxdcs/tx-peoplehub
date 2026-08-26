@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { Prisma } from '@prisma/client';
 
 /**
  * Server-side PDF rendering for a submitted vendor/supplier RFQ quote.
@@ -37,6 +38,7 @@ export interface RfqQuotePdfLine {
   quantity: string;
   unitOfMeasure: string;
   specificationNotes: string | null;
+  targetPrice: Prisma.Decimal | null;
   unitPrice: string;
   lineTotal: string;
   deliveryLeadTimeDays: number | null;
@@ -307,7 +309,13 @@ function linesTable(
       ? `${line.itemName}  (${line.itemCode})`
       : line.itemName;
     doc.text(itemLabel, xs[0], top, { width: columns[0].w * width - 6 });
-    const detail = [line.specificationNotes, line.remarks]
+    const detail = [
+      line.targetPrice
+        ? `Target price: ${money(line.targetPrice.toString())}`
+        : null,
+      line.specificationNotes,
+      line.remarks,
+    ]
       .filter((s): s is string => !!s && s.trim().length > 0)
       .join(' · ');
     if (detail) {

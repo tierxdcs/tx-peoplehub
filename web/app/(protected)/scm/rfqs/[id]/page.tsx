@@ -11,7 +11,9 @@ import {
   Download,
   FileText,
   Plus,
+  Save,
   ShieldCheck,
+  SquarePen,
   Upload,
   Trash2,
   X,
@@ -20,6 +22,8 @@ import { ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
 import {
   getRfq,
+  updateRfq,
+  deleteRfq,
   addInvitee,
   removeInvitee,
   approveRfq,
@@ -29,6 +33,7 @@ import {
   cancelRfq,
   rfqComparison,
   type Rfq,
+  type RfqLine,
   type ComparisonColumn,
   type RfqTechnicalView,
   getRfqTechnicalDocuments,
@@ -37,7 +42,15 @@ import {
   downloadRfqTechnicalAttachment,
   deleteRfqTechnicalAttachment,
 } from '../../../../lib/rfq';
+import {
+  blankLineDraft,
+  lineSignature,
+  toDateTimeInput,
+  toLineDraft,
+  type LineDraft,
+} from '../../../../lib/rfq-draft';
 import { uploadToPresignedUrl } from '../../../../lib/vault-api';
+import { listItems } from '../../../../lib/scm-item-master';
 import { listSuppliers, type Supplier } from '../../../../lib/scm-supplier';
 import { listVendors, type Vendor } from '../../../../lib/scm';
 import { isQualifiedStatus } from '../../../../lib/stores';
@@ -57,6 +70,10 @@ import { Input } from '../../../../components/ui/input';
 import { Select } from '../../../../components/ui/select';
 import { Textarea } from '../../../../components/ui/textarea';
 import { Field } from '../../../../components/ui/field';
+import {
+  ItemPicker,
+  type ItemPickerItem,
+} from '../../../../components/ui/item-picker';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import {
   Dialog,
@@ -81,6 +98,16 @@ import { useConfirm } from '../../../../components/ui/confirm';
 
 type PartnerType = 'SUPPLIER' | 'VENDOR';
 const MIN_INVITEES = 3;
+
+/** RFQ header fields SCM can still revise while the RFQ is a DRAFT. */
+interface DraftForm {
+  title: string;
+  description: string;
+  submissionDeadline: string;
+  requiredByDate: string;
+  deliveryLocation: string;
+  paymentTermsRequested: string;
+}
 
 export default function RfqDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -113,6 +140,19 @@ export default function RfqDetailPage() {
   const [inlineWarning, setInlineWarning] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
+
+  // ── DRAFT editing ──────────────────────────────────────────────────────
+  // A DRAFT is still a working document — the quote window, the terms and the
+  // sourcing lines all get revised before it goes out. Saving routes through
+  // PATCH /rfqs/:id, which reconciles the lines item-by-item (so a line keeps
+  // its technical drawings) and clears the PM approval only when what a partner
+  // would be quoting on actually changed.
+  const [editing, setEditing] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [deletingRfq, setDeletingRfq] = useState(false);
+  const [items, setItems] = useState<ItemPickerItem[]>([]);
+  const [form, setForm] = useState<DraftForm | null>(null);
+  const [editLines, setEditLines] = useState<LineDraft[]>([]);
 
   const canManage =
     user?.role === 'SUPER_ADMIN' ||
@@ -432,6 +472,149 @@ export default function RfqDetailPage() {
     }
   }
 
+  function startEditing() {
+    if (!rfq) return;
+    setForm({
+      title: rfq.title,
+      description: rfq.description ?? '',
+      submissionDeadline: toDateTimeInput(rfq.submissionDeadline),
+      requiredByDate: rfq.requiredByDate ? dateOnlyStr(rfq.requiredByDate) : '',
+      deliveryLocation: rfq.deliveryLocation ?? '',
+      paymentTermsRequested: rfq.paymentTermsRequested ?? '',
+    });
+    setEditLines(rfq.lines.map(toLineDraft));
+    setEditing(true);
+    if (items.length === 0) void loadItems(rfq.lines);
+  }
+
+  /**
+   * Items for the line picker. Anything a line already points at is merged in
+   * even if it has since been deactivated, so an existing line still renders
+   * (its group heading is a guess — the RFQ payload carries no item type).
+   */
+  async function loadItems(lines: RfqLine[]) {
+    try {
+      const rows = await listItems({ activeOnly: true });
+      const known = new Set(rows.map((row) => row.id));
+      const missing: ItemPickerItem[] = lines
+        .filter((line) => !known.has(line.itemId))
+        .map((line) => ({
+          id: line.itemId,
+          itemCode: line.itemCode ?? '',
+          name: line.itemName ?? 'Inactive item',
+          itemType: 'COMPONENT' as const,
+        }));
+      setItems([...rows, ...missing]);
+    } catch {
+      toast.error(
+        'Failed to load the item master — line items cannot be changed',
+      );
+    }
+  }
+
+  function updateEditLine(key: number, patch: Partial<LineDraft>) {
+    setEditLines((prev) =>
+      prev.map((line) => (line.key === key ? { ...line, ...patch } : line)),
+    );
+  }
+
+  function addEditLine() {
+    setEditLines((prev) => [...prev, blankLineDraft()]);
+  }
+
+  async function handleSaveDraft() {
+    if (!rfq || !form) return;
+    if (!form.title.trim()) {
+      toast.error('A title is required');
+      return;
+    }
+    if (!form.submissionDeadline) {
+      toast.error('A submission deadline is required');
+      return;
+    }
+    const validLines = editLines.filter(
+      (line) => line.itemId && Number(line.quantity) > 0,
+    );
+    if (validLines.length === 0) {
+      toast.error('An RFQ needs at least one line with an item and a quantity');
+      return;
+    }
+    const original = rfq.lines.map(toLineDraft);
+    // Only send `lines` when they actually differ: the server clears the PM
+    // approval on a scope change, and there's no reason to risk that on a save
+    // that only touched the title or the terms.
+    const linesChanged = lineSignature(validLines) !== lineSignature(original);
+    setSavingDraft(true);
+    try {
+      const saved = await updateRfq(rfq.id, {
+        title: form.title.trim(),
+        description: form.description.trim(),
+        submissionDeadline: new Date(form.submissionDeadline).toISOString(),
+        requiredByDate: form.requiredByDate || undefined,
+        deliveryLocation: form.deliveryLocation.trim(),
+        paymentTermsRequested: form.paymentTermsRequested.trim(),
+        ...(linesChanged
+          ? {
+              lines: validLines.map((line, index) => ({
+                itemId: line.itemId,
+                quantity: Number(line.quantity),
+                ...(line.unitOfMeasure
+                  ? { unitOfMeasure: line.unitOfMeasure }
+                  : {}),
+                ...(line.targetPrice
+                  ? { targetPrice: Number(line.targetPrice) }
+                  : {}),
+                ...(line.specificationNotes.trim()
+                  ? { specificationNotes: line.specificationNotes.trim() }
+                  : {}),
+                sequence: index,
+              })),
+            }
+          : {}),
+      });
+      setRfq(saved);
+      setEditing(false);
+      toast.success(
+        linesChanged && rfq.pmApproved && !saved.pmApproved
+          ? 'Draft saved — the sourcing scope changed, so it needs Project Manager approval again'
+          : 'Draft saved',
+      );
+      // Line ids can change when lines were added or dropped, so the
+      // drawing/BOM panel needs re-fetching alongside.
+      if (linesChanged) await loadTechnical();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to save draft',
+      );
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!rfq) return;
+    if (
+      !(await confirm({
+        title: 'Delete this draft RFQ?',
+        description: `${rfq.rfqNumber} and everything on it — line items, invitees and technical drawings — are permanently removed. Cancel the RFQ instead if you want to keep the record.`,
+        confirmLabel: 'Delete RFQ',
+        destructive: true,
+      }))
+    )
+      return;
+    setDeletingRfq(true);
+    try {
+      await deleteRfq(rfq.id);
+      toast.success(`${rfq.rfqNumber} deleted`);
+      router.push('/scm/rfqs');
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to delete RFQ',
+      );
+      setDeletingRfq(false);
+    }
+  }
+
   async function copyLink(token: string) {
     const url = `${window.location.origin}/public/rfq-quote/${token}`;
     try {
@@ -497,7 +680,40 @@ export default function RfqDetailPage() {
           <p className="mt-1 text-sm text-muted-foreground">{rfq.title}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {rfq.canApprove && isDraft && (
+          {editing ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setEditing(false)}
+                disabled={savingDraft}
+              >
+                <X className="size-4" /> Discard changes
+              </Button>
+              <Button onClick={handleSaveDraft} disabled={savingDraft}>
+                <Save className="size-4" />
+                {savingDraft ? 'Saving…' : 'Save draft'}
+              </Button>
+            </>
+          ) : (
+            canManage &&
+            isDraft && (
+              <>
+                <Button variant="outline" onClick={startEditing}>
+                  <SquarePen className="size-4" /> Edit draft
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={deletingRfq || acting}
+                  title="Delete this draft outright — only possible before it is issued"
+                >
+                  <Trash2 className="size-4" />
+                  {deletingRfq ? 'Deleting…' : 'Delete'}
+                </Button>
+              </>
+            )
+          )}
+          {!editing && rfq.canApprove && isDraft && (
             <>
               <Button
                 variant="outline"
@@ -515,7 +731,7 @@ export default function RfqDetailPage() {
               </Button>
             </>
           )}
-          {canManage && isDraft && (
+          {!editing && canManage && isDraft && (
             <Button
               onClick={handleIssue}
               disabled={acting || !enoughInvitees || !rfq.pmApproved}
@@ -540,7 +756,7 @@ export default function RfqDetailPage() {
               Compare &amp; Award
             </Button>
           )}
-          {canManage && (isDraft || isIssued) && (
+          {!editing && canManage && (isDraft || isIssued) && (
             <Button
               variant="destructive"
               onClick={handleCancel}
@@ -569,8 +785,8 @@ export default function RfqDetailPage() {
               <span className="font-medium">
                 {rfq.pmApprovedByName ?? 'the Project Manager'}
               </span>
-              {rfq.pmApprovedAt && <> on {dateOnlyStr(rfq.pmApprovedAt)}</>}. SCM
-              can now generate the invitee links and issue the RFQ.
+              {rfq.pmApprovedAt && <> on {dateOnlyStr(rfq.pmApprovedAt)}</>}.
+              SCM can now generate the invitee links and issue the RFQ.
             </p>
           </div>
         ) : rfq.pmRejectionComment ? (
@@ -598,31 +814,117 @@ export default function RfqDetailPage() {
           </div>
         ))}
 
-      {rfq.description && (
+      {editing && form ? (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-sm">Description</CardTitle>
+            <CardTitle className="text-base">Draft details</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {rfq.description}
+          <CardContent className="space-y-4">
+            <Field label="Title" htmlFor="draft-title" required>
+              <Input
+                id="draft-title"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
+            </Field>
+            <Field label="Description" htmlFor="draft-description">
+              <Textarea
+                id="draft-description"
+                rows={3}
+                value={form.description}
+                onChange={(e) =>
+                  setForm({ ...form, description: e.target.value })
+                }
+              />
+            </Field>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field
+                label="Submission Deadline"
+                htmlFor="draft-deadline"
+                required
+              >
+                <Input
+                  id="draft-deadline"
+                  type="datetime-local"
+                  value={form.submissionDeadline}
+                  onChange={(e) =>
+                    setForm({ ...form, submissionDeadline: e.target.value })
+                  }
+                />
+              </Field>
+              <Field label="Required By Date" htmlFor="draft-required-by">
+                <Input
+                  id="draft-required-by"
+                  type="date"
+                  value={form.requiredByDate}
+                  onChange={(e) =>
+                    setForm({ ...form, requiredByDate: e.target.value })
+                  }
+                />
+              </Field>
+              <Field label="Delivery Location" htmlFor="draft-delivery">
+                <Input
+                  id="draft-delivery"
+                  value={form.deliveryLocation}
+                  onChange={(e) =>
+                    setForm({ ...form, deliveryLocation: e.target.value })
+                  }
+                />
+              </Field>
+              <Field label="Payment Terms Requested" htmlFor="draft-terms">
+                <Input
+                  id="draft-terms"
+                  value={form.paymentTermsRequested}
+                  onChange={(e) =>
+                    setForm({ ...form, paymentTermsRequested: e.target.value })
+                  }
+                  placeholder="e.g. Net 30"
+                />
+              </Field>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Changing the sourcing lines (item, quantity, target price or
+              specification) clears the Project Manager approval, so the final
+              scope is always the approved one. Dropping a line also removes the
+              technical drawings attached to it.
+            </p>
           </CardContent>
         </Card>
-      )}
+      ) : (
+        <>
+          {rfq.description && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-sm">Description</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                {rfq.description}
+              </CardContent>
+            </Card>
+          )}
 
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3">
-        <Info
-          label="Submission Deadline"
-          value={dateOnlyStr(rfq.submissionDeadline)}
-        />
-        <Info
-          label="Required By"
-          value={rfq.requiredByDate ? dateOnlyStr(rfq.requiredByDate) : '—'}
-        />
-        <Info label="Delivery Location" value={rfq.deliveryLocation ?? '—'} />
-        <Info label="Payment Terms" value={rfq.paymentTermsRequested ?? '—'} />
-        <Info label="Created By" value={rfq.createdByName ?? '—'} />
-        <Info label="Project" value={rfq.projectName ?? '—'} />
-      </div>
+          <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3">
+            <Info
+              label="Submission Deadline"
+              value={dateOnlyStr(rfq.submissionDeadline)}
+            />
+            <Info
+              label="Required By"
+              value={rfq.requiredByDate ? dateOnlyStr(rfq.requiredByDate) : '—'}
+            />
+            <Info
+              label="Delivery Location"
+              value={rfq.deliveryLocation ?? '—'}
+            />
+            <Info
+              label="Payment Terms"
+              value={rfq.paymentTermsRequested ?? '—'}
+            />
+            <Info label="Created By" value={rfq.createdByName ?? '—'} />
+            <Info label="Project" value={rfq.projectName ?? '—'} />
+          </div>
+        </>
+      )}
 
       {rfq.orderNumber && (
         <Card className="mb-6">
@@ -764,35 +1066,137 @@ export default function RfqDetailPage() {
         <CardHeader>
           <CardTitle className="text-base">Line Items</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Item</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead>UoM</TableHead>
-                <TableHead>Specification Notes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rfq.lines.map((line) => (
-                <TableRow key={line.id}>
-                  <TableCell>
-                    <div className="font-medium">{line.itemName ?? '—'}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {line.itemCode ?? ''}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">{line.quantity}</TableCell>
-                  <TableCell>{line.unitOfMeasure}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {line.specificationNotes ?? '—'}
-                  </TableCell>
+        {editing ? (
+          <CardContent className="space-y-3">
+            {editLines.map((line) => {
+              const item = items.find((it) => it.id === line.itemId) ?? null;
+              return (
+                <div
+                  key={line.key}
+                  className="grid items-end gap-3 md:grid-cols-[minmax(200px,1.3fr)_110px_130px_minmax(200px,1fr)_40px]"
+                >
+                  <Field label="Item">
+                    <ItemPicker
+                      items={items}
+                      value={line.itemId}
+                      onValueChange={(itemId) =>
+                        updateEditLine(line.key, { itemId })
+                      }
+                    />
+                  </Field>
+                  <Field label="Qty">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={line.quantity}
+                      onChange={(e) =>
+                        updateEditLine(line.key, { quantity: e.target.value })
+                      }
+                    />
+                  </Field>
+                  <Field label="Target Price">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={line.targetPrice}
+                      onChange={(e) =>
+                        updateEditLine(line.key, {
+                          targetPrice: e.target.value,
+                        })
+                      }
+                    />
+                  </Field>
+                  <Field
+                    label={`Specification Notes${item ? '' : ' (pick an item)'}`}
+                  >
+                    <Input
+                      value={line.specificationNotes}
+                      onChange={(e) =>
+                        updateEditLine(line.key, {
+                          specificationNotes: e.target.value,
+                        })
+                      }
+                    />
+                  </Field>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      setEditLines((prev) =>
+                        prev.length > 1
+                          ? prev.filter((row) => row.key !== line.key)
+                          : prev,
+                      )
+                    }
+                    disabled={editLines.length === 1}
+                    aria-label="Remove line"
+                    title={
+                      editLines.length === 1
+                        ? 'An RFQ needs at least one line'
+                        : 'Remove this line'
+                    }
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              );
+            })}
+            <div className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addEditLine}
+              >
+                <Plus className="size-4" /> Add line
+              </Button>
+            </div>
+          </CardContent>
+        ) : (
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Item</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead>UoM</TableHead>
+                  <TableHead>Target Price</TableHead>
+                  <TableHead>Specification Notes</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
+              </TableHeader>
+              <TableBody>
+                {rfq.lines.map((line) => (
+                  <TableRow key={line.id}>
+                    <TableCell>
+                      <div className="font-medium">{line.itemName ?? '—'}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {line.itemCode ?? ''}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {line.quantity}
+                    </TableCell>
+                    <TableCell>{line.unitOfMeasure}</TableCell>
+                    <TableCell>
+                      {line.targetPrice
+                        ? `₹${Number(line.targetPrice).toLocaleString('en-IN', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}`
+                        : '—'}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {line.specificationNotes ?? '—'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        )}
       </Card>
 
       <Card className="mb-6">

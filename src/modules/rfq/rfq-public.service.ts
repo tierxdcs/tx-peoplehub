@@ -379,6 +379,7 @@ export class RfqPublicService {
           quantity: l.quantity.toString(),
           unitOfMeasure: l.unitOfMeasure,
           specificationNotes: l.specificationNotes,
+          targetPrice: l.targetPrice?.toString() ?? null,
         })),
       },
       quote: invitee.quote

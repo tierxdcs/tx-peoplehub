@@ -12,6 +12,7 @@ import { StockReportService } from '../bom/stock-report.service';
 import { ExplodableBom, explodeProcurementBom } from '../bom/bom-explosion';
 import { round } from '../bom/stock-calc';
 import { ItemCostService } from '../bom/item-cost.service';
+import { VaultStorageService } from '../vault/vault-storage.service';
 import {
   generateInviteToken,
   hashInvitePassword,
@@ -116,6 +117,31 @@ type ApprovalContext = {
   pmApproverName: string | null;
 };
 
+/** One RFQ sourcing line after item validation + UoM defaulting. */
+type ResolvedLine = {
+  itemId: string;
+  quantity: Prisma.Decimal;
+  unitOfMeasure: string;
+  specificationNotes: string | null;
+  targetPrice: Prisma.Decimal | null;
+  sequence: number;
+};
+
+/**
+ * How to bring an existing DRAFT's persisted lines in line with the submitted
+ * set, matched item-by-item so untouched lines keep their id (and therefore
+ * their technical drawings, which cascade off RfqLine).
+ */
+type LineReconcilePlan = {
+  updates: Array<{ id: string; data: Prisma.RfqLineUpdateInput }>;
+  creates: ResolvedLine[];
+  deleteIds: string[];
+  /** R2 objects of drawings attached to the lines being dropped. */
+  orphanedFileKeys: string[];
+  /** True when what a partner would be quoting on changed → re-approval. */
+  scopeChanged: boolean;
+};
+
 /**
  * RFQ Builder. Sealed-bid: quote values are only ever returned once the RFQ is
  * past the sealed phase (CLOSED / AWARDED, or deadline passed). The list/detail
@@ -131,6 +157,7 @@ export class RfqService {
     private readonly purchaseOrders: PurchaseOrderService,
     private readonly stockReport: StockReportService,
     private readonly itemCosts: ItemCostService,
+    private readonly storage: VaultStorageService,
   ) {}
 
   // ── Shortfall-to-RFQ (from the Kickoff stock report) ─────────────────
@@ -377,7 +404,12 @@ export class RfqService {
     });
     if (!product) throw new NotFoundException('Active product not found');
     if (!product.item) {
-      return { product, quantity: quantity.toString(), isCostComplete: false, lines: [] };
+      return {
+        product,
+        quantity: quantity.toString(),
+        isCostComplete: false,
+        lines: [],
+      };
     }
     const released = await this.prisma.bom.findMany({
       where: { status: BomStatus.RELEASED },
@@ -397,41 +429,60 @@ export class RfqService {
       },
     });
     const byItem = new Map<string, ExplodableBom>();
-    for (const bom of released) if (!byItem.has(bom.itemId)) byItem.set(bom.itemId, bom);
+    for (const bom of released)
+      if (!byItem.has(bom.itemId)) byItem.set(bom.itemId, bom);
     const leaves = byItem.has(product.item.id)
       ? explodeProcurementBom(product.item.id, (id) => byItem.get(id) ?? null)
       : [];
-    const aggregate = new Map<string, { quantity: Prisma.Decimal; unitOfMeasure: string }>();
+    const aggregate = new Map<
+      string,
+      { quantity: Prisma.Decimal; unitOfMeasure: string }
+    >();
     for (const leaf of leaves) {
       const required = round(leaf.quantityPerTopUnit.times(quantity));
       const current = aggregate.get(leaf.itemId);
       if (current) current.quantity = round(current.quantity.plus(required));
-      else aggregate.set(leaf.itemId, { quantity: required, unitOfMeasure: leaf.unitOfMeasure });
+      else
+        aggregate.set(leaf.itemId, {
+          quantity: required,
+          unitOfMeasure: leaf.unitOfMeasure,
+        });
     }
     const items = await this.prisma.item.findMany({
       where: { id: { in: [...aggregate.keys()] }, isActive: true },
-      select: { id: true, itemCode: true, name: true, itemType: true, baseUnitOfMeasure: true },
+      select: {
+        id: true,
+        itemCode: true,
+        name: true,
+        itemType: true,
+        baseUnitOfMeasure: true,
+      },
     });
-    const lines = await Promise.all(items.map(async (item) => {
-      const required = aggregate.get(item.id)!;
-      const cost = await this.itemCosts.currentCost(item.id);
-      return {
-        itemId: item.id,
-        itemCode: item.itemCode,
-        itemName: item.name,
-        itemType: item.itemType,
-        requiredQuantity: required.quantity.toString(),
-        unitOfMeasure: required.unitOfMeasure || item.baseUnitOfMeasure,
-        unitCost: cost.amount?.toString() ?? null,
-        costSource: cost.source,
-        extendedCost: cost.amount ? round(cost.amount.times(required.quantity)).toString() : null,
-      };
-    }));
+    const lines = await Promise.all(
+      items.map(async (item) => {
+        const required = aggregate.get(item.id)!;
+        const cost = await this.itemCosts.currentCost(item.id);
+        return {
+          itemId: item.id,
+          itemCode: item.itemCode,
+          itemName: item.name,
+          itemType: item.itemType,
+          requiredQuantity: required.quantity.toString(),
+          unitOfMeasure: required.unitOfMeasure || item.baseUnitOfMeasure,
+          unitCost: cost.amount?.toString() ?? null,
+          costSource: cost.source,
+          extendedCost: cost.amount
+            ? round(cost.amount.times(required.quantity)).toString()
+            : null,
+        };
+      }),
+    );
     lines.sort((a, b) => a.itemCode.localeCompare(b.itemCode));
     return {
       product,
       quantity: quantity.toString(),
-      isCostComplete: lines.length > 0 && lines.every((line) => line.unitCost !== null),
+      isCostComplete:
+        lines.length > 0 && lines.every((line) => line.unitCost !== null),
       lines,
     };
   }
@@ -724,8 +775,8 @@ export class RfqService {
     if (rfq.status !== RfqStatus.DRAFT) {
       throw new BadRequestException('Only a DRAFT RFQ can be edited');
     }
-    const lineData = dto.lines
-      ? await this.buildLineData(dto.lines)
+    const plan = dto.lines
+      ? await this.planLineReconcile(id, await this.resolveLines(dto.lines))
       : undefined;
     const excludedOrderLineIds =
       dto.excludedOrderLineIds !== undefined
@@ -734,43 +785,105 @@ export class RfqService {
             dto.excludedOrderLineIds,
           )
         : undefined;
-    await this.prisma.rfq.update({
-      where: { id },
-      data: {
-        ...(dto.title !== undefined ? { title: dto.title } : {}),
-        ...(dto.description !== undefined
-          ? { description: dto.description }
-          : {}),
-        ...(dto.submissionDeadline !== undefined
-          ? { submissionDeadline: new Date(dto.submissionDeadline) }
-          : {}),
-        ...(dto.requiredByDate !== undefined
-          ? {
-              requiredByDate: dto.requiredByDate
-                ? new Date(dto.requiredByDate)
-                : null,
-            }
-          : {}),
-        ...(dto.deliveryLocation !== undefined
-          ? { deliveryLocation: dto.deliveryLocation }
-          : {}),
-        ...(dto.paymentTermsRequested !== undefined
-          ? { paymentTermsRequested: dto.paymentTermsRequested }
-          : {}),
-        ...(excludedOrderLineIds !== undefined ? { excludedOrderLineIds } : {}),
-        // Editing the line set (including auto-populate from BOM) invalidates any
-        // prior PM approval — the approver signed off on a different scope, so
-        // clear it and require re-approval before the RFQ can be issued.
-        ...(lineData
-          ? {
-              lines: { deleteMany: {}, create: lineData },
-              pmApprovedById: null,
-              pmApprovedAt: null,
-            }
-          : {}),
-      },
+    // Storage before the database: a failed object delete aborts the save while
+    // the drawing's metadata row is still there to retry with, rather than
+    // leaving a row pointing at a file nobody can reach.
+    for (const fileKey of plan?.orphanedFileKeys ?? []) {
+      await this.storage.deleteObjectStrict(fileKey);
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.rfq.update({
+        where: { id },
+        data: {
+          ...(dto.title !== undefined ? { title: dto.title } : {}),
+          ...(dto.description !== undefined
+            ? { description: dto.description }
+            : {}),
+          ...(dto.submissionDeadline !== undefined
+            ? { submissionDeadline: new Date(dto.submissionDeadline) }
+            : {}),
+          ...(dto.requiredByDate !== undefined
+            ? {
+                requiredByDate: dto.requiredByDate
+                  ? new Date(dto.requiredByDate)
+                  : null,
+              }
+            : {}),
+          ...(dto.deliveryLocation !== undefined
+            ? { deliveryLocation: dto.deliveryLocation }
+            : {}),
+          ...(dto.paymentTermsRequested !== undefined
+            ? { paymentTermsRequested: dto.paymentTermsRequested }
+            : {}),
+          ...(excludedOrderLineIds !== undefined
+            ? { excludedOrderLineIds }
+            : {}),
+          // Changing what a partner would be quoting on invalidates any prior PM
+          // approval — the approver signed off on a different scope, so clear it
+          // and require re-approval before the RFQ can be issued. A save that
+          // leaves the quoted scope alone (title, terms, line order) keeps it.
+          ...(plan?.scopeChanged
+            ? { pmApprovedById: null, pmApprovedAt: null }
+            : {}),
+        },
+      });
+      if (plan) {
+        if (plan.deleteIds.length > 0) {
+          await tx.rfqLine.deleteMany({
+            where: { id: { in: plan.deleteIds } },
+          });
+        }
+        for (const line of plan.updates) {
+          await tx.rfqLine.update({ where: { id: line.id }, data: line.data });
+        }
+        if (plan.creates.length > 0) {
+          await tx.rfqLine.createMany({
+            data: plan.creates.map((row) => ({ rfqId: id, ...row })),
+          });
+        }
+      }
     });
     return this.get(id, user);
+  }
+
+  /**
+   * Delete a DRAFT RFQ outright. Unlike cancel (which keeps a CANCELLED record
+   * for the audit trail), this is for drafts that should never have existed —
+   * a mis-keyed RFQ, a duplicate, a scratch draft. Lines, invitees, and
+   * attachment metadata cascade; the attachments' R2 objects are removed here
+   * because nothing would be left pointing at them afterwards. Only ever
+   * reachable while DRAFT: from ISSUED onwards partners have been contacted, so
+   * cancel is the only exit.
+   */
+  async remove(id: string, user: AuthenticatedUser): Promise<void> {
+    await this.access.assertCanManageRfqs(user);
+    const rfq = await this.prisma.rfq.findUnique({
+      where: { id },
+      select: {
+        status: true,
+        attachments: { select: { fileKey: true } },
+        invitees: { select: { quote: { select: { id: true } } } },
+      },
+    });
+    if (!rfq) throw new NotFoundException('RFQ not found');
+    if (rfq.status !== RfqStatus.DRAFT) {
+      throw new BadRequestException(
+        `Only a DRAFT RFQ can be deleted — this one is ${rfq.status}. Cancel it instead to keep the record.`,
+      );
+    }
+    // Defensive: a DRAFT has no live quote links, so this should be unreachable.
+    // If a quote somehow exists, the partner's work is not ours to destroy.
+    if (rfq.invitees.some((invitee) => invitee.quote)) {
+      throw new BadRequestException(
+        'A partner has already started a quote on this RFQ — cancel it instead of deleting',
+      );
+    }
+    // Storage first so a failed object delete leaves the RFQ (and its
+    // attachment metadata) intact and the whole operation retryable.
+    for (const file of rfq.attachments) {
+      await this.storage.deleteObjectStrict(file.fileKey);
+    }
+    await this.prisma.rfq.delete({ where: { id } });
   }
 
   async cancel(id: string, user: AuthenticatedUser): Promise<RfqEntity> {
@@ -1285,9 +1398,9 @@ export class RfqService {
     };
   }
 
-  private async buildLineData(
+  private async resolveLines(
     lines: RfqLineInputDto[],
-  ): Promise<Prisma.RfqLineCreateWithoutRfqInput[]> {
+  ): Promise<ResolvedLine[]> {
     const itemIds = [...new Set(lines.map((l) => l.itemId))];
     const items = await this.prisma.item.findMany({
       where: { id: { in: itemIds } },
@@ -1300,12 +1413,111 @@ export class RfqService {
       );
     }
     return lines.map((l, i) => ({
-      item: { connect: { id: l.itemId } },
+      itemId: l.itemId,
       quantity: new Prisma.Decimal(l.quantity),
       unitOfMeasure: l.unitOfMeasure ?? byId.get(l.itemId)!.baseUnitOfMeasure,
       specificationNotes: l.specificationNotes ?? null,
+      targetPrice:
+        l.targetPrice === undefined ? null : new Prisma.Decimal(l.targetPrice),
       sequence: l.sequence ?? i,
     }));
+  }
+
+  private async buildLineData(
+    lines: RfqLineInputDto[],
+  ): Promise<Prisma.RfqLineCreateWithoutRfqInput[]> {
+    const rows = await this.resolveLines(lines);
+    return rows.map((row) => ({
+      item: { connect: { id: row.itemId } },
+      quantity: row.quantity,
+      unitOfMeasure: row.unitOfMeasure,
+      specificationNotes: row.specificationNotes,
+      targetPrice: row.targetPrice,
+      sequence: row.sequence,
+    }));
+  }
+
+  /**
+   * Diff the submitted line set against what's persisted, pairing them by item
+   * so an edit that only nudges a quantity keeps the line's id. This matters
+   * beyond tidiness: RfqAttachment cascades off RfqLine, so a
+   * delete-all-recreate would silently take every line-scoped technical drawing
+   * with it. Lines genuinely dropped from the RFQ still lose their drawings —
+   * those R2 objects are returned so the caller can purge them too.
+   */
+  private async planLineReconcile(
+    rfqId: string,
+    rows: ResolvedLine[],
+  ): Promise<LineReconcilePlan> {
+    const existing = await this.prisma.rfqLine.findMany({
+      where: { rfqId },
+      orderBy: { sequence: 'asc' },
+      select: {
+        id: true,
+        itemId: true,
+        quantity: true,
+        unitOfMeasure: true,
+        specificationNotes: true,
+        targetPrice: true,
+        sequence: true,
+      },
+    });
+    const unmatched = new Map<string, typeof existing>();
+    for (const line of existing) {
+      const queue = unmatched.get(line.itemId);
+      if (queue) queue.push(line);
+      else unmatched.set(line.itemId, [line]);
+    }
+
+    const plan: LineReconcilePlan = {
+      updates: [],
+      creates: [],
+      deleteIds: [],
+      orphanedFileKeys: [],
+      scopeChanged: false,
+    };
+    for (const row of rows) {
+      const match = unmatched.get(row.itemId)?.shift();
+      if (!match) {
+        plan.creates.push(row);
+        plan.scopeChanged = true;
+        continue;
+      }
+      // Sequence alone is presentation order, so it never invalidates approval.
+      const quotedScopeChanged =
+        !match.quantity.equals(row.quantity) ||
+        match.unitOfMeasure !== row.unitOfMeasure ||
+        (match.specificationNotes ?? null) !== row.specificationNotes ||
+        (match.targetPrice == null
+          ? row.targetPrice !== null
+          : row.targetPrice === null ||
+            !match.targetPrice.equals(row.targetPrice));
+      if (quotedScopeChanged) plan.scopeChanged = true;
+      if (quotedScopeChanged || match.sequence !== row.sequence) {
+        plan.updates.push({
+          id: match.id,
+          data: {
+            quantity: row.quantity,
+            unitOfMeasure: row.unitOfMeasure,
+            specificationNotes: row.specificationNotes,
+            targetPrice: row.targetPrice,
+            sequence: row.sequence,
+          },
+        });
+      }
+    }
+    for (const queue of unmatched.values()) {
+      for (const line of queue) plan.deleteIds.push(line.id);
+    }
+    if (plan.deleteIds.length > 0) {
+      plan.scopeChanged = true;
+      const files = await this.prisma.rfqAttachment.findMany({
+        where: { rfqLineId: { in: plan.deleteIds } },
+        select: { fileKey: true },
+      });
+      plan.orphanedFileKeys = files.map((f) => f.fileKey);
+    }
+    return plan;
   }
 
   private toEntity(rfq: RfqWithRelations, ctx: ApprovalContext): RfqEntity {
@@ -1389,6 +1601,7 @@ export class RfqService {
             quantity: l.quantity.toString(),
             unitOfMeasure: l.unitOfMeasure,
             specificationNotes: l.specificationNotes,
+            targetPrice: l.targetPrice?.toString() ?? null,
             sequence: l.sequence,
           }),
       ),

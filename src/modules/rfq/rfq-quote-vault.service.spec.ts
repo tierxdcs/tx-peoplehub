@@ -52,6 +52,7 @@ describe('renderRfqQuotePdf', () => {
           quantity: '10.0000',
           unitOfMeasure: 'NOS',
           specificationNotes: 'Powder coated',
+          targetPrice: null,
           unitPrice: '52038.00',
           lineTotal: '520380.00',
           deliveryLeadTimeDays: 21,

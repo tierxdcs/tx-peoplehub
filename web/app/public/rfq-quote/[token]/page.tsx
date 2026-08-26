@@ -394,6 +394,14 @@ export default function PublicRfqQuotePage() {
                     {line.itemCode ?? ''}
                     {line.specificationNotes ? ` · ${line.specificationNotes}` : ''}
                   </div>
+                  {line.targetPrice && (
+                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}>
+                      Target price: ₹{Number(line.targetPrice).toLocaleString('en-IN', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </div>
+                  )}
                 </td>
                 <td style={cellStyle}>
                   {line.quantity} {line.unitOfMeasure}

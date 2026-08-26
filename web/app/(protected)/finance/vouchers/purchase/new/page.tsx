@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Plus, Trash2 } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../../lib/api';
 import { formatINR } from '../../../../../lib/sales';
 import { useNumberFormat } from '../../../../../lib/number-format-context';
 import { Input } from '../../../../../components/ui/input';
 import { Field } from '../../../../../components/ui/field';
+import { Button } from '../../../../../components/ui/button';
 import { useToast } from '../../../../../components/ui/toaster';
 import { VoucherShell } from '../../_components/voucher-shell';
 import { PartyPicker } from '../../_components/party-picker';
@@ -14,6 +16,44 @@ import { PartyPicker } from '../../_components/party-picker';
 interface Partner {
   id: string;
   companyName: string;
+}
+
+interface VoucherLine {
+  id: string;
+  description: string;
+  quantity: string;
+  price: string;
+  cgst: string;
+  sgst: string;
+  igst: string;
+}
+
+function newLine(): VoucherLine {
+  return {
+    id: crypto.randomUUID(),
+    description: '',
+    quantity: '1',
+    price: '',
+    cgst: '0',
+    sgst: '0',
+    igst: '0',
+  };
+}
+
+function lineAmounts(line: VoucherLine) {
+  const subtotal = (Number(line.quantity) || 0) * (Number(line.price) || 0);
+  const cgstAmount = (subtotal * (Number(line.cgst) || 0)) / 100;
+  const sgstAmount = (subtotal * (Number(line.sgst) || 0)) / 100;
+  const igstAmount = (subtotal * (Number(line.igst) || 0)) / 100;
+  const taxAmount = cgstAmount + sgstAmount + igstAmount;
+  return {
+    subtotal,
+    cgstAmount,
+    sgstAmount,
+    igstAmount,
+    taxAmount,
+    total: subtotal + taxAmount,
+  };
 }
 
 /**
@@ -36,12 +76,7 @@ export default function NewPurchaseVoucherPage() {
     new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
   );
   const [externalInvoiceNumber, setExternalInvoiceNumber] = useState('');
-  const [description, setDescription] = useState('');
-  const [quantity, setQuantity] = useState('1');
-  const [price, setPrice] = useState('');
-  const [cgst, setCgst] = useState('0');
-  const [sgst, setSgst] = useState('0');
-  const [igst, setIgst] = useState('0');
+  const [lines, setLines] = useState<VoucherLine[]>(() => [newLine()]);
   const [narration, setNarration] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -56,10 +91,54 @@ export default function NewPurchaseVoucherPage() {
   }, []);
 
   const isSupplier = suppliers.some((s) => s.id === partyId);
-  const lineTotal = (Number(quantity) || 0) * (Number(price) || 0);
-  const taxAmount = (lineTotal * ((Number(cgst) || 0) + (Number(sgst) || 0) + (Number(igst) || 0))) / 100;
-  const total = lineTotal + taxAmount;
-  const balanced = !!partyId && !!externalInvoiceNumber && !!description && total > 0;
+  const amounts = lines.map(lineAmounts);
+  const subtotal = amounts.reduce((sum, line) => sum + line.subtotal, 0);
+  const cgstAmount = amounts.reduce((sum, line) => sum + line.cgstAmount, 0);
+  const sgstAmount = amounts.reduce((sum, line) => sum + line.sgstAmount, 0);
+  const igstAmount = amounts.reduce((sum, line) => sum + line.igstAmount, 0);
+  const taxAmount = cgstAmount + sgstAmount + igstAmount;
+  const total = subtotal + taxAmount;
+  const linesValid = lines.every(
+    (line) =>
+      line.description.trim() &&
+      Number(line.quantity) > 0 &&
+      line.price.trim() !== '' &&
+      Number(line.price) >= 0 &&
+      [line.cgst, line.sgst, line.igst].every((rate) => {
+        const value = Number(rate);
+        return Number.isFinite(value) && value >= 0 && value <= 100;
+      }),
+  );
+  const balanced =
+    !!partyId &&
+    !!externalInvoiceNumber &&
+    lines.length > 0 &&
+    linesValid &&
+    total > 0;
+
+  function updateLine(
+    id: string,
+    field: keyof Omit<VoucherLine, 'id'>,
+    value: string,
+  ) {
+    setLines((current) =>
+      current.map((line) =>
+        line.id === id ? { ...line, [field]: value } : line,
+      ),
+    );
+  }
+
+  function addLine() {
+    setLines((current) => [...current, newLine()]);
+  }
+
+  function removeLine(id: string) {
+    setLines((current) =>
+      current.length === 1
+        ? current
+        : current.filter((line) => line.id !== id),
+    );
+  }
 
   async function create(submit: boolean) {
     if (!balanced) {
@@ -77,18 +156,16 @@ export default function NewPurchaseVoucherPage() {
           receivedDate: date,
           dueDate,
           currencyCode: 'INR',
-          lines: [
-            {
-              description,
-              quantity: Number(quantity),
-              unitOfMeasure: 'NOS',
-              unitPrice: Number(price),
-              taxAmount,
-            },
-          ],
-          inputCgstAmount: (lineTotal * (Number(cgst) || 0)) / 100,
-          inputSgstAmount: (lineTotal * (Number(sgst) || 0)) / 100,
-          inputIgstAmount: (lineTotal * (Number(igst) || 0)) / 100,
+          lines: lines.map((line, index) => ({
+            description: line.description.trim(),
+            quantity: Number(line.quantity),
+            unitOfMeasure: 'NOS',
+            unitPrice: Number(line.price),
+            taxAmount: amounts[index].taxAmount,
+          })),
+          inputCgstAmount: cgstAmount,
+          inputSgstAmount: sgstAmount,
+          inputIgstAmount: igstAmount,
         }),
       });
       if (submit) {
@@ -138,30 +215,122 @@ export default function NewPurchaseVoucherPage() {
       </div>
 
       <div className="rounded-md border p-4">
-        <h3 className="mb-3 text-sm font-medium text-muted-foreground">Line item</h3>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Description" required>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} />
-          </Field>
-          <Field label="Quantity">
-            <Input type="number" step="0.0001" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-          </Field>
-          <Field label="Unit Price" required>
-            <Input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
-          </Field>
-          <Field label="CGST %">
-            <Input type="number" step="0.01" value={cgst} onChange={(e) => setCgst(e.target.value)} />
-          </Field>
-          <Field label="SGST %">
-            <Input type="number" step="0.01" value={sgst} onChange={(e) => setSgst(e.target.value)} />
-          </Field>
-          <Field label="IGST %">
-            <Input type="number" step="0.01" value={igst} onChange={(e) => setIgst(e.target.value)} />
-          </Field>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-medium">Line items</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Add every item or service included on the vendor invoice.
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={addLine}>
+            <Plus className="size-4" />
+            Add line
+          </Button>
         </div>
-        <div className="mt-3 flex justify-end gap-6 border-t pt-3 text-sm">
+
+        <div className="space-y-4">
+          {lines.map((line, index) => (
+            <div key={line.id} className="rounded-md border p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h4 className="text-sm font-medium">Item {index + 1}</h4>
+                {lines.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Remove item ${index + 1}`}
+                    onClick={() => removeLine(line.id)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field label="Description" required>
+                  <Input
+                    value={line.description}
+                    onChange={(event) =>
+                      updateLine(line.id, 'description', event.target.value)
+                    }
+                  />
+                </Field>
+                <Field label="Quantity" required>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.0001"
+                    value={line.quantity}
+                    onChange={(event) =>
+                      updateLine(line.id, 'quantity', event.target.value)
+                    }
+                  />
+                </Field>
+                <Field label="Unit Price" required>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={line.price}
+                    onChange={(event) =>
+                      updateLine(line.id, 'price', event.target.value)
+                    }
+                  />
+                </Field>
+                <Field label="CGST %">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    value={line.cgst}
+                    onChange={(event) =>
+                      updateLine(line.id, 'cgst', event.target.value)
+                    }
+                  />
+                </Field>
+                <Field label="SGST %">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    value={line.sgst}
+                    onChange={(event) =>
+                      updateLine(line.id, 'sgst', event.target.value)
+                    }
+                  />
+                </Field>
+                <Field label="IGST %">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    value={line.igst}
+                    onChange={(event) =>
+                      updateLine(line.id, 'igst', event.target.value)
+                    }
+                  />
+                </Field>
+              </div>
+              <div className="mt-3 flex justify-end gap-5 border-t pt-3 text-xs text-muted-foreground">
+                <span>
+                  Subtotal: <strong className="text-foreground">{formatINR(amounts[index].subtotal, numberFormatStyle)}</strong>
+                </span>
+                <span>
+                  Tax: <strong className="text-foreground">{formatINR(amounts[index].taxAmount, numberFormatStyle)}</strong>
+                </span>
+                <span>
+                  Line total: <strong className="text-foreground">{formatINR(amounts[index].total, numberFormatStyle)}</strong>
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 flex flex-wrap justify-end gap-6 border-t pt-4 text-sm">
           <span>
-            Subtotal: <strong>{formatINR(lineTotal, numberFormatStyle)}</strong>
+            Subtotal: <strong>{formatINR(subtotal, numberFormatStyle)}</strong>
           </span>
           <span>
             Tax: <strong>{formatINR(taxAmount, numberFormatStyle)}</strong>

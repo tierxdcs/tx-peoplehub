@@ -7253,6 +7253,7 @@ model RfqLine {
   quantity           Decimal @db.Decimal(14, 4)
   unitOfMeasure      String
   specificationNotes String? @db.Text
+  targetPrice        Decimal? @db.Decimal(18, 2)
   sequence           Int     @default(0)
 
   quoteLines  RfqQuoteLine[]

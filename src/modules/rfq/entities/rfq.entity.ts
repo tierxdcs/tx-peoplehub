@@ -9,6 +9,7 @@ export class RfqLineEntity {
   @ApiProperty() quantity!: string;
   @ApiProperty() unitOfMeasure!: string;
   @ApiProperty({ nullable: true }) specificationNotes!: string | null;
+  @ApiProperty({ nullable: true }) targetPrice!: string | null;
   @ApiProperty() sequence!: number;
 
   constructor(p: Partial<RfqLineEntity>) {

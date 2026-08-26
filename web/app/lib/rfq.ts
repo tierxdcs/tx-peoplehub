@@ -19,6 +19,7 @@ export interface RfqLine {
   quantity: string;
   unitOfMeasure: string;
   specificationNotes: string | null;
+  targetPrice: string | null;
   sequence: number;
 }
 
@@ -149,16 +150,23 @@ export interface RfqProductBomExplosion {
     id: string;
     sku: string;
     name: string;
-    item: null | { id: string; itemCode: string; name: string; baseUnitOfMeasure: string };
+    item: null | {
+      id: string;
+      itemCode: string;
+      name: string;
+      baseUnitOfMeasure: string;
+    };
   };
   quantity: string;
   isCostComplete: boolean;
-  lines: Array<RfqSourcingLine & {
-    itemType: import('./scm-item-master').ItemType;
-    unitCost: string | null;
-    costSource: string | null;
-    extendedCost: string | null;
-  }>;
+  lines: Array<
+    RfqSourcingLine & {
+      itemType: import('./scm-item-master').ItemType;
+      unitCost: string | null;
+      costSource: string | null;
+      extendedCost: string | null;
+    }
+  >;
 }
 
 export interface RfqLineInput {
@@ -166,6 +174,7 @@ export interface RfqLineInput {
   quantity: number;
   unitOfMeasure?: string;
   specificationNotes?: string;
+  targetPrice?: number;
   sequence?: number;
 }
 
@@ -326,6 +335,13 @@ export function updateRfq(id: string, input: Partial<CreateRfqInput>) {
     body: JSON.stringify(input),
   });
 }
+/**
+ * Delete a DRAFT RFQ outright (lines, invitees and technical drawings go with
+ * it). Only DRAFT is deletable — from ISSUED on, use cancelRfq.
+ */
+export function deleteRfq(id: string) {
+  return apiFetch<void>(`/rfqs/${id}`, { method: 'DELETE' });
+}
 export function addInvitee(
   id: string,
   input: { supplierId?: string; vendorId?: string; password?: string },
@@ -409,6 +425,7 @@ export interface PublicRfqView {
       quantity: string;
       unitOfMeasure: string;
       specificationNotes: string | null;
+      targetPrice: string | null;
     }[];
   };
   quote: {

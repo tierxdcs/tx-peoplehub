@@ -74,7 +74,9 @@ export class RfqController {
   }
 
   @Get('product-bom-options/:productId/explosion')
-  @ApiOperation({ summary: 'Explode a product BOM into BUY sourcing requirements' })
+  @ApiOperation({
+    summary: 'Explode a product BOM into BUY sourcing requirements',
+  })
   productBomExplosion(
     @Param('productId') productId: string,
     @Query('quantity') quantity: string | undefined,
@@ -185,6 +187,15 @@ export class RfqController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.update(id, dto, user);
+  }
+
+  @Delete(':id')
+  @ApiOperation({
+    summary:
+      'Delete a DRAFT RFQ outright, with its lines, invitees and technical attachments (SCM Manager+/SA). Once issued an RFQ must be cancelled instead.',
+  })
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.remove(id, user);
   }
 
   @Post(':id/invitees')

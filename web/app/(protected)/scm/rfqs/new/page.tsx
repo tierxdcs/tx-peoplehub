@@ -40,6 +40,7 @@ interface LineDraft {
   key: number;
   itemId: string;
   quantity: string;
+  targetPrice: string;
   specificationNotes: string;
 }
 
@@ -65,7 +66,7 @@ export default function NewRfqPage() {
   const [deliveryLocation, setDeliveryLocation] = useState('');
   const [paymentTermsRequested, setPaymentTermsRequested] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([
-    { key: lineKeySeq++, itemId: '', quantity: '', specificationNotes: '' },
+    { key: lineKeySeq++, itemId: '', quantity: '', targetPrice: '', specificationNotes: '' },
   ]);
   // OrderLineItem ids the SCM user chose to exclude from the linked order's
   // context. Empty = every order line is covered (the default). Reset whenever
@@ -113,7 +114,7 @@ export default function NewRfqPage() {
   function addLine() {
     setLines((prev) => [
       ...prev,
-      { key: lineKeySeq++, itemId: '', quantity: '', specificationNotes: '' },
+      { key: lineKeySeq++, itemId: '', quantity: '', targetPrice: '', specificationNotes: '' },
     ]);
   }
   function removeLine(key: number) {
@@ -147,6 +148,7 @@ export default function NewRfqPage() {
             key: lineKeySeq++,
             itemId: row.itemId,
             quantity: row.requiredQuantity,
+            targetPrice: '',
             specificationNotes: '',
           }))
         : [
@@ -154,6 +156,7 @@ export default function NewRfqPage() {
               key: lineKeySeq++,
               itemId: '',
               quantity: '',
+              targetPrice: '',
               specificationNotes: '',
             },
           ],
@@ -241,6 +244,7 @@ export default function NewRfqPage() {
       lines: validLines.map((l, i) => ({
         itemId: l.itemId,
         quantity: Number(l.quantity),
+        ...(l.targetPrice ? { targetPrice: Number(l.targetPrice) } : {}),
         ...(l.specificationNotes.trim()
           ? { specificationNotes: l.specificationNotes.trim() }
           : {}),
@@ -488,7 +492,7 @@ export default function NewRfqPage() {
                 return (
                   <div
                     key={line.key}
-                    className="grid items-end gap-3 md:grid-cols-[1fr_140px_1fr_40px]"
+                    className="grid items-end gap-3 md:grid-cols-[minmax(220px,1.4fr)_120px_170px_minmax(220px,1fr)_40px]"
                   >
                     <Field label="Item">
                       <ItemPicker
@@ -509,6 +513,18 @@ export default function NewRfqPage() {
                         value={line.quantity}
                         onChange={(e) =>
                           updateLine(line.key, { quantity: e.target.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="Target Price (optional)">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Target unit price"
+                        value={line.targetPrice}
+                        onChange={(e) =>
+                          updateLine(line.key, { targetPrice: e.target.value })
                         }
                       />
                     </Field>
