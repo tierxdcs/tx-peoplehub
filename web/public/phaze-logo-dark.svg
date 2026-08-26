@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="910" height="270" viewBox="35 105 900 270">
+  <defs><linearGradient id="amber" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ECCC48"/><stop offset="1" stop-color="#E87F25"/></linearGradient><mask id="frac-d" maskUnits="userSpaceOnUse" x="0" y="0" width="963" height="480"><rect width="963" height="480" fill="#fff"/><g stroke="#000" stroke-width="2.6" fill="none" opacity=".85"><path d="M672 210L786 182M670 242L788 260M672 274L784 250M692 180L712 298M726 178L742 296M758 180L766 298M670 196L788 224M674 290L786 274"/></g></mask></defs>
+  <rect width="963" height="480" fill="#0C0B09"/>
+  <g transform="translate(60 129)"><path fill="#F6F5F3" d="M0 0h50v50H0zM64 0h50v50H64zM0 128h50v50H0z"/><path fill="#3A3833" d="M128 0h50v50h-50zM64 64h50v50H64zM128 64h50v50h-50zM64 128h50v50H64zM128 128h50v50h-50z"/><path fill="url(#amber)" d="M0 64h50v50H0z"/></g>
+  <text x="300" y="290" font-family="Sora,Arial,sans-serif" font-size="200" font-weight="600" fill="#F6F5F3"><tspan>Pha</tspan><tspan font-weight="700" fill="none">z</tspan><tspan>e</tspan></text>
+  <g mask="url(#frac-d)"><text x="300" y="290" font-family="Sora,Arial,sans-serif" font-size="200" font-weight="600" fill="none"><tspan>Pha</tspan><tspan font-weight="700" fill="url(#amber)">z</tspan><tspan>e</tspan></text></g>
+  <text x="903" y="340" text-anchor="end" font-family="Sora,Arial,sans-serif" font-size="46" font-weight="600" letter-spacing="9.2" fill="#F6F5F3" opacity=".7">DYNAMICS</text>
+</svg>

@@ -125,6 +125,12 @@ export class EmployeeEntity {
   })
   isAccountsHead!: boolean;
 
+  @ApiProperty({
+    description:
+      'Whether this employee has been granted access to the Executive Dashboards section (a discretionary CEO grant, independent of vertical and seniority)',
+  })
+  hasExecutiveDashboardAccess!: boolean;
+
   @ApiProperty({ nullable: true })
   officialEmail!: string | null;
 

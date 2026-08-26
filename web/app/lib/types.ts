@@ -32,6 +32,8 @@ export interface Employee {
   isDesignHead: boolean;
   isRdHead: boolean;
   isAccountsHead: boolean;
+  /** Discretionary CEO grant for the Executive Dashboards section. */
+  hasExecutiveDashboardAccess: boolean;
   officialEmail: string | null;
   photoStorageKey?: string | null;
   signatureText?: string | null;

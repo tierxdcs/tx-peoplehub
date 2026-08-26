@@ -13,6 +13,7 @@ import { useIsScmStaff } from '../lib/use-is-scm-staff';
 import { useFinanceAccess } from '../lib/use-finance-access';
 import { useQmsAccess } from '../lib/use-qms-access';
 import { useDesignAccess } from '../lib/use-design-access';
+import { useExecutiveAccess } from '../lib/use-executive-access';
 import { usePendingApprovalCounts } from '../lib/use-pending-approval-counts';
 import {
   activeModule as resolveActiveModule,
@@ -52,6 +53,10 @@ export default function ProtectedLayout({
     isDesignHead,
     loading: designLoading,
   } = useDesignAccess();
+  const {
+    hasExecutiveDashboardAccess,
+    loading: executiveLoading,
+  } = useExecutiveAccess();
   const { counts } = usePendingApprovalCounts();
   const router = useRouter();
   const pathname = usePathname();
@@ -79,6 +84,7 @@ export default function ProtectedLayout({
     financeLoading ||
     qmsLoading ||
     designLoading ||
+    executiveLoading ||
     !user
   ) {
     return null;
@@ -101,6 +107,7 @@ export default function ProtectedLayout({
     isQmsHead,
     isDesignUser,
     isDesignHead,
+    hasExecutiveDashboardAccess,
     // Surface the Offer Letter Approvals inbox to whoever currently has letters
     // routed to them (vertical owner / Super Admin fallback) — self-cleaning.
     offerLetterApprovalsPending: (counts?.offerLetterApprovals ?? 0) > 0,

@@ -1,0 +1,56 @@
+.page{--amber:#eccc48;--orange:#e87f25;position:relative;display:grid;grid-template-columns:minmax(0,1.08fr) minmax(440px,.92fr);min-height:100svh;overflow:hidden;background:#030303;color:#f7f4ed;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.page *{box-sizing:border-box}.stars{position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(circle,#f0a036 0 1px,transparent 1.5px),radial-gradient(circle,#fff 0 .6px,transparent 1px);background-position:8% 13%,64% 31%;background-size:173px 173px,241px 241px;opacity:.2;animation:stars 45s linear infinite}.geometricGrid{position:absolute;right:-70px;top:13%;width:340px;height:70%;opacity:.2;background-image:linear-gradient(30deg,transparent 48%,#d67822 49%,#d67822 50%,transparent 51%),linear-gradient(150deg,transparent 48%,#d67822 49%,#d67822 50%,transparent 51%);background-size:70px 120px;mask-image:linear-gradient(to left,#000,transparent)}.hero{position:relative;min-height:100svh;padding:32px 6vw 26px;border-right:1px solid rgba(232,127,37,.22);overflow:hidden}.brand{position:relative;z-index:3;width:240px;aspect-ratio:3.36/1;overflow:hidden}.brand img{width:100%;height:100%;object-fit:contain}.heroCopy{position:relative;z-index:3;margin-top:clamp(72px,13vh,150px);max-width:640px}.eyebrow{margin:0;color:#9d9b95;font-size:clamp(16px,1.3vw,22px);font-weight:600}.heroCopy h1{margin:4px 0 0;font-size:clamp(58px,6.4vw,108px);line-height:.92;letter-spacing:-.065em}.heroCopy h1 span,.card>p span,.copyright span{background:linear-gradient(105deg,var(--amber),var(--orange));background-clip:text;color:transparent}.subtitle{margin:10px 0 0;color:#979590;font-size:clamp(15px,1.25vw,21px)}.accentRule{width:32px;height:3px;margin:24px 0;background:linear-gradient(90deg,var(--amber),var(--orange));box-shadow:0 0 14px rgba(232,127,37,.6)}.promise{color:#bbb8b0;font-size:clamp(14px,1vw,17px);line-height:1.65}.promise strong{color:#f0eee8}.features{display:flex;gap:0;margin-top:32px}.feature{display:flex;flex:1;min-width:105px;flex-direction:column;align-items:center;gap:11px;padding:0 18px;border-right:1px solid rgba(236,204,72,.22);color:#aaa8a2;font-size:11px;text-align:center}.feature:first-child{padding-left:0}.feature:last-child{border:0}.feature svg{width:26px;height:26px;color:#efa02d;stroke-width:1.5}.earthScene{position:absolute;z-index:1;right:-8%;bottom:-3%;left:-8%;height:43%;filter:drop-shadow(0 -8px 35px rgba(232,127,37,.13))}.earth{position:absolute;bottom:-5px;width:100%;height:100%;overflow:visible}.networkLayer{transform-origin:center;animation:earth-drift 22s ease-in-out infinite alternate}.longitudeLines{animation:grid-glow 6s ease-in-out infinite}.connectionLines{stroke-dasharray:5 8;animation:network-flow 9s linear infinite}.networkNode{transform-box:fill-box;transform-origin:center;animation:node-pulse 2.6s ease-in-out infinite}.beamGlow,.beamCore,.beamTraveller{position:absolute;z-index:4;left:50%;bottom:52%;transform:translateX(-50%);transform-origin:50% 100%;border-radius:50% 50% 12px 12px}.beamGlow{width:56px;height:50%;background:linear-gradient(to top,rgba(232,127,37,.8),rgba(236,204,72,.22) 50%,transparent);filter:blur(16px);animation:beam-sway 5s ease-in-out infinite alternate}.beamCore{width:3px;height:54%;background:linear-gradient(to top,#fff7bb,#ed952b 45%,transparent);box-shadow:0 0 15px #f49b27,0 0 35px rgba(232,127,37,.75);animation:beam-sway 5s ease-in-out infinite alternate}.beamTraveller{bottom:54%;width:8px;height:8px;background:#fff7c2;box-shadow:0 0 12px 5px #f29a28;border-radius:50%;animation:beam-travel 2.7s ease-in-out infinite}.beamOrigin{position:absolute;z-index:5;left:50%;bottom:48.5%;width:16px;height:16px;transform:translate(-50%,50%);border:2px solid #f5b336;border-radius:50%;box-shadow:0 0 14px 4px #e87f25;animation:origin-pulse 2s ease-out infinite}.copyright{position:absolute;z-index:4;bottom:20px;left:6vw;margin:0;color:#77746f;font-size:11px}.signInSide{position:relative;z-index:5;display:flex;min-height:100svh;align-items:center;justify-content:center;padding:48px}.card{position:relative;width:min(100%,490px);padding:50px 54px 42px;overflow:hidden;border:1px solid rgba(236,204,72,.5);border-radius:18px;background:linear-gradient(145deg,rgba(28,28,27,.94),rgba(7,7,7,.97));box-shadow:0 28px 90px rgba(0,0,0,.7),inset 0 1px rgba(255,255,255,.06)}.cardGlow{position:absolute;top:-100px;right:-90px;width:270px;height:270px;background:radial-gradient(circle,rgba(236,204,72,.12),transparent 67%);pointer-events:none}.card h2{position:relative;margin:0;font-size:34px;letter-spacing:-.03em}.card>p:not(.adminHelp){position:relative;margin:9px 0 34px;color:#aaa8a2}.card label{display:block;margin:0 0 8px;color:#d2d0ca;font-size:12px}.inputWrap{display:flex;height:49px;align-items:center;margin-bottom:21px;border:1px solid #393834;border-radius:8px;background:#10100f;transition:border-color .2s,box-shadow .2s}.inputWrap:focus-within{border-color:var(--orange);box-shadow:0 0 0 2px rgba(232,127,37,.16),0 0 18px rgba(232,127,37,.12)}.inputWrap>svg{width:17px;margin-left:15px;color:#8b8983}.inputWrap input{width:100%;height:100%;border:0;outline:0;background:transparent;color:#f2f0eb;padding:0 13px;font:inherit}.inputWrap input::placeholder{color:#6e6c67}.reveal{display:grid;width:44px;height:100%;place-items:center;border:0;background:transparent;color:#77756f;cursor:pointer}.reveal svg{width:18px}.formOptions{display:flex;align-items:center;justify-content:space-between;margin-top:-5px;font-size:12px}.remember{display:flex!important;align-items:center;gap:8px!important;margin:0!important;cursor:pointer}.remember input{width:15px;height:15px;accent-color:var(--orange)}.formOptions a,.adminHelp a{color:#ed952b;text-decoration:none}.error{margin:16px 0 -2px;padding:9px 11px;border:1px solid rgba(248,87,87,.4);border-radius:7px;background:rgba(174,34,34,.16);color:#ff9e9e;font-size:13px}.submit{display:flex;width:100%;height:50px;align-items:center;justify-content:center;gap:14px;margin-top:26px;border:0;border-radius:7px;background:linear-gradient(105deg,var(--amber),var(--orange));color:#110c05;font-size:15px;font-weight:750;cursor:pointer;box-shadow:0 8px 25px rgba(232,127,37,.18);transition:transform .2s,filter .2s}.submit:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.06)}.submit:disabled{cursor:wait;opacity:.65}.submit svg{width:18px}.adminHelp{margin:29px 0 0!important;color:#77756f!important;font-size:12px!important;text-align:center}
+@keyframes stars{to{background-position:181% 113%,164% 131%}}@keyframes earth-drift{from{transform:translateX(-18px) skewX(-.4deg)}to{transform:translateX(18px) skewX(.4deg)}}@keyframes network-flow{to{stroke-dashoffset:-130}}@keyframes grid-glow{50%{stroke-opacity:.34}}@keyframes node-pulse{50%{opacity:.35;transform:scale(.55)}}@keyframes beam-sway{from{transform:translateX(-50%) rotate(-1deg) scaleX(.9)}to{transform:translateX(-50%) rotate(1deg) scaleX(1.12)}}@keyframes beam-travel{0%{transform:translate(-50%,0);opacity:0}20%{opacity:1}100%{transform:translate(-50%,-340px);opacity:0}}@keyframes origin-pulse{0%{transform:translate(-50%,50%) scale(.65);opacity:1}100%{transform:translate(-50%,50%) scale(2.5);opacity:0}}
+@media(max-width:980px){.page{grid-template-columns:1fr}.hero{min-height:48svh;padding:25px 7vw}.heroCopy{margin-top:34px}.heroCopy h1{font-size:64px}.features,.promise,.copyright{display:none}.earthScene{height:58%}.signInSide{min-height:52svh;padding:28px}.card{margin-top:-32px}.brand{width:205px}}
+@media(max-width:560px){.hero{min-height:39svh}.heroCopy{margin-top:25px}.eyebrow{font-size:14px}.heroCopy h1{font-size:48px}.subtitle{font-size:13px}.accentRule{margin:15px 0}.earthScene{height:50%;right:-28%;left:-28%}.signInSide{min-height:61svh;padding:16px}.card{padding:31px 25px 27px;border-radius:14px}.card h2{font-size:28px}.card>p:not(.adminHelp){margin-bottom:25px}.brand{width:180px}}
+@media(prefers-reduced-motion:reduce){.stars,.networkLayer,.connectionLines,.networkNode,.longitudeLines,.beamGlow,.beamCore,.beamTraveller,.beamOrigin{animation:none!important}}
+
+/* Realistic Earth layer generated for the login hero. */
+.earthTexture{
+  position:absolute;
+  z-index:1;
+  inset:-12% -10% -8%;
+  background-image:
+    linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,.02) 34%,rgba(0,0,0,.18) 100%),
+    url('/phaze-earth-horizon.png');
+  background-position:46% bottom;
+  background-repeat:no-repeat;
+  background-size:112% auto;
+  opacity:.88;
+  transform:translate3d(-2.4%,0,0) scale(1.035);
+  transform-origin:50% 84%;
+  will-change:transform,background-position;
+  animation:earth-rotation 25s ease-in-out infinite alternate;
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0%,#000 19%,#000 100%);
+  mask-image:linear-gradient(to bottom,transparent 0%,#000 19%,#000 100%);
+}
+@keyframes earth-rotation{
+  from{transform:translate3d(-2.4%,0,0) scale(1.035);background-position:46% bottom}
+  to{transform:translate3d(2.4%,-.7%,0) scale(1.06);background-position:54% bottom}
+}
+@media(prefers-reduced-motion:reduce){.earthTexture{animation:none!important;transform:scale(1.04)}}
+
+/* Keep the hero wordmark inside its grid column and preserve the final glyph. */
+.heroCopy h1{max-width:100%;font-size:clamp(54px,5.25vw,92px);line-height:.98;letter-spacing:-.055em;white-space:nowrap}
+.heroCopy h1 span{display:inline-block;padding-right:.08em}
+
+/* Keep the message clear of the horizon and make the transmission beam a focal point. */
+.heroCopy{margin-top:clamp(36px,6.5vh,76px)}
+.features{margin-top:24px}
+.beamGlow,.beamCore,.beamTraveller{bottom:45%}
+.beamGlow{
+  width:180px;
+  height:105%;
+  background:linear-gradient(to top,rgba(232,127,37,.98),rgba(236,204,72,.48) 46%,rgba(236,204,72,.1) 78%,transparent);
+  filter:blur(24px);
+  opacity:.96;
+}
+.beamCore{
+  width:7px;
+  height:112%;
+  background:linear-gradient(to top,#fffbd8 0%,#ffd25a 20%,#ed952b 62%,transparent 100%);
+  box-shadow:0 0 12px 4px #fff1a1,0 0 32px 12px #f49b27,0 0 72px 24px rgba(232,127,37,.58);
+}
+.beamTraveller{bottom:48%;width:13px;height:13px;box-shadow:0 0 18px 8px #f29a28,0 0 45px 16px rgba(236,204,72,.42)}
+.beamOrigin{bottom:40%;width:23px;height:23px;border-width:3px;box-shadow:0 0 18px 7px #e87f25,0 0 42px 12px rgba(236,204,72,.44)}
+@media(max-width:980px){.heroCopy h1{font-size:clamp(52px,10vw,72px)}}
+@media(max-width:560px){.heroCopy h1{font-size:48px}}

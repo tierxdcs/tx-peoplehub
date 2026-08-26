@@ -152,7 +152,8 @@
       "Bash(ps -p 20149 -o pid,command=)",
       "Bash(ps -p 94952 -o pid,command=)",
       "Bash(kill 20149 94952)",
-      "Bash(pkill -f \"npm exec next start\")"
+      "Bash(pkill -f \"npm exec next start\")",
+      "Bash(xargs -I{} cat prisma/migrations/{}/migration.sql)"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",

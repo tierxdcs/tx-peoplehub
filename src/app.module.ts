@@ -59,6 +59,7 @@ import { LearningModule } from './modules/learning/learning.module';
 import { ExpenseClaimsModule } from './modules/expense-claims/expense-claims.module';
 import { PingsModule } from './modules/pings/pings.module';
 import { EfficiencyModule } from './modules/efficiency/efficiency.module';
+import { ExecutiveModule } from './modules/executive/executive.module';
 
 @Module({
   imports: [
@@ -111,6 +112,7 @@ import { EfficiencyModule } from './modules/efficiency/efficiency.module';
     ExpenseClaimsModule,
     PingsModule,
     EfficiencyModule,
+    ExecutiveModule,
     HealthModule,
   ],
   providers: [

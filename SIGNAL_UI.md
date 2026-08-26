@@ -91,11 +91,16 @@ audit for unpaired tokens:
   Contra, Expense Claims, and the shared VoucherShell (covers all six
   voucher-entry forms). Convention set here: voucher/document numbers use the
   app font + tabular-nums, not a mono face. VoucherShell has two layouts:
-  compact (one centred card — Receipt, Payment, Contra, Journal, Purchase) and
+  compact (one centred card — Receipt, Payment, Contra, Journal) and
   wide, enabled by passing `summary`, which switches to the form exemplar
   (`[1fr_316px]` grid, sticky totals rail, actions in the header, `sections` as
-  full-bleed cards). Sales Voucher uses wide because it has a real line-item
-  table — stacked "Item N" sub-cards inside the compact card read as clutter.
+  full-bleed cards). Sales and Purchase Vouchers use wide because they have
+  real line-item tables — stacked "Item N" sub-cards inside the compact card
+  read as clutter. Both keep GST as ONE invoice-level card (IGST/CGST/SGST %
+  applied to the combined taxable value) instead of per-line rate inputs; the
+  Purchase Voucher apportions that rate back onto each line's `taxAmount` in
+  whole paise, because the AP service rejects a bill whose invoice-level
+  CGST+SGST+IGST doesn't decimal-equal the sum of its line tax amounts.
 - ✅ Leave & Attendance (admin) — Leave Approvals queue, Attendance Corrections.
   NOTE: /leave, /attendance, /team/leave-approvals, /team/attendance are thin
   routes around dual-mode `_sections/*` components that also render as profile

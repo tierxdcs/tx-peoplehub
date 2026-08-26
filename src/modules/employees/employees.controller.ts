@@ -452,6 +452,25 @@ export class EmployeesController {
     return this.employeesService.revokeScmHead(id);
   }
 
+  @Patch(':id/grant-executive-dashboard-access')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Grant this employee access to the Executive Dashboards section. Discretionary — any employee in any vertical is eligible, and the grant exposes company-wide cost/margin figures to them.',
+  })
+  grantExecutiveDashboardAccess(@Param('id') id: string) {
+    return this.employeesService.setExecutiveDashboardAccess(id, true);
+  }
+
+  @Patch(':id/revoke-executive-dashboard-access')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Revoke this employee’s Executive Dashboards access',
+  })
+  revokeExecutiveDashboardAccess(@Param('id') id: string) {
+    return this.employeesService.setExecutiveDashboardAccess(id, false);
+  }
+
   @Patch(':id/reset-password')
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
   @ApiOperation({

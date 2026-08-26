@@ -53,6 +53,14 @@ export interface Access {
    * gate. It self-cleans when the queue empties.
    */
   offerLetterApprovalsPending?: boolean;
+  /**
+   * The CEO has granted this user the Executive Dashboards section. NOT a role
+   * and NOT derived from vertical or seniority — a discretionary per-employee
+   * flag, so it is its own field rather than a combination of existing ones.
+   * This single flag gates the whole section: a future Finance or Production
+   * dashboard is a new item in the same group, not a new access check.
+   */
+  hasExecutiveDashboardAccess?: boolean;
   payslipsEnabled: boolean;
 }
 
@@ -116,6 +124,19 @@ export function sharedNav(access: Access): NavGroup[] {
       { label: 'Help & SOP', href: '/help' },
     ],
   });
+
+  // Executive Dashboards — the CEO-granted cross-vertical executive view. Placed
+  // immediately under Home because for a holder it IS their overview. Sales is
+  // the first of the series; Finance / Production dashboards will be additional
+  // items in this same group, sharing this one gate. Deliberately independent of
+  // module, role and vertical: a Sales rep holding the grant sees it here, and an
+  // Admin without the grant does not.
+  if (access.hasExecutiveDashboardAccess) {
+    groups.push({
+      heading: 'Executive Dashboards',
+      items: [{ label: 'Sales Dashboard', href: '/executive/sales' }],
+    });
+  }
 
   // Profile is available from the account dropdown, so it is not duplicated
   // in the sidebar. Payslips remains here when payroll self-service is enabled.

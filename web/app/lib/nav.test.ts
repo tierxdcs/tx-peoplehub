@@ -503,3 +503,70 @@ describe('sharedNav — dashboard', () => {
     }
   });
 });
+
+describe('sharedNav — Executive Dashboards', () => {
+  /** The grant is a per-employee flag, so it is set on top of any base access. */
+  function granted(a: Access): Access {
+    return { ...a, hasExecutiveDashboardAccess: true };
+  }
+
+  it('is hidden from every role without the grant, including SUPER_ADMIN’s own nav', () => {
+    for (const role of [
+      'SUPER_ADMIN',
+      'ADMIN',
+      'MANAGER',
+      'EMPLOYEE',
+    ] as const) {
+      const a = access(role);
+      expect(labels(a, activeModule('/dashboard', availableModules(a)))).not.toContain(
+        'Sales Dashboard',
+      );
+    }
+  });
+
+  it('appears for a plain EMPLOYEE with the grant — it is not a role or a seniority gate', () => {
+    const a = granted(access('EMPLOYEE'));
+    expect(labels(a, activeModule('/dashboard', availableModules(a)))).toContain(
+      'Sales Dashboard',
+    );
+  });
+
+  it('appears regardless of vertical', () => {
+    for (const opts of [
+      { isSalesStaff: true },
+      { isHrStaff: true },
+      { isScmStaff: true },
+      { isStoreStaff: true },
+      { isFinanceUser: true },
+    ]) {
+      const a = granted(access('EMPLOYEE', opts));
+      expect(
+        labels(a, activeModule('/dashboard', availableModules(a))),
+      ).toContain('Sales Dashboard');
+    }
+  });
+
+  it('groups the section under one reusable heading, directly after Home', () => {
+    const a = granted(access('EMPLOYEE'));
+    const headings = sidebarNav(a, undefined).map((g) => g.heading);
+    expect(headings[0]).toBe('Home');
+    expect(headings[1]).toBe('Executive Dashboards');
+  });
+
+  it('points at the section route so future dashboards are siblings', () => {
+    const a = granted(access('EMPLOYEE'));
+    const group = sidebarNav(a, undefined).find(
+      (g) => g.heading === 'Executive Dashboards',
+    )!;
+    expect(group.items).toEqual([
+      { label: 'Sales Dashboard', href: '/executive/sales' },
+    ]);
+  });
+
+  it('does not change which operational modules a user has', () => {
+    expect(availableModules(granted(access('EMPLOYEE')))).toEqual([]);
+    expect(
+      availableModules(granted(access('EMPLOYEE', { isHrStaff: true }))),
+    ).toEqual(['hr']);
+  });
+});

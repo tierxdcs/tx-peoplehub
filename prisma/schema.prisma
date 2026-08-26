@@ -498,6 +498,16 @@ model Employee {
   /// and sets the SCM Vertical.ownerId to the same employee.
   isScmHead Boolean @default(false)
 
+  /// Access to the Executive Dashboards section (Sales today; Finance /
+  /// Production to follow). NOT a role and NOT derived from vertical, title or
+  /// seniority — a purely discretionary grant made by the CEO, so MULTIPLE
+  /// holders in any vertical are expected. Assigned only by SUPER_ADMIN.
+  /// Holders see company-wide cost and margin figures that their own vertical
+  /// would otherwise hide from them; that disclosure is the point of the grant.
+  /// One flag gates the whole section — future executive dashboards reuse it
+  /// rather than adding their own.
+  hasExecutiveDashboardAccess Boolean @default(false)
+
   /// Internal e-signature (a display layer, NOT a legally-binding e-sign).
   /// Self-service typed text rendered in a chosen signature-style font;
   /// snapshotted onto approval records at approval time.

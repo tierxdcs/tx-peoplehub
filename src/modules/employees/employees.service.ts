@@ -1156,6 +1156,34 @@ export class EmployeesService {
   }
 
   /**
+   * Grant / revoke Executive Dashboards access. Deliberately the least
+   * restrictive designation in this file: MULTIPLE holders, ANY vertical, ANY
+   * role — the CEO decides who should see the executive view, and nothing about
+   * an employee's position implies or blocks it. The only check is that the
+   * employee is ACTIVE (consistent with every other designation); the
+   * SUPER_ADMIN-only caller restriction lives on the controller.
+   */
+  async setExecutiveDashboardAccess(
+    id: string,
+    hasExecutiveDashboardAccess: boolean,
+  ): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (
+      hasExecutiveDashboardAccess &&
+      target.status !== EmployeeStatus.ACTIVE
+    ) {
+      throw new BadRequestException(
+        'Only an active employee can be granted Executive Dashboards access',
+      );
+    }
+    const updated = await this.prisma.employee.update({
+      where: { id },
+      data: { hasExecutiveDashboardAccess },
+    });
+    return this.toEntity(updated);
+  }
+
+  /**
    * Designate / revoke a Scrum Master. Unlike Sales Head, MULTIPLE holders are
    * allowed (company-wide capability), so this is a simple per-employee flag
    * set — no "unset others" step.
@@ -1796,6 +1824,7 @@ export class EmployeesService {
       isScmHead: employee.isScmHead,
       isRdHead: employee.isRdHead,
       isAccountsHead: employee.isAccountsHead,
+      hasExecutiveDashboardAccess: employee.hasExecutiveDashboardAccess,
       officialEmail: employee.officialEmail,
       photoStorageKey: employee.photoStorageKey,
       signatureText: employee.signatureText,
