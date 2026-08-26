@@ -1,6 +1,13 @@
 'use client';
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../../../components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../../../components/ui/table';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -14,6 +21,7 @@ import {
   type ComparisonColumn,
 } from '../../../../../lib/rfq';
 import { formatINR } from '../../../../../lib/sales';
+import { dateOnlyStr } from '../../../../../lib/date';
 import { useNumberFormat } from '../../../../../lib/number-format-context';
 import { humanizeEnum } from '../../../../../lib/status';
 import { PageContainer } from '../../../../../components/ui/page-container';
@@ -123,7 +131,9 @@ export default function RfqComparePage() {
       setAwardTarget(null);
       router.push(`/stores/purchase-orders/${res.purchaseOrderId}`);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to award RFQ');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to award RFQ',
+      );
       setAwarding(false);
     }
   }
@@ -158,7 +168,11 @@ export default function RfqComparePage() {
     return (
       <PageContainer>
         <p className="text-sm text-destructive">{error ?? 'Not found.'}</p>
-        <Button variant="outline" className="mt-4" onClick={() => router.push(`/scm/rfqs/${id}`)}>
+        <Button
+          variant="outline"
+          className="mt-4"
+          onClick={() => router.push(`/scm/rfqs/${id}`)}
+        >
           <ArrowLeft className="size-4" /> Back
         </Button>
       </PageContainer>
@@ -187,7 +201,11 @@ export default function RfqComparePage() {
               <Field
                 key={k}
                 label={
-                  k === 'price' ? 'Price' : k === 'leadTime' ? 'Lead Time' : 'Qualification'
+                  k === 'price'
+                    ? 'Price'
+                    : k === 'leadTime'
+                      ? 'Lead Time'
+                      : 'Qualification'
                 }
               >
                 <Input
@@ -196,7 +214,10 @@ export default function RfqComparePage() {
                   step="1"
                   value={weights[k]}
                   onChange={(e) =>
-                    setWeights((w) => ({ ...w, [k]: Number(e.target.value) || 0 }))
+                    setWeights((w) => ({
+                      ...w,
+                      [k]: Number(e.target.value) || 0,
+                    }))
                   }
                 />
               </Field>
@@ -213,7 +234,9 @@ export default function RfqComparePage() {
           <Table className="w-full border-collapse text-sm">
             <TableHeader>
               <TableRow className="border-b">
-                <TableHead className="p-3 text-left font-medium text-muted-foreground">Item</TableHead>
+                <TableHead className="p-3 text-left font-medium text-muted-foreground">
+                  Item
+                </TableHead>
                 {cols.map((c) => (
                   <TableHead
                     key={c.inviteeId}
@@ -223,8 +246,17 @@ export default function RfqComparePage() {
                     <div className="text-xs font-normal text-muted-foreground">
                       {humanizeEnum(c.partnerType)}
                     </div>
-                    <div className="mt-1">
+                    <div className="mt-1 flex items-center justify-end gap-1.5">
                       <StatusBadge value={c.quoteStatus} />
+                      {/* Which revision this column's figures come from. */}
+                      {c.revisionNumber != null && c.revisionNumber > 1 && (
+                        <span
+                          className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium"
+                          title="Negotiated revision — the latest quote this partner submitted"
+                        >
+                          Rev {c.revisionNumber}
+                        </span>
+                      )}
                     </div>
                   </TableHead>
                 ))}
@@ -237,12 +269,15 @@ export default function RfqComparePage() {
                   <TableCell className="p-3">
                     <div className="font-medium">{line.itemName ?? '—'}</div>
                     <div className="text-xs text-muted-foreground">
-                      {line.itemCode ?? ''} · {line.quantity} {line.unitOfMeasure}
+                      {line.itemCode ?? ''} · {line.quantity}{' '}
+                      {line.unitOfMeasure}
                     </div>
                   </TableCell>
                   {cols.map((c) => {
                     if (c.nonResponder) return <MutedCell key={c.inviteeId} />;
-                    const ql = c.lines.find((l) => l.rfqLineId === line.rfqLineId);
+                    const ql = c.lines.find(
+                      (l) => l.rfqLineId === line.rfqLineId,
+                    );
                     return (
                       <TableCell
                         key={c.inviteeId}
@@ -258,7 +293,11 @@ export default function RfqComparePage() {
               {/* Summary rows */}
               <SummaryRow label="Total quoted" cols={cols}>
                 {(c) => (
-                  <span className={c.isLowestTotal ? 'font-medium text-success' : ''}>
+                  <span
+                    className={
+                      c.isLowestTotal ? 'font-medium text-success' : ''
+                    }
+                  >
                     {formatINR(c.totalQuotedValue, numberFormatStyle)}
                   </span>
                 )}
@@ -271,21 +310,64 @@ export default function RfqComparePage() {
                 }
               </SummaryRow>
               <SummaryRow label="Lead time (days)" cols={cols}>
-                {(c) => (c.quotedLeadTimeDays != null ? String(c.quotedLeadTimeDays) : '—')}
+                {(c) =>
+                  c.quotedLeadTimeDays != null
+                    ? String(c.quotedLeadTimeDays)
+                    : '—'
+                }
               </SummaryRow>
-              <SummaryRow label="Qualification" cols={cols} responderRender={(c) => (
-                <StatusBadge value={c.qualificationStatusSnapshot} />
-              )} />
+              <SummaryRow
+                label="Qualification"
+                cols={cols}
+                responderRender={(c) => (
+                  <StatusBadge value={c.qualificationStatusSnapshot} />
+                )}
+              />
               <SummaryRow label="Payment terms" cols={cols}>
                 {(c) => c.paymentTermsOffered ?? '—'}
               </SummaryRow>
               <SummaryRow label="Validity (days)" cols={cols}>
                 {(c) => (c.validityDays != null ? String(c.validityDays) : '—')}
               </SummaryRow>
+              {/* Negotiation trail. Only rendered when someone actually
+                  revised — every figure above is the latest revision, and each
+                  earlier one is kept in full, never overwritten. */}
+              {cols.some((c) => c.revisions.length > 1) && (
+                <SummaryRow label="Quote revisions" cols={cols}>
+                  {(c) =>
+                    c.revisions.length > 1 ? (
+                      <div className="space-y-0.5">
+                        {c.revisions.map((rev, i) => (
+                          <div
+                            key={rev.revisionNumber}
+                            className={
+                              i === 0
+                                ? 'text-xs font-medium'
+                                : 'text-xs text-muted-foreground line-through'
+                            }
+                          >
+                            Rev {rev.revisionNumber}:{' '}
+                            {formatINR(rev.totalQuotedValue, numberFormatStyle)}
+                            {rev.submittedAt
+                              ? ` · ${dateOnlyStr(rev.submittedAt)}`
+                              : ''}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        Original only
+                      </span>
+                    )
+                  }
+                </SummaryRow>
+              )}
               <SummaryRow label="Weighted score" cols={cols}>
                 {(c) => (
                   <span className="font-medium">
-                    {c.weightedScore != null ? Number(c.weightedScore).toFixed(1) : '—'}
+                    {c.weightedScore != null
+                      ? Number(c.weightedScore).toFixed(1)
+                      : '—'}
                   </span>
                 )}
               </SummaryRow>
@@ -294,10 +376,15 @@ export default function RfqComparePage() {
               <TableRow className="border-b bg-muted/30">
                 <TableCell className="p-3 font-medium">Decision</TableCell>
                 {cols.map((c) => (
-                  <TableCell key={c.inviteeId} className="p-3 text-right align-top">
+                  <TableCell
+                    key={c.inviteeId}
+                    className="p-3 text-right align-top"
+                  >
                     {c.nonResponder ? (
                       <span className="text-xs text-muted-foreground">
-                        {c.declineReason ? `Declined: ${c.declineReason}` : 'No response'}
+                        {c.declineReason
+                          ? `Declined: ${c.declineReason}`
+                          : 'No response'}
                       </span>
                     ) : c.quoteStatus === 'SUBMITTED' ? (
                       <Button
@@ -318,19 +405,38 @@ export default function RfqComparePage() {
         </CardContent>
       </Card>
 
-      <Dialog open={awardTarget != null} onOpenChange={(o) => !o && setAwardTarget(null)}>
+      <Dialog
+        open={awardTarget != null}
+        onOpenChange={(o) => !o && setAwardTarget(null)}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Award to {awardTarget?.partnerName ?? 'partner'}</DialogTitle>
+            <DialogTitle>
+              Award to {awardTarget?.partnerName ?? 'partner'}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               Awarding creates a purchase order from this quote.
+              {awardTarget?.revisionNumber != null &&
+                awardTarget.revisionNumber > 1 && (
+                  <>
+                    {' '}
+                    The PO is drafted from{' '}
+                    <span className="font-medium text-foreground">
+                      Revision {awardTarget.revisionNumber}
+                    </span>
+                    , the negotiated quote.
+                  </>
+                )}
               {awardTarget && !awardTarget.isLowestTotal && (
                 <>
                   {' '}
-                  This is <span className="font-medium text-warning">not the lowest total</span> —
-                  a justification is required.
+                  This is{' '}
+                  <span className="font-medium text-warning">
+                    not the lowest total
+                  </span>{' '}
+                  — a justification is required.
                 </>
               )}
             </p>
@@ -346,7 +452,11 @@ export default function RfqComparePage() {
             </Field>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAwardTarget(null)} disabled={awarding}>
+            <Button
+              variant="outline"
+              onClick={() => setAwardTarget(null)}
+              disabled={awarding}
+            >
               Cancel
             </Button>
             <Button onClick={confirmAward} disabled={awarding}>
@@ -373,7 +483,9 @@ function BackLink({ id, rfqNumber }: { id: string; rfqNumber?: string }) {
 }
 
 function MutedCell() {
-  return <TableCell className="p-3 text-right text-muted-foreground">—</TableCell>;
+  return (
+    <TableCell className="p-3 text-right text-muted-foreground">—</TableCell>
+  );
 }
 
 /**

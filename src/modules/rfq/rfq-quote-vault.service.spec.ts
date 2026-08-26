@@ -21,6 +21,18 @@ describe('rfqQuoteFileName', () => {
     );
   });
 
+  it('suffixes _Rev{n} from revision 2 on, leaving revision 1 unchanged', () => {
+    expect(rfqQuoteFileName('RFQ-2026-0007', 'Dhanur Teck', 1)).toBe(
+      'RFQ-2026-0007_Dhanur-Teck_Quote.pdf',
+    );
+    expect(rfqQuoteFileName('RFQ-2026-0007', 'Dhanur Teck', 2)).toBe(
+      'RFQ-2026-0007_Dhanur-Teck_Quote_Rev2.pdf',
+    );
+    expect(rfqQuoteFileName('RFQ-2026-0007', 'Dhanur Teck', 3)).toBe(
+      'RFQ-2026-0007_Dhanur-Teck_Quote_Rev3.pdf',
+    );
+  });
+
   it('never leaves the partner segment empty', () => {
     expect(rfqQuoteFileName('RFQ-2026-0007', '株式会社')).toBe(
       'RFQ-2026-0007_Unnamed_Quote.pdf',
@@ -39,6 +51,8 @@ describe('renderRfqQuotePdf', () => {
       partnerKind: 'Vendor',
       partnerName: 'Vigyanlabs Innovations',
       submittedAt: new Date('2026-08-25T10:00:00.000Z'),
+      revisionNumber: 1,
+      revisionNote: null,
       quotedLeadTimeDays: 21,
       paymentTermsOffered: '45 days',
       validityDays: 30,
@@ -85,42 +99,51 @@ describe('RfqQuoteVaultService', () => {
       paymentTermsRequested: null,
       createdById: 'employee-1',
     },
-    quote: {
-      quotedLeadTimeDays: 21,
-      paymentTermsOffered: null,
-      validityDays: null,
-      notes: null,
-      attachmentFileKeys: ['rfq-quotes/invitee-1/attachments/aa'],
-      totalQuotedValue: D('520380.00'),
-      lines: [
-        {
-          unitPrice: D('52038.00'),
-          lineTotal: D('520380.00'),
-          deliveryLeadTimeDays: 21,
-          remarks: null,
-          rfqLine: {
-            sequence: 1,
-            quantity: D('10'),
-            unitOfMeasure: 'NOS',
-            specificationNotes: null,
-            item: { itemCode: 'ITM-0001', name: '27U Rack' },
+    revisionNote: null,
+    // The service loads only the newest SUBMITTED revision, so the fixture is
+    // the one-element array that query returns.
+    quotes: [
+      {
+        revisionNumber: 1,
+        submittedAt: new Date('2026-08-25T10:00:00.000Z'),
+        quotedLeadTimeDays: 21,
+        paymentTermsOffered: null,
+        validityDays: null,
+        notes: null,
+        attachmentFileKeys: ['rfq-quotes/invitee-1/attachments/aa'],
+        totalQuotedValue: D('520380.00'),
+        lines: [
+          {
+            unitPrice: D('52038.00'),
+            lineTotal: D('520380.00'),
+            deliveryLeadTimeDays: 21,
+            remarks: null,
+            rfqLine: {
+              sequence: 1,
+              quantity: D('10'),
+              unitOfMeasure: 'NOS',
+              specificationNotes: null,
+              targetPrice: null,
+              item: { itemCode: 'ITM-0001', name: '27U Rack' },
+            },
           },
-        },
-        {
-          unitPrice: D('100.00'),
-          lineTotal: D('200.00'),
-          deliveryLeadTimeDays: null,
-          remarks: null,
-          rfqLine: {
-            sequence: 0,
-            quantity: D('2'),
-            unitOfMeasure: 'NOS',
-            specificationNotes: null,
-            item: { itemCode: 'ITM-0002', name: 'PDU' },
+          {
+            unitPrice: D('100.00'),
+            lineTotal: D('200.00'),
+            deliveryLeadTimeDays: null,
+            remarks: null,
+            rfqLine: {
+              sequence: 0,
+              quantity: D('2'),
+              unitOfMeasure: 'NOS',
+              specificationNotes: null,
+              targetPrice: null,
+              item: { itemCode: 'ITM-0002', name: 'PDU' },
+            },
           },
-        },
-      ],
-    },
+        ],
+      },
+    ],
   };
 
   beforeEach(() => {
@@ -234,6 +257,69 @@ describe('RfqQuoteVaultService', () => {
 
   it('throws when the RFQ Quotes folder is not provisioned', async () => {
     prisma.vaultFolder.findFirst.mockResolvedValue(null);
+    await expect(service.fileSubmittedQuote('invitee-1')).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(storage.putObjectBytes).not.toHaveBeenCalled();
+  });
+
+  it('files a negotiated revision as its own _Rev2 file in the SAME folder', async () => {
+    prisma.rfqInvitee.findUniqueOrThrow.mockResolvedValue({
+      ...invitee,
+      revisionNote: 'Please improve freight and lead time.',
+      quotes: [
+        {
+          ...invitee.quotes[0],
+          revisionNumber: 2,
+          submittedAt: new Date('2026-09-10T10:00:00.000Z'),
+          totalQuotedValue: D('498000.00'),
+        },
+      ],
+    });
+
+    const result = await service.fileSubmittedQuote('invitee-1');
+
+    // Same folder lookup, distinct file name — revision 1's file is untouched.
+    expect(prisma.vaultFolder.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ name: RFQ_QUOTES_FOLDER_NAME }),
+      }),
+    );
+    expect(result.name).toBe(
+      'RFQ-2026-0007_Vigyanlabs-Innovations_Quote_Rev2.pdf',
+    );
+    expect(prisma.vaultFile.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          folderId: 'folder-1',
+          name: 'RFQ-2026-0007_Vigyanlabs-Innovations_Quote_Rev2.pdf',
+        }),
+      }),
+    );
+    expect(prisma.vaultFileVersion.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        changeNote: 'Revision 2 submitted 2026-09-10T10:00:00.000Z',
+      }),
+    });
+  });
+
+  it('asks for the newest SUBMITTED revision only — a draft revision is never filed', async () => {
+    await service.fileSubmittedQuote('invitee-1');
+    const arg = prisma.rfqInvitee.findUniqueOrThrow.mock.calls[0][0];
+    expect(arg.include.quotes).toEqual(
+      expect.objectContaining({
+        where: { submittedAt: { not: null } },
+        orderBy: { revisionNumber: 'desc' },
+        take: 1,
+      }),
+    );
+  });
+
+  it('throws when the invitee has no submitted quote to file', async () => {
+    prisma.rfqInvitee.findUniqueOrThrow.mockResolvedValue({
+      ...invitee,
+      quotes: [],
+    });
     await expect(service.fileSubmittedQuote('invitee-1')).rejects.toThrow(
       NotFoundException,
     );

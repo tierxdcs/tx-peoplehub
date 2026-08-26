@@ -63,6 +63,15 @@ export interface RfqInvitee {
   declineReason: string | null;
   revokedAt: string | null;
   inviteToken: string | null;
+  // Negotiated quote revisions — scoped to this invitee's own link.
+  latestRevisionNumber: number | null;
+  submittedRevisionCount: number;
+  revisionRequestedAt: string | null;
+  revisionDeadline: string | null;
+  revisionNote: string | null;
+  revisionRequestedByName: string | null;
+  /** True while a requested revision is still outstanding (link reopened). */
+  revisionPending: boolean;
 }
 
 export interface Rfq {
@@ -224,7 +233,17 @@ export interface ComparisonColumn {
   validityDays: number | null;
   attachmentFileKeys: string[];
   weightedScore: string | null;
+  /** The revision every figure in this column comes from. Null = non-responder. */
+  revisionNumber: number | null;
+  /** Every submitted revision, newest first — the negotiation trail. */
+  revisions: ComparisonRevision[];
   lines: ComparisonQuoteLine[];
+}
+export interface ComparisonRevision {
+  revisionNumber: number;
+  submittedAt: string | null;
+  totalQuotedValue: string;
+  quotedLeadTimeDays: number | null;
 }
 export interface RfqComparison {
   rfqId: string;
@@ -356,6 +375,21 @@ export function removeInvitee(id: string, inviteeId: string) {
     method: 'DELETE',
   });
 }
+/**
+ * Reopen ONE invitee's link on a CLOSED RFQ so they can send a negotiated
+ * revised quote (Revision 2+). Never reopens the RFQ or any other invitee, and
+ * needs no fresh PM approval — it is an SCM operational action.
+ */
+export function requestQuoteRevision(
+  id: string,
+  inviteeId: string,
+  input: { revisionDeadline: string; note?: string; password?: string },
+) {
+  return apiFetch<Rfq>(`/rfqs/${id}/invitees/${inviteeId}/request-revision`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
 export function approveRfq(id: string) {
   return apiFetch<Rfq>(`/rfqs/${id}/approve`, { method: 'POST' });
 }
@@ -409,6 +443,18 @@ export interface PublicRfqView {
   partnerName: string | null;
   quoteStatus: RfqQuoteStatus;
   declineReason: string | null;
+  /**
+   * This invitee's negotiated-revision state. While `open` is true the form is
+   * editable and submittable even though the RFQ has closed and the previous
+   * offer is locked; `revisionNumber` is the revision about to be submitted.
+   */
+  revision: {
+    open: boolean;
+    revisionNumber: number;
+    requestedAt: string | null;
+    deadline: string | null;
+    note: string | null;
+  };
   rfq: {
     rfqNumber: string;
     title: string;

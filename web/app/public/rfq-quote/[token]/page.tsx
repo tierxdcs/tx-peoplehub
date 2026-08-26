@@ -66,15 +66,22 @@ export default function PublicRfqQuotePage() {
 
   const applyView = useCallback((v: PublicRfqView) => {
     setView(v);
-    if (v.quoteStatus === 'SUBMITTED') setDone('submitted');
+    // A reopened link outranks the SUBMITTED lock: the buyer has asked for a
+    // revised quote, so the form stays editable and seeded with the previous
+    // offer. Their earlier quote is kept in full either way.
+    if (v.quoteStatus === 'SUBMITTED' && !v.revision.open) setDone('submitted');
     if (v.quoteStatus === 'DECLINED') setDone('declined');
     // Seed header + line state from any previously-saved quote (resume).
     if (v.quote) {
       setQuotedLeadTimeDays(
-        v.quote.quotedLeadTimeDays != null ? String(v.quote.quotedLeadTimeDays) : '',
+        v.quote.quotedLeadTimeDays != null
+          ? String(v.quote.quotedLeadTimeDays)
+          : '',
       );
       setPaymentTermsOffered(v.quote.paymentTermsOffered ?? '');
-      setValidityDays(v.quote.validityDays != null ? String(v.quote.validityDays) : '');
+      setValidityDays(
+        v.quote.validityDays != null ? String(v.quote.validityDays) : '',
+      );
       setNotes(v.quote.notes ?? '');
     }
     const seeded: Record<string, LineState> = {};
@@ -115,7 +122,9 @@ export default function PublicRfqQuotePage() {
     setLineState((s) => ({ ...s, [lineId]: { ...s[lineId], ...patch } }));
   }
 
-  function buildLines(requireAllPriced: boolean): PublicQuoteLineInput[] | null {
+  function buildLines(
+    requireAllPriced: boolean,
+  ): PublicQuoteLineInput[] | null {
     if (!view) return null;
     const out: PublicQuoteLineInput[] = [];
     for (const line of view.rfq.lines) {
@@ -140,8 +149,12 @@ export default function PublicRfqQuotePage() {
   function header() {
     return {
       password: pwRef.current,
-      ...(quotedLeadTimeDays.trim() ? { quotedLeadTimeDays: Number(quotedLeadTimeDays) } : {}),
-      ...(paymentTermsOffered.trim() ? { paymentTermsOffered: paymentTermsOffered.trim() } : {}),
+      ...(quotedLeadTimeDays.trim()
+        ? { quotedLeadTimeDays: Number(quotedLeadTimeDays) }
+        : {}),
+      ...(paymentTermsOffered.trim()
+        ? { paymentTermsOffered: paymentTermsOffered.trim() }
+        : {}),
       ...(validityDays.trim() ? { validityDays: Number(validityDays) } : {}),
       ...(notes.trim() ? { notes: notes.trim() } : {}),
     };
@@ -155,7 +168,9 @@ export default function PublicRfqQuotePage() {
     setSaving(false);
     if (res.ok) {
       applyView(res.data);
-      setBanner('Draft saved. You can close this and resume later via the same link.');
+      setBanner(
+        'Draft saved. You can close this and resume later via the same link.',
+      );
     } else {
       setBanner(res.message);
     }
@@ -261,10 +276,18 @@ export default function PublicRfqQuotePage() {
     return (
       <Shell>
         <div style={{ padding: 24, textAlign: 'center' }}>
-          <h2 style={{ color: INK }}>Thank you — your quote has been submitted.</h2>
+          <h2 style={{ color: INK }}>
+            Thank you — your{' '}
+            {view && view.revision.revisionNumber > 1 ? 'revised ' : ''}quote
+            has been submitted.
+          </h2>
           <p style={{ color: '#6b7280' }}>
-            Your quotation has been received by {COMPANY.name} and is now locked. No
-            further changes are needed.
+            Your quotation
+            {view && view.revision.revisionNumber > 1
+              ? ` (Revision ${view.revision.revisionNumber})`
+              : ''}{' '}
+            has been received by {COMPANY.name} and is now locked. No further
+            changes are needed.
           </p>
         </div>
         {view && (
@@ -301,25 +324,65 @@ export default function PublicRfqQuotePage() {
     const st = lineState[line.id];
     const price = Number(st?.unitPrice);
     const qty = Number(line.quantity);
-    return sum + (Number.isFinite(price) && Number.isFinite(qty) ? price * qty : 0);
+    return (
+      sum + (Number.isFinite(price) && Number.isFinite(qty) ? price * qty : 0)
+    );
   }, 0);
 
+  const revision = view.revision;
   return (
     <Shell>
-      <p
-        style={{
-          margin: '0 0 20px',
-          padding: '12px 16px',
-          background: '#f8f8f9',
-          borderLeft: `4px solid ${ACCENT}`,
-          fontSize: 14,
-          color: '#374151',
-        }}
-      >
-        Please provide your unit prices for each line below. Use <strong>Save
-        Draft</strong> to keep your progress — you can resume later via the same
-        link. Your quote is sealed until the RFQ closes.
-      </p>
+      {/* A reopened link: say plainly that this is a revised quote, what was
+          asked for, and by when — the previous quote is on record either way. */}
+      {revision.open ? (
+        <div
+          style={{
+            margin: '0 0 20px',
+            padding: '12px 16px',
+            background: '#f0f7ff',
+            borderLeft: `4px solid ${ACCENT}`,
+            fontSize: 14,
+            color: '#374151',
+          }}
+        >
+          <strong style={{ color: INK }}>
+            Revised quote requested (Revision {revision.revisionNumber})
+          </strong>
+          <p style={{ margin: '6px 0 0' }}>
+            {COMPANY.name} has reopened this link so you can submit a revised
+            quotation. The figures below are your previous quotation — adjust
+            what you wish to change and submit. Your earlier quotation remains
+            on record; this submission is recorded as Revision{' '}
+            {revision.revisionNumber} alongside it.
+          </p>
+          {revision.note && (
+            <p style={{ margin: '8px 0 0' }}>
+              <strong>What we&apos;re asking for:</strong> {revision.note}
+            </p>
+          )}
+          {revision.deadline && (
+            <p style={{ margin: '8px 0 0', fontSize: 13.5 }}>
+              This link is open until{' '}
+              <strong>{new Date(revision.deadline).toLocaleString()}</strong>.
+            </p>
+          )}
+        </div>
+      ) : (
+        <p
+          style={{
+            margin: '0 0 20px',
+            padding: '12px 16px',
+            background: '#f8f8f9',
+            borderLeft: `4px solid ${ACCENT}`,
+            fontSize: 14,
+            color: '#374151',
+          }}
+        >
+          Please provide your unit prices for each line below. Use{' '}
+          <strong>Save Draft</strong> to keep your progress — you can resume
+          later via the same link. Your quote is sealed until the RFQ closes.
+        </p>
+      )}
 
       {banner && (
         <p
@@ -347,56 +410,86 @@ export default function PublicRfqQuotePage() {
             {rfq.description}
           </p>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-          <Meta label="Submission Deadline" value={rfq.submissionDeadline.slice(0, 10)} />
-          <Meta label="Required By" value={rfq.requiredByDate?.slice(0, 10) ?? '—'} />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: 10,
+          }}
+        >
+          <Meta
+            label="Submission Deadline"
+            value={rfq.submissionDeadline.slice(0, 10)}
+          />
+          <Meta
+            label="Required By"
+            value={rfq.requiredByDate?.slice(0, 10) ?? '—'}
+          />
           <Meta label="Delivery Location" value={rfq.deliveryLocation ?? '—'} />
-          <Meta label="Payment Terms Requested" value={rfq.paymentTermsRequested ?? '—'} />
+          <Meta
+            label="Payment Terms Requested"
+            value={rfq.paymentTermsRequested ?? '—'}
+          />
         </div>
       </section>
 
-      <TechnicalPackage
-        view={view}
-        onDownload={downloadTechnicalAttachment}
-      />
+      <TechnicalPackage view={view} onDownload={downloadTechnicalAttachment} />
 
       {/* Line pricing table */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
+      <table
+        style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}
+      >
         <thead>
           <tr>
-            {['Item', 'Qty', 'Unit Price (₹)', 'Lead Time (days)', 'Remarks', 'Line Total'].map(
-              (h) => (
-                <th
-                  key={h}
-                  style={{
-                    background: INK,
-                    color: '#fff',
-                    fontSize: 12.5,
-                    padding: '8px 10px',
-                    textAlign: 'left',
-                  }}
-                >
-                  {h}
-                </th>
-              ),
-            )}
+            {[
+              'Item',
+              'Qty',
+              'Unit Price (₹)',
+              'Lead Time (days)',
+              'Remarks',
+              'Line Total',
+            ].map((h) => (
+              <th
+                key={h}
+                style={{
+                  background: INK,
+                  color: '#fff',
+                  fontSize: 12.5,
+                  padding: '8px 10px',
+                  textAlign: 'left',
+                }}
+              >
+                {h}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {rfq.lines.map((line) => {
-            const st = lineState[line.id] ?? { unitPrice: '', deliveryLeadTimeDays: '', remarks: '' };
+            const st = lineState[line.id] ?? {
+              unitPrice: '',
+              deliveryLeadTimeDays: '',
+              remarks: '',
+            };
             const lineTotal = Number(st.unitPrice) * Number(line.quantity) || 0;
             return (
               <tr key={line.id}>
                 <td style={cellStyle}>
-                  <div style={{ fontWeight: 600, color: INK }}>{line.itemName ?? '—'}</div>
+                  <div style={{ fontWeight: 600, color: INK }}>
+                    {line.itemName ?? '—'}
+                  </div>
                   <div style={{ fontSize: 12, color: '#6b7280' }}>
                     {line.itemCode ?? ''}
-                    {line.specificationNotes ? ` · ${line.specificationNotes}` : ''}
+                    {line.specificationNotes
+                      ? ` · ${line.specificationNotes}`
+                      : ''}
                   </div>
                   {line.targetPrice && (
-                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}>
-                      Target price: ₹{Number(line.targetPrice).toLocaleString('en-IN', {
+                    <div
+                      style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}
+                    >
+                      Target price: ₹
+                      {Number(line.targetPrice).toLocaleString('en-IN', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
@@ -413,7 +506,9 @@ export default function PublicRfqQuotePage() {
                     step="any"
                     style={inputStyle}
                     value={st.unitPrice}
-                    onChange={(e) => setLine(line.id, { unitPrice: e.target.value })}
+                    onChange={(e) =>
+                      setLine(line.id, { unitPrice: e.target.value })
+                    }
                   />
                 </td>
                 <td style={{ ...cellStyle, width: 110 }}>
@@ -423,17 +518,28 @@ export default function PublicRfqQuotePage() {
                     step="1"
                     style={inputStyle}
                     value={st.deliveryLeadTimeDays}
-                    onChange={(e) => setLine(line.id, { deliveryLeadTimeDays: e.target.value })}
+                    onChange={(e) =>
+                      setLine(line.id, { deliveryLeadTimeDays: e.target.value })
+                    }
                   />
                 </td>
                 <td style={{ ...cellStyle, width: 180 }}>
                   <input
                     style={inputStyle}
                     value={st.remarks}
-                    onChange={(e) => setLine(line.id, { remarks: e.target.value })}
+                    onChange={(e) =>
+                      setLine(line.id, { remarks: e.target.value })
+                    }
                   />
                 </td>
-                <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 600, color: INK }}>
+                <td
+                  style={{
+                    ...cellStyle,
+                    textAlign: 'right',
+                    fontWeight: 600,
+                    color: INK,
+                  }}
+                >
                   {money(lineTotal)}
                 </td>
               </tr>
@@ -442,10 +548,20 @@ export default function PublicRfqQuotePage() {
         </tbody>
         <tfoot>
           <tr>
-            <td colSpan={5} style={{ ...cellStyle, textAlign: 'right', fontWeight: 600 }}>
+            <td
+              colSpan={5}
+              style={{ ...cellStyle, textAlign: 'right', fontWeight: 600 }}
+            >
               Grand Total
             </td>
-            <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 700, color: INK }}>
+            <td
+              style={{
+                ...cellStyle,
+                textAlign: 'right',
+                fontWeight: 700,
+                color: INK,
+              }}
+            >
               {money(grandTotal)}
             </td>
           </tr>
@@ -454,8 +570,16 @@ export default function PublicRfqQuotePage() {
 
       {/* Quote header fields */}
       <section style={{ marginTop: 24 }}>
-        <h3 style={{ fontSize: 14, margin: '0 0 10px', color: INK }}>Quote Terms</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <h3 style={{ fontSize: 14, margin: '0 0 10px', color: INK }}>
+          Quote Terms
+        </h3>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 12,
+          }}
+        >
           <Labeled label="Lead Time (days)">
             <input
               type="number"
@@ -494,42 +618,60 @@ export default function PublicRfqQuotePage() {
       </section>
 
       {/* Actions */}
-      <div style={{ display: 'flex', gap: 12, marginTop: 28, justifyContent: 'flex-end' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 12,
+          marginTop: 28,
+          justifyContent: 'flex-end',
+        }}
+      >
         <button onClick={save} disabled={saving} style={btnSecondary}>
           {saving ? 'Saving…' : 'Save Draft'}
         </button>
         <button onClick={submit} disabled={saving} style={btnPrimary}>
-          Submit Quote
+          {revision.open
+            ? `Submit Revision ${revision.revisionNumber}`
+            : 'Submit Quote'}
         </button>
       </div>
 
-      {/* Decline */}
-      <section
-        style={{
-          marginTop: 28,
-          padding: '16px 18px',
-          background: '#f8f8f9',
-          borderRadius: 4,
-        }}
-      >
-        <h3 style={{ fontSize: 14, margin: '0 0 8px', color: INK }}>Decline to Quote</h3>
-        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 10px' }}>
-          If you cannot participate in this RFQ, you may decline below.
-        </p>
-        <input
-          style={{ ...inputStyle, marginBottom: 10 }}
-          placeholder="Reason (optional)"
-          value={declineReason}
-          onChange={(e) => setDeclineReason(e.target.value)}
-        />
-        <button
-          onClick={decline}
-          disabled={saving}
-          style={{ ...btnSecondary, borderColor: '#c0392b', color: '#c0392b' }}
+      {/* Decline. Hidden on a reopened link: they already quoted, so the
+          decision in front of them is whether to revise, not whether to bid. */}
+      {!revision.open && (
+        <section
+          style={{
+            marginTop: 28,
+            padding: '16px 18px',
+            background: '#f8f8f9',
+            borderRadius: 4,
+          }}
         >
-          Decline to Quote
-        </button>
-      </section>
+          <h3 style={{ fontSize: 14, margin: '0 0 8px', color: INK }}>
+            Decline to Quote
+          </h3>
+          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 10px' }}>
+            If you cannot participate in this RFQ, you may decline below.
+          </p>
+          <input
+            style={{ ...inputStyle, marginBottom: 10 }}
+            placeholder="Reason (optional)"
+            value={declineReason}
+            onChange={(e) => setDeclineReason(e.target.value)}
+          />
+          <button
+            onClick={decline}
+            disabled={saving}
+            style={{
+              ...btnSecondary,
+              borderColor: '#c0392b',
+              color: '#c0392b',
+            }}
+          >
+            Decline to Quote
+          </button>
+        </section>
+      )}
     </Shell>
   );
 }
@@ -581,10 +723,16 @@ function TechnicalPackage({
                 <span>
                   <strong>{file.fileName}</strong>
                   <small style={{ display: 'block', color: '#6b7280' }}>
-                    {line ? `${line.itemCode} - ${line.itemName}` : 'General RFQ document'} · {(file.fileSize / 1024 / 1024).toFixed(1)} MB
+                    {line
+                      ? `${line.itemCode} - ${line.itemName}`
+                      : 'General RFQ document'}{' '}
+                    · {(file.fileSize / 1024 / 1024).toFixed(1)} MB
                   </small>
                 </span>
-                <button style={btnSecondary} onClick={() => onDownload(file.id)}>
+                <button
+                  style={btnSecondary}
+                  onClick={() => onDownload(file.id)}
+                >
                   Download
                 </button>
               </div>
@@ -594,19 +742,63 @@ function TechnicalPackage({
       )}
 
       {rfq.lines.map((line) => {
-        const bom = technical.lineBoms.find((entry) => entry.rfqLineId === line.id);
+        const bom = technical.lineBoms.find(
+          (entry) => entry.rfqLineId === line.id,
+        );
         return (
-          <details key={line.id} style={{ marginTop: 8, borderTop: '1px solid #e5e7eb', paddingTop: 8 }}>
-            <summary style={{ cursor: 'pointer', fontSize: 13.5, fontWeight: 600, color: INK }}>
+          <details
+            key={line.id}
+            style={{
+              marginTop: 8,
+              borderTop: '1px solid #e5e7eb',
+              paddingTop: 8,
+            }}
+          >
+            <summary
+              style={{
+                cursor: 'pointer',
+                fontSize: 13.5,
+                fontWeight: 600,
+                color: INK,
+              }}
+            >
               {line.itemCode} - {line.itemName}{' '}
               <span style={{ fontWeight: 400, color: '#6b7280' }}>
-                {bom?.revisionNumber ? `· Released BOM Rev ${bom.revisionNumber}` : '· No released BOM'}
+                {bom?.revisionNumber
+                  ? `· Released BOM Rev ${bom.revisionNumber}`
+                  : '· No released BOM'}
               </span>
             </summary>
             {bom && bom.components.length > 0 && (
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
-                <thead><tr><th style={technicalHead}>Component</th><th style={technicalHead}>Sourcing quantity</th><th style={technicalHead}>Specification</th></tr></thead>
-                <tbody>{bom.components.map((component) => <tr key={component.itemId}><td style={cellStyle}>{component.itemCode} - {component.itemName}</td><td style={cellStyle}>{component.quantity} {component.unitOfMeasure}</td><td style={cellStyle}>{component.specification ?? '—'}</td></tr>)}</tbody>
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  marginTop: 8,
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th style={technicalHead}>Component</th>
+                    <th style={technicalHead}>Sourcing quantity</th>
+                    <th style={technicalHead}>Specification</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bom.components.map((component) => (
+                    <tr key={component.itemId}>
+                      <td style={cellStyle}>
+                        {component.itemCode} - {component.itemName}
+                      </td>
+                      <td style={cellStyle}>
+                        {component.quantity} {component.unitOfMeasure}
+                      </td>
+                      <td style={cellStyle}>
+                        {component.specification ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
               </table>
             )}
           </details>
@@ -627,7 +819,13 @@ const technicalHead: React.CSSProperties = {
 // ── Layout shell (standalone document look) ──────────────────────────
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main style={{ background: '#eef0f3', minHeight: '100vh', padding: '24px 0 60px' }}>
+    <main
+      style={{
+        background: '#eef0f3',
+        minHeight: '100vh',
+        padding: '24px 0 60px',
+      }}
+    >
       <div
         style={{
           maxWidth: 860,
@@ -647,7 +845,11 @@ function Shell({ children }: { children: React.ReactNode }) {
         >
           {COMPANY.logoPath ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={COMPANY.logoPath} alt={COMPANY.name} style={{ height: 46 }} />
+            <img
+              src={COMPANY.logoPath}
+              alt={COMPANY.name}
+              style={{ height: 46 }}
+            />
           ) : (
             <strong style={{ fontSize: 20, color: INK }}>{COMPANY.name}</strong>
           )}
@@ -676,7 +878,8 @@ function Shell({ children }: { children: React.ReactNode }) {
             padding: '20px 40px 34px',
           }}
         >
-          {COMPANY.legalEntityName} — Request for Quotation · {COMPANY.confidentialityLine}
+          {COMPANY.legalEntityName} — Request for Quotation ·{' '}
+          {COMPANY.confidentialityLine}
         </footer>
       </div>
     </main>
@@ -701,10 +904,23 @@ function Meta({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
+function Labeled({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label style={{ display: 'block' }}>
-      <span style={{ display: 'block', fontSize: 12.5, color: '#374151', marginBottom: 4 }}>
+      <span
+        style={{
+          display: 'block',
+          fontSize: 12.5,
+          color: '#374151',
+          marginBottom: 4,
+        }}
+      >
         {label}
       </span>
       {children}

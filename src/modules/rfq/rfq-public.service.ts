@@ -26,6 +26,18 @@ import { RfqTechnicalService } from './rfq-technical.service';
 import { RfqQuoteVaultService } from './rfq-quote-vault.service';
 
 /**
+ * What the open/closed decision needs: the invitee's revision window plus the
+ * newest revision's submission state.
+ */
+type RevisionWindowState = {
+  quoteStatus: RfqQuoteStatus;
+  revisionRequestedAt: Date | null;
+  revisionDeadline: Date | null;
+  quotes: { submittedAt: Date | null }[];
+  rfq: { status: RfqStatus; submissionDeadline: Date };
+};
+
+/**
  * Public (unauthenticated, token-authed) RFQ quote submission — mirrors the
  * Supplier/Vendor questionnaire public flow. Reuses assertInviteUsable
  * (revoke/expiry/password) from the shared token-invite util. Save-and-resume
@@ -63,6 +75,7 @@ export class RfqPublicService {
   async submit(token: string, dto: PublicSubmitQuoteDto) {
     const invitee = await this.validate(token, dto.password);
     this.assertOpen(invitee);
+    const submittedAt = new Date();
 
     // Every RFQ line must be priced on submit.
     const rfqLines = await this.prisma.rfqLine.findMany({
@@ -86,7 +99,7 @@ export class RfqPublicService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      const { total } = await this.writeQuote(
+      const { total, quoteId } = await this.writeQuote(
         tx,
         invitee.id,
         invitee.rfqId,
@@ -97,12 +110,14 @@ export class RfqPublicService {
         where: { id: invitee.id },
         data: {
           quoteStatus: RfqQuoteStatus.SUBMITTED,
-          submittedAt: new Date(),
+          submittedAt,
         },
       });
+      // Stamping submittedAt on the revision closes it: it becomes the offer
+      // comparison/award reads, and a further negotiation opens the next one.
       await tx.rfqQuote.update({
-        where: { inviteeId: invitee.id },
-        data: { totalQuotedValue: total },
+        where: { id: quoteId },
+        data: { totalQuotedValue: total, submittedAt },
       });
     });
     // File the PDF copy after the quote is committed, and never let it fail the
@@ -155,12 +170,16 @@ export class RfqPublicService {
         'Attachment upload was not found in storage',
       );
     assertSizeWithinCap(head.sizeBytes);
-    const quote = await this.ensureQuote(invitee.id);
-    const keys = ((quote.attachmentFileKeys as string[] | null) ?? []).slice();
-    if (!keys.includes(dto.storageKey)) keys.push(dto.storageKey);
-    await this.prisma.rfqQuote.update({
-      where: { id: quote.id },
-      data: { attachmentFileKeys: keys as Prisma.InputJsonValue },
+    await this.prisma.$transaction(async (tx) => {
+      const quote = await this.workingQuote(tx, invitee.id);
+      const keys = (
+        (quote.attachmentFileKeys as string[] | null) ?? []
+      ).slice();
+      if (!keys.includes(dto.storageKey)) keys.push(dto.storageKey);
+      await tx.rfqQuote.update({
+        where: { id: quote.id },
+        data: { attachmentFileKeys: keys as Prisma.InputJsonValue },
+      });
     });
     return this.publicView(invitee.id);
   }
@@ -181,6 +200,13 @@ export class RfqPublicService {
             submissionDeadline: true,
             awardedInviteeId: true,
           },
+        },
+        // The newest revision decides whether anything is still editable, so
+        // every caller of validate() has it to hand.
+        quotes: {
+          orderBy: { revisionNumber: 'desc' },
+          take: 1,
+          select: { revisionNumber: true, submittedAt: true },
         },
       },
     });
@@ -206,12 +232,42 @@ export class RfqPublicService {
     return invitee;
   }
 
-  /** The invitee may still act only while the RFQ is ISSUED, deadline not passed,
-   *  and they haven't already submitted/declined. */
-  private assertOpen(invitee: {
-    quoteStatus: RfqQuoteStatus;
-    rfq: { status: RfqStatus; submissionDeadline: Date };
-  }) {
+  /**
+   * True while SCM has this ONE invitee's link reopened for a negotiated
+   * revision. Open from the moment of the request until either the revision
+   * deadline passes or the invitee submits again — "submits again" being a
+   * submission newer than the request, so re-requesting reopens cleanly for the
+   * next revision without any extra state to reset.
+   */
+  private revisionWindowOpen(
+    invitee: RevisionWindowState,
+    now: Date = new Date(),
+  ): boolean {
+    if (!invitee.revisionRequestedAt || !invitee.revisionDeadline) return false;
+    if (invitee.revisionDeadline <= now) return false;
+    const submittedAt = invitee.quotes[0]?.submittedAt;
+    if (!submittedAt) return true;
+    return submittedAt < invitee.revisionRequestedAt;
+  }
+
+  /** The invitee may act while the RFQ is ISSUED, deadline not passed, and they
+   *  haven't already submitted/declined — or while a negotiated revision window
+   *  is open on their own link after closure. */
+  private assertOpen(invitee: RevisionWindowState) {
+    // A reopened link is the one path that deliberately outlives the RFQ's own
+    // deadline and the invitee's SUBMITTED lock.
+    if (this.revisionWindowOpen(invitee)) return;
+    if (invitee.revisionRequestedAt) {
+      const submittedAt = invitee.quotes[0]?.submittedAt;
+      if (submittedAt && submittedAt >= invitee.revisionRequestedAt) {
+        throw new ForbiddenException(
+          'Your revised quote has already been submitted and is locked',
+        );
+      }
+      throw new ForbiddenException(
+        'The window for submitting a revised quote has closed',
+      );
+    }
     if (invitee.rfq.status !== RfqStatus.ISSUED) {
       throw new ForbiddenException('This RFQ is not accepting quotes');
     }
@@ -228,12 +284,48 @@ export class RfqPublicService {
     }
   }
 
-  private async ensureQuote(inviteeId: string) {
-    const existing = await this.prisma.rfqQuote.findUnique({
+  /**
+   * The revision the invitee is working on right now, created on demand.
+   *
+   * Callers must have passed assertOpen first: reaching a *submitted* latest
+   * revision here means a revision window is open, so the next revision starts —
+   * seeded from the previous offer, since a negotiation adjusts numbers rather
+   * than re-entering the whole quote. The earlier revision is left untouched.
+   */
+  private async workingQuote(tx: Prisma.TransactionClient, inviteeId: string) {
+    const latest = await tx.rfqQuote.findFirst({
       where: { inviteeId },
+      orderBy: { revisionNumber: 'desc' },
+      include: { lines: true },
     });
-    if (existing) return existing;
-    return this.prisma.rfqQuote.create({ data: { inviteeId } });
+    if (!latest) {
+      return tx.rfqQuote.create({ data: { inviteeId, revisionNumber: 1 } });
+    }
+    if (!latest.submittedAt) return latest;
+    return tx.rfqQuote.create({
+      data: {
+        inviteeId,
+        revisionNumber: latest.revisionNumber + 1,
+        quotedLeadTimeDays: latest.quotedLeadTimeDays,
+        paymentTermsOffered: latest.paymentTermsOffered,
+        validityDays: latest.validityDays,
+        notes: latest.notes,
+        // The same R2 objects: the vendor's supporting files carry over unless
+        // they upload new ones. Nothing here ever deletes them.
+        attachmentFileKeys:
+          (latest.attachmentFileKeys as Prisma.InputJsonValue) ?? undefined,
+        totalQuotedValue: latest.totalQuotedValue,
+        lines: {
+          create: latest.lines.map((line) => ({
+            rfqLineId: line.rfqLineId,
+            unitPrice: line.unitPrice,
+            lineTotal: line.lineTotal,
+            deliveryLeadTimeDays: line.deliveryLeadTimeDays,
+            remarks: line.remarks,
+          })),
+        },
+      },
+    });
   }
 
   private async upsertQuote(inviteeId: string, dto: PublicSaveQuoteDto) {
@@ -248,25 +340,20 @@ export class RfqPublicService {
     );
   }
 
-  /** Write header + line prices. Validates each line belongs to the RFQ; computes
-   *  lineTotal = unitPrice × RFQ line quantity, and the header total. */
+  /** Write header + line prices onto the invitee's working revision. Validates
+   *  each line belongs to the RFQ; computes lineTotal = unitPrice × RFQ line
+   *  quantity, and the header total. */
   private async writeQuote(
     tx: Prisma.TransactionClient,
     inviteeId: string,
     rfqId: string,
     dto: PublicSaveQuoteDto | PublicSubmitQuoteDto,
     submitting: boolean,
-  ): Promise<{ total: Prisma.Decimal }> {
-    const quote = await tx.rfqQuote.upsert({
-      where: { inviteeId },
-      create: {
-        inviteeId,
-        quotedLeadTimeDays: dto.quotedLeadTimeDays ?? null,
-        paymentTermsOffered: dto.paymentTermsOffered ?? null,
-        validityDays: dto.validityDays ?? null,
-        notes: dto.notes ?? null,
-      },
-      update: {
+  ): Promise<{ total: Prisma.Decimal; quoteId: string }> {
+    const working = await this.workingQuote(tx, inviteeId);
+    const quote = await tx.rfqQuote.update({
+      where: { id: working.id },
+      data: {
         ...(dto.quotedLeadTimeDays !== undefined
           ? { quotedLeadTimeDays: dto.quotedLeadTimeDays }
           : {}),
@@ -333,7 +420,7 @@ export class RfqPublicService {
         });
       }
     }
-    return { total };
+    return { total, quoteId: quote.id };
   }
 
   /** The vendor-facing view: RFQ header + lines + the invitee's own draft quote.
@@ -344,7 +431,13 @@ export class RfqPublicService {
       include: {
         supplier: { select: { companyName: true } },
         vendor: { select: { companyName: true } },
-        quote: { include: { lines: true } },
+        // Newest revision only: that is what the vendor is editing, or — when a
+        // revision was just requested — the offer their revision starts from.
+        quotes: {
+          orderBy: { revisionNumber: 'desc' },
+          take: 1,
+          include: { lines: true },
+        },
         rfq: {
           include: {
             lines: {
@@ -355,12 +448,31 @@ export class RfqPublicService {
         },
       },
     });
+    const latest = invitee.quotes[0] ?? null;
+    const revisionOpen = this.revisionWindowOpen(invitee);
     return {
       inviteeId: invitee.id,
       partnerName:
         invitee.supplier?.companyName ?? invitee.vendor?.companyName ?? null,
       quoteStatus: invitee.quoteStatus,
       declineReason: invitee.declineReason,
+      /**
+       * The negotiated-revision state of THIS invitee's link. `open` is what the
+       * portal keys the form off — with it true the vendor may edit and submit
+       * again even though the RFQ has closed and their previous offer is locked.
+       * `revisionNumber` is the revision they are about to submit.
+       */
+      revision: {
+        open: revisionOpen,
+        revisionNumber: revisionOpen
+          ? ((latest?.submittedAt
+              ? latest.revisionNumber + 1
+              : latest?.revisionNumber) ?? 1)
+          : (latest?.revisionNumber ?? 1),
+        requestedAt: invitee.revisionRequestedAt?.toISOString() ?? null,
+        deadline: invitee.revisionDeadline?.toISOString() ?? null,
+        note: invitee.revisionNote,
+      },
       rfq: {
         rfqNumber: invitee.rfq.rfqNumber,
         // Internal RFQ titles/descriptions may contain linked project, order or
@@ -382,16 +494,16 @@ export class RfqPublicService {
           targetPrice: l.targetPrice?.toString() ?? null,
         })),
       },
-      quote: invitee.quote
+      quote: latest
         ? {
-            quotedLeadTimeDays: invitee.quote.quotedLeadTimeDays,
-            paymentTermsOffered: invitee.quote.paymentTermsOffered,
-            validityDays: invitee.quote.validityDays,
-            notes: invitee.quote.notes,
+            quotedLeadTimeDays: latest.quotedLeadTimeDays,
+            paymentTermsOffered: latest.paymentTermsOffered,
+            validityDays: latest.validityDays,
+            notes: latest.notes,
             attachmentFileKeys:
-              (invitee.quote.attachmentFileKeys as string[] | null) ?? [],
-            totalQuotedValue: invitee.quote.totalQuotedValue.toString(),
-            lines: invitee.quote.lines.map((l) => ({
+              (latest.attachmentFileKeys as string[] | null) ?? [],
+            totalQuotedValue: latest.totalQuotedValue.toString(),
+            lines: latest.lines.map((l) => ({
               rfqLineId: l.rfqLineId,
               unitPrice: l.unitPrice.toString(),
               lineTotal: l.lineTotal.toString(),

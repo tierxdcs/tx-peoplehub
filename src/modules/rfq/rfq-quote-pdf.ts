@@ -55,6 +55,10 @@ export interface RfqQuotePdfData {
   partnerKind: 'Vendor' | 'Supplier';
   partnerName: string;
   submittedAt: Date;
+  /** 1 = the original sealed submission; 2+ = a negotiated revision. */
+  revisionNumber: number;
+  /** What SCM asked for when the link was reopened. Null on revision 1. */
+  revisionNote: string | null;
   quotedLeadTimeDays: number | null;
   paymentTermsOffered: string | null;
   validityDays: number | null;
@@ -68,14 +72,21 @@ export interface RfqQuotePdfData {
 /**
  * Filename for the Vault copy: `RFQ-2026-0007_Vigyanlabs-Innovations_Quote.pdf`
  * — RFQ number first so a flat folder sorts by RFQ, partner second so competing
- * quotes on one RFQ sit next to each other. No date: a resubmission becomes a
- * new *version* of this same file, and a date would fork it into two files.
+ * quotes on one RFQ sit next to each other. No date: a resubmission of the same
+ * revision becomes a new *version* of this file, and a date would fork it.
+ *
+ * A negotiated revision is a genuinely different offer, not a corrected copy of
+ * the first one, so it gets its own clearly-named file in the same folder:
+ * `RFQ-2026-0007_Vigyanlabs-Innovations_Quote_Rev2.pdf`. Revision 1 keeps the
+ * unsuffixed name, so files already in Vault are never renamed.
  */
 export function rfqQuoteFileName(
   rfqNumber: string,
   partnerName: string,
+  revisionNumber = 1,
 ): string {
-  return `${slug(rfqNumber)}_${slug(partnerName)}_Quote.pdf`;
+  const revision = revisionNumber > 1 ? `_Rev${revisionNumber}` : '';
+  return `${slug(rfqNumber)}_${slug(partnerName)}_Quote${revision}.pdf`;
 }
 
 /** Filename-safe token: punctuation and runs of whitespace collapse to hyphens. */
@@ -103,7 +114,9 @@ export function renderRfqQuotePdf(data: RfqQuotePdfData): Promise<Buffer> {
       size: 'A4',
       margin: PAGE_MARGIN,
       info: {
-        Title: `${data.rfqNumber} — ${data.partnerName} quote`,
+        Title: `${data.rfqNumber} — ${data.partnerName} quote${
+          data.revisionNumber > 1 ? ` (Revision ${data.revisionNumber})` : ''
+        }`,
         Author: 'TX PeopleHub',
         Subject: 'RFQ quotation received',
       },
@@ -130,7 +143,14 @@ function draw(doc: PDFKit.PDFDocument, data: RfqQuotePdfData): void {
     .fillColor(MUTED)
     .font('Helvetica')
     .fontSize(8.5)
-    .text('QUOTATION RECEIVED', left, PAGE_MARGIN, { characterSpacing: 1.2 });
+    .text(
+      data.revisionNumber > 1
+        ? `QUOTATION RECEIVED · REVISION ${data.revisionNumber}`
+        : 'QUOTATION RECEIVED',
+      left,
+      PAGE_MARGIN,
+      { characterSpacing: 1.2 },
+    );
   doc
     .fillColor(INK)
     .font('Helvetica-Bold')
@@ -141,8 +161,17 @@ function draw(doc: PDFKit.PDFDocument, data: RfqQuotePdfData): void {
     .font('Helvetica')
     .fontSize(9.5)
     .text(
-      `${data.partnerKind}: ${data.partnerName}  ·  Submitted ${day(data.submittedAt)}`,
+      `${data.partnerKind}: ${data.partnerName}  ·  Submitted ${day(data.submittedAt)}` +
+        (data.revisionNumber > 1
+          ? `  ·  Revision ${data.revisionNumber} (negotiated)`
+          : ''),
     );
+  // Record the ask that reopened the link, so the PDF explains itself years on.
+  if (data.revisionNote) {
+    doc.fontSize(9).text(`Revision requested: ${data.revisionNote}`, {
+      width,
+    });
+  }
   doc.moveDown(0.9);
   rule(doc, left, width);
   doc.moveDown(0.7);

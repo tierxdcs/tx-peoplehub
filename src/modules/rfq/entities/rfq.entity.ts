@@ -33,6 +33,18 @@ export class RfqInviteeEntity {
   /** Present to managers so they can hand the link to the vendor manually. */
   @ApiProperty({ nullable: true }) inviteToken!: string | null;
 
+  // ── Negotiated quote revisions (this invitee only) ──────────────────
+  /** Highest revision this invitee holds, submitted or still in draft. */
+  @ApiProperty({ nullable: true }) latestRevisionNumber!: number | null;
+  /** How many revisions they have actually submitted (1 = original only). */
+  @ApiProperty() submittedRevisionCount!: number;
+  @ApiProperty({ nullable: true }) revisionRequestedAt!: string | null;
+  @ApiProperty({ nullable: true }) revisionDeadline!: string | null;
+  @ApiProperty({ nullable: true }) revisionNote!: string | null;
+  @ApiProperty({ nullable: true }) revisionRequestedByName!: string | null;
+  /** True while a requested revision is still outstanding (link reopened). */
+  @ApiProperty() revisionPending!: boolean;
+
   constructor(p: Partial<RfqInviteeEntity>) {
     Object.assign(this, p);
   }

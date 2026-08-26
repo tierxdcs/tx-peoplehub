@@ -11,6 +11,7 @@ import {
   Download,
   FileText,
   Plus,
+  RefreshCw,
   Save,
   ShieldCheck,
   SquarePen,
@@ -26,6 +27,7 @@ import {
   deleteRfq,
   addInvitee,
   removeInvitee,
+  requestQuoteRevision,
   approveRfq,
   rejectRfq,
   issueRfq,
@@ -33,6 +35,7 @@ import {
   cancelRfq,
   rfqComparison,
   type Rfq,
+  type RfqInvitee,
   type RfqLine,
   type ComparisonColumn,
   type RfqTechnicalView,
@@ -140,6 +143,8 @@ export default function RfqDetailPage() {
   const [inlineWarning, setInlineWarning] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
+  // The invitee whose link SCM is reopening for a negotiated revision, if any.
+  const [revisionTarget, setRevisionTarget] = useState<RfqInvitee | null>(null);
 
   // ── DRAFT editing ──────────────────────────────────────────────────────
   // A DRAFT is still a working document — the quote window, the terms and the
@@ -357,6 +362,37 @@ export default function RfqDetailPage() {
     } catch (err) {
       toast.error(
         err instanceof ApiError ? err.message : 'Failed to remove invitee',
+      );
+    } finally {
+      setActing(false);
+    }
+  }
+
+  /**
+   * Reopen one invitee's link for a negotiated revised quote. Only that partner
+   * is affected — the RFQ stays CLOSED and nobody else's link changes. Their
+   * next submission lands as Revision 2+ alongside the original, which stays
+   * intact and visible in the comparison history.
+   */
+  async function handleRequestRevision(input: {
+    revisionDeadline: string;
+    note?: string;
+    password?: string;
+  }) {
+    if (!rfq || !revisionTarget) return;
+    setActing(true);
+    try {
+      setRfq(await requestQuoteRevision(rfq.id, revisionTarget.id, input));
+      setRevisionTarget(null);
+      toast.success(
+        `Quote link reopened for ${revisionTarget.partnerName ?? 'this partner'} — copy it to them from the Quote Link column`,
+        'Revised quote requested',
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to request a revised quote',
       );
     } finally {
       setActing(false);
@@ -1366,7 +1402,9 @@ export default function RfqDetailPage() {
                     <TableHead className="text-right">Quoted Value</TableHead>
                   )}
                   {showTokens && <TableHead>Quote Link</TableHead>}
-                  {canManage && isDraft && <TableHead className="w-10" />}
+                  {canManage && (isDraft || isClosed) && (
+                    <TableHead className={isClosed ? '' : 'w-10'} />
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1380,7 +1418,30 @@ export default function RfqDetailPage() {
                       <StatusBadge value={inv.qualificationStatusSnapshot} />
                     </TableCell>
                     <TableCell>
-                      <StatusBadge value={inv.quoteStatus} />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <StatusBadge value={inv.quoteStatus} />
+                        {/* Which revision they are on, once past the original. */}
+                        {inv.submittedRevisionCount > 1 && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium">
+                            Rev {inv.submittedRevisionCount}
+                          </span>
+                        )}
+                        {inv.revisionPending && (
+                          <span
+                            className="rounded bg-warning/15 px-1.5 py-0.5 text-xs font-medium text-warning-foreground"
+                            title={
+                              inv.revisionNote
+                                ? `Asked: ${inv.revisionNote}`
+                                : undefined
+                            }
+                          >
+                            Revision requested
+                            {inv.revisionDeadline
+                              ? ` · due ${dateOnlyStr(inv.revisionDeadline)}`
+                              : ''}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     {showQuotedValue &&
                       (() => {
@@ -1436,20 +1497,38 @@ export default function RfqDetailPage() {
                         )}
                       </TableCell>
                     )}
-                    {canManage && isDraft && (
-                      <TableCell>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={acting}
-                          onClick={() =>
-                            handleRemoveInvitee(inv.id, inv.partnerName)
-                          }
-                          aria-label="Remove invitee"
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
+                    {canManage && (isDraft || isClosed) && (
+                      <TableCell className="text-right">
+                        {isDraft && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={acting}
+                            onClick={() =>
+                              handleRemoveInvitee(inv.id, inv.partnerName)
+                            }
+                            aria-label="Remove invitee"
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        )}
+                        {/* Negotiation follows a quote: only an invitee who
+                            actually submitted can be asked to revise. */}
+                        {isClosed &&
+                          inv.quoteStatus === 'SUBMITTED' &&
+                          !inv.revisionPending && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={acting}
+                              onClick={() => setRevisionTarget(inv)}
+                            >
+                              <RefreshCw className="size-4" />
+                              Request revised quote
+                            </Button>
+                          )}
                       </TableCell>
                     )}
                   </TableRow>
@@ -1530,6 +1609,13 @@ export default function RfqDetailPage() {
         </CardContent>
       </Card>
 
+      <RequestRevisionDialog
+        invitee={revisionTarget}
+        submitting={acting}
+        onClose={() => setRevisionTarget(null)}
+        onRequest={handleRequestRevision}
+      />
+
       <RejectRfqDialog
         open={rejectOpen}
         rfqNumber={rfq.rfqNumber}
@@ -1538,6 +1624,130 @@ export default function RfqDetailPage() {
         onReject={handleReject}
       />
     </PageContainer>
+  );
+}
+
+/**
+ * Reopen ONE invitee's quote link for a negotiated revision. The deadline is
+ * required (it is also the reopened link's expiry, so it cannot be left open
+ * indefinitely); the note is the negotiation ask the vendor sees on the link.
+ */
+function RequestRevisionDialog({
+  invitee,
+  submitting,
+  onClose,
+  onRequest,
+}: {
+  invitee: RfqInvitee | null;
+  submitting: boolean;
+  onClose: () => void;
+  onRequest: (input: {
+    revisionDeadline: string;
+    note?: string;
+    password?: string;
+  }) => void;
+}) {
+  const [deadline, setDeadline] = useState('');
+  const [note, setNote] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset per target so a previous partner's ask never leaks into the next one.
+  useEffect(() => {
+    if (!invitee) return;
+    setDeadline(
+      toDateTimeInput(new Date(Date.now() + 7 * 86_400_000).toISOString()),
+    );
+    setNote('');
+    setPassword('');
+    setError(null);
+  }, [invitee]);
+
+  function submit() {
+    if (!deadline) {
+      setError('A revision deadline is required.');
+      return;
+    }
+    const when = new Date(deadline);
+    if (Number.isNaN(when.getTime()) || when <= new Date()) {
+      setError('The revision deadline must be in the future.');
+      return;
+    }
+    onRequest({
+      revisionDeadline: when.toISOString(),
+      ...(note.trim() ? { note: note.trim() } : {}),
+      ...(password.trim() ? { password: password.trim() } : {}),
+    });
+  }
+
+  if (!invitee) return null;
+  const nextRevision = (invitee.submittedRevisionCount || 1) + 1;
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            Request revised quote — {invitee.partnerName ?? 'partner'}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            This reopens {invitee.partnerName ?? 'this partner'}&apos;s
+            submission link only — no other invitee is affected and the RFQ
+            stays closed. Their new quote is captured as{' '}
+            <span className="font-medium text-foreground">
+              Revision {nextRevision}
+            </span>
+            ; the existing quote is kept in full and stays visible in the
+            comparison. A new link is generated, so the old one stops working —
+            copy it to them from the Quote Link column afterwards.
+          </p>
+          <Field label="Revision deadline" htmlFor="rfq-revision-deadline">
+            <Input
+              id="rfq-revision-deadline"
+              type="datetime-local"
+              value={deadline}
+              onChange={(e) => {
+                setDeadline(e.target.value);
+                setError(null);
+              }}
+            />
+          </Field>
+          <Field
+            label="What are you asking them to revise? (optional)"
+            htmlFor="rfq-revision-note"
+          >
+            <Textarea
+              id="rfq-revision-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={3}
+              placeholder="e.g. Hold the unit price but improve freight and lead time to 20 days."
+            />
+          </Field>
+          <Field
+            label="New link password (optional — blank keeps the current one)"
+            htmlFor="rfq-revision-password"
+          >
+            <Input
+              id="rfq-revision-password"
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </Field>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={submitting}>
+            {submitting ? 'Reopening…' : 'Reopen link'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

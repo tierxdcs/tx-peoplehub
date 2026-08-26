@@ -24,6 +24,7 @@ import {
   ComparisonWeightsDto,
   CreateRfqDto,
   RejectRfqDto,
+  RequestQuoteRevisionDto,
   UpdateRfqDto,
   RfqAttachmentConfirmDto,
   RfqAttachmentUploadUrlDto,
@@ -218,6 +219,22 @@ export class RfqController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.removeInvitee(id, inviteeId, user);
+  }
+
+  @Post(':id/invitees/:inviteeId/request-revision')
+  @ApiOperation({
+    summary:
+      "Reopen ONE invitee's link on a CLOSED RFQ so they can submit a negotiated " +
+      'revised quote as Revision 2+ (SCM Manager+/SA). Never reopens the RFQ or ' +
+      'any other invitee.',
+  })
+  requestQuoteRevision(
+    @Param('id') id: string,
+    @Param('inviteeId') inviteeId: string,
+    @Body() dto: RequestQuoteRevisionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.requestQuoteRevision(id, inviteeId, dto, user);
   }
 
   @Post(':id/approve')

@@ -20,14 +20,22 @@ export class PublicResolveRfqDto {
 export class PublicQuoteLineDto {
   @ApiProperty() @IsString() @MinLength(1) rfqLineId!: string;
   @ApiProperty() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) unitPrice!: number;
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) deliveryLeadTimeDays?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  deliveryLeadTimeDays?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() remarks?: string;
 }
 
 /** Save-and-resume: partial quote is persisted; nothing locks until submit. */
 export class PublicSaveQuoteDto {
   @ApiPropertyOptional() @IsOptional() @IsString() password?: string;
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) quotedLeadTimeDays?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  quotedLeadTimeDays?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() paymentTermsOffered?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) validityDays?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
@@ -42,7 +50,11 @@ export class PublicSaveQuoteDto {
 /** Submit locks the quote. Every RFQ line must be priced. */
 export class PublicSubmitQuoteDto {
   @ApiPropertyOptional() @IsOptional() @IsString() password?: string;
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) quotedLeadTimeDays?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  quotedLeadTimeDays?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() paymentTermsOffered?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) validityDays?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;

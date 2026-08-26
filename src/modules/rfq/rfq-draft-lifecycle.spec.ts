@@ -227,7 +227,7 @@ describe('RfqService draft save / delete', () => {
       prisma.rfq.findUnique.mockResolvedValue({
         status: 'DRAFT',
         attachments: [{ fileKey: 'rfq/a.pdf' }, { fileKey: 'rfq/b.pdf' }],
-        invitees: [{ quote: null }],
+        invitees: [{ quotes: [] }],
       });
       await service.remove('rfq-1', user);
 
@@ -253,7 +253,7 @@ describe('RfqService draft save / delete', () => {
       prisma.rfq.findUnique.mockResolvedValue({
         status: 'DRAFT',
         attachments: [],
-        invitees: [{ quote: null }, { quote: { id: 'q1' } }],
+        invitees: [{ quotes: [] }, { quotes: [{ id: 'q1' }] }],
       });
       await expect(service.remove('rfq-1', user)).rejects.toBeInstanceOf(
         BadRequestException,

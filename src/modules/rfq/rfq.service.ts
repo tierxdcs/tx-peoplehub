@@ -23,6 +23,7 @@ import {
   AwardRfqDto,
   ComparisonWeightsDto,
   CreateRfqDto,
+  RequestQuoteRevisionDto,
   RfqLineInputDto,
   UpdateRfqDto,
 } from './dto/rfq.dto';
@@ -97,6 +98,13 @@ const RFQ_INCLUDE = {
     include: {
       supplier: { select: { companyName: true } },
       vendor: { select: { companyName: true } },
+      revisionRequestedBy: { select: { firstName: true, lastName: true } },
+      // Newest first: revisions[0] tells the UI which revision is on the table
+      // and whether a requested one is still outstanding.
+      quotes: {
+        orderBy: { revisionNumber: 'desc' as const },
+        select: { revisionNumber: true, submittedAt: true },
+      },
     },
   },
 } satisfies Prisma.RfqInclude;
@@ -862,7 +870,7 @@ export class RfqService {
       select: {
         status: true,
         attachments: { select: { fileKey: true } },
-        invitees: { select: { quote: { select: { id: true } } } },
+        invitees: { select: { quotes: { select: { id: true } } } },
       },
     });
     if (!rfq) throw new NotFoundException('RFQ not found');
@@ -873,7 +881,7 @@ export class RfqService {
     }
     // Defensive: a DRAFT has no live quote links, so this should be unreachable.
     // If a quote somehow exists, the partner's work is not ours to destroy.
-    if (rfq.invitees.some((invitee) => invitee.quote)) {
+    if (rfq.invitees.some((invitee) => invitee.quotes.length > 0)) {
       throw new BadRequestException(
         'A partner has already started a quote on this RFQ — cancel it instead of deleting',
       );
@@ -993,6 +1001,130 @@ export class RfqService {
     if (!inv) throw new NotFoundException('Invitee not found on this RFQ');
     await this.prisma.rfqInvitee.delete({ where: { id: inviteeId } });
     return this.get(id, user);
+  }
+
+  // ── Negotiated quote revision (reopen ONE invitee's link) ────────────
+  /**
+   * Reopen a single invitee's submission link after the RFQ has closed, so a
+   * negotiated follow-up quote lands in the system as a tracked revision instead
+   * of being agreed over email and lost.
+   *
+   * Scoped to one invitee on purpose — the other invitees' links stay shut, so
+   * this is not a reopening of the RFQ. Sealed-bid integrity is unaffected: the
+   * seal protects vendors from seeing each other's numbers *before* the reveal,
+   * and by CLOSED the reveal and comparison have already happened.
+   *
+   * No fresh Project Manager approval is required: the PM approved this scope
+   * when the RFQ was issued and the sourcing lines have not moved — negotiating
+   * price with an already-invited vendor is an SCM operational act, not a new
+   * solicitation. (Editing the lines is what clears approval; see update().)
+   *
+   * The old token is replaced, so a link handed out earlier stops working and
+   * the vendor must use the new one. The optional password is re-set only when a
+   * new one is supplied; otherwise their existing password still applies.
+   */
+  async requestQuoteRevision(
+    id: string,
+    inviteeId: string,
+    dto: RequestQuoteRevisionDto,
+    user: AuthenticatedUser,
+  ): Promise<RfqEntity> {
+    await this.access.assertCanManageRfqs(user);
+    const rfq = await this.prisma.rfq.findUnique({
+      where: { id },
+      select: { status: true },
+    });
+    if (!rfq) throw new NotFoundException('RFQ not found');
+    // CLOSED only: before that the sealed window is still running and the
+    // vendor's own link is already open; after an award a PO exists and the
+    // commercial decision is made.
+    if (rfq.status !== RfqStatus.CLOSED) {
+      throw new BadRequestException(
+        rfq.status === RfqStatus.AWARDED
+          ? 'This RFQ has already been awarded — a revised quote can only be requested while it is CLOSED'
+          : `A revised quote can only be requested on a CLOSED RFQ — this one is ${rfq.status}`,
+      );
+    }
+
+    const invitee = await this.prisma.rfqInvitee.findFirst({
+      where: { id: inviteeId, rfqId: id },
+      include: {
+        supplier: { select: { companyName: true } },
+        vendor: { select: { companyName: true } },
+        quotes: {
+          orderBy: { revisionNumber: 'desc' },
+          take: 1,
+          select: { revisionNumber: true, submittedAt: true },
+        },
+      },
+    });
+    if (!invitee) throw new NotFoundException('Invitee not found on this RFQ');
+    if (invitee.revokedAt) {
+      throw new BadRequestException(
+        "This invitee's access was revoked — restore the invite before requesting a revision",
+      );
+    }
+    // Negotiation follows a quote. Reopening for a decliner or a non-responder
+    // would be soliciting a first quote after the close, which is a different
+    // (and sealed-bid-relevant) act.
+    if (
+      invitee.quoteStatus !== RfqQuoteStatus.SUBMITTED ||
+      !invitee.quotes[0]?.submittedAt
+    ) {
+      throw new BadRequestException(
+        'A revised quote can only be requested from an invitee who submitted one',
+      );
+    }
+    if (this.revisionPending(invitee)) {
+      throw new BadRequestException(
+        'A revised quote has already been requested from this partner and is still outstanding',
+      );
+    }
+    const deadline = new Date(dto.revisionDeadline);
+    if (Number.isNaN(deadline.getTime())) {
+      throw new BadRequestException(
+        'The revision deadline is not a valid date',
+      );
+    }
+    if (deadline <= new Date()) {
+      throw new BadRequestException(
+        'The revision deadline must be in the future',
+      );
+    }
+
+    await this.prisma.rfqInvitee.update({
+      where: { id: inviteeId },
+      data: {
+        // A fresh token retires the link they were given for the sealed round.
+        inviteToken: generateInviteToken(),
+        tokenExpiresAt: deadline,
+        revisionRequestedAt: new Date(),
+        revisionRequestedById: user.id,
+        revisionDeadline: deadline,
+        revisionNote: dto.note?.trim() || null,
+        ...(dto.password
+          ? { passwordHash: await hashInvitePassword(dto.password) }
+          : {}),
+      },
+    });
+    return this.get(id, user);
+  }
+
+  /**
+   * True while a requested revision is still outstanding: the deadline has not
+   * passed and the invitee has not submitted since the request. Re-requesting
+   * therefore needs no state reset — the newer request timestamp reopens it.
+   */
+  private revisionPending(invitee: {
+    revisionRequestedAt: Date | null;
+    revisionDeadline: Date | null;
+    quotes: { submittedAt: Date | null }[];
+  }): boolean {
+    if (!invitee.revisionRequestedAt || !invitee.revisionDeadline) return false;
+    if (invitee.revisionDeadline <= new Date()) return false;
+    const submittedAt = invitee.quotes[0]?.submittedAt;
+    if (!submittedAt) return true;
+    return submittedAt < invitee.revisionRequestedAt;
   }
 
   // ── PM approval (gates issuing / invitee-link generation) ────────────
@@ -1135,45 +1267,54 @@ export class RfqService {
       );
     }
 
-    // Load quotes for all invitees.
+    // Load quotes for all invitees. Every submitted revision comes back, newest
+    // first: the comparison is driven by the latest one (that is the offer on
+    // the table after a negotiation), with the earlier ones kept alongside so
+    // the negotiation history stays auditable. An unsubmitted draft revision is
+    // excluded — it is not yet an offer.
     const invitees = await this.prisma.rfqInvitee.findMany({
       where: { rfqId: id },
       include: {
         supplier: { select: { companyName: true } },
         vendor: { select: { companyName: true } },
-        quote: { include: { lines: true } },
+        quotes: {
+          where: { submittedAt: { not: null } },
+          orderBy: { revisionNumber: 'desc' },
+          include: { lines: true },
+        },
       },
       orderBy: { createdAt: 'asc' },
     });
 
     const weights = this.normaliseWeights(weightsDto);
 
-    // Lowest unit price per line + lowest total among SUBMITTED responders.
+    // Lowest unit price per line + lowest total among SUBMITTED responders,
+    // always on their latest revision.
     const submitted = invitees.filter(
-      (i) => i.quoteStatus === RfqQuoteStatus.SUBMITTED && i.quote,
+      (i) => i.quoteStatus === RfqQuoteStatus.SUBMITTED && i.quotes.length > 0,
     );
     const lowestByLine = new Map<string, Prisma.Decimal>();
     for (const inv of submitted) {
-      for (const ql of inv.quote!.lines) {
+      for (const ql of inv.quotes[0].lines) {
         const cur = lowestByLine.get(ql.rfqLineId);
         if (!cur || ql.unitPrice.lessThan(cur)) {
           lowestByLine.set(ql.rfqLineId, ql.unitPrice);
         }
       }
     }
-    const totals = submitted.map((i) => i.quote!.totalQuotedValue);
+    const totals = submitted.map((i) => i.quotes[0].totalQuotedValue);
     const lowestTotal = totals.length
       ? totals.reduce((m, t) => (t.lessThan(m) ? t : m))
       : null;
     // For lead-time scoring, the best (lowest) lead time among responders.
     const leadTimes = submitted
-      .map((i) => i.quote!.quotedLeadTimeDays)
+      .map((i) => i.quotes[0].quotedLeadTimeDays)
       .filter((d): d is number => typeof d === 'number');
     const bestLead = leadTimes.length ? Math.min(...leadTimes) : null;
     const worstLead = leadTimes.length ? Math.max(...leadTimes) : null;
 
     const columns: ComparisonColumnEntity[] = invitees.map((inv) => {
-      const q = inv.quote;
+      const q = inv.quotes[0] ?? null;
       const isResponder = inv.quoteStatus === RfqQuoteStatus.SUBMITTED && !!q;
       const total = isResponder ? q!.totalQuotedValue : null;
       const variance = total && lowestTotal ? total.minus(lowestTotal) : null;
@@ -1240,6 +1381,14 @@ export class RfqService {
         validityDays: q?.validityDays ?? null,
         attachmentFileKeys: (q?.attachmentFileKeys as string[] | null) ?? [],
         weightedScore: score,
+        // Which revision the figures above come from, and the trail behind it.
+        revisionNumber: q?.revisionNumber ?? null,
+        revisions: inv.quotes.map((rev) => ({
+          revisionNumber: rev.revisionNumber,
+          submittedAt: rev.submittedAt ? rev.submittedAt.toISOString() : null,
+          totalQuotedValue: rev.totalQuotedValue.toString(),
+          quotedLeadTimeDays: rev.quotedLeadTimeDays,
+        })),
         lines,
       });
     });
@@ -1278,26 +1427,42 @@ export class RfqService {
       include: {
         supplier: { select: { id: true } },
         vendor: { select: { id: true } },
-        quote: { include: { lines: true } },
+        // Award the latest submitted revision — after a negotiation that is the
+        // agreed offer, and it is what the comparison showed.
+        quotes: {
+          where: { submittedAt: { not: null } },
+          orderBy: { revisionNumber: 'desc' },
+          take: 1,
+          include: { lines: true },
+        },
       },
     });
     if (!invitee) throw new NotFoundException('Invitee not found on this RFQ');
-    if (invitee.quoteStatus !== RfqQuoteStatus.SUBMITTED || !invitee.quote) {
+    const awardedQuote = invitee.quotes[0];
+    if (invitee.quoteStatus !== RfqQuoteStatus.SUBMITTED || !awardedQuote) {
       throw new BadRequestException(
         'Can only award an invitee who submitted a quote',
       );
     }
 
     // Lowest-total check: justification is mandatory for a non-lowest award.
+    // Compared on each invitee's latest revision, matching the comparison grid.
     const submitted = await this.prisma.rfqInvitee.findMany({
       where: { rfqId: id, quoteStatus: RfqQuoteStatus.SUBMITTED },
-      include: { quote: { select: { totalQuotedValue: true } } },
+      include: {
+        quotes: {
+          where: { submittedAt: { not: null } },
+          orderBy: { revisionNumber: 'desc' },
+          take: 1,
+          select: { totalQuotedValue: true },
+        },
+      },
     });
     const totals = submitted
-      .map((i) => i.quote?.totalQuotedValue)
+      .map((i) => i.quotes[0]?.totalQuotedValue)
       .filter((t): t is Prisma.Decimal => !!t);
     const lowestTotal = totals.reduce((m, t) => (t.lessThan(m) ? t : m));
-    const isLowest = invitee.quote.totalQuotedValue.equals(lowestTotal);
+    const isLowest = awardedQuote.totalQuotedValue.equals(lowestTotal);
     if (!isLowest && !dto.justification?.trim()) {
       throw new BadRequestException(
         'A justification is required when awarding a quote that is not the lowest total',
@@ -1311,8 +1476,11 @@ export class RfqService {
         ...(invitee.supplierId
           ? { supplierId: invitee.supplierId }
           : { vendorId: invitee.vendorId! }),
-        notes: `Auto-drafted from awarded RFQ ${rfq.rfqNumber}`,
-        lines: invitee.quote.lines.map((ql) => {
+        notes:
+          awardedQuote.revisionNumber > 1
+            ? `Auto-drafted from awarded RFQ ${rfq.rfqNumber} (quote revision ${awardedQuote.revisionNumber})`
+            : `Auto-drafted from awarded RFQ ${rfq.rfqNumber}`,
+        lines: awardedQuote.lines.map((ql) => {
           const rl = rfqLineById.get(ql.rfqLineId);
           return {
             itemId: rl!.itemId,
@@ -1338,7 +1506,7 @@ export class RfqService {
         },
       });
       await tx.itemQuotedCost.createMany({
-        data: invitee.quote!.lines.map((quoteLine) => {
+        data: awardedQuote.lines.map((quoteLine) => {
           const rfqLine = rfqLineById.get(quoteLine.rfqLineId)!;
           return {
             itemId: rfqLine.itemId,
@@ -1624,6 +1792,20 @@ export class RfqService {
               canSeeToken && !inv.inviteToken.startsWith('pending:')
                 ? inv.inviteToken
                 : null,
+            latestRevisionNumber: inv.quotes[0]?.revisionNumber ?? null,
+            submittedRevisionCount: inv.quotes.filter((q) => q.submittedAt)
+              .length,
+            revisionRequestedAt: inv.revisionRequestedAt
+              ? inv.revisionRequestedAt.toISOString()
+              : null,
+            revisionDeadline: inv.revisionDeadline
+              ? inv.revisionDeadline.toISOString()
+              : null,
+            revisionNote: inv.revisionNote,
+            revisionRequestedByName: inv.revisionRequestedBy
+              ? `${inv.revisionRequestedBy.firstName} ${inv.revisionRequestedBy.lastName}`
+              : null,
+            revisionPending: this.revisionPending(inv),
           }),
       ),
       quotesVisible: this.quotesVisible(rfq),

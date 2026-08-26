@@ -140,7 +140,12 @@
       "Bash(grep -c \"Mapped {/rfqs/:id, DELETE}\" /tmp/peoplehub-api.log)",
       "Bash(grep \"Mapped {/rfqs/:id, DELETE}\\\\|Mapped {/rfqs/:id, PATCH}\" /tmp/peoplehub-api.log)",
       "Bash(curl -s -X POST http://localhost:3000/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"probe@example.invalid\",\"password\":\"x\"}')",
-      "Bash(curl -s -X POST http://localhost:3000/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"probe@example.invalid\",\"password\":\"password123\"}')"
+      "Bash(curl -s -X POST http://localhost:3000/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"probe@example.invalid\",\"password\":\"password123\"}')",
+      "Bash(kill 98610)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -X POST http://localhost:3000/rfqs/probe/invitees/probe/request-revision -H 'Content-Type: application/json' -d '{}')",
+      "Bash(git -C /Users/nithin/Documents/GitHub/tx-peoplehub diff --stat prisma/schema.prisma src/modules/rfq/dto/rfq-public.dto.ts)",
+      "Bash(git -C /Users/nithin/Documents/GitHub/tx-peoplehub diff prisma/schema.prisma)",
+      "Bash(git -C /Users/nithin/Documents/GitHub/tx-peoplehub diff src/modules/rfq/dto/rfq-public.dto.ts)"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",

@@ -24,9 +24,11 @@ export const RFQ_QUOTES_FOLDER_NAME = 'RFQ Quotes';
 /**
  * Files a submitted RFQ quote into Vault as a rendered PDF.
  *
- * One Vault file per (RFQ, partner): a resubmission adds a *version* rather
- * than a second file, so the folder stays one row per quote and the earlier
- * offer is still retrievable as the record of what was originally quoted.
+ * One Vault file per (RFQ, partner, revision): re-filing the same revision adds
+ * a *version* rather than a second file, so the earlier bytes stay retrievable.
+ * A negotiated revision is a different offer, so it lands as its own clearly
+ * named file (`…_Quote_Rev2.pdf`) in the same "RFQ Quotes" folder — the
+ * negotiation reads as a sequence of documents, not a silent overwrite.
  *
  * The uploader recorded on the file is the RFQ's creator — a vendor quoting
  * through the public portal has no Employee row, and VaultFile.uploadedById is
@@ -42,9 +44,10 @@ export class RfqQuoteVaultService {
   ) {}
 
   /**
-   * Render + file the invitee's submitted quote. Throws on a missing folder,
-   * missing quote, or a storage failure — callers on the vendor's submit path
-   * must catch, because a Vault problem is ours, not the vendor's.
+   * Render + file the invitee's latest SUBMITTED quote revision. Throws on a
+   * missing folder, missing quote, or a storage failure — callers on the
+   * vendor's submit path must catch, because a Vault problem is ours, not the
+   * vendor's.
    */
   async fileSubmittedQuote(
     inviteeId: string,
@@ -64,7 +67,12 @@ export class RfqQuoteVaultService {
             createdById: true,
           },
         },
-        quote: {
+        // The newest submitted revision — a draft revision in progress has
+        // nothing final to file.
+        quotes: {
+          where: { submittedAt: { not: null } },
+          orderBy: { revisionNumber: 'desc' },
+          take: 1,
           include: {
             lines: {
               include: {
@@ -84,7 +92,8 @@ export class RfqQuoteVaultService {
         },
       },
     });
-    if (!invitee.quote) {
+    const quote = invitee.quotes[0];
+    if (!quote) {
       throw new NotFoundException('This invitee has no quote to file');
     }
 
@@ -108,18 +117,20 @@ export class RfqQuoteVaultService {
       paymentTermsRequested: invitee.rfq.paymentTermsRequested,
       partnerKind: invitee.supplierId ? 'Supplier' : 'Vendor',
       partnerName,
-      submittedAt: invitee.submittedAt ?? new Date(),
-      quotedLeadTimeDays: invitee.quote.quotedLeadTimeDays,
-      paymentTermsOffered: invitee.quote.paymentTermsOffered,
-      validityDays: invitee.quote.validityDays,
-      notes: invitee.quote.notes,
-      totalQuotedValue: invitee.quote.totalQuotedValue.toString(),
-      attachmentCount: (
-        (invitee.quote.attachmentFileKeys as string[] | null) ?? []
-      ).length,
+      // This revision's own submission time, not the invitee's latest.
+      submittedAt: quote.submittedAt ?? invitee.submittedAt ?? new Date(),
+      revisionNumber: quote.revisionNumber,
+      revisionNote: quote.revisionNumber > 1 ? invitee.revisionNote : null,
+      quotedLeadTimeDays: quote.quotedLeadTimeDays,
+      paymentTermsOffered: quote.paymentTermsOffered,
+      validityDays: quote.validityDays,
+      notes: quote.notes,
+      totalQuotedValue: quote.totalQuotedValue.toString(),
+      attachmentCount: ((quote.attachmentFileKeys as string[] | null) ?? [])
+        .length,
       // Quote lines carry no order of their own; print them in RFQ line order
       // so the PDF reads the same way the vendor's form did.
-      lines: [...invitee.quote.lines]
+      lines: [...quote.lines]
         .sort((a, b) => a.rfqLine.sequence - b.rfqLine.sequence)
         .map((l) => ({
           itemCode: l.rfqLine.item?.itemCode ?? null,
@@ -135,9 +146,16 @@ export class RfqQuoteVaultService {
         })),
     };
 
-    const name = rfqQuoteFileName(invitee.rfq.rfqNumber, partnerName);
+    const name = rfqQuoteFileName(
+      invitee.rfq.rfqNumber,
+      partnerName,
+      quote.revisionNumber,
+    );
     const bytes = await renderRfqQuotePdf(data);
-    const changeNote = `Quote submitted ${data.submittedAt.toISOString()}`;
+    const changeNote =
+      quote.revisionNumber > 1
+        ? `Revision ${quote.revisionNumber} submitted ${data.submittedAt.toISOString()}`
+        : `Quote submitted ${data.submittedAt.toISOString()}`;
 
     const existing = await this.prisma.vaultFile.findFirst({
       where: {

@@ -707,6 +707,7 @@ model Employee {
   rfqsAwarded             Rfq[]                  @relation("RfqAwardDecisionBy")
   rfqsPmApproved          Rfq[]                  @relation("RfqPmApprovedBy")
   rfqAttachmentsUploaded  RfqAttachment[]        @relation("RfqAttachmentUploader")
+  rfqRevisionsRequested   RfqInvitee[]           @relation("RfqInviteeRevisionRequestedBy")
 
   auditLogs AuditLog[] @relation("AuditActor")
   createdAt DateTime   @default(now())
@@ -7308,10 +7309,28 @@ model RfqInvitee {
   qualificationStatusSnapshot String
 
   quoteStatus   RfqQuoteStatus @default(INVITED)
+  /// When this invitee last submitted — the ORIGINAL submission until a
+  /// negotiated revision is submitted, then that revision's timestamp.
   submittedAt   DateTime?
   declineReason String?        @db.Text
 
-  quote         RfqQuote?
+  /// Negotiated revision window, scoped to THIS invitee (never the whole RFQ).
+  /// Set when SCM reopens this one vendor's link after closure to capture a
+  /// negotiated follow-up quote (see rfq.service requestQuoteRevision). The
+  /// window is open while revisionDeadline is in the future and the invitee has
+  /// not submitted again since revisionRequestedAt — so re-requesting simply
+  /// moves the timestamps and opens the next revision.
+  revisionRequestedAt   DateTime?
+  revisionRequestedById String?
+  revisionRequestedBy   Employee? @relation("RfqInviteeRevisionRequestedBy", fields: [revisionRequestedById], references: [id], onDelete: SetNull)
+  revisionDeadline      DateTime?
+  /// What SCM asked for (the negotiation ask), shown to the vendor on the link.
+  revisionNote          String?   @db.Text
+
+  /// Every revision this invitee has quoted, oldest first by revisionNumber.
+  /// Revision 1 is the original sealed submission; a revision is never
+  /// overwritten (see RfqQuote).
+  quotes        RfqQuote[]
   /// Back-relation for Rfq.awardedInvitee (named to disambiguate).
   awardedForRfq Rfq?      @relation("RfqAwardedInvitee")
 
@@ -7324,10 +7343,21 @@ model RfqInvitee {
   @@map("rfq_invitees")
 }
 
+/// One offer from one invitee. A negotiated follow-up quote captured through a
+/// reopened link is a NEW row at the next revisionNumber — prior revisions are
+/// never overwritten, matching BOM revisions and Salary Structure history.
+/// Comparison and Award read the latest SUBMITTED revision; the full history
+/// stays queryable for the negotiation audit trail.
 model RfqQuote {
   id        String     @id @default(uuid())
-  inviteeId String     @unique
+  inviteeId String
   invitee   RfqInvitee @relation(fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  /// 1 = the original sealed submission; 2+ = negotiated revisions.
+  revisionNumber Int       @default(1)
+  /// Set when the vendor submits THIS revision; null while it is still a draft.
+  /// A draft revision is invisible to comparison/award until it is submitted.
+  submittedAt    DateTime?
 
   quotedLeadTimeDays  Int?
   paymentTermsOffered String?
@@ -7338,13 +7368,15 @@ model RfqQuote {
   /// Snapshot of the summed line totals at submission.
   totalQuotedValue    Decimal @default(0) @db.Decimal(18, 2)
 
-  /// Save-and-resume: a quote row exists in draft until submittedAt is set on
-  /// the parent invitee. Lines are upserted on each save.
+  /// Save-and-resume: the row exists in draft until submittedAt is set here.
+  /// Lines are upserted on each save.
   lines RfqQuoteLine[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([inviteeId, revisionNumber])
+  @@index([inviteeId])
   @@map("rfq_quotes")
 }
 

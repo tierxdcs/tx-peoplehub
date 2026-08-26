@@ -21,7 +21,9 @@ export class RfqLineInputDto {
   @IsString()
   unitOfMeasure?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() specificationNotes?: string;
-  @ApiPropertyOptional({ description: 'Optional target unit price for this line' })
+  @ApiPropertyOptional({
+    description: 'Optional target unit price for this line',
+  })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
@@ -42,7 +44,10 @@ export class CreateRfqDto {
   @IsDateString()
   requiredByDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() deliveryLocation?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() paymentTermsRequested?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  paymentTermsRequested?: string;
   @ApiProperty({ type: [RfqLineInputDto] })
   @IsArray()
   @ValidateNested({ each: true })
@@ -65,10 +70,16 @@ export class CreateRfqDto {
 export class UpdateRfqDto {
   @ApiPropertyOptional() @IsOptional() @IsString() title?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
-  @ApiPropertyOptional() @IsOptional() @IsDateString() submissionDeadline?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  submissionDeadline?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() requiredByDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() deliveryLocation?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() paymentTermsRequested?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  paymentTermsRequested?: string;
   @ApiPropertyOptional({ type: [RfqLineInputDto] })
   @IsOptional()
   @IsArray()
@@ -78,7 +89,8 @@ export class UpdateRfqDto {
   lines?: RfqLineInputDto[];
   @ApiPropertyOptional({
     type: [String],
-    description: 'Replaces the excluded-order-line set. Empty array = include all.',
+    description:
+      'Replaces the excluded-order-line set. Empty array = include all.',
   })
   @IsOptional()
   @IsArray()
@@ -111,10 +123,41 @@ export class AddInviteeDto {
 /** Award the RFQ to an invitee. Justification is required for a non-lowest award. */
 export class AwardRfqDto {
   @ApiProperty() @IsString() @MinLength(1) inviteeId!: string;
-  @ApiPropertyOptional({ description: 'Required when NOT awarding the lowest total' })
+  @ApiPropertyOptional({
+    description: 'Required when NOT awarding the lowest total',
+  })
   @IsOptional()
   @IsString()
   justification?: string;
+}
+
+/**
+ * Reopen ONE invitee's submission link so they can send a negotiated revised
+ * quote after the RFQ has closed. Scoped to that single invitee — never the
+ * whole RFQ, so nobody else's sealed round is reopened.
+ */
+export class RequestQuoteRevisionDto {
+  @ApiProperty({
+    description:
+      'ISO timestamp the reopened link expires at — must be in the future',
+  })
+  @IsDateString()
+  revisionDeadline!: string;
+  @ApiPropertyOptional({
+    description: 'The negotiation ask, shown to the vendor on the link',
+  })
+  @IsOptional()
+  @IsString()
+  note?: string;
+  @ApiPropertyOptional({
+    description:
+      'Optional NEW access password for the reopened link. Omit to keep the ' +
+      'password the invitee already has.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  password?: string;
 }
 
 /** Optional weighting for the advisory comparison score (defaults 60/20/20). */
