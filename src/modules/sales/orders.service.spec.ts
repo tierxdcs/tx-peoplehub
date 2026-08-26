@@ -287,7 +287,9 @@ describe('OrdersService', () => {
 
       // Stored trimmed on the overridden line; null on the untouched line.
       const created = orderCreate.mock.calls[0][0].data.lineItems.create;
-      expect(created[0].customerFacingProductName).toBe('ACME Cooling Rack 42U');
+      expect(created[0].customerFacingProductName).toBe(
+        'ACME Cooling Rack 42U',
+      );
       expect(created[0].customerFacingDescription).toBe(
         'As per customer PO #4711',
       );
@@ -975,6 +977,262 @@ describe('OrdersService', () => {
         rep,
         'other-emp',
       );
+    });
+  });
+
+  // The received customer PO rarely matches the quotation item-for-item, so a
+  // CONFIRMED order's lines can be re-priced, re-quantified, or dropped.
+  describe('line item quantity / unit price / removal', () => {
+    let lineUpdate: jest.Mock;
+    let lineDelete: jest.Mock;
+    let orderUpdate: jest.Mock;
+    /** What orderLineItem.findMany returns inside the recompute. */
+    let remainingLines: { lineTotal: Prisma.Decimal }[];
+    /** What bid.findUnique returns inside the recompute (bid-backed orders). */
+    let sourceBid: unknown;
+
+    function line(id: string, overrides: Record<string, unknown> = {}) {
+      return {
+        id,
+        orderId: 'order-1',
+        productId: `prod-${id}`,
+        quantity: new Prisma.Decimal('1.00'),
+        unitPrice: new Prisma.Decimal('0.00'),
+        lineTotal: new Prisma.Decimal('0.00'),
+        product: { name: `Product ${id}`, sku: `SKU-${id}` },
+        plmTrackers: [],
+        ...overrides,
+      };
+    }
+
+    function rawOrder(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'order-1',
+        orderNumber: 'ORD-2026-0011',
+        orderType: OrderType.INTERNAL,
+        bidId: null,
+        customerId: null,
+        status: OrderStatus.CONFIRMED,
+        finalQcStatus: OrderFinalQcStatus.PENDING,
+        fulfilmentStatus: OrderFulfilmentStatus.NOT_DISPATCHED,
+        totalAmount: new Prisma.Decimal(0),
+        productionRunId: null,
+        shipmentId: null,
+        ownerId: 'emp-1',
+        owner: { firstName: 'Sales', lastName: 'Rep' },
+        lineItems: [line('line-1'), line('line-2')],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...overrides,
+      };
+    }
+
+    /** The totalAmount the recompute wrote back to the order. */
+    function writtenTotal(): string {
+      return orderUpdate.mock.calls[0][0].data.totalAmount.toString();
+    }
+
+    beforeEach(() => {
+      lineUpdate = jest.fn().mockResolvedValue({});
+      lineDelete = jest.fn().mockResolvedValue({});
+      orderUpdate = jest.fn().mockResolvedValue({});
+      remainingLines = [];
+      sourceBid = null;
+      prisma.qmsInspection = { count: jest.fn().mockResolvedValue(0) };
+      prisma.deliveryChallanLine = {
+        count: jest.fn().mockResolvedValue(0),
+        aggregate: jest.fn().mockResolvedValue({ _sum: { quantity: null } }),
+      };
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          orderLineItem: {
+            update: lineUpdate,
+            delete: lineDelete,
+            findMany: jest.fn().mockImplementation(async () => remainingLines),
+          },
+          order: { update: orderUpdate },
+          bid: {
+            findUnique: jest.fn().mockImplementation(async () => sourceBid),
+          },
+        }),
+      );
+      jest
+        .spyOn(service, 'findOne')
+        .mockResolvedValue({ id: 'order-1' } as any);
+    });
+
+    it('re-derives the line total and the order total from the new figures', async () => {
+      prisma.order.findUnique.mockResolvedValue(rawOrder());
+      remainingLines = [
+        { lineTotal: new Prisma.Decimal('25000.00') },
+        { lineTotal: new Prisma.Decimal('0.00') },
+      ];
+
+      await service.updateLineItem(
+        'order-1',
+        'line-1',
+        { quantity: 10, unitPrice: 2500 },
+        rep,
+      );
+
+      expect(lineUpdate).toHaveBeenCalledTimes(1);
+      const data = lineUpdate.mock.calls[0][0].data;
+      expect(data.quantity.toString()).toBe('10');
+      expect(data.unitPrice.toString()).toBe('2500');
+      expect(data.lineTotal.toString()).toBe('25000');
+      expect(writtenTotal()).toBe('25000');
+    });
+
+    it('leaves the omitted field untouched', async () => {
+      prisma.order.findUnique.mockResolvedValue(
+        rawOrder({
+          lineItems: [
+            line('line-1', {
+              quantity: new Prisma.Decimal('4.00'),
+              unitPrice: new Prisma.Decimal('1000.00'),
+              lineTotal: new Prisma.Decimal('4000.00'),
+            }),
+            line('line-2'),
+          ],
+        }),
+      );
+
+      await service.updateLineItem('order-1', 'line-1', { quantity: 3 }, rep);
+
+      const data = lineUpdate.mock.calls[0][0].data;
+      expect(data.unitPrice.toString()).toBe('1000');
+      expect(data.lineTotal.toString()).toBe('3000');
+    });
+
+    it("re-applies the source bid's discount, tax and AMC over the new subtotal", async () => {
+      prisma.order.findUnique.mockResolvedValue(
+        rawOrder({ orderType: OrderType.CUSTOMER, bidId: 'bid-1' }),
+      );
+      remainingLines = [{ lineTotal: new Prisma.Decimal('100000.00') }];
+      sourceBid = {
+        discountPercent: new Prisma.Decimal('10.00'),
+        taxRate: new Prisma.Decimal('18.00'),
+        amcCharges: [{ amount: new Prisma.Decimal('5000.00') }],
+      };
+
+      await service.updateLineItem(
+        'order-1',
+        'line-1',
+        { quantity: 40, unitPrice: 2500 },
+        rep,
+      );
+
+      // 100000 − 10% = 90000 taxable, +18% tax = 106200, + 5000 flat AMC.
+      expect(writtenTotal()).toBe('111200');
+    });
+
+    it('rejects a request that changes nothing', async () => {
+      await expect(
+        service.updateLineItem('order-1', 'line-1', {}, rep),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(lineUpdate).not.toHaveBeenCalled();
+    });
+
+    it('refuses any line edit once the order has left CONFIRMED', async () => {
+      prisma.order.findUnique.mockResolvedValue(
+        rawOrder({ status: OrderStatus.IN_PRODUCTION }),
+      );
+
+      await expect(
+        service.updateLineItem('order-1', 'line-1', { quantity: 2 }, rep),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        service.deleteLineItem('order-1', 'line-1', rep),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(lineUpdate).not.toHaveBeenCalled();
+      expect(lineDelete).not.toHaveBeenCalled();
+    });
+
+    it('refuses a quantity below what has already been dispatched', async () => {
+      prisma.order.findUnique.mockResolvedValue(rawOrder());
+      prisma.deliveryChallanLine.aggregate.mockResolvedValue({
+        _sum: { quantity: new Prisma.Decimal('4.00') },
+      });
+
+      await expect(
+        service.updateLineItem('order-1', 'line-1', { quantity: 2 }, rep),
+      ).rejects.toThrow(/already been dispatched/);
+      expect(lineUpdate).not.toHaveBeenCalled();
+    });
+
+    it('404s when the line is not on the order', async () => {
+      prisma.order.findUnique.mockResolvedValue(rawOrder());
+
+      await expect(
+        service.updateLineItem('order-1', 'line-nope', { quantity: 2 }, rep),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(
+        service.deleteLineItem('order-1', 'line-nope', rep),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('removes an uncommitted line and re-derives the order total', async () => {
+      prisma.order.findUnique.mockResolvedValue(rawOrder());
+      remainingLines = [{ lineTotal: new Prisma.Decimal('7500.00') }];
+
+      await service.deleteLineItem('order-1', 'line-2', rep);
+
+      expect(lineDelete).toHaveBeenCalledWith({ where: { id: 'line-2' } });
+      expect(writtenTotal()).toBe('7500');
+    });
+
+    it('refuses to remove a line whose delivery split carries PLM work', async () => {
+      prisma.order.findUnique.mockResolvedValue(
+        rawOrder({
+          lineItems: [
+            line('line-1', { plmTrackers: [{ id: 'plm-1' }] }),
+            line('line-2'),
+          ],
+        }),
+      );
+
+      await expect(
+        service.deleteLineItem('order-1', 'line-1', rep),
+      ).rejects.toThrow(/PLM\) work has already started/);
+      expect(lineDelete).not.toHaveBeenCalled();
+    });
+
+    it('refuses to remove a line with QC or dispatch history', async () => {
+      prisma.order.findUnique.mockResolvedValue(rawOrder());
+      prisma.qmsInspection.count.mockResolvedValue(1);
+      await expect(
+        service.deleteLineItem('order-1', 'line-1', rep),
+      ).rejects.toThrow(/QC inspection history/);
+
+      prisma.qmsInspection.count.mockResolvedValue(0);
+      prisma.deliveryChallanLine.count.mockResolvedValue(1);
+      await expect(
+        service.deleteLineItem('order-1', 'line-1', rep),
+      ).rejects.toThrow(/delivery challan/);
+      expect(lineDelete).not.toHaveBeenCalled();
+    });
+
+    it('refuses to remove the last line — cancel the order instead', async () => {
+      prisma.order.findUnique.mockResolvedValue(
+        rawOrder({ lineItems: [line('line-1')] }),
+      );
+
+      await expect(
+        service.deleteLineItem('order-1', 'line-1', rep),
+      ).rejects.toThrow(/at least one line item/);
+      expect(lineDelete).not.toHaveBeenCalled();
+    });
+
+    it('lets an R&D/PM owner edit their own INTERNAL order (not Sales-only)', async () => {
+      prisma.order.findUnique.mockResolvedValue(rawOrder());
+      access.assertSalesAccess.mockRejectedValue(
+        new Error('Sales vertical only'),
+      );
+
+      await service.updateLineItem('order-1', 'line-1', { quantity: 2 }, rep);
+
+      expect(access.assertCanCreateInternalOrder).toHaveBeenCalledWith(rep);
+      expect(lineUpdate).toHaveBeenCalledTimes(1);
     });
   });
 });

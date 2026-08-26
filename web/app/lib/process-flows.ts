@@ -5,7 +5,7 @@
  * flag marking approval / QC / sign-off points (where people get blocked and
  * most need to understand why).
  *
- * The first seven entries are the per-vertical flows (their `codes` match
+ * The first entries are the per-vertical flows (their `codes` match
  * `Vertical.code`, so `flowForVertical` maps a user's vertical to one). The
  * remaining entries are cross-cutting sub-processes that don't map to a single
  * vertical — they use synthetic codes and are explorable only from Help/Learning.
@@ -124,11 +124,11 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
     ],
   },
   {
-    codes: ['RND', 'DESIGN'],
-    title: 'R&D / Design — BOM to Release',
+    codes: ['RND'],
+    title: 'R&D — BOM to Release',
     summary:
       'Define what must be built, review its technical structure and release a controlled BOM for execution.',
-    participants: 'R&D and Design employees, R&D Head, Production and SCM',
+    participants: 'R&D employees, R&D Head, Production and SCM',
     steps: [
       {
         key: 'item',
@@ -168,6 +168,83 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
         label: 'Available for production',
         detail:
           'The released BOM becomes available to the rest of the business — driving the stock explosion at kickoff, resource planning and manufacturing. Any product without a released BOM cannot be planned or built. This is the handoff from engineering to execution.',
+      },
+    ],
+  },
+  {
+    codes: ['DESIGN', 'ENGINEERING'],
+    title: 'Design Engineering — Request to Production Release',
+    summary:
+      'Turn an approved design need into controlled drawings, reviews, customer approval and an auditable production handoff.',
+    participants:
+      'Design Engineering employees, Design Lead, Design Head, Project Manager, customer, Production, SCM and Quality',
+    steps: [
+      {
+        key: 'request',
+        label: 'Design request',
+        detail:
+          'Start by recording why design work is needed, whether it comes from a sales order, project kickoff, customer change, internal product development, NCR/CAPA or value-engineering request. Capture the scope and business context clearly so the Design team can prioritize the right work and trace every later decision back to its source.',
+        href: '/design/requests',
+      },
+      {
+        key: 'project',
+        label: 'Design project',
+        detail:
+          'Convert the accepted request into a Design Project, assign its lead and target date, and link the relevant customer, product or order where available. The project moves through Requirements, Concept, Detailed Design, Internal Review, Customer Approval and Released for Production, giving everyone one visible lifecycle instead of separate informal updates.',
+        href: '/design/projects',
+      },
+      {
+        key: 'controls',
+        label: 'Requirements & plan',
+        detail:
+          'Record measurable design requirements, decide how each requirement will be verified and establish the project milestones. Evidence is added against the requirement it proves, while milestone updates show whether the work is progressing to plan. This creates a clear definition of done before drawings are released.',
+        href: '/design/controls',
+      },
+      {
+        key: 'documents',
+        label: 'Documents & revisions',
+        detail:
+          'Create controlled drawing and design-document records, then upload each revision through the existing Vault version-control mechanism. A new revision never overwrites the previous one, so reviewers, Production and auditors can always identify exactly which file and revision was current at any point in time.',
+        href: '/design/documents',
+      },
+      {
+        key: 'internal-review',
+        label: 'Internal design review',
+        detail:
+          'Submit the design for an internal review with the right attendees, minutes, outcome and owned action items. Reviewers check technical completeness, manufacturability, safety, standards and open requirements. Any failed check or unresolved action sends the work back for correction before it can proceed.',
+        gate: true,
+        href: '/design/reviews',
+      },
+      {
+        key: 'customer-approval',
+        label: 'Customer approval',
+        detail:
+          'Where customer approval is required, record the decision against the exact submitted revision rather than relying on email history alone. A rejection or requested change creates a clear return path for revision; approval confirms that the customer accepted the controlled design being prepared for release.',
+        gate: true,
+        href: '/design/controls',
+      },
+      {
+        key: 'release',
+        label: 'Design Head release',
+        detail:
+          'The designated Design Head performs the final release after the required reviews, checks and approvals are complete. Release locks the approved revision as the production authority; draft or merely reviewed files must never be treated as shop-floor instructions.',
+        gate: true,
+        href: '/design/documents',
+      },
+      {
+        key: 'transmittal',
+        label: 'Controlled handoff',
+        detail:
+          'Issue the released documents through a Design Transmittal to Production, SCM, Quality or the customer. The transmittal identifies the exact documents and revisions sent, records issue and acknowledgement, and prevents teams from working from an outdated attachment or an uncontrolled local copy.',
+        href: '/design/transmittals',
+      },
+      {
+        key: 'change-control',
+        label: 'Engineering changes',
+        detail:
+          'If the released design must change, raise an Engineering Change rather than editing the released file directly. Record affected items, assess cost, stock, schedule and quality impact, obtain approval, implement the new revision and collect acknowledgements; the Change Report preserves the complete before-and-after audit trail.',
+        gate: true,
+        href: '/design/changes',
       },
     ],
   },

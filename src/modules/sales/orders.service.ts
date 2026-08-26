@@ -20,6 +20,7 @@ import { CreateInternalOrderDto } from './dto/create-internal-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { PromoteInternalOrderDto } from './dto/promote-internal-order.dto';
 import { ResolveBidLineItemDto } from './dto/resolve-bid-line-item.dto';
+import { UpdateOrderLineItemDto } from './dto/update-order-line-item.dto';
 import {
   ConvertBidToOrderDto,
   UpdateLineCustomerFacingDto,
@@ -432,7 +433,9 @@ export class OrdersService {
     const dropped = order.lineItems.filter(
       (li) => !li.productId || !confirmedSet.has(li.productId),
     );
-    const toDelete = dropped.filter((li) => (li.plmTrackers?.length ?? 0) === 0);
+    const toDelete = dropped.filter(
+      (li) => (li.plmTrackers?.length ?? 0) === 0,
+    );
 
     const amcTotal = (bid.amcCharges ?? []).reduce(
       (sum, charge) => sum.plus(charge.amount),
@@ -598,6 +601,209 @@ export class OrdersService {
       },
     });
     return this.findOne(orderId, user);
+  }
+
+  /**
+   * Commercial correction to one order line — the customer PO that follows a
+   * quotation rarely covers every quoted item at the quoted rate. Rewrites
+   * quantity and/or unit price, re-derives `lineTotal`, and re-derives the
+   * order's booked value from the new line set (see
+   * {@link recomputeTotalAmount}). The line keeps its id, so its delivery
+   * classification and any PLM tracking survive untouched.
+   */
+  async updateLineItem(
+    orderId: string,
+    lineItemId: string,
+    dto: UpdateOrderLineItemDto,
+    user: AuthenticatedUser,
+  ): Promise<OrderEntity> {
+    if (dto.quantity === undefined && dto.unitPrice === undefined) {
+      throw new BadRequestException(
+        'Provide a quantity, a unit price, or both',
+      );
+    }
+    const order = await this.findRawOrThrow(orderId);
+    await this.assertCanEditLines(order, user);
+    const line = order.lineItems.find((li) => li.id === lineItemId);
+    if (!line) {
+      throw new NotFoundException('Order line item not found on this order');
+    }
+
+    const quantity =
+      dto.quantity !== undefined
+        ? this.money(new Prisma.Decimal(dto.quantity))
+        : line.quantity;
+    const unitPrice =
+      dto.unitPrice !== undefined
+        ? this.money(new Prisma.Decimal(dto.unitPrice))
+        : line.unitPrice;
+
+    // Never let the ordered quantity fall below what has already left the
+    // building — the derived fulfilment status (and the challans themselves)
+    // would then describe an over-dispatch that never happened.
+    if (dto.quantity !== undefined) {
+      const dispatched = await this.prisma.deliveryChallanLine.aggregate({
+        where: { orderLineId: lineItemId },
+        _sum: { quantity: true },
+      });
+      const alreadyDispatched =
+        dispatched._sum.quantity ?? new Prisma.Decimal(0);
+      if (quantity.lessThan(alreadyDispatched)) {
+        throw new BadRequestException(
+          `${alreadyDispatched.toString()} of this line has already been dispatched — the quantity cannot go below that`,
+        );
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.orderLineItem.update({
+        where: { id: lineItemId },
+        data: {
+          quantity,
+          unitPrice,
+          lineTotal: this.money(unitPrice.times(quantity)),
+        },
+      });
+      await this.recomputeTotalAmount(tx, order);
+    });
+    return this.findOne(orderId, user);
+  }
+
+  /**
+   * Drop one line from an order — the customer PO didn't cover it at all.
+   * Refused while the line carries downstream work that a delete would
+   * cascade-destroy or orphan (a PLM tracker on any delivery split, a QC
+   * inspection, a dispatched challan line), and refused for the last remaining
+   * line: an order with no scope should be CANCELLED, not emptied.
+   */
+  async deleteLineItem(
+    orderId: string,
+    lineItemId: string,
+    user: AuthenticatedUser,
+  ): Promise<OrderEntity> {
+    const order = await this.findRawOrThrow(orderId);
+    await this.assertCanEditLines(order, user);
+    const line = order.lineItems.find((li) => li.id === lineItemId);
+    if (!line) {
+      throw new NotFoundException('Order line item not found on this order');
+    }
+    if (order.lineItems.length === 1) {
+      throw new BadRequestException(
+        'An order must keep at least one line item — cancel the order instead of removing its last line',
+      );
+    }
+    if ((line.plmTrackers?.length ?? 0) > 0) {
+      throw new BadRequestException(
+        'Design/vendor (PLM) work has already started on this line — it cannot be removed. Cancel the tracked work first.',
+      );
+    }
+    const [inspections, dispatched] = await Promise.all([
+      this.prisma.qmsInspection.count({ where: { orderLineId: lineItemId } }),
+      this.prisma.deliveryChallanLine.count({
+        where: { orderLineId: lineItemId },
+      }),
+    ]);
+    if (inspections > 0) {
+      throw new BadRequestException(
+        'This line has QC inspection history and cannot be removed',
+      );
+    }
+    if (dispatched > 0) {
+      throw new BadRequestException(
+        'This line has already been dispatched on a delivery challan and cannot be removed',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Delivery splits hang off the line with onDelete: Cascade; the guards
+      // above ensure none of them carries a tracker.
+      await tx.orderLineItem.delete({ where: { id: lineItemId } });
+      await this.recomputeTotalAmount(tx, order);
+    });
+    return this.findOne(orderId, user);
+  }
+
+  /**
+   * WRITE guard shared by the line-item quantity/price/delete paths. Sales owns
+   * a customer order's commercials; an INTERNAL order is editable by whoever
+   * may create one (Sales, R&D, or a Project Manager — same audience as
+   * {@link createInternal}). Editing stops at CONFIRMED: from IN_PRODUCTION
+   * onwards, material planning, PLM and dispatch have committed to these
+   * quantities, so a change belongs in a revision, not an in-place edit.
+   */
+  private async assertCanEditLines(
+    order: OrderWithLines,
+    user: AuthenticatedUser,
+  ): Promise<void> {
+    if (order.orderType === OrderType.INTERNAL) {
+      await this.access.assertCanCreateInternalOrder(user);
+    } else {
+      await this.access.assertSalesAccess(user);
+    }
+    await this.access.assertCanAccessOwned(user, order.ownerId);
+    if (order.status !== OrderStatus.CONFIRMED) {
+      throw new BadRequestException(
+        `Line items can only be changed while an order is CONFIRMED — this order is ${order.status}`,
+      );
+    }
+  }
+
+  /**
+   * Re-derive the order's booked value after its line set changed. A
+   * bid-converted order's total is the accepted quotation's grand total, so the
+   * bid's discount percentage, tax rate and flat AMC charges are re-applied
+   * over the new line subtotal — the same arithmetic {@link convertFromBid}
+   * snapshotted, just over the scope the customer actually ordered. An order
+   * with no bid behind it (INTERNAL) totals its lines directly.
+   */
+  private async recomputeTotalAmount(
+    tx: Prisma.TransactionClient,
+    order: { id: string; bidId: string | null },
+  ): Promise<void> {
+    const lines = await tx.orderLineItem.findMany({
+      where: { orderId: order.id },
+      select: { lineTotal: true },
+    });
+    const subtotal = lines.reduce(
+      (sum, l) => sum.plus(l.lineTotal),
+      new Prisma.Decimal(0),
+    );
+    let totalAmount = this.money(subtotal);
+
+    if (order.bidId) {
+      const bid = await tx.bid.findUnique({
+        where: { id: order.bidId },
+        select: {
+          discountPercent: true,
+          taxRate: true,
+          amcCharges: { select: { amount: true } },
+        },
+      });
+      if (bid) {
+        const discountAmount = this.money(
+          subtotal.times(bid.discountPercent).dividedBy(100),
+        );
+        const taxable = subtotal.minus(discountAmount);
+        const taxAmount = bid.taxRate
+          ? this.money(taxable.times(bid.taxRate).dividedBy(100))
+          : new Prisma.Decimal(0);
+        const amcTotal = (bid.amcCharges ?? []).reduce(
+          (sum, charge) => sum.plus(charge.amount),
+          new Prisma.Decimal(0),
+        );
+        totalAmount = this.money(taxable.plus(taxAmount).plus(amcTotal));
+      }
+    }
+
+    await tx.order.update({
+      where: { id: order.id },
+      data: { totalAmount },
+    });
+  }
+
+  /** Round to 2 places (money precision), matching @db.Decimal(14, 2). */
+  private money(value: Prisma.Decimal): Prisma.Decimal {
+    return value.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
   }
 
   async updateStatus(

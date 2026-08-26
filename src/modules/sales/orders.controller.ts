@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -21,6 +22,7 @@ import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { UpdateLineCustomerFacingDto } from './dto/customer-facing-line.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { ResolveBidLineItemDto } from './dto/resolve-bid-line-item.dto';
+import { UpdateOrderLineItemDto } from './dto/update-order-line-item.dto';
 import { OrdersService } from './orders.service';
 
 /**
@@ -67,7 +69,7 @@ export class OrdersController {
   @Patch(':id/line-items/:lineItemId/customer-facing')
   @ApiOperation({
     summary:
-      "Set/clear the customer-facing display name/description for one line (display-only; never touches the Product record)",
+      'Set/clear the customer-facing display name/description for one line (display-only; never touches the Product record)',
   })
   updateLineCustomerFacing(
     @Param('id') id: string,
@@ -81,6 +83,33 @@ export class OrdersController {
       dto,
       user,
     );
+  }
+
+  @Patch(':id/line-items/:lineItemId')
+  @ApiOperation({
+    summary:
+      "Correct one line's quantity and/or unit price (the received PO didn't match the quotation). CONFIRMED orders only; re-derives the order total.",
+  })
+  updateLineItem(
+    @Param('id') id: string,
+    @Param('lineItemId') lineItemId: string,
+    @Body() dto: UpdateOrderLineItemDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ordersService.updateLineItem(id, lineItemId, dto, user);
+  }
+
+  @Delete(':id/line-items/:lineItemId')
+  @ApiOperation({
+    summary:
+      "Remove one line the customer's PO didn't cover. CONFIRMED orders only; refused when the line has PLM, QC or dispatch history, or is the last line.",
+  })
+  deleteLineItem(
+    @Param('id') id: string,
+    @Param('lineItemId') lineItemId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ordersService.deleteLineItem(id, lineItemId, user);
   }
 
   @Patch(':id/status')

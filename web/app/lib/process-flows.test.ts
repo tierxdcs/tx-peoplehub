@@ -14,10 +14,12 @@ describe('canonical employee process flows', () => {
     }
   });
 
-  it('keeps the seven per-vertical flows first so flowForVertical maps correctly', () => {
+  it('maps every supported employee vertical to its canonical flow', () => {
     const verticalCodes = [
       'SALES',
       'RND',
+      'DESIGN',
+      'ENGINEERING',
       'SCM',
       'PRODUCTION',
       'QMS',
@@ -36,6 +38,34 @@ describe('canonical employee process flows', () => {
 
   it('uses the same canonical Sales data wherever Sales guidance is requested', () => {
     expect(flowForVertical('SALES')).toBe(VERTICAL_FLOWS[0]);
+  });
+
+  it('keeps Design Engineering guidance distinct from the R&D BOM lifecycle', () => {
+    const design = flowForVertical('DESIGN');
+    const engineering = flowForVertical('ENGINEERING');
+    const rnd = flowForVertical('RND');
+
+    expect(design).toBe(engineering);
+    expect(design).not.toBe(rnd);
+    expect(design?.steps.map((step) => step.key)).toEqual(
+      expect.arrayContaining([
+        'request',
+        'project',
+        'controls',
+        'documents',
+        'internal-review',
+        'customer-approval',
+        'release',
+        'transmittal',
+        'change-control',
+      ]),
+    );
+    expect(
+      design?.steps.find((step) => step.key === 'release')?.gate,
+    ).toBe(true);
+    expect(
+      design?.steps.find((step) => step.key === 'transmittal')?.detail,
+    ).toContain('exact documents and revisions');
   });
 
   it('documents the newer pre-bid and sourcing playbooks in the shared source', () => {
