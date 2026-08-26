@@ -138,7 +138,9 @@
       "Bash(kill 86467 33642 33900)",
       "Bash(curl -s -X DELETE http://localhost:3000/rfqs/probe-id)",
       "Bash(grep -c \"Mapped {/rfqs/:id, DELETE}\" /tmp/peoplehub-api.log)",
-      "Bash(grep \"Mapped {/rfqs/:id, DELETE}\\\\|Mapped {/rfqs/:id, PATCH}\" /tmp/peoplehub-api.log)"
+      "Bash(grep \"Mapped {/rfqs/:id, DELETE}\\\\|Mapped {/rfqs/:id, PATCH}\" /tmp/peoplehub-api.log)",
+      "Bash(curl -s -X POST http://localhost:3000/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"probe@example.invalid\",\"password\":\"x\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"probe@example.invalid\",\"password\":\"password123\"}')"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",
