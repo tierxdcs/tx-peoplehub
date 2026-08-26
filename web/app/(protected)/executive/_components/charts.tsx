@@ -225,6 +225,53 @@ export function Sparkline({
   );
 }
 
+/**
+ * KPI tile with an optional sparkline underneath — the Signal StatTile shape,
+ * plus a trend, which is what makes a bare number decision-useful.
+ */
+export function KpiTile({
+  label,
+  value,
+  hint,
+  trend,
+  color = CHART_COLORS.blue,
+  tone,
+}: {
+  label: string;
+  value: string;
+  hint?: string | null;
+  trend?: Array<number | null>;
+  color?: string;
+  tone?: 'positive' | 'negative';
+}) {
+  return (
+    <div className="flex flex-col bg-white px-[18px] py-4 dark:bg-[#232323]">
+      <div className="text-[10px] font-semibold uppercase tracking-[.14em] text-black/45 dark:text-white/40">
+        {label}
+      </div>
+      <div
+        className={cn(
+          'mt-1.5 text-[26px] font-extrabold leading-none tracking-[-1.2px] tabular-nums',
+          tone === 'positive' && 'text-[#1E9E63] dark:text-[#3DD68C]',
+          tone === 'negative' && 'text-[#C13438] dark:text-[#FF8A8D]',
+        )}
+      >
+        {value}
+      </div>
+      {hint && (
+        <div className="mt-1.5 text-[11px] text-black/40 dark:text-white/[.33]">
+          {hint}
+        </div>
+      )}
+      {trend && (
+        <div className="mt-auto">
+          <Sparkline values={trend} color={color} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export interface DonutSlice {
   label: string;
   value: number;

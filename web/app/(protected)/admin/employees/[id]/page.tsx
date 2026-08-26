@@ -340,6 +340,48 @@ export default function EditEmployeePage() {
     }
   }
 
+  /**
+   * Executive Dashboards access — a discretionary CEO grant, not a designation
+   * tied to a vertical, title or seniority. Multi-holder (no swap), SuperAdmin
+   * only, and it lets the holder see company-wide cost and margin data, so the
+   * confirmation says so out loud.
+   */
+  async function setExecutiveDashboardAccess(next: boolean) {
+    if (!employee) return;
+    const ok = await confirm({
+      title: next
+        ? 'Grant Executive Dashboards access'
+        : 'Revoke Executive Dashboards access',
+      description: next
+        ? `Give ${employee.firstName} ${employee.lastName} access to the Executive Dashboards section? They will see company-wide sales, cost and margin figures regardless of their vertical.`
+        : `Revoke ${employee.firstName} ${employee.lastName}’s Executive Dashboards access? The section will disappear from their navigation immediately.`,
+      confirmLabel: next ? 'Grant access' : 'Revoke access',
+      destructive: !next,
+    });
+    if (!ok) return;
+    setDesignating(true);
+    try {
+      await apiFetch(
+        `/employees/${employee.id}/${next ? 'grant' : 'revoke'}-executive-dashboard-access`,
+        { method: 'PATCH' },
+      );
+      toast.success(
+        next
+          ? 'Executive Dashboards access granted'
+          : 'Executive Dashboards access revoked',
+      );
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to update Executive Dashboards access',
+      );
+    } finally {
+      setDesignating(false);
+    }
+  }
+
   async function setQmsHead(next: boolean) {
     if (!employee) return;
     const ok = await confirm({
@@ -602,7 +644,8 @@ export default function EditEmployeePage() {
     employee.isQmsHead ||
     employee.isDesignHead ||
     employee.isProductionHead ||
-    employee.isScmHead;
+    employee.isScmHead ||
+    employee.hasExecutiveDashboardAccess;
 
   return (
     <SignalPage>
@@ -633,6 +676,9 @@ export default function EditEmployeePage() {
               <Badge variant="info">Production Head</Badge>
             )}
             {employee.isScmHead && <Badge variant="info">SCM Head</Badge>}
+            {employee.hasExecutiveDashboardAccess && (
+              <Badge variant="info">Executive Dashboards</Badge>
+            )}
           </span>
         }
       />
@@ -956,6 +1002,43 @@ export default function EditEmployeePage() {
                   {employee.isProductionHead
                     ? 'Revoke Production Head'
                     : 'Designate as Production Head'}
+                </Button>
+              )}
+            </SCard>
+          )}
+
+          {/* Executive Dashboards access — the CEO's discretionary grant. Listed
+          with the designations because it is managed the same way, but it is not
+          a role: any active employee in any vertical can hold it, and it gates
+          the whole Executive Dashboards section (Sales today, Finance and
+          Production later). */}
+          {(isSuperAdmin || employee.hasExecutiveDashboardAccess) && (
+            <SCard className="flex items-center justify-between gap-4 px-5 py-[18px]">
+              <div className="text-[13px]">
+                <div className="font-semibold">Executive Dashboards access</div>
+                <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                  {employee.hasExecutiveDashboardAccess
+                    ? 'This employee can open the Executive Dashboards section, including company-wide cost and margin figures.'
+                    : 'Grant access to the Executive Dashboards section. Granted at the CEO’s discretion to any employee, in any vertical — the holder sees cost and margin data company-wide.'}
+                </div>
+              </div>
+              {isSuperAdmin && (
+                <Button
+                  variant={
+                    employee.hasExecutiveDashboardAccess
+                      ? 'destructive'
+                      : 'outline'
+                  }
+                  disabled={designating}
+                  onClick={() =>
+                    setExecutiveDashboardAccess(
+                      !employee.hasExecutiveDashboardAccess,
+                    )
+                  }
+                >
+                  {employee.hasExecutiveDashboardAccess
+                    ? 'Revoke access'
+                    : 'Grant access'}
                 </Button>
               )}
             </SCard>
