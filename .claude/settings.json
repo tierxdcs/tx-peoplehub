@@ -145,7 +145,14 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -X POST http://localhost:3000/rfqs/probe/invitees/probe/request-revision -H 'Content-Type: application/json' -d '{}')",
       "Bash(git -C /Users/nithin/Documents/GitHub/tx-peoplehub diff --stat prisma/schema.prisma src/modules/rfq/dto/rfq-public.dto.ts)",
       "Bash(git -C /Users/nithin/Documents/GitHub/tx-peoplehub diff prisma/schema.prisma)",
-      "Bash(git -C /Users/nithin/Documents/GitHub/tx-peoplehub diff src/modules/rfq/dto/rfq-public.dto.ts)"
+      "Bash(git -C /Users/nithin/Documents/GitHub/tx-peoplehub diff src/modules/rfq/dto/rfq-public.dto.ts)",
+      "Bash(lsof -ti:3000 -ti:3001)",
+      "Bash(lsof -nP -iTCP:3000 -iTCP:3001 -sTCP:LISTEN)",
+      "Bash(ps -p 1387 -o pid,command=)",
+      "Bash(ps -p 20149 -o pid,command=)",
+      "Bash(ps -p 94952 -o pid,command=)",
+      "Bash(kill 20149 94952)",
+      "Bash(pkill -f \"npm exec next start\")"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",

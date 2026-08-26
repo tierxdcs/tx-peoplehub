@@ -11,6 +11,8 @@ export interface JwtAccessPayload {
   email: string;
   role: Role;
   verticalId: string | null;
+  /** Employee-facing job title used for identity display in the app shell. */
+  designation?: string | null;
   /**
    * The employee's tokenVersion at signing time. On every request the strategy
    * compares it against the CURRENT tokenVersion in the DB; a mismatch means the

@@ -5,6 +5,8 @@ export interface DecodedAccessToken {
   email: string;
   role: Role;
   verticalId: string | null;
+  /** Employee designation shown in the account header; absent on older tokens. */
+  designation?: string | null;
   /**
    * True when an admin force-reset requires this user to set a new password
    * before doing anything else. Read straight from the token so the shell can

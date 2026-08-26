@@ -124,7 +124,7 @@ export function AppTopBar({
             <span className="hidden text-left leading-tight lg:inline">
               <span className="block font-medium">{user.email}</span>
               <span className="block text-xs text-muted-foreground">
-                {roleLabel(user.role)}
+                {user.designation?.trim() || roleLabel(user.role)}
               </span>
             </span>
             <ChevronDown className="hidden h-4 w-4 text-muted-foreground sm:block" />

@@ -132,7 +132,7 @@ export default function EmployeesListPage() {
     if (verticalFilter && e.verticalId !== verticalFilter) return false;
     if (statusFilter && e.status !== statusFilter) return false;
     if (search) {
-      const haystack = `${e.firstName} ${e.lastName} ${e.email}`.toLowerCase();
+      const haystack = `${e.firstName} ${e.lastName} ${e.email} ${e.designation ?? ''}`.toLowerCase();
       if (!haystack.includes(search.toLowerCase())) return false;
     }
     return true;
@@ -150,7 +150,7 @@ export default function EmployeesListPage() {
         }
       />
       <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
-      <RegisterToolbar title="Employee Register" search={search} onSearchChange={setSearch} searchPlaceholder="Search name or email" filters={<>
+      <RegisterToolbar title="Employee Register" search={search} onSearchChange={setSearch} searchPlaceholder="Search name, email or designation" filters={<>
         <Select
           value={verticalFilter}
           onChange={(e) => setVerticalFilter(e.target.value)}
@@ -180,7 +180,7 @@ export default function EmployeesListPage() {
       ) : (
         <>
           <SCard className="overflow-hidden"><Table>
-            <TableHeader><TableRow><TableHead>Employee ID</TableHead><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Vertical</TableHead><TableHead>Role</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Employee ID</TableHead><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Vertical</TableHead><TableHead>Designation</TableHead><TableHead>Role</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
             <TableBody>
               {filtered.map((e) => (
                 <TableRow key={e.id}>
@@ -202,7 +202,7 @@ export default function EmployeesListPage() {
                       <Badge variant="secondary" className="ml-2">R&D Head</Badge>
                     )}
                   </TableCell>
-                  <TableCell>{e.email}</TableCell><TableCell>{verticalName(e.verticalId)}</TableCell><TableCell>{roleLabel(e.role)}</TableCell><TableCell><StatusBadge value={e.status} /></TableCell>
+                  <TableCell>{e.email}</TableCell><TableCell>{verticalName(e.verticalId)}</TableCell><TableCell>{e.designation ?? '—'}</TableCell><TableCell>{roleLabel(e.role)}</TableCell><TableCell><StatusBadge value={e.status} /></TableCell>
                   <TableCell><div className="flex justify-end gap-2">
                       <Link href={`/admin/employees/${e.id}`}><Button variant="outline" size="sm">Edit</Button></Link>
                       {e.status === 'ACTIVE' ? (
@@ -216,7 +216,7 @@ export default function EmployeesListPage() {
                     </div></TableCell>
                 </TableRow>
               ))}
-              {!filtered.length && <TableRow><TableCell colSpan={7} className="p-0"><EmptyState icon={Users} title="No employees match your filters" /></TableCell></TableRow>}
+              {!filtered.length && <TableRow><TableCell colSpan={8} className="p-0"><EmptyState icon={Users} title="No employees match your filters" /></TableCell></TableRow>}
             </TableBody></Table></SCard>
           <RegisterPagination page={page} pageCount={Math.ceil(total / limit)} onPageChange={setPage} disabled={loading} />
         </>

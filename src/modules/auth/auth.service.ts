@@ -53,6 +53,7 @@ export class AuthService {
       employee.email,
       employee.role,
       employee.verticalId,
+      employee.designation,
       employee.tokenVersion,
       employee.mustChangePassword,
     );
@@ -91,6 +92,7 @@ export class AuthService {
       employee.email,
       employee.role,
       employee.verticalId,
+      employee.designation,
       employee.tokenVersion,
       employee.mustChangePassword,
     );
@@ -140,6 +142,7 @@ export class AuthService {
       updated.email,
       updated.role as Role,
       updated.verticalId,
+      updated.designation,
       updated.tokenVersion,
     );
   }
@@ -149,6 +152,7 @@ export class AuthService {
     email: string,
     role: Role,
     verticalId: string | null,
+    designation: string | null,
     tokenVersion: number,
     mustChangePassword = false,
   ): Promise<TokenPair> {
@@ -157,6 +161,7 @@ export class AuthService {
       email,
       role,
       verticalId,
+      designation,
       tokenVersion,
       mustChangePassword,
     };
