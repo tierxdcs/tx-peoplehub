@@ -11,14 +11,14 @@ import {
   type ExpenseLedgerOption,
 } from '../../../lib/expense-claims';
 import { useToast } from '../../../components/ui/toaster';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '../../../components/ui/card';
+  SCard,
+  SCardTitle,
+  SIGNAL_FAINT,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
+import { cn } from '../../../lib/utils';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
@@ -106,14 +106,13 @@ export default function ExpenseCategoriesSettingsPage() {
   }
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Expense Categories"
         description="The categories an employee picks for each expense-claim line. Each category maps to the expense ledger its lines debit when the claim is approved. Deactivating a category hides it from new claims without affecting claims already raised."
       />
-
-      <Card className="mb-4">
-        <CardContent className="p-0">
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+        <SCard className="overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -128,7 +127,7 @@ export default function ExpenseCategoriesSettingsPage() {
                 <TableRow>
                   <TableCell
                     colSpan={4}
-                    className="text-center text-muted-foreground"
+                    className={cn('py-8 text-center', SIGNAL_FAINT)}
                   >
                     No expense categories yet.
                   </TableCell>
@@ -157,14 +156,11 @@ export default function ExpenseCategoriesSettingsPage() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </SCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{editingId ? 'Edit category' : 'Add category'}</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <SCard className="px-5 py-[18px]">
+          <SCardTitle title={editingId ? 'Edit category' : 'Add category'} />
+          <div className="mt-3.5">
           <form onSubmit={save} className="grid gap-4 md:grid-cols-2">
             <label className="text-sm font-medium">
               Category name
@@ -204,8 +200,9 @@ export default function ExpenseCategoriesSettingsPage() {
               )}
             </div>
           </form>
-        </CardContent>
-      </Card>
-    </PageContainer>
+          </div>
+        </SCard>
+      </div>
+    </SignalPage>
   );
 }

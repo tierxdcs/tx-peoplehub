@@ -7,16 +7,20 @@ import {
   createBusinessUnit,
   updateBusinessUnit,
 } from '../../../lib/business-units';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
+import {
+  SCard,
+  SCardTitle,
+  SIGNAL_FAINT,
+  SIGNAL_MUTED,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
+import { cn } from '../../../lib/utils';
 import { RegisterToolbar } from '../../../components/ui/register-toolbar';
 import { RegisterPagination } from '../../../components/ui/register-pagination';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { StatusBadge } from '../../../components/ui/status-badge';
-import { EmptyState } from '../../../components/ui/empty-state';
-import { Layers3 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
 import { useRegisterList } from '../../../lib/use-register-list';
 
@@ -122,16 +126,17 @@ export default function BusinessUnitsPage() {
   }
 
   return (
-    <PageContainer>
-      <PageHeader title="Business Units" description="Classify products for reporting and maintain their display labels." />
+    <SignalPage>
+      <SignalHeader title="Business Units" description="Classify products for reporting and maintain their display labels." />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
       <RegisterToolbar title="Business Unit Register" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search name, code or status" />
 
       {error && <p className="text-destructive">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className={cn('text-[13px]', SIGNAL_MUTED)}>Loading…</p>
       ) : (
-        <Card><CardContent className="p-0"><Table>
+        <SCard className="overflow-hidden"><Table>
           <TableHeader><TableRow><TableHead>Order</TableHead><TableHead>Name</TableHead><TableHead>Code</TableHead><TableHead>Description</TableHead><TableHead>Colour</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
           <TableBody>
             {register.visibleItems.map((u) => (
@@ -164,7 +169,7 @@ export default function BusinessUnitsPage() {
                   </>
                 ) : (
                   <>
-                    <TableCell>{u.displayOrder}</TableCell><TableCell>{u.name}</TableCell><TableCell>{u.code}</TableCell><TableCell className="text-muted-foreground">{u.description ?? '—'}</TableCell><TableCell>
+                    <TableCell className="tabular-nums">{u.displayOrder}</TableCell><TableCell>{u.name}</TableCell><TableCell>{u.code}</TableCell><TableCell className={SIGNAL_MUTED}>{u.description ?? '—'}</TableCell><TableCell>
                       <span
                         style={{
                           display: 'inline-block',
@@ -180,60 +185,61 @@ export default function BusinessUnitsPage() {
                 )}
               </TableRow>
             ))}
-            {!register.visibleItems.length && <TableRow><TableCell colSpan={7} className="p-0"><EmptyState icon={Layers3} title="No business units match your search" /></TableCell></TableRow>}
-          </TableBody></Table></CardContent></Card>
+            {!register.visibleItems.length && <TableRow><TableCell colSpan={7} className={cn('py-12 text-center', SIGNAL_FAINT)}>No business units match your search</TableCell></TableRow>}
+          </TableBody></Table></SCard>
       )}
       <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
 
-      <Card className="mt-6"><CardHeader><CardTitle>Create business unit</CardTitle></CardHeader><CardContent><form onSubmit={handleCreate} className="max-w-md space-y-4">
-        <div style={{ marginBottom: 12 }}>
-          <label>Label colour</label>
-          <br />
+      <SCard className="px-5 py-[18px]"><SCardTitle title="Create business unit" /><div className="mt-3.5"><form onSubmit={handleCreate} className="max-w-md space-y-3.5">
+        <label className="block text-[12px] font-semibold">
+          Label colour
           <Input
             type="color"
+            className="mt-1"
             value={colorHex}
             onChange={(e) => setColorHex(e.target.value)}
           />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label>Name</label>
-          <br />
+        </label>
+        <label className="block text-[12px] font-semibold">
+          Name
           <Input
+            className="mt-1"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
           />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label>Code</label>
-          <br />
+        </label>
+        <label className="block text-[12px] font-semibold">
+          Code
           <Input
+            className="mt-1"
             value={code}
             onChange={(e) => setCode(e.target.value)}
             required
           />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label>Description (optional)</label>
-          <br />
+        </label>
+        <label className="block text-[12px] font-semibold">
+          Description (optional)
           <Input
+            className="mt-1"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label>Display order</label>
-          <br />
+        </label>
+        <label className="block text-[12px] font-semibold">
+          Display order
           <Input
             type="number"
+            className="mt-1"
             value={displayOrder}
             onChange={(e) => setDisplayOrder(e.target.value)}
           />
-        </div>
+        </label>
         <Button type="submit" disabled={submitting}>
           {submitting ? 'Creating…' : 'Create'}
         </Button>
-      </form></CardContent></Card>
-    </PageContainer>
+      </form></div></SCard>
+      </div>
+    </SignalPage>
   );
 }

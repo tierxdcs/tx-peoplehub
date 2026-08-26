@@ -101,8 +101,19 @@ audit for unpaired tokens:
   routes around dual-mode `_sections/*` components that also render as profile
   tabs — converting those requires a dedicated pass on the section components
   (they must keep working embedded), deliberately not done yet.
+- ✅ Administration (the `Administration` nav group) — Employees register +
+  Create Employee + employee detail (incl. the shared `employee-form` and the
+  `ProvisioningChecklist`, which is only used there), Verticals, Pending Access
+  (all three dialogs), Business Units, Finance Auditors, Provisioning Setup,
+  Bid Assessment Questions, Milestone Templates, Expense Categories.
+  Conventions confirmed here: there is no Signal "danger" button — destructive
+  dialog/row actions keep the semantic `Button variant="destructive"`; section
+  eyebrows (`SIGNAL_EYEBROW`) replace `<h2 className="text-lg font-semibold">`
+  on settings-style pages; a card with a bordered title strip
+  (`border-b px-5 py-3.5` + `SCardTitle`) above a full-bleed `Table` yields
+  exactly one hairline, since `TableHeader` has no top border.
 - ⬜ Sales Master Data (Customer Master) · stores/SCM rest · kanban/my-tasks ·
-  finance · QMS · design · HR rest (leave, payroll, admin) — convert module by
+  finance · QMS · design · HR rest (leave) — convert module by
   module using this playbook. Signature screens with novel layouts (Kanban
   board, PLM tracker detail) may warrant a design pass first; everything else
   does not.

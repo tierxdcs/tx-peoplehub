@@ -1,14 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Ban, CheckCircle2, KeyRound, UserCheck } from 'lucide-react';
+import { Ban, CheckCircle2, KeyRound } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { Employee, PaginatedResult, Vertical } from '../../../lib/types';
 import { roleLabel } from '../../../lib/status';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent } from '../../../components/ui/card';
+import {
+  SCard,
+  SIGNAL_BTN_GHOST,
+  SIGNAL_BTN_PRIMARY,
+  SIGNAL_DIALOG,
+  SIGNAL_DIALOG_TITLE,
+  SIGNAL_FAINT,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
+import { cn } from '../../../lib/utils';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
@@ -84,16 +92,16 @@ export default function PendingAccessPage() {
     verticals.find((v) => v.id === id)?.name ?? '—';
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Pending Access"
         description="Review onboarded employees and grant their ERP role, reporting line and initial login access."
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
-      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <Card>
-        <CardContent className="p-0">
+      <SCard className="overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -120,9 +128,8 @@ export default function PendingAccessPage() {
                 <TableRow>
                   <TableCell
                     colSpan={6}
-                    className="py-12 text-center text-muted-foreground"
+                    className={cn('py-12 text-center', SIGNAL_FAINT)}
                   >
-                    <UserCheck className="mx-auto mb-3 size-8 opacity-50" />
                     No employees are awaiting access.
                   </TableCell>
                 </TableRow>
@@ -160,8 +167,7 @@ export default function PendingAccessPage() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </SCard>
 
       {grantTarget && (
         <GrantAccessForm
@@ -190,27 +196,36 @@ export default function PendingAccessPage() {
 
       {granted && (
         <Dialog open onOpenChange={(open) => !open && setGranted(null)}>
-          <DialogContent>
+          <DialogContent className={SIGNAL_DIALOG}>
             <DialogHeader>
               <div className="mb-2 flex size-10 items-center justify-center rounded-full bg-success/15 text-success">
                 <CheckCircle2 />
               </div>
-              <DialogTitle>Access granted</DialogTitle>
+              <DialogTitle className={SIGNAL_DIALOG_TITLE}>
+                Access granted
+              </DialogTitle>
               <DialogDescription>
                 The employee can now sign in to the ERP.
               </DialogDescription>
             </DialogHeader>
-            <p className="text-sm">
+            <p className="text-[13px]">
               {granted.firstName} {granted.lastName} can now log in using{' '}
-              <strong>{granted.email}</strong>.
+              <strong className="font-semibold">{granted.email}</strong>.
             </p>
             <DialogFooter>
-              <Button onClick={() => setGranted(null)}>Done</Button>
+              <button
+                type="button"
+                className={SIGNAL_BTN_PRIMARY}
+                onClick={() => setGranted(null)}
+              >
+                Done
+              </button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }
 
@@ -249,9 +264,11 @@ function DenyAccessDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      <DialogContent className={SIGNAL_DIALOG}>
         <DialogHeader>
-          <DialogTitle>Deny ERP access?</DialogTitle>
+          <DialogTitle className={SIGNAL_DIALOG_TITLE}>
+            Deny ERP access?
+          </DialogTitle>
           <DialogDescription>
             {employee.firstName} {employee.lastName} will remain in the employee
             roster, but will not be able to sign in. This decision is audited.
@@ -267,9 +284,14 @@ function DenyAccessDialog({
         </Field>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>
+          <button
+            type="button"
+            className={SIGNAL_BTN_GHOST}
+            onClick={onClose}
+            disabled={submitting}
+          >
             Cancel
-          </Button>
+          </button>
           <Button variant="destructive" onClick={deny} disabled={submitting}>
             {submitting ? 'Denying…' : 'Deny Access'}
           </Button>
@@ -354,9 +376,9 @@ function GrantAccessForm({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className={cn('sm:max-w-xl', SIGNAL_DIALOG)}>
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className={SIGNAL_DIALOG_TITLE}>
             Grant access — {employee.firstName} {employee.lastName}
           </DialogTitle>
           <DialogDescription>
@@ -437,12 +459,16 @@ function GrantAccessForm({
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <button type="button" className={SIGNAL_BTN_GHOST} onClick={onClose}>
               Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
+            </button>
+            <button
+              type="submit"
+              className={SIGNAL_BTN_PRIMARY}
+              disabled={submitting}
+            >
               {submitting ? 'Granting…' : 'Grant Access'}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>

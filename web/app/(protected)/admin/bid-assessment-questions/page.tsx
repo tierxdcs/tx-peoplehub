@@ -7,9 +7,17 @@ import {
   BidAssessmentQuestion,
   BidAssessmentQuestionType,
 } from '../../../lib/types';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent } from '../../../components/ui/card';
+import {
+  SCard,
+  SIGNAL_BTN_GHOST,
+  SIGNAL_BTN_PRIMARY,
+  SIGNAL_DIALOG,
+  SIGNAL_DIALOG_TITLE,
+  SIGNAL_FAINT,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
+import { cn } from '../../../lib/utils';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
@@ -92,21 +100,23 @@ export default function BidAssessmentQuestionsPage() {
   }
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Bid Assessment Questions"
         description="The configurable Bid/No-Bid questionnaire. Deactivate rather than delete — answered history keeps its reference."
-        action={
+        actions={
           <Button onClick={() => setEditing('new')}>
             <Plus /> New Question
           </Button>
         }
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
-      <Card>
-        <CardContent className="pt-6">
+      <SCard className="overflow-hidden">
           {loading ? (
-            <Skeleton className="h-40 w-full" />
+            <div className="p-5">
+              <Skeleton className="h-40 w-full" />
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -153,7 +163,7 @@ export default function BidAssessmentQuestionsPage() {
                   <TableRow>
                     <TableCell
                       colSpan={5}
-                      className="text-center text-muted-foreground"
+                      className={cn('py-8 text-center', SIGNAL_FAINT)}
                     >
                       No questions configured yet.
                     </TableCell>
@@ -162,8 +172,7 @@ export default function BidAssessmentQuestionsPage() {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+      </SCard>
 
       {editing && (
         <QuestionForm
@@ -175,7 +184,8 @@ export default function BidAssessmentQuestionsPage() {
           }}
         />
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }
 
@@ -253,9 +263,11 @@ function QuestionForm({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      <DialogContent className={SIGNAL_DIALOG}>
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit question' : 'New question'}</DialogTitle>
+          <DialogTitle className={SIGNAL_DIALOG_TITLE}>
+            {isEdit ? 'Edit question' : 'New question'}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label="Question text" htmlFor="q-text" required>
@@ -318,12 +330,16 @@ function QuestionForm({
           )}
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <button type="button" onClick={onClose} className={SIGNAL_BTN_GHOST}>
               Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className={SIGNAL_BTN_PRIMARY}
+            >
               {submitting ? 'Saving…' : 'Save'}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -5,12 +5,22 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { Employee, PaginatedResult, Vertical } from '../../../../lib/types';
 import { EmployeeForm, EmployeeFormValues } from '../_components/employee-form';
-import { ArrowLeft } from 'lucide-react';
 import { Badge } from '../../../../components/ui/badge';
 import { Button } from '../../../../components/ui/button';
-import { Card, CardContent } from '../../../../components/ui/card';
-import { PageContainer } from '../../../../components/ui/page-container';
-import { PageHeader } from '../../../../components/ui/page-header';
+import {
+  SCard,
+  SCardTitle,
+  SIGNAL_BTN_OUTLINE,
+  SIGNAL_BTN_PRIMARY,
+  SIGNAL_DIALOG,
+  SIGNAL_DIALOG_TITLE,
+  SIGNAL_EYEBROW,
+  SIGNAL_HAIRLINE,
+  SIGNAL_MUTED,
+  SignalHeader,
+  SignalPage,
+} from '../../../../components/ui/signal';
+import { cn } from '../../../../lib/utils';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import {
   Dialog,
@@ -539,24 +549,27 @@ export default function EditEmployeePage() {
 
   if (loading) {
     return (
-      <PageContainer className="max-w-2xl">
-        <Skeleton className="mb-4 h-6 w-24" />
-        <Skeleton className="mb-6 h-9 w-64" />
-        <Skeleton className="h-64 w-full" />
-      </PageContainer>
+      <SignalPage>
+        <div className="px-5 py-[18px] lg:px-7">
+          <Skeleton className="mb-4 h-6 w-24" />
+          <Skeleton className="mb-6 h-9 w-64" />
+          <Skeleton className="h-64 w-full max-w-2xl" />
+        </div>
+      </SignalPage>
     );
   }
   if (!employee) {
     return (
-      <PageContainer className="max-w-2xl">
-        <button
-          onClick={() => router.push(returnTo)}
-          className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" /> Employees
-        </button>
-        <p className="text-destructive">Employee not found.</p>
-      </PageContainer>
+      <SignalPage>
+        <SignalHeader
+          backHref={returnTo}
+          backLabel="Employees"
+          title="Employee"
+        />
+        <div className="px-5 pb-7 pt-[18px] lg:px-7">
+          <p className="text-[13px] text-destructive">Employee not found.</p>
+        </div>
+      </SignalPage>
     );
   }
 
@@ -592,19 +605,14 @@ export default function EditEmployeePage() {
     employee.isScmHead;
 
   return (
-    <PageContainer className="max-w-2xl">
-      <button
-        onClick={() => router.push(returnTo)}
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Employees
-      </button>
-
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
+        backHref={returnTo}
+        backLabel="Employees"
         title={`${employee.firstName} ${employee.lastName}`}
         description={
           <span className="flex flex-wrap items-center gap-1.5">
-            <span>{employee.employeeId}</span>
+            <span className="tabular-nums">{employee.employeeId}</span>
             {employee.isSalesHead && <Badge variant="info">Sales Head</Badge>}
             {employee.isProjectManager && (
               <Badge variant="info">Project Manager</Badge>
@@ -628,446 +636,448 @@ export default function EditEmployeePage() {
           </span>
         }
       />
-
-      {/* Core details first — the primary reason to open this page. */}
-      <h2 className="mb-3 text-lg font-semibold">Details</h2>
-      <EmployeeForm
-        mode="edit"
-        initial={{
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          email: employee.email,
-          // Pass the true role (including SUPER_ADMIN) so the form can lock it
-          // rather than silently downgrading the CEO to ADMIN on save.
-          role: employee.role ?? 'EMPLOYEE',
-          verticalId: employee.verticalId ?? '',
-          reportingManagerId: employee.reportingManagerId ?? '',
-          designation: employee.designation ?? '',
-          employmentType: employee.employmentType ?? undefined,
-          workLocation: employee.workLocation ?? '',
-          territory: employee.territory ?? '',
-        }}
-        verticals={verticals}
-        candidateManagers={candidateManagers}
-        onSubmit={handleSubmit}
-        submitLabel="Save changes"
-        callerIsSuperAdmin={isSuperAdmin}
-      />
-
-      {/* Photo — used for ID cards and other collaterals. Set/replace/remove
-          uses the same presigned direct-to-R2 upload as onboarding. */}
-      <Card className="mt-4">
-        <CardContent className="p-4">
-          <div className="mb-3 text-sm font-medium">Photo</div>
-          <EmployeePhotoField
-            previewUrl={photoUrl}
-            onUploaded={handlePhotoUploaded}
-            onRemove={photoUrl ? handlePhotoRemove : undefined}
+      <div className="px-5 pb-7 pt-[18px] lg:px-7">
+        <div className="max-w-2xl space-y-3.5">
+          {/* Core details first — the primary reason to open this page. */}
+          <h2 className={SIGNAL_EYEBROW}>Details</h2>
+          <EmployeeForm
+            mode="edit"
+            initial={{
+              firstName: employee.firstName,
+              lastName: employee.lastName,
+              email: employee.email,
+              // Pass the true role (including SUPER_ADMIN) so the form can lock it
+              // rather than silently downgrading the CEO to ADMIN on save.
+              role: employee.role ?? 'EMPLOYEE',
+              verticalId: employee.verticalId ?? '',
+              reportingManagerId: employee.reportingManagerId ?? '',
+              designation: employee.designation ?? '',
+              employmentType: employee.employmentType ?? undefined,
+              workLocation: employee.workLocation ?? '',
+              territory: employee.territory ?? '',
+            }}
+            verticals={verticals}
+            candidateManagers={candidateManagers}
+            onSubmit={handleSubmit}
+            submitLabel="Save changes"
+            callerIsSuperAdmin={isSuperAdmin}
           />
-        </CardContent>
-      </Card>
 
-      {/* Designations & roles — capability grants, secondary to the details. */}
-      {hasAnyDesignationCard && (
-        <h2 className="mb-3 mt-8 text-lg font-semibold">
-          Designations &amp; roles
-        </h2>
-      )}
-
-      {/* Sales Head designation — only meaningful for Sales-vertical staff. */}
-      {isSalesVertical && (
-        <Card className="mb-4">
-          <CardContent className="flex items-center justify-between gap-4 p-4">
-            <div className="text-sm">
-              <div className="font-medium">Sales Head designation</div>
-              <div className="text-muted-foreground">
-                {employee.isSalesHead
-                  ? 'This employee is the current Sales Head.'
-                  : currentSalesHead
-                    ? `Current Sales Head: ${currentSalesHead.firstName} ${currentSalesHead.lastName}`
-                    : 'No Sales Head is currently designated.'}
-              </div>
+          {/* Photo — used for ID cards and other collaterals. Set/replace/remove
+          uses the same presigned direct-to-R2 upload as onboarding. */}
+          <SCard className="px-5 py-[18px]">
+            <SCardTitle title="Photo" />
+            <div className="mt-3.5">
+              <EmployeePhotoField
+                previewUrl={photoUrl}
+                onUploaded={handlePhotoUploaded}
+                onRemove={photoUrl ? handlePhotoRemove : undefined}
+              />
             </div>
-            {!employee.isSalesHead && (
-              <Button
-                variant="outline"
-                disabled={designating}
-                onClick={designateSalesHead}
-              >
-                Designate as Sales Head
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+          </SCard>
 
-      {/* Project Manager designation — role MANAGER or above, any vertical.
+          {/* Designations & roles — capability grants, secondary to the details. */}
+          {hasAnyDesignationCard && (
+            <h2 className={cn('pt-3.5', SIGNAL_EYEBROW)}>
+              Designations &amp; roles
+            </h2>
+          )}
+
+          {/* Sales Head designation — only meaningful for Sales-vertical staff. */}
+          {isSalesVertical && (
+            <SCard className="flex items-center justify-between gap-4 px-5 py-[18px]">
+              <div className="text-[13px]">
+                <div className="font-semibold">Sales Head designation</div>
+                <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                  {employee.isSalesHead
+                    ? 'This employee is the current Sales Head.'
+                    : currentSalesHead
+                      ? `Current Sales Head: ${currentSalesHead.firstName} ${currentSalesHead.lastName}`
+                      : 'No Sales Head is currently designated.'}
+                </div>
+              </div>
+              {!employee.isSalesHead && (
+                <Button
+                  variant="outline"
+                  disabled={designating}
+                  onClick={designateSalesHead}
+                >
+                  Designate as Sales Head
+                </Button>
+              )}
+            </SCard>
+          )}
+
+          {/* Project Manager designation — role MANAGER or above, any vertical.
           Multi-holder: designate/revoke is a plain flag flip (no swap). */}
-      {managerOrAbove && (
-        <Card className="mb-4">
-          <CardContent className="flex items-center justify-between gap-4 p-4">
-            <div className="text-sm">
-              <div className="font-medium">Project Manager designation</div>
-              <div className="text-muted-foreground">
-                {employee.isProjectManager
-                  ? 'This employee is a Project Manager and can run project kickoffs.'
-                  : 'Not a Project Manager. Designate to allow running project kickoffs.'}
+          {managerOrAbove && (
+            <SCard className="flex items-center justify-between gap-4 px-5 py-[18px]">
+              <div className="text-[13px]">
+                <div className="font-semibold">Project Manager designation</div>
+                <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                  {employee.isProjectManager
+                    ? 'This employee is a Project Manager and can run project kickoffs.'
+                    : 'Not a Project Manager. Designate to allow running project kickoffs.'}
+                </div>
               </div>
-            </div>
-            {canDesignate && (
-              <Button
-                variant={employee.isProjectManager ? 'destructive' : 'outline'}
-                disabled={designating}
-                onClick={() => setProjectManager(!employee.isProjectManager)}
-              >
-                {employee.isProjectManager
-                  ? 'Revoke Project Manager'
-                  : 'Designate as Project Manager'}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {canDesignate && (
+                <Button
+                  variant={
+                    employee.isProjectManager ? 'destructive' : 'outline'
+                  }
+                  disabled={designating}
+                  onClick={() => setProjectManager(!employee.isProjectManager)}
+                >
+                  {employee.isProjectManager
+                    ? 'Revoke Project Manager'
+                    : 'Designate as Project Manager'}
+                </Button>
+              )}
+            </SCard>
+          )}
 
-      {/* Internal Auditor designation — role MANAGER or above, any vertical.
+          {/* Internal Auditor designation — role MANAGER or above, any vertical.
           Multi-holder flag flip; conducts/finalizes vendor audits. */}
-      {managerOrAbove && (
-        <Card className="mb-4">
-          <CardContent className="flex items-center justify-between gap-4 p-4">
-            <div className="text-sm">
-              <div className="font-medium">Internal Auditor designation</div>
-              <div className="text-muted-foreground">
-                {employee.isInternalAuditor
-                  ? 'This employee is an Internal Auditor and can conduct vendor audits.'
-                  : 'Not an Internal Auditor. Designate to allow conducting vendor audits.'}
+          {managerOrAbove && (
+            <SCard className="flex items-center justify-between gap-4 px-5 py-[18px]">
+              <div className="text-[13px]">
+                <div className="font-semibold">
+                  Internal Auditor designation
+                </div>
+                <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                  {employee.isInternalAuditor
+                    ? 'This employee is an Internal Auditor and can conduct vendor audits.'
+                    : 'Not an Internal Auditor. Designate to allow conducting vendor audits.'}
+                </div>
               </div>
-            </div>
-            {canDesignate && (
-              <Button
-                variant={employee.isInternalAuditor ? 'destructive' : 'outline'}
-                disabled={designating}
-                onClick={() => setInternalAuditor(!employee.isInternalAuditor)}
-              >
-                {employee.isInternalAuditor
-                  ? 'Revoke Internal Auditor'
-                  : 'Designate as Internal Auditor'}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {canDesignate && (
+                <Button
+                  variant={
+                    employee.isInternalAuditor ? 'destructive' : 'outline'
+                  }
+                  disabled={designating}
+                  onClick={() =>
+                    setInternalAuditor(!employee.isInternalAuditor)
+                  }
+                >
+                  {employee.isInternalAuditor
+                    ? 'Revoke Internal Auditor'
+                    : 'Designate as Internal Auditor'}
+                </Button>
+              )}
+            </SCard>
+          )}
 
-      {/* QC Inspector designation — role MANAGER or above, any vertical.
+          {/* QC Inspector designation — role MANAGER or above, any vertical.
           Multi-holder flag flip; inspects incoming goods at the GRN QC gate.
           Distinct from Internal Auditor (supplier auditing vs. incoming-goods
           inspection). */}
-      {managerOrAbove && (
-        <Card className="mb-4">
-          <CardContent className="flex items-center justify-between gap-4 p-4">
-            <div className="text-sm">
-              <div className="font-medium">QC Inspector designation</div>
-              <div className="text-muted-foreground">
-                {employee.isQcInspector
-                  ? 'This employee is a QC Inspector and can inspect incoming goods and finalize the GRN QC gate.'
-                  : 'Not a QC Inspector. Designate to allow inspecting incoming goods on Goods Receipt Notes.'}
+          {managerOrAbove && (
+            <SCard className="flex items-center justify-between gap-4 px-5 py-[18px]">
+              <div className="text-[13px]">
+                <div className="font-semibold">QC Inspector designation</div>
+                <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                  {employee.isQcInspector
+                    ? 'This employee is a QC Inspector and can inspect incoming goods and finalize the GRN QC gate.'
+                    : 'Not a QC Inspector. Designate to allow inspecting incoming goods on Goods Receipt Notes.'}
+                </div>
               </div>
-            </div>
-            {canDesignate && (
-              <Button
-                variant={employee.isQcInspector ? 'destructive' : 'outline'}
-                disabled={designating}
-                onClick={() => setQcInspector(!employee.isQcInspector)}
-              >
-                {employee.isQcInspector
-                  ? 'Revoke QC Inspector'
-                  : 'Designate as QC Inspector'}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {canDesignate && (
+                <Button
+                  variant={employee.isQcInspector ? 'destructive' : 'outline'}
+                  disabled={designating}
+                  onClick={() => setQcInspector(!employee.isQcInspector)}
+                >
+                  {employee.isQcInspector
+                    ? 'Revoke QC Inspector'
+                    : 'Designate as QC Inspector'}
+                </Button>
+              )}
+            </SCard>
+          )}
 
-      {/* R&D Head designation — grants technical BOM approval + Item Master
+          {/* R&D Head designation — grants technical BOM approval + Item Master
           authority (multi-holder). The R&D Head is the BOM approver. Shown to
           any admin so the control is discoverable; the button is enabled only
           for R&D-vertical employees (the backend enforces the same rule), with
           the requirement spelled out when it isn't met. Also shown for an
           existing holder so it can always be revoked. */}
-      {(canDesignate || employee.isRdHead) && (
-        <Card className="mb-4">
-          <CardContent className="flex items-center justify-between gap-4 p-4">
-            <div className="text-sm">
-              <div className="font-medium">R&D Head designation</div>
-              <div className="text-muted-foreground">
-                {employee.isRdHead
-                  ? 'This employee is an R&D Head and can approve/reject BOMs and manage Item Master data.'
-                  : rdHeadEligible
-                    ? 'Not an R&D Head. Designate to grant technical BOM approval authority (the BOM approver).'
-                    : 'Only an employee in the R&D vertical (or a SUPER_ADMIN) can be an R&D Head. Move this employee to the R&D vertical first to enable this.'}
+          {(canDesignate || employee.isRdHead) && (
+            <SCard className="flex items-center justify-between gap-4 px-5 py-[18px]">
+              <div className="text-[13px]">
+                <div className="font-semibold">R&D Head designation</div>
+                <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                  {employee.isRdHead
+                    ? 'This employee is an R&D Head and can approve/reject BOMs and manage Item Master data.'
+                    : rdHeadEligible
+                      ? 'Not an R&D Head. Designate to grant technical BOM approval authority (the BOM approver).'
+                      : 'Only an employee in the R&D vertical (or a SUPER_ADMIN) can be an R&D Head. Move this employee to the R&D vertical first to enable this.'}
+                </div>
               </div>
-            </div>
-            {canDesignate && (
-              <Button
-                variant={employee.isRdHead ? 'destructive' : 'outline'}
-                disabled={
-                  designating || (!employee.isRdHead && !rdHeadEligible)
-                }
-                onClick={() => setRdHead(!employee.isRdHead)}
-              >
-                {employee.isRdHead
-                  ? 'Revoke R&D Head'
-                  : 'Designate as R&D Head'}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {canDesignate && (
+                <Button
+                  variant={employee.isRdHead ? 'destructive' : 'outline'}
+                  disabled={
+                    designating || (!employee.isRdHead && !rdHeadEligible)
+                  }
+                  onClick={() => setRdHead(!employee.isRdHead)}
+                >
+                  {employee.isRdHead
+                    ? 'Revoke R&D Head'
+                    : 'Designate as R&D Head'}
+                </Button>
+              )}
+            </SCard>
+          )}
 
-      {(isSuperAdmin || employee.isAccountsHead) && (
-        <Card className="mb-4">
-          <CardContent className="flex items-center justify-between gap-4 p-4">
-            <div className="text-sm">
-              <div className="font-medium">
-                Finance/Accounts Head designation
+          {(isSuperAdmin || employee.isAccountsHead) && (
+            <SCard className="flex items-center justify-between gap-4 px-5 py-[18px]">
+              <div className="text-[13px]">
+                <div className="font-semibold">
+                  Finance/Accounts Head designation
+                </div>
+                <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                  {employee.isAccountsHead
+                    ? 'This employee is the sole approver for all Finance & Accounts transactions.'
+                    : 'Designate as the sole Finance & Accounts approver. Any current holder will be replaced.'}
+                </div>
               </div>
-              <div className="text-muted-foreground">
-                {employee.isAccountsHead
-                  ? 'This employee is the sole approver for all Finance & Accounts transactions.'
-                  : 'Designate as the sole Finance & Accounts approver. Any current holder will be replaced.'}
-              </div>
-            </div>
-            {isSuperAdmin && (
-              <Button
-                variant={employee.isAccountsHead ? 'destructive' : 'outline'}
-                disabled={designating}
-                onClick={() => setAccountsHead(!employee.isAccountsHead)}
-              >
-                {employee.isAccountsHead
-                  ? 'Revoke Accounts Head'
-                  : 'Designate as Accounts Head'}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {isSuperAdmin && (
+                <Button
+                  variant={employee.isAccountsHead ? 'destructive' : 'outline'}
+                  disabled={designating}
+                  onClick={() => setAccountsHead(!employee.isAccountsHead)}
+                >
+                  {employee.isAccountsHead
+                    ? 'Revoke Accounts Head'
+                    : 'Designate as Accounts Head'}
+                </Button>
+              )}
+            </SCard>
+          )}
 
-      {(isSuperAdmin || employee.isQmsHead) && (
-        <Card className="mb-4">
-          <CardContent className="flex items-center justify-between gap-4 p-4">
-            <div className="text-sm">
-              <div className="font-medium">QMS Head designation</div>
-              <div className="text-muted-foreground">
-                {employee.isQmsHead
-                  ? 'This employee is the sole approver for QMS templates, plans and inspection reviews.'
-                  : 'Designate as the sole QMS approval authority.'}
+          {(isSuperAdmin || employee.isQmsHead) && (
+            <SCard className="flex items-center justify-between gap-4 px-5 py-[18px]">
+              <div className="text-[13px]">
+                <div className="font-semibold">QMS Head designation</div>
+                <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                  {employee.isQmsHead
+                    ? 'This employee is the sole approver for QMS templates, plans and inspection reviews.'
+                    : 'Designate as the sole QMS approval authority.'}
+                </div>
               </div>
-            </div>
-            {isSuperAdmin && (
-              <Button
-                variant={employee.isQmsHead ? 'destructive' : 'outline'}
-                disabled={designating}
-                onClick={() => setQmsHead(!employee.isQmsHead)}
-              >
-                {employee.isQmsHead
-                  ? 'Revoke QMS Head'
-                  : 'Designate as QMS Head'}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {isSuperAdmin && (
+                <Button
+                  variant={employee.isQmsHead ? 'destructive' : 'outline'}
+                  disabled={designating}
+                  onClick={() => setQmsHead(!employee.isQmsHead)}
+                >
+                  {employee.isQmsHead
+                    ? 'Revoke QMS Head'
+                    : 'Designate as QMS Head'}
+                </Button>
+              )}
+            </SCard>
+          )}
 
-      {(isSuperAdmin || employee.isScmHead) && (
-        <Card className="mb-4">
-          <CardContent className="flex items-center justify-between gap-4 p-4">
-            <div className="text-sm">
-              <div className="font-medium">SCM Head designation</div>
-              <div className="text-muted-foreground">
-                {employee.isScmHead
-                  ? 'This employee is the sole SCM Head and the owner of the SCM vertical.'
-                  : isScmVertical
-                    ? 'Designate as the sole SCM Head and automatically assign this employee as the SCM vertical owner.'
-                    : 'Only an active employee in the SCM vertical can be designated as SCM Head. Move this employee to SCM first.'}
+          {(isSuperAdmin || employee.isScmHead) && (
+            <SCard className="flex items-center justify-between gap-4 px-5 py-[18px]">
+              <div className="text-[13px]">
+                <div className="font-semibold">SCM Head designation</div>
+                <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                  {employee.isScmHead
+                    ? 'This employee is the sole SCM Head and the owner of the SCM vertical.'
+                    : isScmVertical
+                      ? 'Designate as the sole SCM Head and automatically assign this employee as the SCM vertical owner.'
+                      : 'Only an active employee in the SCM vertical can be designated as SCM Head. Move this employee to SCM first.'}
+                </div>
               </div>
-            </div>
-            {isSuperAdmin && (
-              <Button
-                variant={employee.isScmHead ? 'destructive' : 'outline'}
-                disabled={
-                  designating || (!employee.isScmHead && !isScmVertical)
-                }
-                onClick={() => setScmHead(!employee.isScmHead)}
-              >
-                {employee.isScmHead
-                  ? 'Revoke SCM Head'
-                  : 'Designate as SCM Head'}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {isSuperAdmin && (
+                <Button
+                  variant={employee.isScmHead ? 'destructive' : 'outline'}
+                  disabled={
+                    designating || (!employee.isScmHead && !isScmVertical)
+                  }
+                  onClick={() => setScmHead(!employee.isScmHead)}
+                >
+                  {employee.isScmHead
+                    ? 'Revoke SCM Head'
+                    : 'Designate as SCM Head'}
+                </Button>
+              )}
+            </SCard>
+          )}
 
-      {(isSuperAdmin || employee.isDesignHead) && (
-        <Card className="mb-4">
-          <CardContent className="flex items-center justify-between gap-4 p-4">
-            <div className="text-sm">
-              <div className="font-medium">Design Head designation</div>
-              <div className="text-muted-foreground">
-                {employee.isDesignHead
-                  ? 'This employee is the sole approver and production-release authority for design documents.'
-                  : 'Designate as the sole Design Engineering release authority.'}
+          {(isSuperAdmin || employee.isDesignHead) && (
+            <SCard className="flex items-center justify-between gap-4 px-5 py-[18px]">
+              <div className="text-[13px]">
+                <div className="font-semibold">Design Head designation</div>
+                <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                  {employee.isDesignHead
+                    ? 'This employee is the sole approver and production-release authority for design documents.'
+                    : 'Designate as the sole Design Engineering release authority.'}
+                </div>
               </div>
-            </div>
-            {isSuperAdmin && (
-              <Button
-                variant={employee.isDesignHead ? 'destructive' : 'outline'}
-                disabled={designating}
-                onClick={() => setDesignHead(!employee.isDesignHead)}
-              >
-                {employee.isDesignHead
-                  ? 'Revoke Design Head'
-                  : 'Designate as Design Head'}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {isSuperAdmin && (
+                <Button
+                  variant={employee.isDesignHead ? 'destructive' : 'outline'}
+                  disabled={designating}
+                  onClick={() => setDesignHead(!employee.isDesignHead)}
+                >
+                  {employee.isDesignHead
+                    ? 'Revoke Design Head'
+                    : 'Designate as Design Head'}
+                </Button>
+              )}
+            </SCard>
+          )}
 
-      {(isSuperAdmin || employee.isProductionHead) && (
-        <Card className="mb-4">
-          <CardContent className="flex items-center justify-between gap-4 p-4">
-            <div className="text-sm">
-              <div className="font-medium">Production Head designation</div>
-              <div className="text-muted-foreground">
-                {employee.isProductionHead
-                  ? 'This employee can review PLM designs, assign tracker owners, and advance production handoffs.'
-                  : 'Designate as a PLM Design Review and production-handoff authority.'}
+          {(isSuperAdmin || employee.isProductionHead) && (
+            <SCard className="flex items-center justify-between gap-4 px-5 py-[18px]">
+              <div className="text-[13px]">
+                <div className="font-semibold">Production Head designation</div>
+                <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                  {employee.isProductionHead
+                    ? 'This employee can review PLM designs, assign tracker owners, and advance production handoffs.'
+                    : 'Designate as a PLM Design Review and production-handoff authority.'}
+                </div>
               </div>
-            </div>
-            {isSuperAdmin && (
-              <Button
-                variant={employee.isProductionHead ? 'destructive' : 'outline'}
-                disabled={
-                  designating || (!employee.isProductionHead && !managerOrAbove)
-                }
-                onClick={() => setProductionHead(!employee.isProductionHead)}
-              >
-                {employee.isProductionHead
-                  ? 'Revoke Production Head'
-                  : 'Designate as Production Head'}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {isSuperAdmin && (
+                <Button
+                  variant={
+                    employee.isProductionHead ? 'destructive' : 'outline'
+                  }
+                  disabled={
+                    designating ||
+                    (!employee.isProductionHead && !managerOrAbove)
+                  }
+                  onClick={() => setProductionHead(!employee.isProductionHead)}
+                >
+                  {employee.isProductionHead
+                    ? 'Revoke Production Head'
+                    : 'Designate as Production Head'}
+                </Button>
+              )}
+            </SCard>
+          )}
 
-      {/* Force password reset — Admin/SuperAdmin, for another employee who has
+          {/* Force password reset — Admin/SuperAdmin, for another employee who has
           login access. Generates a one-time password + forces change + kills
           their sessions. */}
-      {canDesignate && employee.id !== user?.sub && (
-        <Card className="mb-4">
-          <CardContent className="flex items-center justify-between gap-4 p-4">
-            <div className="text-sm">
-              <div className="font-medium">Reset password</div>
-              <div className="text-muted-foreground">
-                Generate a one-time temporary password, force a change on next
-                login, and sign this user out of all sessions.
+          {canDesignate && employee.id !== user?.sub && (
+            <SCard className="flex items-center justify-between gap-4 px-5 py-[18px]">
+              <div className="text-[13px]">
+                <div className="font-semibold">Reset password</div>
+                <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                  Generate a one-time temporary password, force a change on next
+                  login, and sign this user out of all sessions.
+                </div>
               </div>
-            </div>
-            <Button
-              variant="outline"
-              disabled={resetting}
-              onClick={handleResetPassword}
-            >
-              {resetting ? 'Resetting…' : 'Reset password'}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+              <Button
+                variant="outline"
+                disabled={resetting}
+                onClick={handleResetPassword}
+              >
+                {resetting ? 'Resetting…' : 'Reset password'}
+              </Button>
+            </SCard>
+          )}
 
-      {/* One-time reveal of the generated temporary password. Not stored or
+          {/* One-time reveal of the generated temporary password. Not stored or
           logged anywhere — closing the dialog discards it. */}
-      <Dialog
-        open={tempPassword !== null}
-        onOpenChange={(o) => !o && setTempPassword(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Temporary password</DialogTitle>
-            <DialogDescription>
-              Share this with {employee.firstName} securely. It is shown once —
-              it can’t be retrieved again. They must set their own password on
-              next login.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-md border bg-muted p-3 font-mono text-lg tracking-wide">
-            {tempPassword}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (tempPassword) {
-                  void navigator.clipboard?.writeText(tempPassword);
-                  toast.success('Copied to clipboard.');
-                }
-              }}
-            >
-              Copy
-            </Button>
-            <Button onClick={() => setTempPassword(null)}>Done</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <Dialog
+            open={tempPassword !== null}
+            onOpenChange={(o) => !o && setTempPassword(null)}
+          >
+            <DialogContent className={SIGNAL_DIALOG}>
+              <DialogHeader>
+                <DialogTitle className={SIGNAL_DIALOG_TITLE}>
+                  Temporary password
+                </DialogTitle>
+                <DialogDescription>
+                  Share this with {employee.firstName} securely. It is shown
+                  once — it can’t be retrieved again. They must set their own
+                  password on next login.
+                </DialogDescription>
+              </DialogHeader>
+              <div
+                className={cn(
+                  'rounded-lg border bg-black/[.03] px-3.5 py-3 text-[17px] font-semibold tracking-wide tabular-nums dark:bg-white/[.04]',
+                  SIGNAL_HAIRLINE,
+                )}
+              >
+                {tempPassword}
+              </div>
+              <DialogFooter>
+                <button
+                  type="button"
+                  className={SIGNAL_BTN_OUTLINE}
+                  onClick={() => {
+                    if (tempPassword) {
+                      void navigator.clipboard?.writeText(tempPassword);
+                      toast.success('Copied to clipboard.');
+                    }
+                  }}
+                >
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  className={SIGNAL_BTN_PRIMARY}
+                  onClick={() => setTempPassword(null)}
+                >
+                  Done
+                </button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-      {/* Lifecycle — offboard/reactivate + permanent delete. */}
-      <h2 className="mb-3 mt-8 text-lg font-semibold">Lifecycle</h2>
+          {/* Lifecycle — offboard/reactivate + permanent delete. */}
+          <h2 className={cn('pt-3.5', SIGNAL_EYEBROW)}>Lifecycle</h2>
 
-      {/* Offboarding — soft deactivate/reactivate (Admin/SUPER_ADMIN). The
+          {/* Offboarding — soft deactivate/reactivate (Admin/SUPER_ADMIN). The
           safe, reversible way to remove someone who is leaving; preserves their
           records (unlike permanent delete below). */}
-      <Card className="mb-4">
-        <CardContent className="flex items-center justify-between gap-4 p-4">
-          <div className="text-sm">
-            <div className="font-medium">
-              {employee.status === 'ACTIVE'
-                ? 'Offboard employee'
-                : 'Reactivate employee'}
-            </div>
-            <div className="text-muted-foreground">
-              {employee.status === 'ACTIVE'
-                ? 'Deactivates the account and revokes login. Reversible; records are kept.'
-                : 'This employee is currently offboarded (login revoked). Restore their access.'}
-            </div>
-          </div>
-          <Button
-            variant={employee.status === 'ACTIVE' ? 'destructive' : 'default'}
-            onClick={handleToggleActive}
-          >
-            {employee.status === 'ACTIVE' ? 'Offboard' : 'Reactivate'}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Permanent delete — SUPER_ADMIN only. The backend refuses if the
-          employee still owns reports or business records. */}
-      {isSuperAdmin && (
-        <Card className="mb-4 border-destructive/40">
-          <CardContent className="flex items-center justify-between gap-4 p-4">
-            <div className="text-sm">
-              <div className="font-medium">Delete permanently</div>
-              <div className="text-muted-foreground">
-                Removes the account entirely. Refused if they still own reports
-                or business records — deactivate instead in that case.
+          <SCard className="flex items-center justify-between gap-4 px-5 py-[18px]">
+            <div className="text-[13px]">
+              <div className="font-semibold">
+                {employee.status === 'ACTIVE'
+                  ? 'Offboard employee'
+                  : 'Reactivate employee'}
+              </div>
+              <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                {employee.status === 'ACTIVE'
+                  ? 'Deactivates the account and revokes login. Reversible; records are kept.'
+                  : 'This employee is currently offboarded (login revoked). Restore their access.'}
               </div>
             </div>
-            <Button variant="destructive" onClick={handleDelete}>
-              Delete
+            <Button
+              variant={employee.status === 'ACTIVE' ? 'destructive' : 'default'}
+              onClick={handleToggleActive}
+            >
+              {employee.status === 'ACTIVE' ? 'Offboard' : 'Reactivate'}
             </Button>
-          </CardContent>
-        </Card>
-      )}
-      <ProvisioningChecklist employeeId={employee.id} />
-    </PageContainer>
+          </SCard>
+
+          {/* Permanent delete — SUPER_ADMIN only. The backend refuses if the
+          employee still owns reports or business records. */}
+          {isSuperAdmin && (
+            <SCard className="flex items-center justify-between gap-4 border-destructive/40 px-5 py-[18px]">
+              <div className="text-[13px]">
+                <div className="font-semibold">Delete permanently</div>
+                <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                  Removes the account entirely. Refused if they still own
+                  reports or business records — deactivate instead in that case.
+                </div>
+              </div>
+              <Button variant="destructive" onClick={handleDelete}>
+                Delete
+              </Button>
+            </SCard>
+          )}
+          <ProvisioningChecklist employeeId={employee.id} />
+        </div>
+      </div>
+    </SignalPage>
   );
 }

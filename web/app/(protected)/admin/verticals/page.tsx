@@ -1,19 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Building2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useAuth } from '../../../lib/auth-context';
 import { useConfirm } from '../../../components/ui/confirm';
 import { ApiError, apiFetch } from '../../../lib/api';
 import { Employee, PaginatedResult, Vertical } from '../../../lib/types';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '../../../components/ui/card';
+  SCard,
+  SCardTitle,
+  SIGNAL_FAINT,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
+import { cn } from '../../../lib/utils';
 import { Field } from '../../../components/ui/field';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
@@ -193,16 +193,16 @@ export default function VerticalsPage() {
   );
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Verticals"
         description="Manage company departments and assign an accountable owner to each vertical."
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
-      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <Card className="mb-6">
-        <CardContent className="p-0">
+      <SCard className="overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -232,9 +232,8 @@ export default function VerticalsPage() {
                 <TableRow>
                   <TableCell
                     colSpan={canManage ? 5 : 4}
-                    className="py-12 text-center text-muted-foreground"
+                    className={cn('py-12 text-center', SIGNAL_FAINT)}
                   >
-                    <Building2 className="mx-auto mb-3 size-8 opacity-50" />
                     No verticals have been created.
                   </TableCell>
                 </TableRow>
@@ -354,15 +353,12 @@ export default function VerticalsPage() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </SCard>
 
       {canManage && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Create vertical</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <SCard className="px-5 py-[18px]">
+          <SCardTitle title="Create vertical" />
+          <div className="mt-3.5">
             <form
               onSubmit={handleSubmit}
               className="grid gap-4 md:grid-cols-[1fr_1fr_1.4fr_auto] md:items-end"
@@ -403,9 +399,10 @@ export default function VerticalsPage() {
                 <Plus /> {submitting ? 'Creating…' : 'Create vertical'}
               </Button>
             </form>
-          </CardContent>
-        </Card>
+          </div>
+        </SCard>
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

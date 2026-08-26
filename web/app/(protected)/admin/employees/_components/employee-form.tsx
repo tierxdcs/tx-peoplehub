@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { Employee, EmploymentType, Vertical } from '../../../../lib/types';
 import { Role } from '../../../../lib/jwt';
 import { roleLabel } from '../../../../lib/status';
-import { Card, CardContent } from '../../../../components/ui/card';
+import { SCard, SIGNAL_HAIRLINE } from '../../../../components/ui/signal';
+import { cn } from '../../../../lib/utils';
 import { Input } from '../../../../components/ui/input';
 import { Select } from '../../../../components/ui/select';
 import { Field } from '../../../../components/ui/field';
@@ -157,8 +158,8 @@ export function EmployeeForm({
 
   return (
     <form onSubmit={handleSubmit}>
-      <Card>
-        <CardContent className="space-y-4 p-6">
+      <SCard>
+        <div className="space-y-4 px-5 py-[18px]">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="First name" required>
               <Input
@@ -318,13 +319,13 @@ export function EmployeeForm({
             <p className="text-sm font-medium text-destructive">{error}</p>
           )}
 
-          <div className="flex justify-end border-t pt-4">
+          <div className={cn('flex justify-end border-t pt-4', SIGNAL_HAIRLINE)}>
             <Button type="submit" disabled={submitting}>
               {submitting ? 'Saving…' : submitLabel}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </SCard>
     </form>
   );
 }

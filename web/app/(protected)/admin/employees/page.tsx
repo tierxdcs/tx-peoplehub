@@ -8,11 +8,14 @@ import { useConfirm } from '../../../components/ui/confirm';
 import { useToast } from '../../../components/ui/toaster';
 import { useAuth } from '../../../lib/auth-context';
 import { roleLabel } from '../../../lib/status';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
+import {
+  SCard,
+  SIGNAL_LINK,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
 import { RegisterToolbar } from '../../../components/ui/register-toolbar';
 import { RegisterPagination } from '../../../components/ui/register-pagination';
-import { Card, CardContent } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/select';
 import { Badge } from '../../../components/ui/badge';
@@ -136,8 +139,17 @@ export default function EmployeesListPage() {
   });
 
   return (
-    <PageContainer>
-      <PageHeader title="Employees" description="Manage employee access, roles and organizational assignments." action={<Link href="/admin/employees/new"><Button>Create Employee</Button></Link>} />
+    <SignalPage>
+      <SignalHeader
+        title="Employees"
+        description="Manage employee access, roles and organizational assignments."
+        actions={
+          <Link href="/admin/employees/new">
+            <Button>Create Employee</Button>
+          </Link>
+        }
+      />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
       <RegisterToolbar title="Employee Register" search={search} onSearchChange={setSearch} searchPlaceholder="Search name or email" filters={<>
         <Select
           value={verticalFilter}
@@ -167,14 +179,14 @@ export default function EmployeesListPage() {
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
         <>
-          <Card><CardContent className="p-0"><Table>
+          <SCard className="overflow-hidden"><Table>
             <TableHeader><TableRow><TableHead>Employee ID</TableHead><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Vertical</TableHead><TableHead>Role</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
             <TableBody>
               {filtered.map((e) => (
                 <TableRow key={e.id}>
                   <TableCell>{e.employeeId}</TableCell>
                   <TableCell>
-                    <Link href={`/admin/employees/${e.id}`}>
+                    <Link href={`/admin/employees/${e.id}`} className={SIGNAL_LINK}>
                       {e.firstName} {e.lastName}
                     </Link>
                     {e.isSalesHead && (
@@ -205,10 +217,11 @@ export default function EmployeesListPage() {
                 </TableRow>
               ))}
               {!filtered.length && <TableRow><TableCell colSpan={7} className="p-0"><EmptyState icon={Users} title="No employees match your filters" /></TableCell></TableRow>}
-            </TableBody></Table></CardContent></Card>
+            </TableBody></Table></SCard>
           <RegisterPagination page={page} pageCount={Math.ceil(total / limit)} onPageChange={setPage} disabled={loading} />
         </>
       )}
-    </PageContainer>
+      </div>
+    </SignalPage>
   );
 }

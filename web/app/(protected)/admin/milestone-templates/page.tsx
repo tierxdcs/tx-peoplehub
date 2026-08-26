@@ -8,9 +8,15 @@ import {
   type DeliveryType,
 } from '../../../lib/project-kickoff';
 import { useToast } from '../../../components/ui/toaster';
-import { PageContainer } from '../../../components/ui/page-container';
-import { PageHeader } from '../../../components/ui/page-header';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
+import {
+  SCard,
+  SCardTitle,
+  SIGNAL_FAINT,
+  SIGNAL_HAIRLINE,
+  SignalHeader,
+  SignalPage,
+} from '../../../components/ui/signal';
+import { cn } from '../../../lib/utils';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/select';
@@ -136,18 +142,19 @@ export default function MilestoneTemplatesSettingsPage() {
   }
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Milestone Templates"
         description="Standard project milestones offered in the kickoff dropdown, per delivery flow type (NPD / In-House / Vendor). A kickoff sees the union of templates matching its order lines' delivery types. Deactivating a template hides it from new kickoffs without affecting milestones already created."
       />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
 
       {byFlow.map(({ flowType: ft, rows }) => (
-        <Card key={ft} className="mb-4">
-          <CardHeader>
-            <CardTitle>{DELIVERY_TYPE_LABEL[ft]}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
+        <SCard key={ft} className="overflow-hidden">
+          <div className={cn('border-b px-5 py-3.5', SIGNAL_HAIRLINE)}>
+            <SCardTitle title={DELIVERY_TYPE_LABEL[ft]} />
+          </div>
+          <div>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -160,7 +167,7 @@ export default function MilestoneTemplatesSettingsPage() {
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    <TableCell colSpan={4} className={cn('py-8 text-center', SIGNAL_FAINT)}>
                       No templates for this flow type yet.
                     </TableCell>
                   </TableRow>
@@ -209,15 +216,13 @@ export default function MilestoneTemplatesSettingsPage() {
                 )}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
+        </SCard>
       ))}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{editingId ? 'Edit template' : 'Add template'}</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <SCard className="px-5 py-[18px]">
+        <SCardTitle title={editingId ? 'Edit template' : 'Add template'} />
+        <div className="mt-3.5">
           <form onSubmit={save} className="grid gap-4 md:grid-cols-2">
             <label className="text-sm font-medium">
               Flow type
@@ -254,8 +259,9 @@ export default function MilestoneTemplatesSettingsPage() {
               )}
             </div>
           </form>
-        </CardContent>
-      </Card>
-    </PageContainer>
+        </div>
+      </SCard>
+      </div>
+    </SignalPage>
   );
 }
