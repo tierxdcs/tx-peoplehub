@@ -1,8 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  NcrDispositionType,
-  NonConformanceReportStatus,
-} from '@prisma/client';
+import { NcrDispositionType, NonConformanceReportStatus } from '@prisma/client';
 
 export class NonConformanceReportEntity {
   @ApiProperty() id!: string;

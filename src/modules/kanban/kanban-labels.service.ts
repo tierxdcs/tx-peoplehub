@@ -81,12 +81,7 @@ export class KanbanLabelsService {
   ): Promise<KanbanCardEntity> {
     const { boardId, assigneeId, createdById } =
       await this.assertCardAndLabelSameBoard(cardId, labelId);
-    await this.access.assertCanEditCard(
-      user,
-      boardId,
-      assigneeId,
-      createdById,
-    );
+    await this.access.assertCanEditCard(user, boardId, assigneeId, createdById);
     // Idempotent: ignore a duplicate attach.
     await this.prisma.kanbanCardLabel.upsert({
       where: { cardId_labelId: { cardId, labelId } },
@@ -104,13 +99,10 @@ export class KanbanLabelsService {
   ): Promise<KanbanCardEntity> {
     const { boardId, assigneeId, createdById } =
       await this.assertCardAndLabelSameBoard(cardId, labelId);
-    await this.access.assertCanEditCard(
-      user,
-      boardId,
-      assigneeId,
-      createdById,
-    );
-    await this.prisma.kanbanCardLabel.deleteMany({ where: { cardId, labelId } });
+    await this.access.assertCanEditCard(user, boardId, assigneeId, createdById);
+    await this.prisma.kanbanCardLabel.deleteMany({
+      where: { cardId, labelId },
+    });
     return this.cardEntity(cardId);
   }
 

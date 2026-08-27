@@ -59,7 +59,13 @@
 @keyframes ping-overdue { 0%, 100% { box-shadow: inset 4px 0 0 hsl(var(--destructive) / .7); } 50% { box-shadow: inset 4px 0 0 hsl(var(--destructive)); } }
 .ping-new { animation: ping-gentle 2.8s ease-in-out infinite; }
 .ping-overdue { animation: ping-overdue 1.4s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .ping-new, .ping-overdue { animation: none; } }
+/* Stale pending-approval badge: the ping-overdue cadence (1.4s ease-in-out,
+   pulsing destructive intensity) reshaped as a ring, because a small rounded
+   pill can't carry the inset left-edge bar a full-width list row uses. Same
+   motion language, same reduced-motion opt-out. See lib/urgency.ts. */
+@keyframes badge-stale { 0%, 100% { box-shadow: 0 0 0 1.5px hsl(var(--destructive) / .35); } 50% { box-shadow: 0 0 0 3.5px hsl(var(--destructive) / .18); } }
+.badge-stale { animation: badge-stale 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .ping-new, .ping-overdue, .badge-stale { animation: none; } }
 
 .dark {
   --background: 0 0% 10%;

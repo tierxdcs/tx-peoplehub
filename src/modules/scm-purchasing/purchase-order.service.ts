@@ -13,6 +13,10 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  EMPTY_PENDING_QUEUE,
+  PendingQueue,
+} from '../../common/types/pending-queue';
 import { SalesNumberingService } from '../sales/common/sales-numbering.service';
 import { PurchasingAccessService } from './purchasing-access.service';
 import {
@@ -47,7 +51,9 @@ const PO_INCLUDE = {
   },
 } satisfies Prisma.PurchaseOrderInclude;
 
-type PoWithRelations = Prisma.PurchaseOrderGetPayload<{ include: typeof PO_INCLUDE }>;
+type PoWithRelations = Prisma.PurchaseOrderGetPayload<{
+  include: typeof PO_INCLUDE;
+}>;
 
 /**
  * Purchase Orders (Stores Phase 1). Foundation only — no GRN/QC/material issue.
@@ -104,7 +110,10 @@ export class PurchaseOrderService {
         'Party name is required for an ad-hoc purchase order',
       );
     }
-    const warning = await this.resolvePartnerAndWarn(dto.supplierId, dto.vendorId);
+    const warning = await this.resolvePartnerAndWarn(
+      dto.supplierId,
+      dto.vendorId,
+    );
     const lines = await this.buildLineData(dto.lines, isAdHoc);
 
     const created = await this.prisma.$transaction(async (tx) => {
@@ -193,9 +202,7 @@ export class PurchaseOrderService {
             }
           : {}),
         ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
-        ...(lineData
-          ? { lines: { deleteMany: {}, create: lineData } }
-          : {}),
+        ...(lineData ? { lines: { deleteMany: {}, create: lineData } } : {}),
       },
     });
     const entity = await this.get(id);
@@ -204,7 +211,10 @@ export class PurchaseOrderService {
   }
 
   // ── Status transitions ───────────────────────────────────────────────
-  async issue(id: string, user: AuthenticatedUser): Promise<PurchaseOrderEntity> {
+  async issue(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<PurchaseOrderEntity> {
     const po = await this.prisma.purchaseOrder.findUnique({ where: { id } });
     if (!po) throw new NotFoundException('Purchase order not found');
     if (!po.supplierId && !po.vendorId && !po.ceoApprovedAt) {
@@ -217,7 +227,10 @@ export class PurchaseOrderService {
     });
   }
 
-  async cancel(id: string, user: AuthenticatedUser): Promise<PurchaseOrderEntity> {
+  async cancel(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<PurchaseOrderEntity> {
     return this.transition(id, PurchaseOrderStatus.CANCELLED, user, {
       cancelledAt: new Date(),
     });
@@ -307,7 +320,10 @@ export class PurchaseOrderService {
     from: PurchaseOrderStatus,
     to: PurchaseOrderStatus,
   ): void {
-    const MANUAL_TRANSITIONS: Record<PurchaseOrderStatus, PurchaseOrderStatus[]> = {
+    const MANUAL_TRANSITIONS: Record<
+      PurchaseOrderStatus,
+      PurchaseOrderStatus[]
+    > = {
       [PurchaseOrderStatus.PENDING_CEO_APPROVAL]: [
         PurchaseOrderStatus.CANCELLED,
       ],
@@ -342,6 +358,29 @@ export class PurchaseOrderService {
         'A purchase order cannot reference both a supplier and a vendor',
       );
     }
+  }
+
+  /**
+   * Badge summary for ad-hoc POs awaiting CEO approval — count plus when the
+   * oldest was raised. An ad-hoc PO is created directly in
+   * PENDING_CEO_APPROVAL (see create()), so `createdAt` IS its waiting-since
+   * time. Same audience as assertCeo, but returns an empty queue instead of
+   * throwing so the notifications endpoint can call it for any role.
+   */
+  async pendingCeoApprovalQueue(
+    user: AuthenticatedUser,
+  ): Promise<PendingQueue> {
+    if (user.role !== Role.SUPER_ADMIN) return EMPTY_PENDING_QUEUE;
+    const where = { status: PurchaseOrderStatus.PENDING_CEO_APPROVAL };
+    const [count, oldest] = await Promise.all([
+      this.prisma.purchaseOrder.count({ where }),
+      this.prisma.purchaseOrder.findFirst({
+        where,
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      }),
+    ]);
+    return { count, oldestPendingAt: oldest?.createdAt ?? null };
   }
 
   private assertCeo(user: AuthenticatedUser): void {
@@ -433,11 +472,15 @@ export class PurchaseOrderService {
     });
     const byId = new Map(items.map((i) => [i.id, i]));
     if (items.length !== itemIds.length) {
-      throw new BadRequestException('One or more lines reference an unknown item');
+      throw new BadRequestException(
+        'One or more lines reference an unknown item',
+      );
     }
     const inactive = items.filter((i) => !i.isActive);
     if (inactive.length > 0) {
-      throw new BadRequestException('One or more lines reference an inactive item');
+      throw new BadRequestException(
+        'One or more lines reference an inactive item',
+      );
     }
     return lines.map((l, i) => {
       const qty = new Prisma.Decimal(l.orderedQuantity);
@@ -449,8 +492,7 @@ export class PurchaseOrderService {
         adHocDescription: l.adHocDescription?.trim() || null,
         orderedQuantity: qty,
         unitPrice: price,
-        unitOfMeasure:
-          l.unitOfMeasure?.trim() || item?.baseUnitOfMeasure || '',
+        unitOfMeasure: l.unitOfMeasure?.trim() || item?.baseUnitOfMeasure || '',
         lineTotal: qty.times(price),
         notes: l.notes ?? null,
         sequence: l.sequence ?? i,

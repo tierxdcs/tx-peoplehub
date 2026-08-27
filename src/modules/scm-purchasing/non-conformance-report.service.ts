@@ -3,10 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  NonConformanceReportStatus,
-  Prisma,
-} from '@prisma/client';
+import { NonConformanceReportStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { GrnAccessService } from './grn-access.service';

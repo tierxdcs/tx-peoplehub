@@ -103,8 +103,11 @@ describe('DeliveryChallanService eligible dispatch orders', () => {
             finalQcStatus: 'PENDING',
             lineItems: [
               {
-                id: 'line-1', quantity: { toString: () => '2' }, productId: 'product-1',
-                adHocProductName: null, product: { name: 'Rack', sku: 'RACK-1' },
+                id: 'line-1',
+                quantity: { toString: () => '2' },
+                productId: 'product-1',
+                adHocProductName: null,
+                product: { name: 'Rack', sku: 'RACK-1' },
               },
             ],
           },
@@ -115,15 +118,31 @@ describe('DeliveryChallanService eligible dispatch orders', () => {
       assertCanViewDispatchOrders: jest.fn().mockResolvedValue(undefined),
     };
     const service = new DeliveryChallanService(
-      prisma as never, access as never, {} as never, {} as never, {} as never, {} as never,
+      prisma as never,
+      access as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
     );
     const result = await service.eligibleOrders({
-      id: 'quality-1', email: 'quality@example.com', role: Role.EMPLOYEE, verticalId: 'quality',
+      id: 'quality-1',
+      email: 'quality@example.com',
+      role: Role.EMPLOYEE,
+      verticalId: 'quality',
     });
     expect(access.assertCanViewDispatchOrders).toHaveBeenCalled();
     expect(result[0]).toMatchObject({
-      id: 'order-1', dispatchReady: true,
-      lineItems: [{ id: 'line-1', quantity: '2', productName: 'Rack', productSku: 'RACK-1' }],
+      id: 'order-1',
+      dispatchReady: true,
+      lineItems: [
+        {
+          id: 'line-1',
+          quantity: '2',
+          productName: 'Rack',
+          productSku: 'RACK-1',
+        },
+      ],
     });
   });
 });

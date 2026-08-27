@@ -22,6 +22,9 @@ export const PLM_PRODUCTION_STEP_COUNT = PLM_PRODUCTION_STEPS.length;
 
 /** Percent complete derived from the number of completed steps. */
 export function stepsToPercent(completedSteps: number): number {
-  const clamped = Math.max(0, Math.min(PLM_PRODUCTION_STEP_COUNT, completedSteps));
+  const clamped = Math.max(
+    0,
+    Math.min(PLM_PRODUCTION_STEP_COUNT, completedSteps),
+  );
   return Math.round((clamped / PLM_PRODUCTION_STEP_COUNT) * 100);
 }

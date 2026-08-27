@@ -52,8 +52,14 @@ describe('CandidateApplicationsService', () => {
   });
 
   it('creates a reusable, password-optional link for an Approved requisition', async () => {
-    prisma.candidateApplicationInvite.create.mockImplementation(({ data }: any) =>
-      Promise.resolve({ id: 'invite-1', ...data, revokedAt: null, createdAt: new Date() }),
+    prisma.candidateApplicationInvite.create.mockImplementation(
+      ({ data }: any) =>
+        Promise.resolve({
+          id: 'invite-1',
+          ...data,
+          revokedAt: null,
+          createdAt: new Date(),
+        }),
     );
 
     const result = await service.createInvite('req-1', {}, hr);
@@ -116,7 +122,9 @@ describe('CandidateApplicationsService', () => {
       requisition,
     });
     prisma.candidateRequisition.update.mockResolvedValue({});
-    prisma.candidateApplicationInvite.updateMany.mockResolvedValue({ count: 1 });
+    prisma.candidateApplicationInvite.updateMany.mockResolvedValue({
+      count: 1,
+    });
     prisma.candidateApplication.update.mockResolvedValue({
       id: 'app-1',
       status: CandidateApplicationStatus.SELECTED,
@@ -155,7 +163,9 @@ describe('CandidateApplicationsService', () => {
         requestedById: 'someone-else',
         vertical: { ownerId: 'another' },
       });
-      prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'ENG' } });
+      prisma.employee.findUnique.mockResolvedValue({
+        vertical: { code: 'ENG' },
+      });
 
       await expect(
         service.listApplications('req-1', employee('ceo', Role.SUPER_ADMIN)),
@@ -167,7 +177,9 @@ describe('CandidateApplicationsService', () => {
         requestedById: 'someone-else',
         vertical: { ownerId: 'owner-1' },
       });
-      prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'ENG' } });
+      prisma.employee.findUnique.mockResolvedValue({
+        vertical: { code: 'ENG' },
+      });
 
       await expect(
         service.listApplications('req-1', employee('owner-1', Role.MANAGER)),
@@ -179,7 +191,9 @@ describe('CandidateApplicationsService', () => {
         requestedById: 'req-user',
         vertical: { ownerId: 'another' },
       });
-      prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'ENG' } });
+      prisma.employee.findUnique.mockResolvedValue({
+        vertical: { code: 'ENG' },
+      });
 
       await expect(
         service.listApplications('req-1', employee('req-user', Role.MANAGER)),
@@ -191,7 +205,9 @@ describe('CandidateApplicationsService', () => {
         requestedById: 'someone-else',
         vertical: { ownerId: 'another' },
       });
-      prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'ENG' } });
+      prisma.employee.findUnique.mockResolvedValue({
+        vertical: { code: 'ENG' },
+      });
 
       await expect(
         service.listApplications('req-1', employee('rando', Role.EMPLOYEE)),

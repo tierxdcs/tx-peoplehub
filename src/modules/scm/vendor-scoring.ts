@@ -39,10 +39,7 @@ export const TOTAL_MAX_SCORE = AUDIT_SCORE_KEYS.reduce(
 );
 
 export type VendorClassification =
-  | 'APPROVED_PREFERRED'
-  | 'APPROVED'
-  | 'CONDITIONALLY_APPROVED'
-  | 'NOT_APPROVED';
+  'APPROVED_PREFERRED' | 'APPROVED' | 'CONDITIONALLY_APPROVED' | 'NOT_APPROVED';
 
 /** Sum the 10 category scores (each accepts number|string, as Decimals arrive). */
 export function computeTotalScore(

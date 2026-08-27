@@ -60,7 +60,9 @@ export class DesignController {
   ) {
     return this.s.vaultFiles(u);
   }
-  @Get('references/customers') customerRefs(@CurrentUser() u: AuthenticatedUser) {
+  @Get('references/customers') customerRefs(
+    @CurrentUser() u: AuthenticatedUser,
+  ) {
     return this.s.customerRefs(u);
   }
   @Get('references/products') productRefs(@CurrentUser() u: AuthenticatedUser) {

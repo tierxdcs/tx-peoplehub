@@ -8,7 +8,7 @@ import { useNumberFormat } from '../../../../../lib/number-format-context';
 import { Input } from '../../../../../components/ui/input';
 import { Field } from '../../../../../components/ui/field';
 import { useToast } from '../../../../../components/ui/toaster';
-import { VoucherShell } from '../../_components/voucher-shell';
+import { VoucherShell, VoucherSummary } from '../../_components/voucher-shell';
 import { PartyPicker } from '../../_components/party-picker';
 
 interface Account {
@@ -87,6 +87,8 @@ export default function NewContraVoucherPage() {
   }
 
   const options = eligibleAccounts.map((a) => ({ id: a.id, label: `${a.code} · ${a.name}` }));
+  const selectedFrom = eligibleAccounts.find((account) => account.id === fromId);
+  const selectedTo = eligibleAccounts.find((account) => account.id === toId);
 
   return (
     <VoucherShell
@@ -101,8 +103,19 @@ export default function NewContraVoucherPage() {
       submitting={submitting}
       onSaveDraft={() => void create(false)}
       onSubmitForApproval={() => void create(true)}
+      summary={
+        <VoucherSummary
+          title="Transfer summary"
+          rows={[
+            { label: 'From', value: selectedFrom ? `${selectedFrom.code} · ${selectedFrom.name}` : 'Not selected' },
+            { label: 'To', value: selectedTo ? `${selectedTo.code} · ${selectedTo.name}` : 'Not selected' },
+          ]}
+          totalLabel="Transfer amount"
+          total={formatINR(Number(amount || 0), numberFormatStyle)}
+        />
+      }
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="contents">
         <Field label="From Ledger" required>
           <PartyPicker options={options} value={fromId} onChange={setFromId} placeholder="Search bank/cash ledgers…" />
         </Field>
@@ -114,7 +127,7 @@ export default function NewContraVoucherPage() {
         </Field>
       </div>
       {eligibleAccounts.length === 0 && accounts.length > 0 && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground md:col-span-2">
           No bank/cash ledgers found. Add one under the Bank Accounts or Cash-in-Hand group on the{' '}
           <a className="underline" href="/finance/accounts">
             Ledgers

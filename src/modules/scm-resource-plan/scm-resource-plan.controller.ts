@@ -34,7 +34,8 @@ export class ScmResourcePlanController {
 
   @Get('projects')
   @ApiOperation({
-    summary: 'List every completed project with its plan status + variance (§3)',
+    summary:
+      'List every completed project with its plan status + variance (§3)',
   })
   listProjects(@CurrentUser() user: AuthenticatedUser) {
     return this.service.listEligibleProjects(user);

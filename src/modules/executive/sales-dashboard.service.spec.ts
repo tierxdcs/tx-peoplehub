@@ -3,7 +3,8 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { SalesDashboardService } from './sales-dashboard.service';
 
 const d = (n: string | number) => new Prisma.Decimal(n);
-const utc = (y: number, m: number, day = 1) => new Date(Date.UTC(y, m - 1, day));
+const utc = (y: number, m: number, day = 1) =>
+  new Date(Date.UTC(y, m - 1, day));
 const NOW = utc(2026, 8, 25);
 
 interface Fixture {
@@ -32,8 +33,10 @@ function buildService(fixture: Fixture) {
     order: {
       findMany: jest.fn((args: any) => {
         orderWheres.push(args.where);
-        if (args.distinct) return Promise.resolve(fixture.previouslyOrdering ?? []);
-        if (args.select.lineItems) return Promise.resolve(fixture.bookedOrders ?? []);
+        if (args.distinct)
+          return Promise.resolve(fixture.previouslyOrdering ?? []);
+        if (args.select.lineItems)
+          return Promise.resolve(fixture.bookedOrders ?? []);
         return Promise.resolve(fixture.priorOrders ?? []);
       }),
       findFirst: jest.fn(() =>
@@ -46,24 +49,35 @@ function buildService(fixture: Fixture) {
     },
     salesInvoice: {
       findMany: jest.fn((args: any) => {
-        if (args.where.outstandingAmount) return Promise.resolve(fixture.openInvoices ?? []);
-        if (args.select.invoiceDate) return Promise.resolve(fixture.invoices ?? []);
+        if (args.where.outstandingAmount)
+          return Promise.resolve(fixture.openInvoices ?? []);
+        if (args.select.invoiceDate)
+          return Promise.resolve(fixture.invoices ?? []);
         return Promise.resolve(fixture.priorInvoices ?? []);
       }),
       findFirst: jest.fn(() =>
         Promise.resolve(
-          fixture.firstInvoiceAt === undefined || fixture.firstInvoiceAt === null
+          fixture.firstInvoiceAt === undefined ||
+            fixture.firstInvoiceAt === null
             ? null
             : { invoiceDate: fixture.firstInvoiceAt },
         ),
       ),
     },
-    receiptAllocation: { findMany: jest.fn(() => Promise.resolve(fixture.allocations ?? [])) },
-    customerReceipt: { findMany: jest.fn(() => Promise.resolve(fixture.receipts ?? [])) },
+    receiptAllocation: {
+      findMany: jest.fn(() => Promise.resolve(fixture.allocations ?? [])),
+    },
+    customerReceipt: {
+      findMany: jest.fn(() => Promise.resolve(fixture.receipts ?? [])),
+    },
     lead: { count: jest.fn(() => Promise.resolve(fixture.leadCount ?? 0)) },
-    opportunity: { findMany: jest.fn(() => Promise.resolve(fixture.opportunities ?? [])) },
+    opportunity: {
+      findMany: jest.fn(() => Promise.resolve(fixture.opportunities ?? [])),
+    },
     bid: { findMany: jest.fn(() => Promise.resolve(fixture.bids ?? [])) },
-    customer: { count: jest.fn(() => Promise.resolve(fixture.activeCustomers ?? 0)) },
+    customer: {
+      count: jest.fn(() => Promise.resolve(fixture.activeCustomers ?? 0)),
+    },
   } as unknown as PrismaService;
   return new SalesDashboardService(prisma);
 }
@@ -72,7 +86,11 @@ function buildService(fixture: Fixture) {
 const costedLine = (quantity: number, lineTotal: number, unitCost: number) => ({
   quantity: d(quantity),
   lineTotal: d(lineTotal),
-  product: { item: { boms: [{ rolledUpCostSnapshot: d(unitCost), isCostComplete: true }] } },
+  product: {
+    item: {
+      boms: [{ rolledUpCostSnapshot: d(unitCost), isCostComplete: true }],
+    },
+  },
 });
 
 const order = (over: Record<string, unknown> = {}) => ({
@@ -108,7 +126,10 @@ describe('SalesDashboardService', () => {
   describe('revenue', () => {
     it('keeps booked and recognised as separate figures plus an explicit bridge', async () => {
       const result = await buildService({
-        bookedOrders: [order({ totalAmount: d(1000) }), order({ id: 'o2', totalAmount: d(500) })],
+        bookedOrders: [
+          order({ totalAmount: d(1000) }),
+          order({ id: 'o2', totalAmount: d(500) }),
+        ],
         invoices: [{ totalAmount: d(600), invoiceDate: utc(2026, 6, 3) }],
       }).build(NOW);
       expect(result.revenue.booked.total).toBe('1500.00');
@@ -131,7 +152,9 @@ describe('SalesDashboardService', () => {
           order({ id: 'o2', createdAt: utc(2026, 6, 5), totalAmount: d(200) }),
         ],
       }).build(NOW);
-      expect(result.revenue.booked.trend.map((p) => [p.label, p.value])).toEqual([
+      expect(
+        result.revenue.booked.trend.map((p) => [p.label, p.value]),
+      ).toEqual([
         ['Apr 26', '100.00'],
         ['May 26', '0.00'],
         ['Jun 26', '200.00'],
@@ -155,7 +178,9 @@ describe('SalesDashboardService', () => {
 
     it('says so plainly when there is no history at all', async () => {
       const result = await buildService({ firstOrderAt: null }).build(NOW);
-      expect(result.revenue.booked.yoy.detail).toContain('no order history yet');
+      expect(result.revenue.booked.yoy.detail).toContain(
+        'no order history yet',
+      );
     });
 
     it('computes a real percentage once a prior-year base exists', async () => {
@@ -191,7 +216,11 @@ describe('SalesDashboardService', () => {
                 quantity: d(1),
                 lineTotal: d(500),
                 product: {
-                  item: { boms: [{ rolledUpCostSnapshot: d(100), isCostComplete: false }] },
+                  item: {
+                    boms: [
+                      { rolledUpCostSnapshot: d(100), isCostComplete: false },
+                    ],
+                  },
                 },
               },
             ],
@@ -207,7 +236,15 @@ describe('SalesDashboardService', () => {
     it('excludes a line whose product has no released BOM at all', async () => {
       const result = await buildService({
         bookedOrders: [
-          order({ lineItems: [{ quantity: d(1), lineTotal: d(100), product: { item: { boms: [] } } }] }),
+          order({
+            lineItems: [
+              {
+                quantity: d(1),
+                lineTotal: d(100),
+                product: { item: { boms: [] } },
+              },
+            ],
+          }),
         ],
       }).build(NOW);
       expect(result.margin.averagePercent).toBeNull();
@@ -233,10 +270,34 @@ describe('SalesDashboardService', () => {
     it('counts only bids that reached the customer as sent, and ACCEPTED as won', async () => {
       const result = await buildService({
         bids: [
-          { status: 'DRAFT', createdAt: utc(2026, 5, 1), totalAmount: d(100), discountPercent: d(0), approvedAt: null },
-          { status: 'SENT', createdAt: utc(2026, 5, 1), totalAmount: d(200), discountPercent: d(0), approvedAt: null },
-          { status: 'ACCEPTED', createdAt: utc(2026, 5, 1), totalAmount: d(300), discountPercent: d(0), approvedAt: null },
-          { status: 'EXPIRED', createdAt: utc(2026, 5, 1), totalAmount: d(400), discountPercent: d(0), approvedAt: null },
+          {
+            status: 'DRAFT',
+            createdAt: utc(2026, 5, 1),
+            totalAmount: d(100),
+            discountPercent: d(0),
+            approvedAt: null,
+          },
+          {
+            status: 'SENT',
+            createdAt: utc(2026, 5, 1),
+            totalAmount: d(200),
+            discountPercent: d(0),
+            approvedAt: null,
+          },
+          {
+            status: 'ACCEPTED',
+            createdAt: utc(2026, 5, 1),
+            totalAmount: d(300),
+            discountPercent: d(0),
+            approvedAt: null,
+          },
+          {
+            status: 'EXPIRED',
+            createdAt: utc(2026, 5, 1),
+            totalAmount: d(400),
+            discountPercent: d(0),
+            approvedAt: null,
+          },
         ],
       }).build(NOW);
       const sent = result.funnel.find((s) => s.key === 'bids_sent')!;
@@ -267,8 +328,16 @@ describe('SalesDashboardService', () => {
     it('weights DSO by amount and clamps an advance payment to zero days', async () => {
       const result = await buildService({
         allocations: [
-          { amount: d(900), receipt: { receiptDate: utc(2026, 5, 11) }, invoice: { invoiceDate: utc(2026, 5, 1) } },
-          { amount: d(100), receipt: { receiptDate: utc(2026, 4, 1) }, invoice: { invoiceDate: utc(2026, 5, 1) } },
+          {
+            amount: d(900),
+            receipt: { receiptDate: utc(2026, 5, 11) },
+            invoice: { invoiceDate: utc(2026, 5, 1) },
+          },
+          {
+            amount: d(100),
+            receipt: { receiptDate: utc(2026, 4, 1) },
+            invoice: { invoiceDate: utc(2026, 5, 1) },
+          },
         ],
       }).build(NOW);
       expect(result.cash.dsoDays).toBe(9);
@@ -283,8 +352,17 @@ describe('SalesDashboardService', () => {
     it('splits new vs repeat by whether they ordered before this fiscal year', async () => {
       const result = await buildService({
         bookedOrders: [
-          order({ customerId: 'c1', customer: { name: 'Acme' }, totalAmount: d(600) }),
-          order({ id: 'o2', customerId: 'c2', customer: { name: 'Beta' }, totalAmount: d(400) }),
+          order({
+            customerId: 'c1',
+            customer: { name: 'Acme' },
+            totalAmount: d(600),
+          }),
+          order({
+            id: 'o2',
+            customerId: 'c2',
+            customer: { name: 'Beta' },
+            totalAmount: d(400),
+          }),
         ],
         previouslyOrdering: [{ customerId: 'c1' }],
       }).build(NOW);
@@ -297,12 +375,28 @@ describe('SalesDashboardService', () => {
     it('aggregates a customer across orders and ranks the top five', async () => {
       const result = await buildService({
         bookedOrders: [
-          order({ customerId: 'c1', customer: { name: 'Acme' }, totalAmount: d(300) }),
-          order({ id: 'o2', customerId: 'c1', customer: { name: 'Acme' }, totalAmount: d(300) }),
-          order({ id: 'o3', customerId: 'c2', customer: { name: 'Beta' }, totalAmount: d(400) }),
+          order({
+            customerId: 'c1',
+            customer: { name: 'Acme' },
+            totalAmount: d(300),
+          }),
+          order({
+            id: 'o2',
+            customerId: 'c1',
+            customer: { name: 'Acme' },
+            totalAmount: d(300),
+          }),
+          order({
+            id: 'o3',
+            customerId: 'c2',
+            customer: { name: 'Beta' },
+            totalAmount: d(400),
+          }),
         ],
       }).build(NOW);
-      expect(result.customers.concentration.topFive.map((c) => [c.name, c.value])).toEqual([
+      expect(
+        result.customers.concentration.topFive.map((c) => [c.name, c.value]),
+      ).toEqual([
         ['Acme', '600.00'],
         ['Beta', '400.00'],
       ]);
@@ -312,7 +406,12 @@ describe('SalesDashboardService', () => {
     it('shows the tail when there are more than five customers', async () => {
       const result = await buildService({
         bookedOrders: [1, 2, 3, 4, 5, 6].map((n) =>
-          order({ id: `o${n}`, customerId: `c${n}`, customer: { name: `C${n}` }, totalAmount: d(n * 100) }),
+          order({
+            id: `o${n}`,
+            customerId: `c${n}`,
+            customer: { name: `C${n}` },
+            totalAmount: d(n * 100),
+          }),
         ),
       }).build(NOW);
       // 2100 total; top five = 600+500+400+300+200 = 2000, tail = 100.
@@ -326,10 +425,17 @@ describe('SalesDashboardService', () => {
       const result = await buildService({
         bookedOrders: [
           order({ totalAmount: d(700) }),
-          order({ id: 'o2', businessUnitId: null, businessUnit: null, totalAmount: d(300) }),
+          order({
+            id: 'o2',
+            businessUnitId: null,
+            businessUnit: null,
+            totalAmount: d(300),
+          }),
         ],
       }).build(NOW);
-      expect(result.businessUnits.map((b) => [b.name, b.value, b.percentOfTotal])).toEqual([
+      expect(
+        result.businessUnits.map((b) => [b.name, b.value, b.percentOfTotal]),
+      ).toEqual([
         ['Rail', '700.00', '70.00'],
         ['Not tagged', '300.00', '30.00'],
       ]);
@@ -341,7 +447,10 @@ describe('SalesDashboardService', () => {
     it('measures opportunity-to-order only for pipeline orders', async () => {
       const result = await buildService({
         bookedOrders: [
-          order({ createdAt: utc(2026, 5, 31), bid: { opportunity: { createdAt: utc(2026, 5, 1) } } }),
+          order({
+            createdAt: utc(2026, 5, 31),
+            bid: { opportunity: { createdAt: utc(2026, 5, 1) } },
+          }),
           order({ id: 'o2' }),
         ],
       }).build(NOW);
@@ -353,16 +462,36 @@ describe('SalesDashboardService', () => {
     it('averages discount over submitted bids including zero-discount ones', async () => {
       const result = await buildService({
         bids: [
-          { status: 'SENT', createdAt: utc(2026, 5, 1), totalAmount: d(100), discountPercent: d(20), approvedAt: utc(2026, 5, 2) },
-          { status: 'SENT', createdAt: utc(2026, 5, 1), totalAmount: d(100), discountPercent: d(0), approvedAt: null },
-          { status: 'DRAFT', createdAt: utc(2026, 5, 1), totalAmount: d(100), discountPercent: d(90), approvedAt: null },
+          {
+            status: 'SENT',
+            createdAt: utc(2026, 5, 1),
+            totalAmount: d(100),
+            discountPercent: d(20),
+            approvedAt: utc(2026, 5, 2),
+          },
+          {
+            status: 'SENT',
+            createdAt: utc(2026, 5, 1),
+            totalAmount: d(100),
+            discountPercent: d(0),
+            approvedAt: null,
+          },
+          {
+            status: 'DRAFT',
+            createdAt: utc(2026, 5, 1),
+            totalAmount: d(100),
+            discountPercent: d(90),
+            approvedAt: null,
+          },
         ],
       }).build(NOW);
       expect(result.discount.averagePercent).toBe('10.00');
       expect(result.discount.bidsMeasured).toBe(2);
       expect(result.discount.approvedDiscountCount).toBe(1);
       // A month with no submitted bids is null (nothing to average), not 0%.
-      expect(result.discount.trend.find((t) => t.label === 'Jun 26')!.value).toBeNull();
+      expect(
+        result.discount.trend.find((t) => t.label === 'Jun 26')!.value,
+      ).toBeNull();
     });
   });
 

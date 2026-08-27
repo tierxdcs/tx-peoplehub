@@ -86,9 +86,14 @@ export class SalesNumberingService {
    * or collision risk, since the real number is still allocated atomically
    * inside the create transaction.
    */
-  async peekNextContinuousNumber(prefix: string, entity: string): Promise<string> {
+  async peekNextContinuousNumber(
+    prefix: string,
+    entity: string,
+  ): Promise<string> {
     const row = await this.prisma.salesSequence.findUnique({
-      where: { entity_year: { entity, year: SalesNumberingService.CONTINUOUS_YEAR } },
+      where: {
+        entity_year: { entity, year: SalesNumberingService.CONTINUOUS_YEAR },
+      },
       select: { lastValue: true },
     });
     const next = (row?.lastValue ?? 0) + 1;

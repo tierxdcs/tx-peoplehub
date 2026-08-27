@@ -13,7 +13,11 @@ describe('OperationsService bank controls', () => {
     bankStatementLine: { findUnique: jest.fn(), update: jest.fn() },
     $transaction: jest.fn(),
   };
-  const service = new OperationsService(prisma as any, access as any, { get: jest.fn() } as any);
+  const service = new OperationsService(
+    prisma as any,
+    access as any,
+    { get: jest.fn() } as any,
+  );
 
   beforeEach(() => jest.clearAllMocks());
 

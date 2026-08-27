@@ -13,7 +13,10 @@ export interface GstGatewayResult {
   raw: Prisma.InputJsonObject;
 }
 
-export interface GstCancellationResult { raw: Prisma.InputJsonObject; cancelledAt?: string; }
+export interface GstCancellationResult {
+  raw: Prisma.InputJsonObject;
+  cancelledAt?: string;
+}
 
 /** Provider-neutral boundary. A GSP/IRP adapter must implement this contract. */
 @Injectable()
@@ -28,9 +31,10 @@ export class GstGatewayService {
       environment: this.config.get<string>('env') ?? 'development',
       endpointConfigured: !!url,
       credentialConfigured: !!token,
-      message: url && token
-        ? 'GST gateway configuration is ready for a controlled connectivity test'
-        : 'GST submissions remain queued until GST_GATEWAY_URL and GST_GATEWAY_TOKEN are configured',
+      message:
+        url && token
+          ? 'GST gateway configuration is ready for a controlled connectivity test'
+          : 'GST submissions remain queued until GST_GATEWAY_URL and GST_GATEWAY_TOKEN are configured',
     };
   }
 
@@ -83,13 +87,38 @@ export class GstGatewayService {
     };
   }
 
-  async cancel(documentType: string, providerReference: string, reason: string, idempotencyKey: string): Promise<GstCancellationResult> {
+  async cancel(
+    documentType: string,
+    providerReference: string,
+    reason: string,
+    idempotencyKey: string,
+  ): Promise<GstCancellationResult> {
     const url = this.config.get<string>('gst.gatewayUrl');
     const token = this.config.get<string>('gst.gatewayToken');
-    if (!url || !token) throw new ServiceUnavailableException('GST gateway is not configured; cancellation was not sent');
-    const response = await fetch(`${url.replace(/\/$/, '')}/documents/${encodeURIComponent(providerReference)}/cancel`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, 'idempotency-key': idempotencyKey }, body: JSON.stringify({ documentType, reason }) });
+    if (!url || !token)
+      throw new ServiceUnavailableException(
+        'GST gateway is not configured; cancellation was not sent',
+      );
+    const response = await fetch(
+      `${url.replace(/\/$/, '')}/documents/${encodeURIComponent(providerReference)}/cancel`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+          'idempotency-key': idempotencyKey,
+        },
+        body: JSON.stringify({ documentType, reason }),
+      },
+    );
     const raw = (await response.json()) as Prisma.InputJsonObject;
-    if (!response.ok) throw new ServiceUnavailableException(String(raw.message ?? `GST gateway returned HTTP ${response.status}`));
-    return { raw, cancelledAt: raw.cancelledAt ? String(raw.cancelledAt) : undefined };
+    if (!response.ok)
+      throw new ServiceUnavailableException(
+        String(raw.message ?? `GST gateway returned HTTP ${response.status}`),
+      );
+    return {
+      raw,
+      cancelledAt: raw.cancelledAt ? String(raw.cancelledAt) : undefined,
+    };
   }
 }

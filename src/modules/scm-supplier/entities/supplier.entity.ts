@@ -113,7 +113,9 @@ export class SupplierQuestionnaireEntity {
 export class SupplierInviteEntity {
   @ApiProperty() id!: string;
   @ApiProperty() questionnaireId!: string;
-  @ApiProperty({ description: 'Public token — build the supplier URL from this' })
+  @ApiProperty({
+    description: 'Public token — build the supplier URL from this',
+  })
   token!: string;
   @ApiProperty() expiresAt!: string;
   @ApiProperty({ nullable: true }) revokedAt!: string | null;
@@ -145,8 +147,14 @@ export class SupplierAuditEntity {
   @ApiProperty({ description: 'Computed sum of the 6 category scores (/100)' })
   totalScore!: number;
   @ApiProperty({
-    enum: ['APPROVED_PREFERRED', 'APPROVED', 'CONDITIONALLY_APPROVED', 'NOT_APPROVED'],
-    description: 'Computed from totalScore (thresholds 90/80/70) — never hidden',
+    enum: [
+      'APPROVED_PREFERRED',
+      'APPROVED',
+      'CONDITIONALLY_APPROVED',
+      'NOT_APPROVED',
+    ],
+    description:
+      'Computed from totalScore (thresholds 90/80/70) — never hidden',
   })
   classification!: SupplierClassification;
   @ApiProperty() classificationLabel!: string;
@@ -154,7 +162,12 @@ export class SupplierAuditEntity {
   // ── SuperAdmin classification override (null = none; use computed) ──
   @ApiProperty({
     nullable: true,
-    enum: ['APPROVED_PREFERRED', 'APPROVED', 'CONDITIONALLY_APPROVED', 'NOT_APPROVED'],
+    enum: [
+      'APPROVED_PREFERRED',
+      'APPROVED',
+      'CONDITIONALLY_APPROVED',
+      'NOT_APPROVED',
+    ],
     description: 'SuperAdmin-forced classification, independent of the score',
   })
   overrideClassification!: SupplierClassification | null;
@@ -164,7 +177,12 @@ export class SupplierAuditEntity {
   @ApiProperty({ nullable: true }) overriddenByName!: string | null;
   @ApiProperty({ nullable: true }) overriddenAt!: string | null;
   @ApiProperty({
-    enum: ['APPROVED_PREFERRED', 'APPROVED', 'CONDITIONALLY_APPROVED', 'NOT_APPROVED'],
+    enum: [
+      'APPROVED_PREFERRED',
+      'APPROVED',
+      'CONDITIONALLY_APPROVED',
+      'NOT_APPROVED',
+    ],
     description: 'override ?? computed — the classification actually in effect',
   })
   effectiveClassification!: SupplierClassification;

@@ -20,10 +20,16 @@ class FakeStorage {
   objects = new Map<string, { sizeBytes: number; contentType: string }>();
   async createUploadUrl(storageKey: string, contentType: string) {
     this.objects.set(storageKey, { sizeBytes: 2048, contentType });
-    return { url: `https://fake-r2/${storageKey}?sig=put`, expiresInSeconds: 300 };
+    return {
+      url: `https://fake-r2/${storageKey}?sig=put`,
+      expiresInSeconds: 300,
+    };
   }
   async createDownloadUrl(storageKey: string) {
-    return { url: `https://fake-r2/${storageKey}?sig=get`, expiresInSeconds: 300 };
+    return {
+      url: `https://fake-r2/${storageKey}?sig=get`,
+      expiresInSeconds: 300,
+    };
   }
   async headObject(storageKey: string) {
     const o = this.objects.get(storageKey);
@@ -90,7 +96,11 @@ describe('Vendor Qualification / SCM (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     prisma = app.get(PrismaService);
@@ -149,7 +159,9 @@ describe('Vendor Qualification / SCM (e2e)', () => {
   afterAll(async () => {
     await prisma.vendor.deleteMany({ where: { id: { in: createdVendorIds } } });
     if (createdEmployeeIds.length) {
-      await prisma.employee.deleteMany({ where: { id: { in: createdEmployeeIds } } });
+      await prisma.employee.deleteMany({
+        where: { id: { in: createdEmployeeIds } },
+      });
     }
     await app.close();
   });
@@ -218,14 +230,22 @@ describe('Vendor Qualification / SCM (e2e)', () => {
     // Cert upload guardrails: a blocked extension is rejected.
     await request(app.getHttpServer())
       .post(`/public/vendor-questionnaire/${token}/certificate-upload-url`)
-      .send({ name: 'malware.exe', mimeType: 'application/octet-stream', sizeBytes: 10 })
+      .send({
+        name: 'malware.exe',
+        mimeType: 'application/octet-stream',
+        sizeBytes: 10,
+      })
       .expect(400);
 
     // A valid cert upload presign + confirm.
     const presign = (
       await request(app.getHttpServer())
         .post(`/public/vendor-questionnaire/${token}/certificate-upload-url`)
-        .send({ name: 'iso9001.pdf', mimeType: 'application/pdf', sizeBytes: 2048 })
+        .send({
+          name: 'iso9001.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 2048,
+        })
         .expect(201)
     ).body.data;
     await request(app.getHttpServer())
@@ -252,7 +272,9 @@ describe('Vendor Qualification / SCM (e2e)', () => {
         .expect(200)
     ).body.data;
     expect(afterSubmit.status).toBe('QUESTIONNAIRE_SUBMITTED');
-    expect(afterSubmit.questionnaires[0].qualityCertificateFiles).toHaveLength(1);
+    expect(afterSubmit.questionnaires[0].qualityCertificateFiles).toHaveLength(
+      1,
+    );
 
     // Notification landed for the creator (the SCM manager).
     const notif = await prisma.notification.findFirst({
@@ -267,7 +289,12 @@ describe('Vendor Qualification / SCM (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/vendors/${vendor.id}/audits`)
       .set('Authorization', `Bearer ${scmManagerToken}`)
-      .send({ questionnaireId, auditType: 'PHYSICAL', auditDate: '2026-07-18', ...scores(85) })
+      .send({
+        questionnaireId,
+        auditType: 'PHYSICAL',
+        auditDate: '2026-07-18',
+        ...scores(85),
+      })
       .expect(403);
 
     // Auditor scores 79 → Conditionally Approved boundary.
@@ -275,7 +302,12 @@ describe('Vendor Qualification / SCM (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/vendors/${vendor.id}/audits`)
         .set('Authorization', `Bearer ${auditorToken}`)
-        .send({ questionnaireId, auditType: 'VIRTUAL', auditDate: '2026-07-18', ...scores(79) })
+        .send({
+          questionnaireId,
+          auditType: 'VIRTUAL',
+          auditDate: '2026-07-18',
+          ...scores(79),
+        })
         .expect(201)
     ).body.data;
     expect(audit79.totalScore).toBe(79);
@@ -337,7 +369,12 @@ describe('Vendor Qualification / SCM (e2e)', () => {
         await request(app.getHttpServer())
           .post(`/vendors/${vendor.id}/audits`)
           .set('Authorization', `Bearer ${superAdminToken}`)
-          .send({ questionnaireId: qId, auditType: 'PHYSICAL', auditDate: '2026-07-18', ...scores(total) })
+          .send({
+            questionnaireId: qId,
+            auditType: 'PHYSICAL',
+            auditDate: '2026-07-18',
+            ...scores(total),
+          })
           .expect(201)
       ).body.data;
       expect(audit.totalScore).toBe(total);
@@ -530,7 +567,12 @@ describe('Vendor Qualification / SCM (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/vendors/${vendor.id}/audits`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ questionnaireId: qId, auditType: 'PHYSICAL', auditDate: '2026-07-20', ...scores(69) })
+        .send({
+          questionnaireId: qId,
+          auditType: 'PHYSICAL',
+          auditDate: '2026-07-20',
+          ...scores(69),
+        })
         .expect(201)
     ).body.data;
     expect(audit.classification).toBe('NOT_APPROVED');
@@ -564,9 +606,14 @@ describe('Vendor Qualification / SCM (e2e)', () => {
     // SuperAdmin overrides NOT_APPROVED → APPROVED. Both values are surfaced.
     const overridden = (
       await request(app.getHttpServer())
-        .patch(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+        .patch(
+          `/vendors/${vendor.id}/audits/${audit.id}/classification-override`,
+        )
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ overrideClassification: 'APPROVED', reason: 'Strategic sole-source; risk accepted by SCM head.' })
+        .send({
+          overrideClassification: 'APPROVED',
+          reason: 'Strategic sole-source; risk accepted by SCM head.',
+        })
         .expect(200)
     ).body.data;
     expect(overridden.classification).toBe('NOT_APPROVED'); // computed, never deleted
@@ -594,9 +641,14 @@ describe('Vendor Qualification / SCM (e2e)', () => {
     // Editing the override (any direction — down to CONDITIONALLY_APPROVED).
     const edited = (
       await request(app.getHttpServer())
-        .patch(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+        .patch(
+          `/vendors/${vendor.id}/audits/${audit.id}/classification-override`,
+        )
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ overrideClassification: 'CONDITIONALLY_APPROVED', reason: 'Downgraded pending re-audit.' })
+        .send({
+          overrideClassification: 'CONDITIONALLY_APPROVED',
+          reason: 'Downgraded pending re-audit.',
+        })
         .expect(200)
     ).body.data;
     expect(edited.effectiveClassification).toBe('CONDITIONALLY_APPROVED');
@@ -612,7 +664,9 @@ describe('Vendor Qualification / SCM (e2e)', () => {
     // Clearing the override reverts to the computed classification + status.
     const cleared = (
       await request(app.getHttpServer())
-        .delete(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+        .delete(
+          `/vendors/${vendor.id}/audits/${audit.id}/classification-override`,
+        )
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200)
     ).body.data;
@@ -630,7 +684,9 @@ describe('Vendor Qualification / SCM (e2e)', () => {
 
     // Clearing (and overriding) is SuperAdmin-only too.
     await request(app.getHttpServer())
-      .delete(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+      .delete(
+        `/vendors/${vendor.id}/audits/${audit.id}/classification-override`,
+      )
       .set('Authorization', `Bearer ${scmManagerToken}`)
       .expect(403);
   });
@@ -656,11 +712,18 @@ describe('Vendor Qualification / SCM (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/vendors/${vendor.id}/audits`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ questionnaireId: qId, auditType: 'PHYSICAL', auditDate: '2026-07-20', ...scores(69) })
+        .send({
+          questionnaireId: qId,
+          auditType: 'PHYSICAL',
+          auditDate: '2026-07-20',
+          ...scores(69),
+        })
         .expect(201)
     ).body.data;
     await request(app.getHttpServer())
-      .patch(`/vendors/${vendor.id}/audits/${audit1.id}/classification-override`)
+      .patch(
+        `/vendors/${vendor.id}/audits/${audit1.id}/classification-override`,
+      )
       .set('Authorization', `Bearer ${superAdminToken}`)
       .send({ overrideClassification: 'APPROVED', reason: 'Interim approval.' })
       .expect(200);
@@ -669,7 +732,12 @@ describe('Vendor Qualification / SCM (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/vendors/${vendor.id}/audits`)
       .set('Authorization', `Bearer ${superAdminToken}`)
-      .send({ questionnaireId: qId, auditType: 'VIRTUAL', auditDate: '2026-07-21', ...scores(85) })
+      .send({
+        questionnaireId: qId,
+        auditType: 'VIRTUAL',
+        auditDate: '2026-07-21',
+        ...scores(85),
+      })
       .expect(201);
     const afterNewAudit = (
       await request(app.getHttpServer())
@@ -686,9 +754,14 @@ describe('Vendor Qualification / SCM (e2e)', () => {
     );
     expect(olderAudit).toBeTruthy();
     await request(app.getHttpServer())
-      .patch(`/vendors/${vendor.id}/audits/${audit1.id}/classification-override`)
+      .patch(
+        `/vendors/${vendor.id}/audits/${audit1.id}/classification-override`,
+      )
       .set('Authorization', `Bearer ${superAdminToken}`)
-      .send({ overrideClassification: 'NOT_APPROVED', reason: 'Correcting the historical record.' })
+      .send({
+        overrideClassification: 'NOT_APPROVED',
+        reason: 'Correcting the historical record.',
+      })
       .expect(200);
     const afterHistoricalOverride = (
       await request(app.getHttpServer())

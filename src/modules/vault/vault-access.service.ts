@@ -189,6 +189,136 @@ export class VaultAccessService {
     return mergeAccess(folderAccess, fromFileShare);
   }
 
+  /**
+   * Batch form of computeFileAccess for a listing: folder access is computed
+   * once per DISTINCT folder and every FILE share held by the caller is loaded
+   * in one query, then unioned per file. The composition is the same
+   * `folderAccess ∪ fileShare` union computeFileAccess performs — kept here, in
+   * the one access file, rather than re-derived by each caller — but a listing
+   * of N files costs 1 share query instead of N.
+   */
+  async computeFileAccessMany(
+    user: AuthenticatedUser,
+    files: { id: string; folderId: string }[],
+    folders: FolderWithPermissions[],
+  ): Promise<Map<string, VaultAccess>> {
+    const result = new Map<string, VaultAccess>();
+    if (!files.length) return result;
+    if (user.role === Role.SUPER_ADMIN) {
+      for (const file of files) result.set(file.id, { ...FULL_ACCESS });
+      return result;
+    }
+
+    const folderById = new Map(folders.map((f) => [f.id, f]));
+    const folderAccess = new Map<string, VaultAccess>();
+    for (const folderId of new Set(files.map((f) => f.folderId))) {
+      const folder = folderById.get(folderId);
+      folderAccess.set(
+        folderId,
+        folder ? await this.computeAccess(user, folder) : { ...NO_ACCESS },
+      );
+    }
+
+    const fileShares = await this.prisma.vaultInternalShare.findMany({
+      where: {
+        sharedWithEmployeeId: user.id,
+        resourceType: VaultShareResourceType.FILE,
+        resourceId: { in: files.map((f) => f.id) },
+      },
+      select: { resourceId: true, permission: true },
+    });
+    const shareByFileId = new Map(
+      fileShares.map((s) => [s.resourceId, s.permission]),
+    );
+
+    for (const file of files) {
+      const base = folderAccess.get(file.folderId) ?? { ...NO_ACCESS };
+      const share = shareByFileId.get(file.id);
+      result.set(
+        file.id,
+        share ? mergeAccess(base, shareAccess(share)) : { ...base },
+      );
+    }
+    return result;
+  }
+
+  /**
+   * Every non-archived folder the caller can read, at any depth — the folder
+   * set a vault-wide search is allowed to look inside.
+   *
+   * Candidate narrowing deliberately mirrors listRoots(): a PRIVATE folder
+   * owned by someone else is a candidate ONLY when it (or an ancestor, since
+   * assigned access inherits downward) was explicitly granted or shared to the
+   * caller. This matters beyond performance: it means search can never surface
+   * a colleague's personal documents that the folder browser already hides —
+   * not even for a SUPER_ADMIN, whose full-access override applies to folders
+   * they navigate to, not to discovery of other people's private space.
+   *
+   * computeAccess still makes the final per-folder call, so there is no second
+   * access code path here — only a cheaper candidate set to run it over.
+   */
+  async readableFolders(
+    user: AuthenticatedUser,
+  ): Promise<
+    Map<string, { folder: FolderWithPermissions; access: VaultAccess }>
+  > {
+    const all = await this.prisma.vaultFolder.findMany({
+      where: { status: { not: 'ARCHIVED' } },
+      include: { permissions: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const assignedIds = new Set<string>([
+      ...(
+        await this.prisma.vaultInternalShare.findMany({
+          where: {
+            sharedWithEmployeeId: user.id,
+            resourceType: VaultShareResourceType.FOLDER,
+          },
+          select: { resourceId: true },
+        })
+      ).map((s) => s.resourceId),
+      ...(
+        await this.prisma.vaultFolderPermission.findMany({
+          where: {
+            granteeType: VaultGranteeType.EMPLOYEE,
+            granteeId: user.id,
+            canRead: true,
+          },
+          select: { folderId: true },
+        })
+      ).map((p) => p.folderId),
+    ]);
+
+    const byId = new Map(all.map((f) => [f.id, f]));
+    const hasAssignedAncestor = (folder: VaultFolder): boolean => {
+      const seen = new Set<string>([folder.id]);
+      let parentId = folder.parentFolderId;
+      while (parentId && !seen.has(parentId)) {
+        if (assignedIds.has(parentId)) return true;
+        seen.add(parentId);
+        parentId = byId.get(parentId)?.parentFolderId ?? null;
+      }
+      return false;
+    };
+
+    const readable = new Map<
+      string,
+      { folder: FolderWithPermissions; access: VaultAccess }
+    >();
+    for (const folder of all) {
+      const isCandidate =
+        folder.ownerId === user.id ||
+        folder.visibilityScope !== VaultVisibilityScope.PRIVATE ||
+        assignedIds.has(folder.id) ||
+        hasAssignedAncestor(folder);
+      if (!isCandidate) continue;
+      const access = await this.computeAccess(user, folder);
+      if (access.canRead) readable.set(folder.id, { folder, access });
+    }
+    return readable;
+  }
+
   private async scopeAccess(
     user: AuthenticatedUser,
     folder: VaultFolder,

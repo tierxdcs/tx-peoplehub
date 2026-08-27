@@ -92,9 +92,9 @@ describe('CandidateRequisitionsService', () => {
       'REQ-2026-0003',
     ]);
     // Every position is its own row with the same JD/budget.
-    expect(
-      results.every((r: any) => r.positionTitle === 'Engineer'),
-    ).toBe(true);
+    expect(results.every((r: any) => r.positionTitle === 'Engineer')).toBe(
+      true,
+    );
     expect(prisma.candidateRequisition.create).toHaveBeenCalledTimes(3);
     // One transaction wraps the whole batch — all or nothing.
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
@@ -227,9 +227,19 @@ describe('CandidateRequisitionsService', () => {
       // ownerless vertical — no first-stage approver
       { ...request, id: 'r2', vertical: { ownerId: null } },
       // owner is the requester — self-approval deadlock
-      { ...request, id: 'r3', requestedById: 'owner', vertical: { ownerId: 'owner' } },
+      {
+        ...request,
+        id: 'r3',
+        requestedById: 'owner',
+        vertical: { ownerId: 'owner' },
+      },
       // owned by someone other than the requester — the owner must approve first
-      { ...request, id: 'r4', requestedById: 'manager', vertical: { ownerId: 'owner' } },
+      {
+        ...request,
+        id: 'r4',
+        requestedById: 'manager',
+        vertical: { ownerId: 'owner' },
+      },
     ]);
 
     const result: any[] = await service.listSuperAdminPending(superAdmin);

@@ -1,4 +1,11 @@
-import { IsBoolean, IsEnum, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { QmsReportType } from '@prisma/client';
 
 export class GenerateQmsReportDto {

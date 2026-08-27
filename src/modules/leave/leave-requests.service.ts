@@ -15,6 +15,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { PendingQueue } from '../../common/types/pending-queue';
 import {
   PaginatedResult,
   PaginationQueryDto,
@@ -166,11 +167,24 @@ export class LeaveRequestsService {
         };
   }
 
-  /** Count of requests awaiting the caller's approval (reuses the same scope). */
-  async countPendingApproval(currentUser: AuthenticatedUser): Promise<number> {
-    return this.prisma.leaveRequest.count({
-      where: this.pendingApprovalWhere(currentUser),
-    });
+  /**
+   * Badge summary for requests awaiting the caller's approval: the count plus
+   * when the oldest one was raised. Reuses the same scope AND the same
+   * oldest-first ordering as getPendingApproval, so neither can drift.
+   */
+  async pendingApprovalQueue(
+    currentUser: AuthenticatedUser,
+  ): Promise<PendingQueue> {
+    const where = this.pendingApprovalWhere(currentUser);
+    const [count, oldest] = await Promise.all([
+      this.prisma.leaveRequest.count({ where }),
+      this.prisma.leaveRequest.findFirst({
+        where,
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      }),
+    ]);
+    return { count, oldestPendingAt: oldest?.createdAt ?? null };
   }
 
   async getPendingApproval(

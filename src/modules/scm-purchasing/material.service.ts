@@ -271,7 +271,9 @@ export class MaterialService {
     return row;
   }
 
-  private sumIssued(notes: { issuedQuantity: Prisma.Decimal }[]): Prisma.Decimal {
+  private sumIssued(
+    notes: { issuedQuantity: Prisma.Decimal }[],
+  ): Prisma.Decimal {
     return notes.reduce(
       (s, n) => s.plus(n.issuedQuantity),
       new Prisma.Decimal(0),

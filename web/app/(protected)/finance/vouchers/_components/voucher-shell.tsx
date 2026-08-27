@@ -93,16 +93,16 @@ export function VoucherShell({
           <SCard className="px-5 py-[18px]">
             <SCardTitle title="Voucher details" />
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Field label="Voucher No.">
-              <Input value="Auto" disabled />
-            </Field>
-            <Field label="Date" required>
-              <Input
-                type="date"
-                value={date}
-                onChange={(e) => onDateChange(e.target.value)}
-              />
-            </Field>
+              <Field label="Voucher No.">
+                <Input value="Auto" disabled />
+              </Field>
+              <Field label="Date" required>
+                <Input
+                  type="date"
+                  value={date}
+                  onChange={(e) => onDateChange(e.target.value)}
+                />
+              </Field>
               {children}
             </div>
           </SCard>

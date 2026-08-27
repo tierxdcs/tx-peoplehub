@@ -32,9 +32,9 @@ export class QmsAccessService {
         isActive &&
         Boolean(
           isQualityVertical ||
-            employee?.isQcInspector ||
-            employee?.isQmsHead ||
-            user.role === Role.SUPER_ADMIN,
+          employee?.isQcInspector ||
+          employee?.isQmsHead ||
+          user.role === Role.SUPER_ADMIN,
         ),
       // Approval authority remains an explicit single-holder capability.
       isQmsHead: Boolean(isActive && employee?.isQmsHead),

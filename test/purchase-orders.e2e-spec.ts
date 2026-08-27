@@ -34,7 +34,10 @@ describe('Purchase Orders (e2e)', () => {
 
   const http = () => request(app.getHttpServer());
   function login(email: string, password: string) {
-    return http().post('/auth/login').send({ email, password }).expect(200)
+    return http()
+      .post('/auth/login')
+      .send({ email, password })
+      .expect(200)
       .then((r) => r.body.data.accessToken as string);
   }
 
@@ -45,7 +48,11 @@ describe('Purchase Orders (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     prisma = app.get(PrismaService);
@@ -55,8 +62,12 @@ describe('Purchase Orders (e2e)', () => {
     ).id;
     superAdminToken = await login(adminEmail, adminPassword);
 
-    const scmVertical = await prisma.vertical.findUniqueOrThrow({ where: { code: 'SCM' } });
-    const salesVertical = await prisma.vertical.findUniqueOrThrow({ where: { code: 'SALES' } });
+    const scmVertical = await prisma.vertical.findUniqueOrThrow({
+      where: { code: 'SCM' },
+    });
+    const salesVertical = await prisma.vertical.findUniqueOrThrow({
+      where: { code: 'SALES' },
+    });
     const suffix = Date.now();
     const mk = async (firstName: string, role: string, verticalId: string) => {
       const email = `po.${firstName.toLowerCase()}.${suffix}@peoplehub.local`;
@@ -83,14 +94,24 @@ describe('Purchase Orders (e2e)', () => {
     // Trading partners: an APPROVED supplier, an unqualified (PENDING) supplier,
     // and an APPROVED vendor.
     const supplierBase = {
-      registeredAddress: 'x', factoryAddress: 'x', yearEstablished: '2000',
-      numberOfEmployees: '10', annualTurnover: '1cr', contactPersonName: 'x',
-      contactPersonDesignation: 'x', contactEmail: 'x@y.com',
-      contactPhone: '+910000000000', createdById: superAdminId,
+      registeredAddress: 'x',
+      factoryAddress: 'x',
+      yearEstablished: '2000',
+      numberOfEmployees: '10',
+      annualTurnover: '1cr',
+      contactPersonName: 'x',
+      contactPersonDesignation: 'x',
+      contactEmail: 'x@y.com',
+      contactPhone: '+910000000000',
+      createdById: superAdminId,
     };
     approvedSupplierId = (
       await prisma.supplier.create({
-        data: { ...supplierBase, companyName: `AppSup ${suffix}`, status: 'APPROVED' },
+        data: {
+          ...supplierBase,
+          companyName: `AppSup ${suffix}`,
+          status: 'APPROVED',
+        },
       })
     ).id;
     unqualifiedSupplierId = (
@@ -104,18 +125,32 @@ describe('Purchase Orders (e2e)', () => {
     ).id;
     approvedVendorId = (
       await prisma.vendor.create({
-        data: { ...supplierBase, companyName: `AppVen ${suffix}`, status: 'APPROVED_PREFERRED' },
+        data: {
+          ...supplierBase,
+          companyName: `AppVen ${suffix}`,
+          status: 'APPROVED_PREFERRED',
+        },
       })
     ).id;
 
     itemAId = (
       await prisma.item.create({
-        data: { itemCode: `PO-IT-A-${suffix}`, name: 'Steel', itemType: 'RAW_MATERIAL', baseUnitOfMeasure: 'kg' },
+        data: {
+          itemCode: `PO-IT-A-${suffix}`,
+          name: 'Steel',
+          itemType: 'RAW_MATERIAL',
+          baseUnitOfMeasure: 'kg',
+        },
       })
     ).id;
     itemBId = (
       await prisma.item.create({
-        data: { itemCode: `PO-IT-B-${suffix}`, name: 'Bolt', itemType: 'COMPONENT', baseUnitOfMeasure: 'pcs' },
+        data: {
+          itemCode: `PO-IT-B-${suffix}`,
+          name: 'Bolt',
+          itemType: 'COMPONENT',
+          baseUnitOfMeasure: 'pcs',
+        },
       })
     ).id;
   });
@@ -135,7 +170,12 @@ describe('Purchase Orders (e2e)', () => {
           notes: 'first PO',
           lines: [
             { itemId: itemAId, orderedQuantity: 10, unitPrice: 100 },
-            { itemId: itemBId, orderedQuantity: 5, unitPrice: 20, unitOfMeasure: 'box' },
+            {
+              itemId: itemBId,
+              orderedQuantity: 5,
+              unitPrice: 20,
+              unitOfMeasure: 'box',
+            },
           ],
         })
         .expect(201)
@@ -154,7 +194,10 @@ describe('Purchase Orders (e2e)', () => {
       await http()
         .post('/purchase-orders')
         .set('Authorization', `Bearer ${scmManagerToken}`)
-        .send({ vendorId: approvedVendorId, lines: [{ itemId: itemAId, orderedQuantity: 1, unitPrice: 1 }] })
+        .send({
+          vendorId: approvedVendorId,
+          lines: [{ itemId: itemAId, orderedQuantity: 1, unitPrice: 1 }],
+        })
         .expect(201)
     ).body.data;
     const seq1 = Number(po.poNumber.split('-')[2]);
@@ -173,15 +216,16 @@ describe('Purchase Orders (e2e)', () => {
           supplierId: unqualifiedSupplierId,
           lines: [{ itemId: itemAId, orderedQuantity: 2, unitPrice: 50 }],
         })
-        .expect(201) // created despite being unqualified
-    ).body.data;
+        .expect(201)
+    ) // created despite being unqualified
+    .body.data;
     expect(po.status).toBe('DRAFT');
     expect(po.qualificationWarning).not.toBeNull();
     expect(po.qualificationWarning.partnerType).toBe('SUPPLIER');
     expect(po.qualificationWarning.status).toBe('PENDING_QUESTIONNAIRE');
     expect(po.qualificationWarning.message).toMatch(/not qualified/i);
     // The PO genuinely persisted.
-    expect((await prisma.purchaseOrder.count({ where: { id: po.id } }))).toBe(1);
+    expect(await prisma.purchaseOrder.count({ where: { id: po.id } })).toBe(1);
   });
 
   it('enforces exactly-one-of supplier/vendor', async () => {
@@ -208,10 +252,16 @@ describe('Purchase Orders (e2e)', () => {
     await http()
       .post('/purchase-orders')
       .set('Authorization', `Bearer ${outsiderToken}`)
-      .send({ supplierId: approvedSupplierId, lines: [{ itemId: itemAId, orderedQuantity: 1, unitPrice: 1 }] })
+      .send({
+        supplierId: approvedSupplierId,
+        lines: [{ itemId: itemAId, orderedQuantity: 1, unitPrice: 1 }],
+      })
       .expect(403);
     // But can read.
-    await http().get('/purchase-orders').set('Authorization', `Bearer ${outsiderToken}`).expect(200);
+    await http()
+      .get('/purchase-orders')
+      .set('Authorization', `Bearer ${outsiderToken}`)
+      .expect(200);
   });
 
   it('runs the DRAFT → ISSUED → CANCELLED flow and rejects invalid transitions', async () => {
@@ -219,7 +269,10 @@ describe('Purchase Orders (e2e)', () => {
       await http()
         .post('/purchase-orders')
         .set('Authorization', `Bearer ${scmManagerToken}`)
-        .send({ supplierId: approvedSupplierId, lines: [{ itemId: itemAId, orderedQuantity: 3, unitPrice: 10 }] })
+        .send({
+          supplierId: approvedSupplierId,
+          lines: [{ itemId: itemAId, orderedQuantity: 3, unitPrice: 10 }],
+        })
         .expect(201)
     ).body.data;
 

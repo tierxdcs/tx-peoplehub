@@ -189,7 +189,11 @@ describe('SalaryStructuresService', () => {
       }));
 
       const result = await service.createFromCtc(
-        { employeeId: 'emp-1', monthlyCtc: 100000, effectiveDate: '2026-09-01' },
+        {
+          employeeId: 'emp-1',
+          monthlyCtc: 100000,
+          effectiveDate: '2026-09-01',
+        },
         'admin-1',
       );
 

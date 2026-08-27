@@ -170,8 +170,14 @@ export class CompanySettingsDto {
   @ApiProperty() @IsString() @IsNotEmpty() state!: string;
   @ApiProperty() @IsString() @Length(2, 2) stateCode!: string;
   @ApiProperty() @IsString() @IsNotEmpty() postalCode!: string;
-  @ApiPropertyOptional() @IsOptional() @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/) pan?: string;
-  @ApiPropertyOptional() @IsOptional() @Matches(/^[A-Z]{4}[0-9]{5}[A-Z]$/) tan?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/)
+  pan?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Matches(/^[A-Z]{4}[0-9]{5}[A-Z]$/)
+  tan?: string;
 }
 
 export class GenerateEwayBillDto {
@@ -188,7 +194,9 @@ export class RecordManualIrnDto {
   @ApiProperty({ description: '64-character IRP Invoice Reference Number' })
   @IsString()
   @Length(64, 64)
-  @Matches(/^[A-Fa-f0-9]{64}$/, { message: 'IRN must contain exactly 64 hexadecimal characters' })
+  @Matches(/^[A-Fa-f0-9]{64}$/, {
+    message: 'IRN must contain exactly 64 hexadecimal characters',
+  })
   irn!: string;
 
   @ApiProperty()
@@ -200,7 +208,9 @@ export class RecordManualIrnDto {
   @IsDateString()
   acknowledgementDate!: string;
 
-  @ApiProperty({ description: 'Signed QR payload returned by IRP, or a QR image data URL' })
+  @ApiProperty({
+    description: 'Signed QR payload returned by IRP, or a QR image data URL',
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(350000)

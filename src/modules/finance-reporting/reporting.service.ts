@@ -72,8 +72,13 @@ export class ReportingService {
     await this.access.assertCanViewFinance(u);
     const from = this.day(q.from),
       to = this.end(q.to),
-      settings = await this.prisma.financeProductionSettings.findUnique({ where: { id: 'INDIA' } }),
-      bankCode = (settings?.controlAccountMap as Record<string, string> | null)?.['1000'] || '1000',
+      settings = await this.prisma.financeProductionSettings.findUnique({
+        where: { id: 'INDIA' },
+      }),
+      bankCode =
+        (settings?.controlAccountMap as Record<string, string> | null)?.[
+          '1000'
+        ] || '1000',
       journals = await this.prisma.journalEntry.findMany({
         where: { status: 'POSTED', entryDate: { gte: from, lte: to } },
         include: { lines: { include: { account: true } } },
@@ -242,16 +247,24 @@ export class ReportingService {
     });
     const employees = await this.prisma.employee.findMany({
       where: { id: { in: grants.map((x) => x.employeeId) } },
-      select: { id: true, employeeId: true, firstName: true, lastName: true, email: true, status: true },
+      select: {
+        id: true,
+        employeeId: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        status: true,
+      },
     });
     const byId = new Map(employees.map((x) => [x.id, x]));
-    return grants.map((x) => ({ ...x, employee: byId.get(x.employeeId) ?? null }));
+    return grants.map((x) => ({
+      ...x,
+      employee: byId.get(x.employeeId) ?? null,
+    }));
   }
   async revokeAuditor(employeeId: string, u: AuthenticatedUser) {
     if (u.role !== Role.SUPER_ADMIN)
-      throw new ForbiddenException(
-        'Only the CEO can revoke auditor access',
-      );
+      throw new ForbiddenException('Only the CEO can revoke auditor access');
     return this.prisma.financeAuditorGrant.update({
       where: { employeeId },
       data: { isActive: false, revokedById: u.id, revokedAt: new Date() },
@@ -463,8 +476,14 @@ export class ReportingService {
           new Prisma.Decimal(0),
         );
     const earnings = trial.reduce((sum, x) => {
-      if (['REVENUE', 'OTHER_INCOME'].includes(x.accountType)) return sum.plus(new Prisma.Decimal(x.credit).minus(x.debit));
-      if (['COST_OF_GOODS_SOLD', 'EXPENSE', 'OTHER_EXPENSE'].includes(x.accountType)) return sum.minus(new Prisma.Decimal(x.debit).minus(x.credit));
+      if (['REVENUE', 'OTHER_INCOME'].includes(x.accountType))
+        return sum.plus(new Prisma.Decimal(x.credit).minus(x.debit));
+      if (
+        ['COST_OF_GOODS_SOLD', 'EXPENSE', 'OTHER_EXPENSE'].includes(
+          x.accountType,
+        )
+      )
+        return sum.minus(new Prisma.Decimal(x.debit).minus(x.credit));
       return sum;
     }, new Prisma.Decimal(0));
     const equity = total('EQUITY').plus(earnings);
@@ -482,8 +501,13 @@ export class ReportingService {
     };
   }
   private async cashBalance(from: Date, to: Date) {
-    const settings = await this.prisma.financeProductionSettings.findUnique({ where: { id: 'INDIA' } });
-    const code = (settings?.controlAccountMap as Record<string, string> | null)?.['1000'] || '1000';
+    const settings = await this.prisma.financeProductionSettings.findUnique({
+      where: { id: 'INDIA' },
+    });
+    const code =
+      (settings?.controlAccountMap as Record<string, string> | null)?.[
+        '1000'
+      ] || '1000';
     const x = await this.prisma.journalLine.aggregate({
       where: {
         account: { code },

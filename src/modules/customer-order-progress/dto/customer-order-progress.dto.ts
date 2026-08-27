@@ -48,7 +48,9 @@ export class CustomerDeliverySignoffDto extends ResolveCustomerProgressDto {
 
   @IsOptional()
   @Transform(({ value }) =>
-    value === '' || value === null || value === undefined ? undefined : Number(value),
+    value === '' || value === null || value === undefined
+      ? undefined
+      : Number(value),
   )
   @IsInt()
   @Min(1)

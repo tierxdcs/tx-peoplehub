@@ -131,11 +131,15 @@ export class VendorQuestionnaireEntity {
 export class VendorInviteEntity {
   @ApiProperty() id!: string;
   @ApiProperty() questionnaireId!: string;
-  @ApiProperty({ description: 'The public token — build the vendor URL from this' })
+  @ApiProperty({
+    description: 'The public token — build the vendor URL from this',
+  })
   token!: string;
   @ApiProperty() expiresAt!: string;
   @ApiProperty({ nullable: true }) revokedAt!: string | null;
-  @ApiProperty({ description: 'Whether a password is required to open the link' })
+  @ApiProperty({
+    description: 'Whether a password is required to open the link',
+  })
   hasPassword!: boolean;
   @ApiProperty() createdById!: string;
   @ApiProperty() createdAt!: string;
@@ -170,8 +174,14 @@ export class VendorAuditEntity {
   @ApiProperty({ description: 'Computed sum of the 10 category scores (/100)' })
   totalScore!: number;
   @ApiProperty({
-    enum: ['APPROVED_PREFERRED', 'APPROVED', 'CONDITIONALLY_APPROVED', 'NOT_APPROVED'],
-    description: 'Computed from totalScore (thresholds 90/80/70) — never hidden',
+    enum: [
+      'APPROVED_PREFERRED',
+      'APPROVED',
+      'CONDITIONALLY_APPROVED',
+      'NOT_APPROVED',
+    ],
+    description:
+      'Computed from totalScore (thresholds 90/80/70) — never hidden',
   })
   classification!: VendorClassification;
   @ApiProperty() classificationLabel!: string;
@@ -179,7 +189,12 @@ export class VendorAuditEntity {
   // ── SuperAdmin classification override (null = none; use computed) ──
   @ApiProperty({
     nullable: true,
-    enum: ['APPROVED_PREFERRED', 'APPROVED', 'CONDITIONALLY_APPROVED', 'NOT_APPROVED'],
+    enum: [
+      'APPROVED_PREFERRED',
+      'APPROVED',
+      'CONDITIONALLY_APPROVED',
+      'NOT_APPROVED',
+    ],
     description: 'SuperAdmin-forced classification, independent of the score',
   })
   overrideClassification!: VendorClassification | null;
@@ -189,7 +204,12 @@ export class VendorAuditEntity {
   @ApiProperty({ nullable: true }) overriddenByName!: string | null;
   @ApiProperty({ nullable: true }) overriddenAt!: string | null;
   @ApiProperty({
-    enum: ['APPROVED_PREFERRED', 'APPROVED', 'CONDITIONALLY_APPROVED', 'NOT_APPROVED'],
+    enum: [
+      'APPROVED_PREFERRED',
+      'APPROVED',
+      'CONDITIONALLY_APPROVED',
+      'NOT_APPROVED',
+    ],
     description: 'override ?? computed — the classification actually in effect',
   })
   effectiveClassification!: VendorClassification;

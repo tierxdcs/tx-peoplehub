@@ -50,7 +50,13 @@ export class OtdService {
     let totalDelayDays = 0;
     const byCustomer = new Map<
       string,
-      { customerId: string; customerName: string; total: number; onTime: number; late: number }
+      {
+        customerId: string;
+        customerName: string;
+        total: number;
+        onTime: number;
+        late: number;
+      }
     >();
 
     const rows = dcs.map((dc) => {
@@ -94,12 +100,18 @@ export class OtdService {
         totalDelivered: total,
         onTime,
         late,
-        onTimePercentage: total ? Math.round((onTime / total) * 1000) / 10 : null,
-        averageDelayDays: late ? Math.round((totalDelayDays / late) * 10) / 10 : 0,
+        onTimePercentage: total
+          ? Math.round((onTime / total) * 1000) / 10
+          : null,
+        averageDelayDays: late
+          ? Math.round((totalDelayDays / late) * 10) / 10
+          : 0,
       },
       byCustomer: [...byCustomer.values()].map((c) => ({
         ...c,
-        onTimePercentage: c.total ? Math.round((c.onTime / c.total) * 1000) / 10 : null,
+        onTimePercentage: c.total
+          ? Math.round((c.onTime / c.total) * 1000) / 10
+          : null,
       })),
       dispatches: rows,
     };

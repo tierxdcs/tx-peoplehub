@@ -19,6 +19,7 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { ProvisioningService } from '../provisioning/provisioning.service';
 import { EncryptionService } from '../../core/crypto/encryption.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { PendingQueue } from '../../common/types/pending-queue';
 import {
   PaginatedResult,
   PaginationQueryDto,
@@ -589,159 +590,161 @@ export class EmployeesService {
       new Date(dto.compensation.effectiveDate),
     );
 
-    const employee = await this.prisma.$transaction(async (tx) => {
-      if (dto.candidateRequisitionId) {
-        const requisition = await tx.candidateRequisition.findUnique({
-          where: { id: dto.candidateRequisitionId },
-          select: {
-            status: true,
-            hiringStage: true,
-            onboardedEmployeeId: true,
-          },
-        });
-        if (
-          !requisition ||
-          requisition.status !== 'APPROVED' ||
-          requisition.hiringStage !== CandidateHiringStage.CANDIDATE_SELECTED
-        ) {
-          throw new BadRequestException(
-            'The selected requisition must be Approved and Fulfilled',
-          );
+    const employee = await this.prisma
+      .$transaction(async (tx) => {
+        if (dto.candidateRequisitionId) {
+          const requisition = await tx.candidateRequisition.findUnique({
+            where: { id: dto.candidateRequisitionId },
+            select: {
+              status: true,
+              hiringStage: true,
+              onboardedEmployeeId: true,
+            },
+          });
+          if (
+            !requisition ||
+            requisition.status !== 'APPROVED' ||
+            requisition.hiringStage !== CandidateHiringStage.CANDIDATE_SELECTED
+          ) {
+            throw new BadRequestException(
+              'The selected requisition must be Approved and Fulfilled',
+            );
+          }
+          if (requisition.onboardedEmployeeId) {
+            throw new ConflictException(
+              'The selected requisition is already linked to a completed onboarding',
+            );
+          }
         }
-        if (requisition.onboardedEmployeeId) {
-          throw new ConflictException(
-            'The selected requisition is already linked to a completed onboarding',
-          );
-        }
-      }
 
-      const employeeId = await this.nextEmployeeCode(
-        tx,
-        new Date().getFullYear(),
-      );
-      const officialEmail = dto.officialEmail
-        ? await this.validateRequestedOfficialEmail(tx, dto.officialEmail)
-        : await this.generateOfficialEmail(tx, dto.firstName, dto.lastName);
-
-      const created = await tx.employee.create({
-        data: {
-          employeeId,
-          firstName: dto.firstName,
-          lastName: dto.lastName,
-          email: officialEmail,
-          officialEmail,
-          verticalId: dto.verticalId,
-          accessStatus: AccessStatus.PENDING_ACCESS,
-          dateOfBirth: new Date(dto.dateOfBirth),
-          gender: dto.gender,
-          personalEmail: dto.personalEmail,
-          mobile: dto.mobile,
-          designation: dto.designation,
-          employmentType: dto.employmentType,
-          dateOfJoining: new Date(dto.dateOfJoining),
-          workLocation: dto.workLocation,
-          territory: dto.territory?.trim() || null,
-          emergencyContactName: dto.emergencyContactName,
-          emergencyContactRelation: dto.emergencyContactRelation,
-          emergencyContactPhone: dto.emergencyContactPhone,
-          photoStorageKey,
-        },
-      });
-
-      // Recalculate server-side from effective statutory configuration. The
-      // browser submits only target CTC, never trusted component amounts.
-      await tx.salaryStructure.create({
-        data: {
-          employeeId: created.id,
-          effectiveFrom: new Date(dto.compensation.effectiveDate),
-          basic: calculatedCompensation.basicMonthly,
-          hra: calculatedCompensation.hraMonthly,
-          // Existing schema's Special Allowance slot represents the separately
-          // displayed fixed Conveyance component for CTC-created structures.
-          specialAllowance: calculatedCompensation.conveyanceMonthly,
-          otherAllowances: calculatedCompensation.otherAllowanceMonthly,
-          variablePay: calculatedCompensation.incentiveAnnual,
-          ctcAnnual: calculatedCompensation.annualCtc,
-          createdById: currentUser.id,
-        },
-      });
-
-      await tx.employeeStatutoryInfo.create({
-        data: {
-          employeeId: created.id,
-          panNumber: encryptedPan,
-          aadhaarLast4: dto.statutoryInfo.aadhaarLast4,
-          pfAccountNumber: encryptedPf,
-          esicNumber: encryptedEsic,
-        },
-      });
-
-      await tx.employeeBankDetails.create({
-        data: {
-          employeeId: created.id,
-          bankAccountNumber: encryptedAccountNumber,
-          ifscCode: dto.bankDetails.ifscCode,
-        },
-      });
-
-      // Vault: every onboarded employee gets exactly one PERSONAL folder
-      // (private, undeletable, versioning not configurable). Created in the
-      // same transaction as the Employee row so an employee can never exist
-      // without one; a DB partial unique index guarantees at most one.
-      await tx.vaultFolder.create({
-        data: {
-          name: 'My Documents',
-          type: 'PERSONAL',
-          ownerId: created.id,
-          visibilityScope: 'PRIVATE',
-        },
-      });
-
-      if (dto.candidateRequisitionId) {
-        // Claim and fulfil inside the employee transaction. updateMany gives us
-        // a race-safe compare-and-set: concurrent submissions cannot consume
-        // the same approved requisition twice.
-        const claimed = await tx.candidateRequisition.updateMany({
-          where: {
-            id: dto.candidateRequisitionId,
-            status: 'APPROVED',
-            hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
-            onboardedEmployeeId: null,
-          },
-          data: {
-            onboardedEmployeeId: created.id,
-            selectedCandidateName:
-              `${created.firstName} ${created.lastName}`.trim(),
-            hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
-          },
-        });
-        if (claimed.count !== 1) {
-          throw new ConflictException(
-            'The selected requisition is no longer available for onboarding',
-          );
-        }
-      }
-
-      return created;
-    }).catch((error) => {
-      // Defense-in-depth: the email pre-checks above should catch collisions,
-      // but a concurrent onboarding (or a value that raced past them) can still
-      // trip a unique constraint. Surface a clean 409 instead of an opaque 500 —
-      // same pattern as the P2003 backstop in hardDelete.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        const target = error.meta?.target;
-        const fields = Array.isArray(target)
-          ? target.join(', ')
-          : 'official email';
-        throw new ConflictException(
-          `Onboarding failed: an existing employee already uses the same ${fields}. Review the official email before onboarding.`,
+        const employeeId = await this.nextEmployeeCode(
+          tx,
+          new Date().getFullYear(),
         );
-      }
-      throw error;
-    });
+        const officialEmail = dto.officialEmail
+          ? await this.validateRequestedOfficialEmail(tx, dto.officialEmail)
+          : await this.generateOfficialEmail(tx, dto.firstName, dto.lastName);
+
+        const created = await tx.employee.create({
+          data: {
+            employeeId,
+            firstName: dto.firstName,
+            lastName: dto.lastName,
+            email: officialEmail,
+            officialEmail,
+            verticalId: dto.verticalId,
+            accessStatus: AccessStatus.PENDING_ACCESS,
+            dateOfBirth: new Date(dto.dateOfBirth),
+            gender: dto.gender,
+            personalEmail: dto.personalEmail,
+            mobile: dto.mobile,
+            designation: dto.designation,
+            employmentType: dto.employmentType,
+            dateOfJoining: new Date(dto.dateOfJoining),
+            workLocation: dto.workLocation,
+            territory: dto.territory?.trim() || null,
+            emergencyContactName: dto.emergencyContactName,
+            emergencyContactRelation: dto.emergencyContactRelation,
+            emergencyContactPhone: dto.emergencyContactPhone,
+            photoStorageKey,
+          },
+        });
+
+        // Recalculate server-side from effective statutory configuration. The
+        // browser submits only target CTC, never trusted component amounts.
+        await tx.salaryStructure.create({
+          data: {
+            employeeId: created.id,
+            effectiveFrom: new Date(dto.compensation.effectiveDate),
+            basic: calculatedCompensation.basicMonthly,
+            hra: calculatedCompensation.hraMonthly,
+            // Existing schema's Special Allowance slot represents the separately
+            // displayed fixed Conveyance component for CTC-created structures.
+            specialAllowance: calculatedCompensation.conveyanceMonthly,
+            otherAllowances: calculatedCompensation.otherAllowanceMonthly,
+            variablePay: calculatedCompensation.incentiveAnnual,
+            ctcAnnual: calculatedCompensation.annualCtc,
+            createdById: currentUser.id,
+          },
+        });
+
+        await tx.employeeStatutoryInfo.create({
+          data: {
+            employeeId: created.id,
+            panNumber: encryptedPan,
+            aadhaarLast4: dto.statutoryInfo.aadhaarLast4,
+            pfAccountNumber: encryptedPf,
+            esicNumber: encryptedEsic,
+          },
+        });
+
+        await tx.employeeBankDetails.create({
+          data: {
+            employeeId: created.id,
+            bankAccountNumber: encryptedAccountNumber,
+            ifscCode: dto.bankDetails.ifscCode,
+          },
+        });
+
+        // Vault: every onboarded employee gets exactly one PERSONAL folder
+        // (private, undeletable, versioning not configurable). Created in the
+        // same transaction as the Employee row so an employee can never exist
+        // without one; a DB partial unique index guarantees at most one.
+        await tx.vaultFolder.create({
+          data: {
+            name: 'My Documents',
+            type: 'PERSONAL',
+            ownerId: created.id,
+            visibilityScope: 'PRIVATE',
+          },
+        });
+
+        if (dto.candidateRequisitionId) {
+          // Claim and fulfil inside the employee transaction. updateMany gives us
+          // a race-safe compare-and-set: concurrent submissions cannot consume
+          // the same approved requisition twice.
+          const claimed = await tx.candidateRequisition.updateMany({
+            where: {
+              id: dto.candidateRequisitionId,
+              status: 'APPROVED',
+              hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
+              onboardedEmployeeId: null,
+            },
+            data: {
+              onboardedEmployeeId: created.id,
+              selectedCandidateName:
+                `${created.firstName} ${created.lastName}`.trim(),
+              hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
+            },
+          });
+          if (claimed.count !== 1) {
+            throw new ConflictException(
+              'The selected requisition is no longer available for onboarding',
+            );
+          }
+        }
+
+        return created;
+      })
+      .catch((error) => {
+        // Defense-in-depth: the email pre-checks above should catch collisions,
+        // but a concurrent onboarding (or a value that raced past them) can still
+        // trip a unique constraint. Surface a clean 409 instead of an opaque 500 —
+        // same pattern as the P2003 backstop in hardDelete.
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          const target = error.meta?.target;
+          const fields = Array.isArray(target)
+            ? target.join(', ')
+            : 'official email';
+          throw new ConflictException(
+            `Onboarding failed: an existing employee already uses the same ${fields}. Review the official email before onboarding.`,
+          );
+        }
+        throw error;
+      });
 
     return this.toEntity(employee);
   }
@@ -851,14 +854,24 @@ export class EmployeesService {
   };
 
   /**
-   * Count of employees awaiting access (company-wide, same where-clause as the
-   * list). Role gating (ADMIN/SUPER_ADMIN) is applied by the caller — the
-   * notifications endpoint returns 0 for other roles.
+   * Badge summary for employees awaiting access (company-wide, same
+   * where-clause as the list): count plus when the longest-waiting one was
+   * created. The list itself is newest-first for review convenience; the badge
+   * needs the OLDEST, so it orders ascending. Role gating (ADMIN/SUPER_ADMIN) is
+   * applied by the caller — the notifications endpoint reports an empty queue
+   * for other roles.
    */
-  async countPendingAccess(): Promise<number> {
-    return this.prisma.employee.count({
-      where: EmployeesService.PENDING_ACCESS_WHERE,
-    });
+  async pendingAccessQueue(): Promise<PendingQueue> {
+    const where = EmployeesService.PENDING_ACCESS_WHERE;
+    const [count, oldest] = await Promise.all([
+      this.prisma.employee.count({ where }),
+      this.prisma.employee.findFirst({
+        where,
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      }),
+    ]);
+    return { count, oldestPendingAt: oldest?.createdAt ?? null };
   }
 
   /** Employees still awaiting an Admin's grant-access decision. */

@@ -631,7 +631,9 @@ export class SalesDashboardService {
     months: MonthBucket[],
     now: Date,
   ) {
-    const outstanding = sumDecimals(openInvoices.map((i) => i.outstandingAmount));
+    const outstanding = sumDecimals(
+      openInvoices.map((i) => i.outstandingAmount),
+    );
     const overdue = sumDecimals(
       openInvoices
         .filter((i) => i.dueDate < now)
@@ -681,7 +683,10 @@ export class SalesDashboardService {
         .map((o) => o.customerId)
         .filter((id): id is string => id !== null),
     );
-    const byCustomer = new Map<string, { name: string; value: Prisma.Decimal }>();
+    const byCustomer = new Map<
+      string,
+      { name: string; value: Prisma.Decimal }
+    >();
     let newValue = ZERO;
     let repeatValue = ZERO;
     const newIds = new Set<string>();
@@ -829,7 +834,9 @@ export class SalesDashboardService {
       label: bucket.label,
       value: money(
         sumDecimals(
-          rows.filter((r) => monthKeyOf(r.at) === bucket.key).map((r) => r.value),
+          rows
+            .filter((r) => monthKeyOf(r.at) === bucket.key)
+            .map((r) => r.value),
         ),
       ),
     }));

@@ -30,16 +30,24 @@ export class CreateSupplierDto {
   @ApiPropertyOptional() @IsOptional() @IsString() yearEstablished?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() numberOfEmployees?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() annualTurnover?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() msmeUdyamCertificate?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  msmeUdyamCertificate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() contactPersonName?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() contactPersonDesignation?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  contactPersonDesignation?: string;
   @ApiProperty() @IsString() @MinLength(1) contactEmail!: string;
   @ApiPropertyOptional() @IsOptional() @IsString() contactPhone?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() website?: string;
 }
 
 export class CreateInviteDto {
-  @ApiPropertyOptional({ description: 'Link lifetime in hours (default 336 = 14 days)' })
+  @ApiPropertyOptional({
+    description: 'Link lifetime in hours (default 336 = 14 days)',
+  })
   @IsOptional()
   @IsInt()
   @Min(1)
@@ -64,9 +72,15 @@ export class PublicCompanyInfoDto {
   @ApiPropertyOptional() @IsOptional() @IsString() yearEstablished?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() numberOfEmployees?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() annualTurnover?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() msmeUdyamCertificate?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  msmeUdyamCertificate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() contactPersonName?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() contactPersonDesignation?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  contactPersonDesignation?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() contactPhone?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() website?: string;
 }
@@ -86,11 +100,20 @@ export class PublicQuestionnaireSaveDto {
   companyInfo?: PublicCompanyInfoDto;
 
   @ApiPropertyOptional() @IsOptional() @IsObject() materialRange?: object;
-  @ApiPropertyOptional() @IsOptional() @IsObject() materialCertifications?: object;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  materialCertifications?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() compliance?: object;
-  @ApiPropertyOptional() @IsOptional() @IsObject() qualityCertifications?: object;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  qualityCertifications?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() commercialTerms?: object;
-  @ApiPropertyOptional() @IsOptional() @IsObject() packagingAndDelivery?: object;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  packagingAndDelivery?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() logistics?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() references?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() declaration?: object;
@@ -104,7 +127,10 @@ export class PublicCertUploadUrlDto {
   @ApiPropertyOptional() @IsOptional() @IsString() password?: string;
   @ApiProperty() @IsString() @MinLength(1) name!: string;
   @ApiProperty() @IsString() mimeType!: string;
-  @ApiProperty({ description: 'Expected size in bytes' }) @IsInt() @Min(0) sizeBytes!: number;
+  @ApiProperty({ description: 'Expected size in bytes' })
+  @IsInt()
+  @Min(0)
+  sizeBytes!: number;
 }
 
 export class PublicCertConfirmDto {
@@ -126,7 +152,11 @@ export class CreateAuditDto {
   @IsDateString()
   auditDate!: string;
 
-  @ApiProperty() @IsNumber() @Min(0) @Max(30) materialCertificationsQualityScore!: number;
+  @ApiProperty()
+  @IsNumber()
+  @Min(0)
+  @Max(30)
+  materialCertificationsQualityScore!: number;
   @ApiProperty() @IsNumber() @Min(0) @Max(15) complianceScore!: number;
   @ApiProperty() @IsNumber() @Min(0) @Max(20) commercialTermsScore!: number;
   @ApiProperty() @IsNumber() @Min(0) @Max(15) logisticsDeliveryScore!: number;

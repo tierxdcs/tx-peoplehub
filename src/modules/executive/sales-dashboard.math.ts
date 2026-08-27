@@ -48,7 +48,8 @@ const MONTH_LABELS = [
  * "YTD" on this dashboard means the same year as the statutory reports.
  */
 export function fiscalYearFor(now: Date): FiscalPeriod {
-  const year = now.getUTCMonth() >= 3 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+  const year =
+    now.getUTCMonth() >= 3 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
   return {
     label: `FY ${year}-${String(year + 1).slice(-2)}`,
     startsOn: new Date(Date.UTC(year, 3, 1)),
@@ -122,7 +123,9 @@ export function sumDecimals(values: Prisma.Decimal[]): Prisma.Decimal {
  * Plain mean, or null for an empty set. Null (not zero) is the honest answer
  * when there is nothing to average — the UI renders it as "No data", never 0%.
  */
-export function averageDecimal(values: Prisma.Decimal[]): Prisma.Decimal | null {
+export function averageDecimal(
+  values: Prisma.Decimal[],
+): Prisma.Decimal | null {
   if (values.length === 0) return null;
   return sumDecimals(values).dividedBy(values.length);
 }

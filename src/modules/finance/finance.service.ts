@@ -30,7 +30,10 @@ const JOURNAL_INCLUDE = {
   period: true,
   createdBy: { select: { id: true, firstName: true, lastName: true } },
   approvedBy: { select: { id: true, firstName: true, lastName: true } },
-  lines: { include: { account: true, costCenter: true }, orderBy: { sequence: 'asc' as const } },
+  lines: {
+    include: { account: true, costCenter: true },
+    orderBy: { sequence: 'asc' as const },
+  },
 };
 
 @Injectable()
@@ -47,11 +50,16 @@ export class FinanceService {
   async createFiscalYear(dto: CreateFiscalYearDto, user: AuthenticatedUser) {
     await this.access.assertCanUseFinance(user);
     const startsOn = new Date(Date.UTC(dto.startYear, 3, 1));
-    const endsOn = new Date(Date.UTC(dto.startYear + 1, 2, 31, 23, 59, 59, 999));
+    const endsOn = new Date(
+      Date.UTC(dto.startYear + 1, 2, 31, 23, 59, 59, 999),
+    );
     const overlap = await this.prisma.fiscalYear.findFirst({
       where: { startsOn: { lte: endsOn }, endsOn: { gte: startsOn } },
     });
-    if (overlap) throw new ConflictException('A fiscal year already covers this date range');
+    if (overlap)
+      throw new ConflictException(
+        'A fiscal year already covers this date range',
+      );
     return this.prisma.fiscalYear.create({
       data: {
         name: dto.name,
@@ -61,10 +69,16 @@ export class FinanceService {
         periods: {
           create: Array.from({ length: 12 }, (_, index) => {
             const starts = new Date(Date.UTC(dto.startYear, 3 + index, 1));
-            const ends = new Date(Date.UTC(dto.startYear, 4 + index, 0, 23, 59, 59, 999));
+            const ends = new Date(
+              Date.UTC(dto.startYear, 4 + index, 0, 23, 59, 59, 999),
+            );
             return {
               periodNumber: index + 1,
-              name: starts.toLocaleString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' }),
+              name: starts.toLocaleString('en-IN', {
+                month: 'long',
+                year: 'numeric',
+                timeZone: 'UTC',
+              }),
               startsOn: starts,
               endsOn: ends,
             };
@@ -83,11 +97,20 @@ export class FinanceService {
     });
   }
 
-  async setPeriodStatus(id: string, status: AccountingPeriodStatus, user: AuthenticatedUser) {
+  async setPeriodStatus(
+    id: string,
+    status: AccountingPeriodStatus,
+    user: AuthenticatedUser,
+  ) {
     await this.access.assertAccountsHead(user);
-    const period = await this.prisma.accountingPeriod.findUnique({ where: { id } });
+    const period = await this.prisma.accountingPeriod.findUnique({
+      where: { id },
+    });
     if (!period) throw new NotFoundException('Accounting period not found');
-    return this.prisma.accountingPeriod.update({ where: { id }, data: { status } });
+    return this.prisma.accountingPeriod.update({
+      where: { id },
+      data: { status },
+    });
   }
 
   async createAccount(dto: CreateAccountDto, user: AuthenticatedUser) {
@@ -103,10 +126,15 @@ export class FinanceService {
     return this.prisma.ledgerAccount.findMany({ orderBy: { code: 'asc' } });
   }
 
-  async updateAccount(id: string, dto: UpdateAccountDto, user: AuthenticatedUser) {
+  async updateAccount(
+    id: string,
+    dto: UpdateAccountDto,
+    user: AuthenticatedUser,
+  ) {
     await this.access.assertCanUseFinance(user);
     await this.assertAccount(id);
-    if (dto.parentId === id) throw new BadRequestException('An account cannot be its own parent');
+    if (dto.parentId === id)
+      throw new BadRequestException('An account cannot be its own parent');
     return this.prisma.ledgerAccount.update({ where: { id }, data: dto });
   }
 
@@ -124,15 +152,25 @@ export class FinanceService {
 
   async currencies(user: AuthenticatedUser) {
     await this.access.assertCanUseFinance(user);
-    return this.prisma.currency.findMany({ where: { isActive: true }, orderBy: { code: 'asc' } });
+    return this.prisma.currency.findMany({
+      where: { isActive: true },
+      orderBy: { code: 'asc' },
+    });
   }
 
-  async createExchangeRate(dto: CreateExchangeRateDto, user: AuthenticatedUser) {
+  async createExchangeRate(
+    dto: CreateExchangeRateDto,
+    user: AuthenticatedUser,
+  ) {
     await this.access.assertCanUseFinance(user);
     const code = dto.currencyCode.toUpperCase();
-    if (code === 'INR') throw new BadRequestException('INR is the base currency and does not need an exchange rate');
+    if (code === 'INR')
+      throw new BadRequestException(
+        'INR is the base currency and does not need an exchange rate',
+      );
     const currency = await this.prisma.currency.findUnique({ where: { code } });
-    if (!currency?.isActive) throw new BadRequestException('Unsupported or inactive currency');
+    if (!currency?.isActive)
+      throw new BadRequestException('Unsupported or inactive currency');
     return this.prisma.exchangeRate.create({
       data: {
         currencyCode: code,
@@ -146,7 +184,10 @@ export class FinanceService {
 
   async exchangeRates(user: AuthenticatedUser) {
     await this.access.assertCanUseFinance(user);
-    return this.prisma.exchangeRate.findMany({ include: { currency: true }, orderBy: { effectiveOn: 'desc' } });
+    return this.prisma.exchangeRate.findMany({
+      include: { currency: true },
+      orderBy: { effectiveOn: 'desc' },
+    });
   }
 
   async createJournal(dto: CreateJournalDto, user: AuthenticatedUser) {
@@ -155,15 +196,28 @@ export class FinanceService {
     const entryDate = this.utcDay(dto.entryDate);
     const period = await this.findOpenPeriod(entryDate);
     const accounts = await this.prisma.ledgerAccount.findMany({
-      where: { id: { in: dto.lines.map((line) => line.accountId) }, isActive: true },
+      where: {
+        id: { in: dto.lines.map((line) => line.accountId) },
+        isActive: true,
+      },
     });
-    if (accounts.length !== new Set(dto.lines.map((line) => line.accountId)).size) {
-      throw new BadRequestException('Every journal line must reference an active ledger account');
+    if (
+      accounts.length !== new Set(dto.lines.map((line) => line.accountId)).size
+    ) {
+      throw new BadRequestException(
+        'Every journal line must reference an active ledger account',
+      );
     }
     return this.prisma.$transaction(async (tx) => {
       const seq = await tx.financeSequence.upsert({
-        where: { entity_year: { entity: 'JOURNAL', year: entryDate.getUTCFullYear() } },
-        create: { entity: 'JOURNAL', year: entryDate.getUTCFullYear(), lastValue: 1 },
+        where: {
+          entity_year: { entity: 'JOURNAL', year: entryDate.getUTCFullYear() },
+        },
+        create: {
+          entity: 'JOURNAL',
+          year: entryDate.getUTCFullYear(),
+          lastValue: 1,
+        },
         update: { lastValue: { increment: 1 } },
       });
       const journalNumber = `JV-${entryDate.getUTCFullYear()}-${String(seq.lastValue).padStart(5, '0')}`;
@@ -192,11 +246,21 @@ export class FinanceService {
     });
   }
 
-  async journals(query: PaginationQueryDto, user: AuthenticatedUser, pendingOnly = false) {
+  async journals(
+    query: PaginationQueryDto,
+    user: AuthenticatedUser,
+    pendingOnly = false,
+  ) {
     await this.access.assertCanUseFinance(user);
     const where = pendingOnly ? { status: JournalStatus.PENDING_APPROVAL } : {};
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.journalEntry.findMany({ where, include: JOURNAL_INCLUDE, orderBy: { entryDate: 'desc' }, skip: query.skip, take: query.limit }),
+      this.prisma.journalEntry.findMany({
+        where,
+        include: JOURNAL_INCLUDE,
+        orderBy: { entryDate: 'desc' },
+        skip: query.skip,
+        take: query.limit,
+      }),
       this.prisma.journalEntry.count({ where }),
     ]);
     return { items, total, page: query.page, limit: query.limit };
@@ -227,8 +291,7 @@ export class FinanceService {
       },
     });
     if (
-      accounts.length !==
-      new Set(dto.lines.map((line) => line.accountId)).size
+      accounts.length !== new Set(dto.lines.map((line) => line.accountId)).size
     ) {
       throw new BadRequestException(
         'Every journal line must reference an active ledger account',
@@ -276,12 +339,26 @@ export class FinanceService {
       journal.status !== JournalStatus.DRAFT &&
       journal.status !== JournalStatus.REJECTED
     ) {
-      throw new BadRequestException('Only a draft or rejected journal can be submitted');
+      throw new BadRequestException(
+        'Only a draft or rejected journal can be submitted',
+      );
     }
-    this.validateLines(journal.lines.map((line) => ({ debit: Number(line.debit), credit: Number(line.credit) })));
+    this.validateLines(
+      journal.lines.map((line) => ({
+        debit: Number(line.debit),
+        credit: Number(line.credit),
+      })),
+    );
     return this.prisma.journalEntry.update({
       where: { id },
-      data: { status: JournalStatus.PENDING_APPROVAL, submittedById: user.id, submittedAt: new Date(), rejectedById: null, rejectedAt: null, rejectionComment: null },
+      data: {
+        status: JournalStatus.PENDING_APPROVAL,
+        submittedById: user.id,
+        submittedAt: new Date(),
+        rejectedById: null,
+        rejectedAt: null,
+        rejectionComment: null,
+      },
       include: JOURNAL_INCLUDE,
     });
   }
@@ -289,13 +366,24 @@ export class FinanceService {
   async approveJournal(id: string, user: AuthenticatedUser) {
     await this.access.assertAccountsHead(user);
     const journal = await this.findJournal(id);
-    if (journal.status !== JournalStatus.PENDING_APPROVAL) throw new BadRequestException('Only a pending journal can be approved');
-    if (journal.createdById === user.id) throw new BadRequestException('The Finance Head cannot approve a journal they created');
-    const period = await this.prisma.accountingPeriod.findUnique({ where: { id: journal.periodId } });
-    if (period?.status !== AccountingPeriodStatus.OPEN) throw new BadRequestException('The accounting period is not open');
+    if (journal.status !== JournalStatus.PENDING_APPROVAL)
+      throw new BadRequestException('Only a pending journal can be approved');
+    if (journal.createdById === user.id)
+      throw new BadRequestException(
+        'The Finance Head cannot approve a journal they created',
+      );
+    const period = await this.prisma.accountingPeriod.findUnique({
+      where: { id: journal.periodId },
+    });
+    if (period?.status !== AccountingPeriodStatus.OPEN)
+      throw new BadRequestException('The accounting period is not open');
     return this.prisma.journalEntry.update({
       where: { id },
-      data: { status: JournalStatus.POSTED, approvedById: user.id, approvedAt: new Date() },
+      data: {
+        status: JournalStatus.POSTED,
+        approvedById: user.id,
+        approvedAt: new Date(),
+      },
       include: JOURNAL_INCLUDE,
     });
   }
@@ -303,10 +391,16 @@ export class FinanceService {
   async rejectJournal(id: string, comment: string, user: AuthenticatedUser) {
     await this.access.assertAccountsHead(user);
     const journal = await this.findJournal(id);
-    if (journal.status !== JournalStatus.PENDING_APPROVAL) throw new BadRequestException('Only a pending journal can be rejected');
+    if (journal.status !== JournalStatus.PENDING_APPROVAL)
+      throw new BadRequestException('Only a pending journal can be rejected');
     return this.prisma.journalEntry.update({
       where: { id },
-      data: { status: JournalStatus.REJECTED, rejectedById: user.id, rejectedAt: new Date(), rejectionComment: comment },
+      data: {
+        status: JournalStatus.REJECTED,
+        rejectedById: user.id,
+        rejectedAt: new Date(),
+        rejectionComment: comment,
+      },
       include: JOURNAL_INCLUDE,
     });
   }
@@ -314,8 +408,11 @@ export class FinanceService {
   async reverseJournal(id: string, user: AuthenticatedUser) {
     await this.access.assertAccountsHead(user);
     const original = await this.findJournal(id);
-    if (original.status !== JournalStatus.POSTED) throw new BadRequestException('Only a posted journal can be reversed');
-    const period = await this.findOpenPeriod(this.utcDay(new Date().toISOString()));
+    if (original.status !== JournalStatus.POSTED)
+      throw new BadRequestException('Only a posted journal can be reversed');
+    const period = await this.findOpenPeriod(
+      this.utcDay(new Date().toISOString()),
+    );
     return this.prisma.$transaction(async (tx) => {
       const year = new Date().getUTCFullYear();
       const seq = await tx.financeSequence.upsert({
@@ -326,16 +423,39 @@ export class FinanceService {
       const reversal = await tx.journalEntry.create({
         data: {
           journalNumber: `JV-${year}-${String(seq.lastValue).padStart(5, '0')}`,
-          entryDate: this.utcDay(new Date().toISOString()), periodId: period.id,
+          entryDate: this.utcDay(new Date().toISOString()),
+          periodId: period.id,
           description: `Reversal of ${original.journalNumber}: ${original.description}`,
-          reference: original.journalNumber, status: JournalStatus.POSTED,
-          createdById: user.id, submittedById: user.id, submittedAt: new Date(),
-          approvedById: user.id, approvedAt: new Date(), reversalOfId: original.id,
-          lines: { create: original.lines.map((line) => ({ sequence: line.sequence, accountId: line.accountId, description: line.description, debit: line.credit, credit: line.debit, costCenterId: line.costCenterId, projectReference: line.projectReference })) },
+          reference: original.journalNumber,
+          status: JournalStatus.POSTED,
+          createdById: user.id,
+          submittedById: user.id,
+          submittedAt: new Date(),
+          approvedById: user.id,
+          approvedAt: new Date(),
+          reversalOfId: original.id,
+          lines: {
+            create: original.lines.map((line) => ({
+              sequence: line.sequence,
+              accountId: line.accountId,
+              description: line.description,
+              debit: line.credit,
+              credit: line.debit,
+              costCenterId: line.costCenterId,
+              projectReference: line.projectReference,
+            })),
+          },
         },
         include: JOURNAL_INCLUDE,
       });
-      await tx.journalEntry.update({ where: { id }, data: { status: JournalStatus.REVERSED, reversedById: user.id, reversedAt: new Date() } });
+      await tx.journalEntry.update({
+        where: { id },
+        data: {
+          status: JournalStatus.REVERSED,
+          reversedById: user.id,
+          reversedAt: new Date(),
+        },
+      });
       return reversal;
     });
   }
@@ -343,25 +463,84 @@ export class FinanceService {
   async trialBalance(query: ReportQueryDto, user: AuthenticatedUser) {
     await this.access.assertCanUseFinance(user);
     const lines = await this.reportLines(query);
-    const map = new Map<string, { accountId: string; code: string; name: string; accountType: AccountType; debit: Prisma.Decimal; credit: Prisma.Decimal }>();
+    const map = new Map<
+      string,
+      {
+        accountId: string;
+        code: string;
+        name: string;
+        accountType: AccountType;
+        debit: Prisma.Decimal;
+        credit: Prisma.Decimal;
+      }
+    >();
     for (const line of lines) {
-      const row = map.get(line.accountId) ?? { accountId: line.accountId, code: line.account.code, name: line.account.name, accountType: line.account.accountType, debit: new Prisma.Decimal(0), credit: new Prisma.Decimal(0) };
-      row.debit = row.debit.plus(line.debit); row.credit = row.credit.plus(line.credit); map.set(line.accountId, row);
+      const row = map.get(line.accountId) ?? {
+        accountId: line.accountId,
+        code: line.account.code,
+        name: line.account.name,
+        accountType: line.account.accountType,
+        debit: new Prisma.Decimal(0),
+        credit: new Prisma.Decimal(0),
+      };
+      row.debit = row.debit.plus(line.debit);
+      row.credit = row.credit.plus(line.credit);
+      map.set(line.accountId, row);
     }
-    return [...map.values()].sort((a, b) => a.code.localeCompare(b.code)).map((row) => ({ ...row, debit: row.debit.toString(), credit: row.credit.toString(), balance: row.debit.minus(row.credit).toString() }));
+    return [...map.values()]
+      .sort((a, b) => a.code.localeCompare(b.code))
+      .map((row) => ({
+        ...row,
+        debit: row.debit.toString(),
+        credit: row.credit.toString(),
+        balance: row.debit.minus(row.credit).toString(),
+      }));
   }
 
   async profitAndLoss(query: ReportQueryDto, user: AuthenticatedUser) {
     const trial = await this.trialBalance(query, user);
-    const pnlTypes = new Set<AccountType>([AccountType.REVENUE, AccountType.COST_OF_GOODS_SOLD, AccountType.EXPENSE, AccountType.OTHER_INCOME, AccountType.OTHER_EXPENSE]);
+    const pnlTypes = new Set<AccountType>([
+      AccountType.REVENUE,
+      AccountType.COST_OF_GOODS_SOLD,
+      AccountType.EXPENSE,
+      AccountType.OTHER_INCOME,
+      AccountType.OTHER_EXPENSE,
+    ]);
     const rows = trial.filter((row) => pnlTypes.has(row.accountType));
-    const total = (types: AccountType[], creditNature: boolean) => rows.filter((r) => types.includes(r.accountType)).reduce((sum, r) => sum.plus(creditNature ? new Prisma.Decimal(r.credit).minus(r.debit) : new Prisma.Decimal(r.debit).minus(r.credit)), new Prisma.Decimal(0));
+    const total = (types: AccountType[], creditNature: boolean) =>
+      rows
+        .filter((r) => types.includes(r.accountType))
+        .reduce(
+          (sum, r) =>
+            sum.plus(
+              creditNature
+                ? new Prisma.Decimal(r.credit).minus(r.debit)
+                : new Prisma.Decimal(r.debit).minus(r.credit),
+            ),
+          new Prisma.Decimal(0),
+        );
     const revenue = total([AccountType.REVENUE], true);
     const otherIncome = total([AccountType.OTHER_INCOME], true);
     const cogs = total([AccountType.COST_OF_GOODS_SOLD], false);
     const expenses = total([AccountType.EXPENSE], false);
     const otherExpenses = total([AccountType.OTHER_EXPENSE], false);
-    return { from: query.from, to: query.to, revenue: revenue.toString(), costOfGoodsSold: cogs.toString(), grossProfit: revenue.minus(cogs).toString(), operatingExpenses: expenses.toString(), otherIncome: otherIncome.toString(), otherExpenses: otherExpenses.toString(), profitBeforeTax: revenue.minus(cogs).minus(expenses).plus(otherIncome).minus(otherExpenses).toString(), accounts: rows };
+    return {
+      from: query.from,
+      to: query.to,
+      revenue: revenue.toString(),
+      costOfGoodsSold: cogs.toString(),
+      grossProfit: revenue.minus(cogs).toString(),
+      operatingExpenses: expenses.toString(),
+      otherIncome: otherIncome.toString(),
+      otherExpenses: otherExpenses.toString(),
+      profitBeforeTax: revenue
+        .minus(cogs)
+        .minus(expenses)
+        .plus(otherIncome)
+        .minus(otherExpenses)
+        .toString(),
+      accounts: rows,
+    };
   }
 
   async generalLedger(query: ReportQueryDto, user: AuthenticatedUser) {
@@ -385,7 +564,9 @@ export class FinanceService {
     const type = query.voucherType;
     // Status filter is applied per source (each has its own status enum);
     // an unmatched status simply yields no rows for that source.
-    const statusEq = query.status ? { equals: query.status as never } : undefined;
+    const statusEq = query.status
+      ? { equals: query.status as never }
+      : undefined;
 
     type Row = {
       id: string;
@@ -401,40 +582,122 @@ export class FinanceService {
 
     if (!type || type === 'SALES') {
       const invoices = await this.prisma.salesInvoice.findMany({
-        where: { invoiceDate: within, ...(statusEq ? { status: statusEq } : {}) },
-        select: { id: true, invoiceNumber: true, invoiceDate: true, totalAmount: true, status: true, customer: { select: { name: true } } },
+        where: {
+          invoiceDate: within,
+          ...(statusEq ? { status: statusEq } : {}),
+        },
+        select: {
+          id: true,
+          invoiceNumber: true,
+          invoiceDate: true,
+          totalAmount: true,
+          status: true,
+          customer: { select: { name: true } },
+        },
       });
       for (const inv of invoices)
-        rows.push({ id: inv.id, date: inv.invoiceDate, voucherType: 'SALES', voucherNumber: inv.invoiceNumber, party: inv.customer?.name ?? null, amount: inv.totalAmount.toString(), status: inv.status, detailHref: '/finance/ar/invoices' });
+        rows.push({
+          id: inv.id,
+          date: inv.invoiceDate,
+          voucherType: 'SALES',
+          voucherNumber: inv.invoiceNumber,
+          party: inv.customer?.name ?? null,
+          amount: inv.totalAmount.toString(),
+          status: inv.status,
+          detailHref: '/finance/ar/invoices',
+        });
     }
 
     if (!type || type === 'PURCHASE') {
       const bills = await this.prisma.accountsPayableInvoice.findMany({
-        where: { invoiceDate: within, ...(statusEq ? { status: statusEq } : {}) },
-        select: { id: true, internalBillNumber: true, invoiceDate: true, totalAmount: true, status: true, vendor: { select: { companyName: true } }, supplier: { select: { companyName: true } } },
+        where: {
+          invoiceDate: within,
+          ...(statusEq ? { status: statusEq } : {}),
+        },
+        select: {
+          id: true,
+          internalBillNumber: true,
+          invoiceDate: true,
+          totalAmount: true,
+          status: true,
+          vendor: { select: { companyName: true } },
+          supplier: { select: { companyName: true } },
+        },
       });
       for (const bill of bills)
-        rows.push({ id: bill.id, date: bill.invoiceDate, voucherType: 'PURCHASE', voucherNumber: bill.internalBillNumber, party: bill.vendor?.companyName ?? bill.supplier?.companyName ?? null, amount: bill.totalAmount.toString(), status: bill.status, detailHref: '/finance/ap/invoices' });
+        rows.push({
+          id: bill.id,
+          date: bill.invoiceDate,
+          voucherType: 'PURCHASE',
+          voucherNumber: bill.internalBillNumber,
+          party: bill.vendor?.companyName ?? bill.supplier?.companyName ?? null,
+          amount: bill.totalAmount.toString(),
+          status: bill.status,
+          detailHref: '/finance/ap/invoices',
+        });
     }
 
     if (!type || type === 'RECEIPT') {
       const receipts = await this.prisma.customerReceipt.findMany({
-        where: { receiptDate: within, ...(statusEq ? { status: statusEq } : {}) },
-        select: { id: true, receiptNumber: true, receiptDate: true, amount: true, status: true, customer: { select: { name: true } } },
+        where: {
+          receiptDate: within,
+          ...(statusEq ? { status: statusEq } : {}),
+        },
+        select: {
+          id: true,
+          receiptNumber: true,
+          receiptDate: true,
+          amount: true,
+          status: true,
+          customer: { select: { name: true } },
+        },
       });
       for (const rct of receipts)
-        rows.push({ id: rct.id, date: rct.receiptDate, voucherType: 'RECEIPT', voucherNumber: rct.receiptNumber, party: rct.customer?.name ?? null, amount: rct.amount.toString(), status: rct.status, detailHref: '/finance/ar/receipts' });
+        rows.push({
+          id: rct.id,
+          date: rct.receiptDate,
+          voucherType: 'RECEIPT',
+          voucherNumber: rct.receiptNumber,
+          party: rct.customer?.name ?? null,
+          amount: rct.amount.toString(),
+          status: rct.status,
+          detailHref: '/finance/ar/receipts',
+        });
     }
 
     if (!type || type === 'PAYMENT') {
       // AP payments have no single voucherDate — use executedDate when the
       // payment has gone out, otherwise the plannedDate it's scheduled for.
       const payments = await this.prisma.accountsPayablePayment.findMany({
-        where: { OR: [{ executedDate: within }, { executedDate: null, plannedDate: within }], ...(statusEq ? { status: statusEq } : {}) },
-        select: { id: true, paymentNumber: true, plannedDate: true, executedDate: true, amount: true, status: true, vendor: { select: { companyName: true } }, supplier: { select: { companyName: true } } },
+        where: {
+          OR: [
+            { executedDate: within },
+            { executedDate: null, plannedDate: within },
+          ],
+          ...(statusEq ? { status: statusEq } : {}),
+        },
+        select: {
+          id: true,
+          paymentNumber: true,
+          plannedDate: true,
+          executedDate: true,
+          amount: true,
+          status: true,
+          vendor: { select: { companyName: true } },
+          supplier: { select: { companyName: true } },
+        },
       });
       for (const pay of payments)
-        rows.push({ id: pay.id, date: pay.executedDate ?? pay.plannedDate, voucherType: 'PAYMENT', voucherNumber: pay.paymentNumber, party: pay.vendor?.companyName ?? pay.supplier?.companyName ?? null, amount: pay.amount.toString(), status: pay.status, detailHref: '/finance/ap/payments' });
+        rows.push({
+          id: pay.id,
+          date: pay.executedDate ?? pay.plannedDate,
+          voucherType: 'PAYMENT',
+          voucherNumber: pay.paymentNumber,
+          party: pay.vendor?.companyName ?? pay.supplier?.companyName ?? null,
+          amount: pay.amount.toString(),
+          status: pay.status,
+          detailHref: '/finance/ap/payments',
+        });
     }
 
     if (!type || type === 'JOURNAL') {
@@ -442,26 +705,77 @@ export class FinanceService {
       // vouchers; subledger-posted journals already surface via their own
       // voucher rows above (they carry a back-relation to the source document).
       const journals = await this.prisma.journalEntry.findMany({
-        where: { entryDate: within, ...(statusEq ? { status: statusEq } : {}), salesInvoice: null, apInvoice: null, customerReceipt: null, apPayment: null, contraVoucher: null },
-        select: { id: true, journalNumber: true, entryDate: true, description: true, status: true, lines: { select: { debit: true } } },
+        where: {
+          entryDate: within,
+          ...(statusEq ? { status: statusEq } : {}),
+          salesInvoice: null,
+          apInvoice: null,
+          customerReceipt: null,
+          apPayment: null,
+          contraVoucher: null,
+        },
+        select: {
+          id: true,
+          journalNumber: true,
+          entryDate: true,
+          description: true,
+          status: true,
+          lines: { select: { debit: true } },
+        },
       });
       for (const jnl of journals) {
-        const total = jnl.lines.reduce((sum, line) => sum.plus(line.debit), new Prisma.Decimal(0));
-        rows.push({ id: jnl.id, date: jnl.entryDate, voucherType: 'JOURNAL', voucherNumber: jnl.journalNumber, party: jnl.description, amount: total.toString(), status: jnl.status, detailHref: '/finance/journals' });
+        const total = jnl.lines.reduce(
+          (sum, line) => sum.plus(line.debit),
+          new Prisma.Decimal(0),
+        );
+        rows.push({
+          id: jnl.id,
+          date: jnl.entryDate,
+          voucherType: 'JOURNAL',
+          voucherNumber: jnl.journalNumber,
+          party: jnl.description,
+          amount: total.toString(),
+          status: jnl.status,
+          detailHref: '/finance/journals',
+        });
       }
     }
 
     if (!type || type === 'CONTRA') {
       const contras = await this.prisma.contraVoucher.findMany({
-        where: { voucherDate: within, ...(statusEq ? { status: statusEq } : {}) },
-        select: { id: true, voucherNumber: true, voucherDate: true, amount: true, status: true, fromLedgerAccount: { select: { name: true } }, toLedgerAccount: { select: { name: true } } },
+        where: {
+          voucherDate: within,
+          ...(statusEq ? { status: statusEq } : {}),
+        },
+        select: {
+          id: true,
+          voucherNumber: true,
+          voucherDate: true,
+          amount: true,
+          status: true,
+          fromLedgerAccount: { select: { name: true } },
+          toLedgerAccount: { select: { name: true } },
+        },
       });
       for (const c of contras)
-        rows.push({ id: c.id, date: c.voucherDate, voucherType: 'CONTRA', voucherNumber: c.voucherNumber, party: `${c.fromLedgerAccount.name} → ${c.toLedgerAccount.name}`, amount: c.amount.toString(), status: c.status, detailHref: '/finance/contra' });
+        rows.push({
+          id: c.id,
+          date: c.voucherDate,
+          voucherType: 'CONTRA',
+          voucherNumber: c.voucherNumber,
+          party: `${c.fromLedgerAccount.name} → ${c.toLedgerAccount.name}`,
+          amount: c.amount.toString(),
+          status: c.status,
+          detailHref: '/finance/contra',
+        });
     }
 
     // Newest first; tiebreak by voucher number so same-day rows are stable.
-    rows.sort((a, b) => b.date.getTime() - a.date.getTime() || b.voucherNumber.localeCompare(a.voucherNumber));
+    rows.sort(
+      (a, b) =>
+        b.date.getTime() - a.date.getTime() ||
+        b.voucherNumber.localeCompare(a.voucherNumber),
+    );
     // Server-side pagination: each source query is already scoped to the
     // date range (bounded, never unbounded), but a wide range across a full
     // fiscal year could still union many rows — slice the merged, sorted
@@ -484,26 +798,59 @@ export class FinanceService {
 
   private async reportLines(query: ReportQueryDto) {
     return this.prisma.journalLine.findMany({
-      where: { ...(query.accountId ? { accountId: query.accountId } : {}), journal: { status: JournalStatus.POSTED, entryDate: { gte: this.utcDay(query.from), lte: new Date(`${query.to.slice(0, 10)}T23:59:59.999Z`) } } },
+      where: {
+        ...(query.accountId ? { accountId: query.accountId } : {}),
+        journal: {
+          status: JournalStatus.POSTED,
+          entryDate: {
+            gte: this.utcDay(query.from),
+            lte: new Date(`${query.to.slice(0, 10)}T23:59:59.999Z`),
+          },
+        },
+      },
       include: { account: true, costCenter: true, journal: true },
-      orderBy: [{ journal: { entryDate: 'asc' } }, { journalId: 'asc' }, { sequence: 'asc' }],
+      orderBy: [
+        { journal: { entryDate: 'asc' } },
+        { journalId: 'asc' },
+        { sequence: 'asc' },
+      ],
     });
   }
 
-  private validateLines(lines: Array<{ debit: number | Prisma.Decimal; credit: number | Prisma.Decimal }>) {
-    let debits = new Prisma.Decimal(0); let credits = new Prisma.Decimal(0);
+  private validateLines(
+    lines: Array<{
+      debit: number | Prisma.Decimal;
+      credit: number | Prisma.Decimal;
+    }>,
+  ) {
+    let debits = new Prisma.Decimal(0);
+    let credits = new Prisma.Decimal(0);
     for (const line of lines) {
-      const debit = new Prisma.Decimal(line.debit); const credit = new Prisma.Decimal(line.credit);
-      if (debit.gt(0) === credit.gt(0)) throw new BadRequestException('Each journal line must contain either a debit or a credit, but not both');
-      debits = debits.plus(debit); credits = credits.plus(credit);
+      const debit = new Prisma.Decimal(line.debit);
+      const credit = new Prisma.Decimal(line.credit);
+      if (debit.gt(0) === credit.gt(0))
+        throw new BadRequestException(
+          'Each journal line must contain either a debit or a credit, but not both',
+        );
+      debits = debits.plus(debit);
+      credits = credits.plus(credit);
     }
-    if (debits.lte(0) || !debits.equals(credits)) throw new BadRequestException('Journal debits and credits must be equal and greater than zero');
+    if (debits.lte(0) || !debits.equals(credits))
+      throw new BadRequestException(
+        'Journal debits and credits must be equal and greater than zero',
+      );
   }
 
   private async findOpenPeriod(date: Date) {
-    const period = await this.prisma.accountingPeriod.findFirst({ where: { startsOn: { lte: date }, endsOn: { gte: date } } });
-    if (!period) throw new BadRequestException('No accounting period exists for the entry date');
-    if (period.status !== AccountingPeriodStatus.OPEN) throw new BadRequestException('The accounting period is not open');
+    const period = await this.prisma.accountingPeriod.findFirst({
+      where: { startsOn: { lte: date }, endsOn: { gte: date } },
+    });
+    if (!period)
+      throw new BadRequestException(
+        'No accounting period exists for the entry date',
+      );
+    if (period.status !== AccountingPeriodStatus.OPEN)
+      throw new BadRequestException('The accounting period is not open');
     return period;
   }
 
@@ -549,15 +896,23 @@ export class FinanceService {
   ) {
     // Only lines that actually carry an amount (mirrors the old inline filter).
     const lines = params.lines.filter(
-      (l) => new Prisma.Decimal(l.debit).gt(0) || new Prisma.Decimal(l.credit).gt(0),
+      (l) =>
+        new Prisma.Decimal(l.debit).gt(0) || new Prisma.Decimal(l.credit).gt(0),
     );
     this.validateLines(lines);
 
     const period = await tx.accountingPeriod.findFirst({
-      where: { startsOn: { lte: params.entryDate }, endsOn: { gte: params.entryDate } },
+      where: {
+        startsOn: { lte: params.entryDate },
+        endsOn: { gte: params.entryDate },
+      },
     });
-    if (!period) throw new BadRequestException('No accounting period exists for the entry date');
-    if (period.status !== AccountingPeriodStatus.OPEN) throw new BadRequestException('The accounting period is not open');
+    if (!period)
+      throw new BadRequestException(
+        'No accounting period exists for the entry date',
+      );
+    if (period.status !== AccountingPeriodStatus.OPEN)
+      throw new BadRequestException('The accounting period is not open');
 
     const year = params.entryDate.getUTCFullYear();
     const seq = await tx.financeSequence.upsert({
@@ -596,14 +951,20 @@ export class FinanceService {
   }
 
   private async findJournal(id: string) {
-    const journal = await this.prisma.journalEntry.findUnique({ where: { id }, include: JOURNAL_INCLUDE });
+    const journal = await this.prisma.journalEntry.findUnique({
+      where: { id },
+      include: JOURNAL_INCLUDE,
+    });
     if (!journal) throw new NotFoundException('Journal entry not found');
     return journal;
   }
 
   private async assertAccount(id: string) {
-    if (!(await this.prisma.ledgerAccount.findUnique({ where: { id } }))) throw new NotFoundException('Ledger account not found');
+    if (!(await this.prisma.ledgerAccount.findUnique({ where: { id } })))
+      throw new NotFoundException('Ledger account not found');
   }
 
-  private utcDay(value: string) { return new Date(`${value.slice(0, 10)}T00:00:00.000Z`); }
+  private utcDay(value: string) {
+    return new Date(`${value.slice(0, 10)}T00:00:00.000Z`);
+  }
 }

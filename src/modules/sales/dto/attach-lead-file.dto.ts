@@ -7,7 +7,9 @@ import { IsUUID } from 'class-validator';
  * Attachments" folder, then posts the resulting file id here to record the link.
  */
 export class AttachLeadFileDto {
-  @ApiProperty({ description: 'A confirmed VaultFile id (from the Vault upload flow)' })
+  @ApiProperty({
+    description: 'A confirmed VaultFile id (from the Vault upload flow)',
+  })
   @IsUUID()
   vaultFileId!: string;
 }

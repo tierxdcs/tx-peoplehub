@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import { QmsCalibrationResult, QmsNcrSeverity } from '@prisma/client';
 
 export class CreateQmsEquipmentDto {

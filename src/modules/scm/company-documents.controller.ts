@@ -6,10 +6,7 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import {
-  NdaTemplateConfirmDto,
-  NdaTemplateUploadUrlDto,
-} from './dto/scm.dto';
+import { NdaTemplateConfirmDto, NdaTemplateUploadUrlDto } from './dto/scm.dto';
 import { ScmService } from './scm.service';
 
 @UseGuards(RolesGuard)

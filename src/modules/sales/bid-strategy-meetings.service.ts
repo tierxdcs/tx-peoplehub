@@ -80,7 +80,9 @@ export class BidStrategyMeetingsService {
       where: { id: { in: [...new Set(employeeIds)] }, status: 'ACTIVE' },
     });
     if (employees !== new Set(employeeIds).size) {
-      throw new BadRequestException('An attendee or action owner is unavailable');
+      throw new BadRequestException(
+        'An attendee or action owner is unavailable',
+      );
     }
     const row = await this.prisma.bidStrategyMeeting.create({
       data: {
@@ -137,7 +139,11 @@ export class BidStrategyMeetingsService {
     await this.access.assertCanAccessOwned(user, bid.createdById);
   }
 
-  private toEntity(row: Prisma.BidStrategyMeetingGetPayload<{ include: typeof STRATEGY_INCLUDE }>) {
+  private toEntity(
+    row: Prisma.BidStrategyMeetingGetPayload<{
+      include: typeof STRATEGY_INCLUDE;
+    }>,
+  ) {
     const name = (employee: { firstName: string; lastName: string }) =>
       `${employee.firstName} ${employee.lastName}`.trim();
     return {

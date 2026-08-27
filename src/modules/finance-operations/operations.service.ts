@@ -68,19 +68,32 @@ export class OperationsService {
   async productionSettings(user: AuthenticatedUser) {
     await this.access.assertCanUseFinance(user);
     return this.prisma.financeProductionSettings.upsert({
-      where: { id: 'INDIA' }, create: { id: 'INDIA' }, update: {},
+      where: { id: 'INDIA' },
+      create: { id: 'INDIA' },
+      update: {},
     });
   }
-  async saveProductionSettings(dto: ProductionSettingsDto, user: AuthenticatedUser) {
+  async saveProductionSettings(
+    dto: ProductionSettingsDto,
+    user: AuthenticatedUser,
+  ) {
     await this.access.assertAccountsHead(user);
     if (dto.gstMaxAttempts < 1 || dto.gstMaxAttempts > 20)
-      throw new BadRequestException('GST maximum attempts must be between 1 and 20');
+      throw new BadRequestException(
+        'GST maximum attempts must be between 1 and 20',
+      );
     if (dto.gstRetryDelayMinutes < 1 || dto.gstRetryDelayMinutes > 1440)
-      throw new BadRequestException('GST retry delay must be between 1 and 1440 minutes');
+      throw new BadRequestException(
+        'GST retry delay must be between 1 and 1440 minutes',
+      );
     const codes = Object.values(dto.controlAccountMap).filter(Boolean);
-    const active = await this.prisma.ledgerAccount.count({ where: { code: { in: codes }, isActive: true } });
+    const active = await this.prisma.ledgerAccount.count({
+      where: { code: { in: codes }, isActive: true },
+    });
     if (active !== new Set(codes).size)
-      throw new BadRequestException('Every mapped control account must be an active ledger account');
+      throw new BadRequestException(
+        'Every mapped control account must be an active ledger account',
+      );
     return this.prisma.financeProductionSettings.upsert({
       where: { id: 'INDIA' },
       create: { id: 'INDIA', ...dto, updatedById: user.id },
@@ -89,70 +102,211 @@ export class OperationsService {
   }
   async productionReadiness(user: AuthenticatedUser) {
     await this.access.assertCanUseFinance(user);
-    const [company, settings, unclassified, openFailed, accounts] = await Promise.all([
-      this.prisma.financeCompanySettings.findUnique({ where: { id: 'INDIA' } }),
-      this.productionSettings(user),
-      this.prisma.ledgerAccount.count({ where: { isActive: true, cashFlowCategory: null } }),
-      this.prisma.gstSubmission.count({ where: { status: 'FAILED' } }),
-      this.prisma.ledgerAccount.count({ where: { isActive: true } }),
-    ]);
-    const gstConfigured = !!this.config.get<string>('gst.gatewayUrl') && !!this.config.get<string>('gst.gatewayToken');
+    const [company, settings, unclassified, openFailed, accounts] =
+      await Promise.all([
+        this.prisma.financeCompanySettings.findUnique({
+          where: { id: 'INDIA' },
+        }),
+        this.productionSettings(user),
+        this.prisma.ledgerAccount.count({
+          where: { isActive: true, cashFlowCategory: null },
+        }),
+        this.prisma.gstSubmission.count({ where: { status: 'FAILED' } }),
+        this.prisma.ledgerAccount.count({ where: { isActive: true } }),
+      ]);
+    const gstConfigured =
+      !!this.config.get<string>('gst.gatewayUrl') &&
+      !!this.config.get<string>('gst.gatewayToken');
     const checks = [
-      { key: 'company', label: 'Finance company and GST settings', ok: !!company },
-      { key: 'accounts', label: 'Active chart of accounts', ok: accounts > 0, detail: `${accounts} active` },
-      { key: 'cashFlow', label: 'Cash-flow classifications complete', ok: unclassified === 0, detail: `${unclassified} unclassified` },
-      { key: 'gst', label: 'GST provider configured (deferred by decision)', ok: gstConfigured, deferred: !gstConfigured },
-      { key: 'gstFailures', label: 'No unresolved GST submission failures', ok: openFailed === 0, detail: `${openFailed} failed` },
-      { key: 'email', label: 'Scheduled email delivery configured', ok: settings.emailDeliveryEnabled, deferred: !settings.emailDeliveryEnabled },
+      {
+        key: 'company',
+        label: 'Finance company and GST settings',
+        ok: !!company,
+      },
+      {
+        key: 'accounts',
+        label: 'Active chart of accounts',
+        ok: accounts > 0,
+        detail: `${accounts} active`,
+      },
+      {
+        key: 'cashFlow',
+        label: 'Cash-flow classifications complete',
+        ok: unclassified === 0,
+        detail: `${unclassified} unclassified`,
+      },
+      {
+        key: 'gst',
+        label: 'GST provider configured (deferred by decision)',
+        ok: gstConfigured,
+        deferred: !gstConfigured,
+      },
+      {
+        key: 'gstFailures',
+        label: 'No unresolved GST submission failures',
+        ok: openFailed === 0,
+        detail: `${openFailed} failed`,
+      },
+      {
+        key: 'email',
+        label: 'Scheduled email delivery configured',
+        ok: settings.emailDeliveryEnabled,
+        deferred: !settings.emailDeliveryEnabled,
+      },
     ];
     const blocking = checks.filter((x) => !x.ok && !x.deferred);
     return this.prisma.financeReadinessRun.create({
-      data: { status: blocking.length ? 'ACTION_REQUIRED' : 'READY', checks, runById: user.id },
+      data: {
+        status: blocking.length ? 'ACTION_REQUIRED' : 'READY',
+        checks,
+        runById: user.id,
+      },
     });
   }
   async imports(user: AuthenticatedUser) {
     await this.access.assertCanUseFinance(user);
-    return this.prisma.financeImportBatch.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
+    return this.prisma.financeImportBatch.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
   }
-  async importOpeningBalances(dto: OpeningBalanceImportDto, user: AuthenticatedUser) {
+  async importOpeningBalances(
+    dto: OpeningBalanceImportDto,
+    user: AuthenticatedUser,
+  ) {
     await this.access.assertCanUseFinance(user);
     const hash = createHash('sha256').update(dto.csvText).digest('hex');
-    if (await this.prisma.financeImportBatch.findUnique({ where: { sourceChecksum: hash } }))
-      throw new ConflictException('This opening-balance file has already been imported');
+    if (
+      await this.prisma.financeImportBatch.findUnique({
+        where: { sourceChecksum: hash },
+      })
+    )
+      throw new ConflictException(
+        'This opening-balance file has already been imported',
+      );
     const rows = this.parseOpeningCsv(dto.csvText);
     const debit = rows.reduce((s, x) => s.plus(x.debit), new Prisma.Decimal(0));
-    const credit = rows.reduce((s, x) => s.plus(x.credit), new Prisma.Decimal(0));
+    const credit = rows.reduce(
+      (s, x) => s.plus(x.credit),
+      new Prisma.Decimal(0),
+    );
     if (!debit.equals(credit) || debit.isZero())
-      throw new BadRequestException(`Opening balances must be non-zero and balanced; debit ${debit.toFixed(2)}, credit ${credit.toFixed(2)}`);
+      throw new BadRequestException(
+        `Opening balances must be non-zero and balanced; debit ${debit.toFixed(2)}, credit ${credit.toFixed(2)}`,
+      );
     const codes = [...new Set(rows.map((x) => x.accountCode))];
-    const accounts = await this.prisma.ledgerAccount.findMany({ where: { code: { in: codes }, isActive: true } });
-    if (accounts.length !== codes.length) throw new BadRequestException('CSV contains an unknown or inactive ledger account code');
-    const date = this.day(dto.entryDate), period = await this.prisma.accountingPeriod.findFirst({ where: { startsOn: { lte: date }, endsOn: { gte: date }, status: 'OPEN' } });
-    if (!period) throw new BadRequestException('Entry date must belong to an open accounting period');
+    const accounts = await this.prisma.ledgerAccount.findMany({
+      where: { code: { in: codes }, isActive: true },
+    });
+    if (accounts.length !== codes.length)
+      throw new BadRequestException(
+        'CSV contains an unknown or inactive ledger account code',
+      );
+    const date = this.day(dto.entryDate),
+      period = await this.prisma.accountingPeriod.findFirst({
+        where: {
+          startsOn: { lte: date },
+          endsOn: { gte: date },
+          status: 'OPEN',
+        },
+      });
+    if (!period)
+      throw new BadRequestException(
+        'Entry date must belong to an open accounting period',
+      );
     const byCode = new Map(accounts.map((x) => [x.code, x]));
     return this.prisma.$transaction(async (tx) => {
-      const number = await this.number(tx, 'OPENING_IMPORT', 'OB', date.getUTCFullYear());
-      const journal = await tx.journalEntry.create({ data: { journalNumber: number, entryDate: date, periodId: period.id, description: `Opening balances imported from ${dto.sourceFileName}`, reference: `IMPORT:${hash.slice(0, 12)}`, createdById: user.id, lines: { create: rows.map((x, i) => ({ sequence: i + 1, accountId: byCode.get(x.accountCode)!.id, description: x.description, debit: x.debit, credit: x.credit })) } } });
-      const batch = await tx.financeImportBatch.create({ data: { kind: 'OPENING_BALANCES', sourceFileName: dto.sourceFileName, sourceChecksum: hash, rowCount: rows.length, journalEntryId: journal.id, createdById: user.id } });
+      const number = await this.number(
+        tx,
+        'OPENING_IMPORT',
+        'OB',
+        date.getUTCFullYear(),
+      );
+      const journal = await tx.journalEntry.create({
+        data: {
+          journalNumber: number,
+          entryDate: date,
+          periodId: period.id,
+          description: `Opening balances imported from ${dto.sourceFileName}`,
+          reference: `IMPORT:${hash.slice(0, 12)}`,
+          createdById: user.id,
+          lines: {
+            create: rows.map((x, i) => ({
+              sequence: i + 1,
+              accountId: byCode.get(x.accountCode)!.id,
+              description: x.description,
+              debit: x.debit,
+              credit: x.credit,
+            })),
+          },
+        },
+      });
+      const batch = await tx.financeImportBatch.create({
+        data: {
+          kind: 'OPENING_BALANCES',
+          sourceFileName: dto.sourceFileName,
+          sourceChecksum: hash,
+          rowCount: rows.length,
+          journalEntryId: journal.id,
+          createdById: user.id,
+        },
+      });
       return { batch, journal };
     });
   }
   async managementPackCsv(id: string, user: AuthenticatedUser) {
     await this.access.assertCanViewFinance(user);
-    const pack = await this.prisma.managementReportPack.findUnique({ where: { id } });
+    const pack = await this.prisma.managementReportPack.findUnique({
+      where: { id },
+    });
     if (!pack) throw new NotFoundException('Management pack not found');
     const rows: string[] = ['section,metric,value'];
-    const walk = (section: string, value: any) => Object.entries(value ?? {}).forEach(([k, v]) => typeof v === 'object' && v !== null ? walk(`${section}.${k}`, v) : rows.push([section, k, String(v ?? '')].map(this.csv).join(',')));
+    const walk = (section: string, value: any) =>
+      Object.entries(value ?? {}).forEach(([k, v]) =>
+        typeof v === 'object' && v !== null
+          ? walk(`${section}.${k}`, v)
+          : rows.push([section, k, String(v ?? '')].map(this.csv).join(',')),
+      );
     walk('pack', pack.snapshot);
-    return { fileName: `${pack.packNumber}.csv`, contentType: 'text/csv', content: rows.join('\n') };
+    return {
+      fileName: `${pack.packNumber}.csv`,
+      contentType: 'text/csv',
+      content: rows.join('\n'),
+    };
   }
   private parseOpeningCsv(text: string) {
-    const lines = text.trim().split(/\r?\n/); const headers = lines.shift()?.split(',').map((x) => x.trim().toLowerCase()) ?? [];
-    for (const h of ['account_code', 'debit', 'credit']) if (!headers.includes(h)) throw new BadRequestException(`Missing CSV header ${h}`);
-    const at = (cells: string[], h: string) => cells[headers.indexOf(h)]?.trim() ?? '';
-    return lines.filter((x) => x.trim()).map((line, i) => { const cells = line.split(','); const debit = new Prisma.Decimal(at(cells, 'debit') || 0), credit = new Prisma.Decimal(at(cells, 'credit') || 0); if (debit.lt(0) || credit.lt(0) || (debit.gt(0) === credit.gt(0))) throw new BadRequestException(`Row ${i + 2} must contain either a positive debit or credit`); return { accountCode: at(cells, 'account_code'), description: at(cells, 'description'), debit, credit }; });
+    const lines = text.trim().split(/\r?\n/);
+    const headers =
+      lines
+        .shift()
+        ?.split(',')
+        .map((x) => x.trim().toLowerCase()) ?? [];
+    for (const h of ['account_code', 'debit', 'credit'])
+      if (!headers.includes(h))
+        throw new BadRequestException(`Missing CSV header ${h}`);
+    const at = (cells: string[], h: string) =>
+      cells[headers.indexOf(h)]?.trim() ?? '';
+    return lines
+      .filter((x) => x.trim())
+      .map((line, i) => {
+        const cells = line.split(',');
+        const debit = new Prisma.Decimal(at(cells, 'debit') || 0),
+          credit = new Prisma.Decimal(at(cells, 'credit') || 0);
+        if (debit.lt(0) || credit.lt(0) || debit.gt(0) === credit.gt(0))
+          throw new BadRequestException(
+            `Row ${i + 2} must contain either a positive debit or credit`,
+          );
+        return {
+          accountCode: at(cells, 'account_code'),
+          description: at(cells, 'description'),
+          debit,
+          credit,
+        };
+      });
   }
-  private csv(value: unknown) { return `"${String(value).replace(/"/g, '""')}"`; }
+  private csv(value: unknown) {
+    return `"${String(value).replace(/"/g, '""')}"`;
+  }
 
   async bankAccounts(user: AuthenticatedUser) {
     await this.access.assertCanUseFinance(user);

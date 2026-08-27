@@ -65,7 +65,8 @@ export class BusinessUnitsService {
         where: { name: dto.name, id: { not: id } },
         select: { id: true },
       });
-      if (clash) throw new ConflictException('Business unit name already in use');
+      if (clash)
+        throw new ConflictException('Business unit name already in use');
     }
     const bu = await this.prisma.businessUnit.update({
       where: { id },

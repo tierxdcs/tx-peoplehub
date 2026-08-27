@@ -61,6 +61,28 @@ export class VaultFolderPermissionEntity {
   }
 }
 
+/**
+ * One step of a folder's breadcrumb trail. `canRead` is the caller's own read
+ * access on that ancestor: because Vault access can be granted on a child
+ * without the parent, an ancestor may legitimately be un-openable. The UI shows
+ * it for orientation (you still need to know where you are) but must not link
+ * to a folder that would 403.
+ */
+export class VaultFolderCrumbEntity {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty({ description: 'Whether the caller may open this ancestor' })
+  canRead!: boolean;
+
+  constructor(partial: Partial<VaultFolderCrumbEntity>) {
+    Object.assign(this, partial);
+  }
+}
+
 export class VaultFolderEntity {
   @ApiProperty()
   id!: string;
@@ -100,6 +122,14 @@ export class VaultFolderEntity {
 
   @ApiProperty({ type: [VaultFolderEntity], required: false })
   children?: VaultFolderEntity[];
+
+  @ApiProperty({
+    type: [VaultFolderCrumbEntity],
+    required: false,
+    description:
+      'Breadcrumb trail, root first, excluding this folder itself (empty at a root)',
+  })
+  ancestors?: VaultFolderCrumbEntity[];
 
   @ApiProperty()
   createdAt!: Date;

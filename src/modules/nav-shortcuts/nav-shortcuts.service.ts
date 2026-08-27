@@ -63,7 +63,10 @@ export class NavShortcutsService {
         select: { id: true },
       });
       if (existing) {
-        await tx.navShortcut.update({ where: { id: existing.id }, data: { label } });
+        await tx.navShortcut.update({
+          where: { id: existing.id },
+          data: { label },
+        });
         return;
       }
       const count = await tx.navShortcut.count({

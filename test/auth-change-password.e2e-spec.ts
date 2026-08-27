@@ -34,14 +34,17 @@ describe('Auth change-password (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     prisma = app.get(PrismaService);
 
-    const adminToken = (
-      await login(adminEmail, adminPassword).expect(200)
-    ).body.data.accessToken;
+    const adminToken = (await login(adminEmail, adminPassword).expect(200)).body
+      .data.accessToken;
     const salesVertical = await prisma.vertical.findUniqueOrThrow({
       where: { code: 'SALES' },
     });

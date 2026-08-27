@@ -65,6 +65,10 @@ export class ProductionSettingsDto {
 export class OpeningBalanceImportDto {
   @ApiProperty() @IsString() @IsNotEmpty() sourceFileName!: string;
   @ApiProperty() @IsDateString() entryDate!: string;
-  @ApiProperty({ description: 'CSV headers: account_code,description,debit,credit' })
-  @IsString() @IsNotEmpty() csvText!: string;
+  @ApiProperty({
+    description: 'CSV headers: account_code,description,debit,credit',
+  })
+  @IsString()
+  @IsNotEmpty()
+  csvText!: string;
 }

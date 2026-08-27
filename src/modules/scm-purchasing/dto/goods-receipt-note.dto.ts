@@ -21,19 +21,28 @@ import {
  * queryable columns — they are NOT stuffed into the free-text `notes` field.
  */
 export class GrnLogisticsFieldsDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() vendorDeliveryChallanNumber?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  vendorDeliveryChallanNumber?: string;
   @ApiPropertyOptional({ description: 'ISO date' })
   @IsOptional()
   @IsDateString()
   deliveryChallanDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() vehicleOrAwbNumber?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() driverOrCourier?: string;
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) totalPackagesReceived?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  totalPackagesReceived?: number;
   @ApiPropertyOptional({ enum: PackingCondition })
   @IsOptional()
   @IsEnum(PackingCondition)
   packingCondition?: PackingCondition;
-  @ApiPropertyOptional({ description: 'Employee id of the signing-off supervisor' })
+  @ApiPropertyOptional({
+    description: 'Employee id of the signing-off supervisor',
+  })
   @IsOptional()
   @IsString()
   supervisorSignOffId?: string;

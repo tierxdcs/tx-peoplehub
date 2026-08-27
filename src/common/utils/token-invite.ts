@@ -22,7 +22,10 @@ export function generateInviteToken(): string {
 }
 
 /** Absolute expiry from now + a lifetime in hours. */
-export function computeExpiry(expiresInHours: number, now: Date = new Date()): Date {
+export function computeExpiry(
+  expiresInHours: number,
+  now: Date = new Date(),
+): Date {
   return new Date(now.getTime() + expiresInHours * 60 * 60 * 1000);
 }
 
@@ -51,8 +54,10 @@ export async function assertInviteUsable(
   password: string | undefined,
   now: Date = new Date(),
 ): Promise<void> {
-  if (invite.revokedAt) throw new ForbiddenException('This link has been revoked');
-  if (invite.expiresAt <= now) throw new ForbiddenException('This link has expired');
+  if (invite.revokedAt)
+    throw new ForbiddenException('This link has been revoked');
+  if (invite.expiresAt <= now)
+    throw new ForbiddenException('This link has expired');
   if (invite.passwordHash) {
     const ok = password
       ? await bcrypt.compare(password, invite.passwordHash)

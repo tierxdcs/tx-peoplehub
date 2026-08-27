@@ -15,6 +15,7 @@ import {
   VaultFolderPermission,
   VaultFolderStatus,
   VaultFolderType,
+  VaultShareResourceType,
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import {
@@ -26,21 +27,148 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { CreateUploadUrlDto } from './dto/create-upload-url.dto';
 import { CreateVersionUrlDto } from './dto/create-version-url.dto';
 import {
+  VaultBrowseQueryDto,
+  VaultFileOrigin,
+  VaultSearchQueryDto,
+  VaultSearchScope,
+  VaultSortOption,
+} from './dto/vault-search-query.dto';
+import {
   DownloadUrlResponseEntity,
   UploadUrlResponseEntity,
   VaultFileEntity,
   VaultFileListItemEntity,
   VaultFileVersionEntity,
+  VaultSearchResultEntity,
   ViewUrlResponseEntity,
 } from './entities/vault-file.entity';
-import { VaultAccessEntity } from './entities/vault-folder.entity';
+import {
+  VaultAccessEntity,
+  VaultFolderEntity,
+} from './entities/vault-folder.entity';
 import { VaultAccess, VaultAccessService } from './vault-access.service';
+import { VaultFoldersService } from './vault-folders.service';
+import {
+  FILE_TYPE_SORT_ORDER,
+  VAULT_SEARCH_MIN_SCORE,
+  classifyVaultFileType,
+  deriveVaultFileOrigin,
+  normaliseVaultTerm,
+  vaultFuzzyScore,
+} from './vault-search';
 import { VaultStorageService } from './vault-storage.service';
 import { VaultPreviewService } from './vault-preview.service';
 
 type FolderWithPermissions = VaultFolder & {
   permissions: VaultFolderPermission[];
 };
+
+/**
+ * Upper bound on how many candidate file rows one browse/search request pulls
+ * into memory for filtering, fuzzy matching and sorting. Vault holds documents,
+ * not events, so a real folder or vault-wide search is orders of magnitude
+ * below this — but the cap means a pathological folder can never turn a search
+ * box into an unbounded query, and hitting it is REPORTED (truncated: true)
+ * instead of silently trimming the result.
+ */
+const MAX_FILE_SCAN = 2_000;
+
+/**
+ * Everything a list row needs in one round trip: all versions (the current one
+ * supplies size/mime/preview/uploader, and the row count is the version count),
+ * plus the four back-relations that identify an auto-filed document. `take: 1`
+ * on the to-many ones because only their existence matters.
+ */
+const FILE_RELATION_INCLUDE = {
+  versions: {
+    select: {
+      id: true,
+      mimeType: true,
+      sizeBytes: true,
+      previewStatus: true,
+      uploadedById: true,
+      createdAt: true,
+    },
+  },
+  designDocuments: { select: { id: true }, take: 1 },
+  leadAttachments: { select: { id: true }, take: 1 },
+  vendorSignedNda: { select: { id: true } },
+  ndaTemplateConfig: { select: { id: true } },
+} satisfies Prisma.VaultFileInclude;
+
+type QueriedFile = Prisma.VaultFileGetPayload<{
+  include: typeof FILE_RELATION_INCLUDE;
+}>;
+
+/** The live version among the ones loaded, or null for a version-less file. */
+function currentVersionOf(file: QueriedFile) {
+  if (!file.currentVersionId) return null;
+  return file.versions.find((v) => v.id === file.currentVersionId) ?? null;
+}
+
+/** Inclusive range start. A bare date means local midnight, not UTC. */
+function rangeStart(value?: string): Date | undefined {
+  if (!value) return undefined;
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value);
+}
+
+/**
+ * Inclusive range end. A bare date covers the WHOLE day — "uploaded up to the
+ * 5th" must include a file uploaded at 16:00 on the 5th, which a plain
+ * `lte: midnight` would silently exclude.
+ */
+function rangeEnd(value?: string): Date | undefined {
+  if (!value) return undefined;
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T23:59:59.999`)
+    : new Date(value);
+}
+
+/** Size for sorting. BigInt-as-string, compared numerically, absent = 0. */
+function sizeOf(item: VaultFileListItemEntity): bigint {
+  return item.sizeBytes ? BigInt(item.sizeBytes) : BigInt(0);
+}
+
+/**
+ * Standard drive sorting. Every comparator falls back to name A→Z so equal
+ * keys (same day, same size, same type) never reshuffle between requests.
+ */
+function compareListItems(
+  a: VaultFileListItemEntity,
+  b: VaultFileListItemEntity,
+  sort: VaultSortOption,
+  scores: Map<string, number>,
+): number {
+  const byName = a.name.localeCompare(b.name);
+  switch (sort) {
+    case VaultSortOption.RELEVANCE:
+      return (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0) || byName;
+    case VaultSortOption.NAME_DESC:
+      return -byName;
+    case VaultSortOption.MODIFIED_DESC:
+      return b.updatedAt.getTime() - a.updatedAt.getTime() || byName;
+    case VaultSortOption.MODIFIED_ASC:
+      return a.updatedAt.getTime() - b.updatedAt.getTime() || byName;
+    case VaultSortOption.SIZE_DESC: {
+      const diff = sizeOf(b) - sizeOf(a);
+      return diff === BigInt(0) ? byName : diff > BigInt(0) ? 1 : -1;
+    }
+    case VaultSortOption.SIZE_ASC: {
+      const diff = sizeOf(a) - sizeOf(b);
+      return diff === BigInt(0) ? byName : diff > BigInt(0) ? 1 : -1;
+    }
+    case VaultSortOption.TYPE_ASC:
+      return (
+        FILE_TYPE_SORT_ORDER.indexOf(a.fileType) -
+          FILE_TYPE_SORT_ORDER.indexOf(b.fileType) || byName
+      );
+    case VaultSortOption.NAME_ASC:
+    default:
+      return byName;
+  }
+}
 
 @Injectable()
 export class VaultFilesService {
@@ -49,6 +177,7 @@ export class VaultFilesService {
     private readonly access: VaultAccessService,
     private readonly storage: VaultStorageService,
     private readonly preview: VaultPreviewService,
+    private readonly folders: VaultFoldersService,
   ) {}
 
   /**
@@ -357,30 +486,184 @@ export class VaultFilesService {
    * are excluded. Access is computed per-file (folds in file-level shares), so
    * a file shared with someone who lacks folder access does NOT appear here —
    * folder-listing is intentionally folder-scoped; shared-only files surface
-   * via listSharedWithMe().
+   * through search, which unions them in.
+   *
+   * The optional query applies the same filter dimensions and sort options as
+   * search (see queryFiles) so the folder view can be filtered and re-sorted
+   * without leaving it. With no query it behaves exactly as before: every
+   * ACTIVE file in the folder, name A→Z.
    */
   async listFilesInFolder(
     folderId: string,
     user: AuthenticatedUser,
+    query: VaultBrowseQueryDto = {},
   ): Promise<VaultFileListItemEntity[]> {
     const folder = await this.getFolderOrThrow(folderId);
     await this.assertCanRead(user, folder);
 
-    // Only ACTIVE files. A PENDING file has a presigned URL but was never
-    // confirmed — its bytes never landed in storage (e.g. the browser's direct
-    // PUT failed or was abandoned), so it is not a real upload and must not
-    // appear in the folder list looking like one.
-    const files = await this.prisma.vaultFile.findMany({
-      where: { folderId, status: VaultFileStatus.ACTIVE },
-      orderBy: { name: 'asc' },
+    const result = await this.queryFiles(user, {
+      folders: [folder],
+      folderIds: [folder.id],
+      query,
+      // A folder listing is not a search result page — never drop rows to a
+      // page size. The scan cap still applies as a backstop.
+      limit: MAX_FILE_SCAN,
+    });
+    return result.items;
+  }
+
+  /**
+   * Fuzzy search over file names AND folder names, honouring every filter and
+   * sort option (§1–§3).
+   *
+   * Scope is explicit rather than implied, because "did that search look inside
+   * subfolders?" is the classic source of confusion in a nested tree:
+   *   FOLDER — the given folder AND everything nested beneath it.
+   *   VAULT  — every folder the caller can read.
+   *
+   * Permission model: candidates come from the folders the caller can read
+   * (VaultAccessService.readableFolders, which mirrors the folder browser's own
+   * visibility rules), UNION files shared with them individually. That union is
+   * exactly what computeFileAccess would allow file-by-file — a file share can
+   * only ADD access, never remove it — so search reuses the one access path
+   * instead of introducing a second one.
+   */
+  async search(
+    dto: VaultSearchQueryDto,
+    user: AuthenticatedUser,
+  ): Promise<VaultSearchResultEntity> {
+    const readable = await this.access.readableFolders(user);
+
+    // Parent links for EVERY folder, not just readable ones: a readable folder
+    // can sit under an un-readable one, and it is still inside the subtree the
+    // user asked about.
+    const parents = new Map(
+      (
+        await this.prisma.vaultFolder.findMany({
+          select: { id: true, parentFolderId: true },
+        })
+      ).map((f) => [f.id, f.parentFolderId]),
+    );
+    const isInSubtree = (folderId: string, rootId: string): boolean => {
+      const seen = new Set<string>();
+      let at: string | null = folderId;
+      while (at && !seen.has(at)) {
+        if (at === rootId) return true;
+        seen.add(at);
+        at = parents.get(at) ?? null;
+      }
+      return false;
+    };
+
+    let scopeFolders = [...readable.values()];
+    if (dto.scope === VaultSearchScope.FOLDER) {
+      if (!dto.folderId) {
+        throw new BadRequestException(
+          'folderId is required when scope is FOLDER',
+        );
+      }
+      if (!readable.has(dto.folderId)) {
+        // Same message as any other unreadable folder — search must not become
+        // a way to tell "exists but forbidden" apart from "does not exist".
+        throw new ForbiddenException('You do not have access to this folder');
+      }
+      scopeFolders = scopeFolders.filter((entry) =>
+        isInSubtree(entry.folder.id, dto.folderId as string),
+      );
+    }
+
+    const normalisedQuery = normaliseVaultTerm(dto.q ?? '');
+
+    // Files shared with the caller directly: included even when their folder is
+    // not readable (VAULT scope), or when it sits inside the searched subtree.
+    const sharedFileIds = (
+      await this.prisma.vaultInternalShare.findMany({
+        where: {
+          sharedWithEmployeeId: user.id,
+          resourceType: VaultShareResourceType.FILE,
+        },
+        select: { resourceId: true },
+      })
+    ).map((s) => s.resourceId);
+
+    const fileResult = await this.queryFiles(user, {
+      folders: scopeFolders.map((entry) => entry.folder),
+      folderIds: scopeFolders.map((entry) => entry.folder.id),
+      extraFileIds: sharedFileIds,
+      keepExtraFile: (folderId) =>
+        dto.scope === VaultSearchScope.VAULT ||
+        isInSubtree(folderId, dto.folderId as string),
+      query: dto,
+      normalisedQuery,
+      limit: dto.limit,
     });
 
-    const items: VaultFileListItemEntity[] = [];
-    for (const file of files) {
-      const access = await this.access.computeFileAccess(user, file.id, folder);
-      items.push(await this.toListItemEntity(file, access));
-    }
-    return items;
+    // Folder-name matches come from the same readable set, so a folder the
+    // caller cannot open can never appear as a search hit.
+    const folders = normalisedQuery
+      ? scopeFolders
+          .map((entry) => ({
+            entry,
+            score: vaultFuzzyScore(normalisedQuery, entry.folder.name),
+          }))
+          .filter(
+            (hit) =>
+              hit.score >= VAULT_SEARCH_MIN_SCORE &&
+              // The folder you are searching inside is not a result of its own
+              // search.
+              hit.entry.folder.id !== dto.folderId,
+          )
+          .sort(
+            (a, b) =>
+              b.score - a.score ||
+              a.entry.folder.name.localeCompare(b.entry.folder.name),
+          )
+          .slice(0, dto.limit)
+          .map((hit) => this.toFolderEntity(hit.entry.folder, hit.entry.access))
+      : [];
+
+    return new VaultSearchResultEntity({
+      folders,
+      files: fileResult.items,
+      totalFileMatches: fileResult.totalMatches,
+      truncated: fileResult.truncated,
+    });
+  }
+
+  /**
+   * Recently touched documents across every folder the caller can read — the
+   * "you were just working on this" shortcut on the Vault landing.
+   *
+   * IMPORTANT (verified against the schema): Vault records no internal access
+   * log — the only accessedAt column belongs to VaultExternalAccessLog, which
+   * tracks public link hits, not employees opening files. So "recent" here
+   * means recently ADDED OR UPDATED (a new version, a restore, a confirmed
+   * upload), never "recently viewed", and the UI must say so rather than imply
+   * a view history that does not exist.
+   */
+  async listRecent(
+    limit: number,
+    user: AuthenticatedUser,
+  ): Promise<VaultFileListItemEntity[]> {
+    const readable = await this.access.readableFolders(user);
+    const sharedFileIds = (
+      await this.prisma.vaultInternalShare.findMany({
+        where: {
+          sharedWithEmployeeId: user.id,
+          resourceType: VaultShareResourceType.FILE,
+        },
+        select: { resourceId: true },
+      })
+    ).map((s) => s.resourceId);
+
+    const result = await this.queryFiles(user, {
+      folders: [...readable.values()].map((entry) => entry.folder),
+      folderIds: [...readable.keys()],
+      extraFileIds: sharedFileIds,
+      query: { sort: VaultSortOption.MODIFIED_DESC },
+      limit,
+    });
+    return result.items;
   }
 
   /** Single enriched file (spec §3 row detail / deep-link). Requires read access. */
@@ -394,7 +677,165 @@ export class VaultFilesService {
     if (!access.canRead) {
       throw new ForbiddenException('You do not have access to this file');
     }
-    return this.toListItemEntity(file, access);
+    const withRelations = await this.prisma.vaultFile.findUniqueOrThrow({
+      where: { id: file.id },
+      include: FILE_RELATION_INCLUDE,
+    });
+    const [item] = await this.buildListItems(
+      [withRelations],
+      new Map([[folder.id, folder]]),
+      new Map([[file.id, access]]),
+    );
+    return item;
+  }
+
+  /**
+   * The one place Vault turns "which folders + which filters + which sort" into
+   * rows. Folder listing, search, and recent-files all funnel through it, so a
+   * filter can never behave differently depending on how you got there.
+   *
+   * Split of work between SQL and memory:
+   *  - SQL narrows on the things it can do exactly — ACTIVE status, the folder
+   *    set (or an individually shared file id), and the upload date range.
+   *  - Uploader, file type, origin, fuzzy matching and sorting run in memory,
+   *    because each depends on a derived value: the uploader shown is the
+   *    CURRENT version's uploader (not the file row's original one), type and
+   *    origin are computed (there is no stored column for either), and size
+   *    lives on the version. Doing these in memory keeps the filter honest
+   *    about what the UI displays.
+   *  - MAX_FILE_SCAN bounds that in-memory pass. If it is ever reached the
+   *    result reports truncated: true rather than pretending it saw everything.
+   */
+  private async queryFiles(
+    user: AuthenticatedUser,
+    opts: {
+      folders: FolderWithPermissions[];
+      folderIds: string[];
+      extraFileIds?: string[];
+      /** Whether an individually shared file (folder not in scope) counts. */
+      keepExtraFile?: (folderId: string) => boolean;
+      query: VaultBrowseQueryDto;
+      normalisedQuery?: string;
+      limit: number;
+    },
+  ): Promise<{
+    items: VaultFileListItemEntity[];
+    totalMatches: number;
+    truncated: boolean;
+  }> {
+    const { query } = opts;
+    const extraFileIds = opts.extraFileIds ?? [];
+    if (!opts.folderIds.length && !extraFileIds.length) {
+      return { items: [], totalMatches: 0, truncated: false };
+    }
+
+    const uploadedFrom = rangeStart(query.uploadedFrom);
+    const uploadedTo = rangeEnd(query.uploadedTo);
+
+    // Only ACTIVE files. A PENDING file has a presigned URL but was never
+    // confirmed — its bytes never landed in storage (e.g. the browser's direct
+    // PUT failed or was abandoned), so it is not a real upload and must not
+    // appear in a listing looking like one.
+    const where: Prisma.VaultFileWhereInput = {
+      status: VaultFileStatus.ACTIVE,
+      OR: [
+        ...(opts.folderIds.length
+          ? [{ folderId: { in: opts.folderIds } }]
+          : []),
+        ...(extraFileIds.length ? [{ id: { in: extraFileIds } }] : []),
+      ],
+      ...(uploadedFrom || uploadedTo
+        ? {
+            createdAt: {
+              ...(uploadedFrom ? { gte: uploadedFrom } : {}),
+              ...(uploadedTo ? { lte: uploadedTo } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const scanned = await this.prisma.vaultFile.findMany({
+      where,
+      include: FILE_RELATION_INCLUDE,
+      // Most-recently-touched first, so if the scan cap is ever hit it is the
+      // oldest documents that fall outside it, not an arbitrary slice.
+      orderBy: { updatedAt: 'desc' },
+      take: MAX_FILE_SCAN + 1,
+    });
+    const truncated = scanned.length > MAX_FILE_SCAN;
+    const candidates = truncated ? scanned.slice(0, MAX_FILE_SCAN) : scanned;
+
+    const inScopeFolderIds = new Set(opts.folderIds);
+    const extraIdSet = new Set(extraFileIds);
+    const keepExtra = opts.keepExtraFile ?? (() => true);
+
+    const normalisedQuery = opts.normalisedQuery ?? '';
+    const scores = new Map<string, number>();
+    const matched = candidates.filter((file) => {
+      if (
+        !inScopeFolderIds.has(file.folderId) &&
+        !(extraIdSet.has(file.id) && keepExtra(file.folderId))
+      ) {
+        return false;
+      }
+      const currentVersion = currentVersionOf(file);
+      if (
+        query.uploadedById &&
+        (currentVersion?.uploadedById ?? file.uploadedById) !==
+          query.uploadedById
+      ) {
+        return false;
+      }
+      if (
+        query.fileType &&
+        classifyVaultFileType(file.name, currentVersion?.mimeType ?? null) !==
+          query.fileType
+      ) {
+        return false;
+      }
+      if (query.origin && this.originOf(file) !== query.origin) return false;
+      if (normalisedQuery) {
+        const score = vaultFuzzyScore(normalisedQuery, file.name);
+        if (score < VAULT_SEARCH_MIN_SCORE) return false;
+        scores.set(file.id, score);
+      }
+      return true;
+    });
+
+    // Folder rows for everything that survived — the in-scope ones are already
+    // loaded; an individually shared file's folder has to be fetched so its
+    // access base and displayed folder name resolve.
+    const folderById = new Map(opts.folders.map((f) => [f.id, f]));
+    const missingFolderIds = [
+      ...new Set(
+        matched.map((f) => f.folderId).filter((id) => !folderById.has(id)),
+      ),
+    ];
+    if (missingFolderIds.length) {
+      const extraFolders = await this.prisma.vaultFolder.findMany({
+        where: { id: { in: missingFolderIds } },
+        include: { permissions: true },
+      });
+      for (const folder of extraFolders) folderById.set(folder.id, folder);
+    }
+
+    const accessById = await this.access.computeFileAccessMany(
+      user,
+      matched.map((f) => ({ id: f.id, folderId: f.folderId })),
+      [...folderById.values()],
+    );
+
+    const sort =
+      query.sort ??
+      (normalisedQuery ? VaultSortOption.RELEVANCE : VaultSortOption.NAME_ASC);
+    const items = await this.buildListItems(matched, folderById, accessById);
+    items.sort((a, b) => compareListItems(a, b, sort, scores));
+
+    return {
+      items: items.slice(0, opts.limit),
+      totalMatches: items.length,
+      truncated,
+    };
   }
 
   async listVersions(
@@ -776,50 +1217,95 @@ export class VaultFilesService {
   }
 
   /**
-   * Build the enriched list/detail entity: joins the current version's display
-   * fields (size/mime/preview/created-at) + a version count + a resolved
-   * uploader name onto the flat file, plus the caller's computed access. One
-   * query each for the current version, the count, and the uploader name.
+   * Which module filed a file, from the back-relations loaded with it plus the
+   * identity of its folder. The rules themselves live in vault-search.ts; this
+   * only feeds them the signals. A missing folder row (shouldn't happen — the
+   * FK is Restrict) degrades to MANUAL rather than throwing mid-listing.
    */
-  private async toListItemEntity(
-    file: VaultFile,
-    access: VaultAccess,
-  ): Promise<VaultFileListItemEntity> {
-    const currentVersion = file.currentVersionId
-      ? await this.prisma.vaultFileVersion.findUnique({
-          where: { id: file.currentVersionId },
-        })
-      : null;
-    const versionCount = await this.prisma.vaultFileVersion.count({
-      where: { fileId: file.id },
+  private originOf(
+    file: QueriedFile,
+    folder?: VaultFolder,
+  ): VaultFileOrigin {
+    if (!folder) return VaultFileOrigin.MANUAL;
+    return deriveVaultFileOrigin({
+      hasDesignDocument: file.designDocuments.length > 0,
+      hasLeadAttachment: file.leadAttachments.length > 0,
+      hasVendorNda: !!file.vendorSignedNda || !!file.ndaTemplateConfig,
+      folderName: folder.name,
+      folderType: folder.type,
+      folderVisibilityScope: folder.visibilityScope,
     });
-    // Uploader of the current version (falls back to the file's original
-    // uploader when there's no current version yet).
-    const uploaderId = currentVersion?.uploadedById ?? file.uploadedById;
-    const uploader = await this.prisma.employee.findUnique({
-      where: { id: uploaderId },
-      select: { firstName: true, lastName: true },
-    });
+  }
 
-    return new VaultFileListItemEntity({
-      id: file.id,
-      folderId: file.folderId,
-      name: file.name,
-      currentVersionId: file.currentVersionId,
-      status: file.status,
-      uploadedById: uploaderId,
-      uploadedByName: uploader
-        ? `${uploader.firstName} ${uploader.lastName}`.trim()
-        : null,
-      sizeBytes: currentVersion ? currentVersion.sizeBytes.toString() : null,
-      mimeType: currentVersion?.mimeType ?? null,
-      previewStatus: currentVersion?.previewStatus ?? null,
-      versionCount,
-      access: new VaultAccessEntity(access),
-      createdAt: file.createdAt,
-      // "Last modified" = the live version's creation time when present.
-      updatedAt: currentVersion?.createdAt ?? file.updatedAt,
+  /**
+   * Build the enriched list rows: the current version's display fields
+   * (size/mime/preview/created-at), the version count, the resolved uploader
+   * name, the derived type + origin, the containing folder's name, and the
+   * caller's computed access. Uploader names are resolved in ONE query for the
+   * whole page — a listing costs a fixed number of queries, not a per-row one.
+   */
+  private async buildListItems(
+    files: QueriedFile[],
+    folderById: Map<string, FolderWithPermissions | VaultFolder>,
+    accessById: Map<string, VaultAccess>,
+  ): Promise<VaultFileListItemEntity[]> {
+    if (!files.length) return [];
+
+    // Uploader shown is the CURRENT version's uploader — who last put bytes in
+    // — falling back to the file's original uploader when there is no version.
+    const uploaderIdOf = (file: QueriedFile) =>
+      currentVersionOf(file)?.uploadedById ?? file.uploadedById;
+    const uploaders = await this.prisma.employee.findMany({
+      where: { id: { in: [...new Set(files.map(uploaderIdOf))] } },
+      select: { id: true, firstName: true, lastName: true },
     });
+    const nameById = new Map(
+      uploaders.map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim()]),
+    );
+
+    return files.map((file) => {
+      const currentVersion = currentVersionOf(file);
+      const folder = folderById.get(file.folderId);
+      const uploaderId = uploaderIdOf(file);
+      return new VaultFileListItemEntity({
+        id: file.id,
+        folderId: file.folderId,
+        folderName: folder?.name ?? null,
+        name: file.name,
+        currentVersionId: file.currentVersionId,
+        status: file.status,
+        uploadedById: uploaderId,
+        uploadedByName: nameById.get(uploaderId) ?? null,
+        sizeBytes: currentVersion ? currentVersion.sizeBytes.toString() : null,
+        mimeType: currentVersion?.mimeType ?? null,
+        previewStatus: currentVersion?.previewStatus ?? null,
+        fileType: classifyVaultFileType(
+          file.name,
+          currentVersion?.mimeType ?? null,
+        ),
+        origin: this.originOf(file, folder),
+        versionCount: file.versions.length,
+        access: new VaultAccessEntity(
+          accessById.get(file.id) ?? {
+            canRead: false,
+            canWrite: false,
+            canDelete: false,
+            canCreateSubfolder: false,
+          },
+        ),
+        createdAt: file.createdAt,
+        // "Last modified" = the live version's creation time when present.
+        updatedAt: currentVersion?.createdAt ?? file.updatedAt,
+      });
+    });
+  }
+
+  /** Folder rows in a search result reuse the folders service's own mapping. */
+  private toFolderEntity(
+    folder: VaultFolder,
+    access: VaultAccess,
+  ): VaultFolderEntity {
+    return this.folders.toEntity(folder, access);
   }
 
   private toVersionEntity(v: VaultFileVersion): VaultFileVersionEntity {

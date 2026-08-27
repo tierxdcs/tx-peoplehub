@@ -51,7 +51,9 @@ export class DeliveryChallanController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a DRAFT delivery challan (Production-vertical/SA)' })
+  @ApiOperation({
+    summary: 'Create a DRAFT delivery challan (Production-vertical/SA)',
+  })
   create(
     @Body() dto: CreateDeliveryChallanDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -75,7 +77,9 @@ export class DeliveryChallanController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Edit a DRAFT delivery challan (Production-vertical/SA)' })
+  @ApiOperation({
+    summary: 'Edit a DRAFT delivery challan (Production-vertical/SA)',
+  })
   update(
     @Param('id') id: string,
     @Body() dto: UpdateDeliveryChallanDto,
@@ -94,13 +98,17 @@ export class DeliveryChallanController {
   }
 
   @Post(':id/cancel')
-  @ApiOperation({ summary: 'Cancel a DRAFT delivery challan (Production-vertical/SA)' })
+  @ApiOperation({
+    summary: 'Cancel a DRAFT delivery challan (Production-vertical/SA)',
+  })
   cancel(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.cancel(id, user);
   }
 
   @Post(':id/e-way-bill')
-  @ApiOperation({ summary: 'Record e-way bill details (manual entry after GST portal)' })
+  @ApiOperation({
+    summary: 'Record e-way bill details (manual entry after GST portal)',
+  })
   ewayBill(
     @Param('id') id: string,
     @Body() dto: EwayBillDto,
@@ -120,17 +128,26 @@ export class DeliveryChallanController {
   }
 
   @Post(':id/pod/upload-url')
-  @ApiOperation({ summary: 'Mint a presigned PUT URL for the POD document (R2)' })
+  @ApiOperation({
+    summary: 'Mint a presigned PUT URL for the POD document (R2)',
+  })
   podUploadUrl(
     @Param('id') id: string,
     @Body() body: { fileName: string; contentType: string },
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.createPodUploadUrl(id, body.fileName, body.contentType, user);
+    return this.service.createPodUploadUrl(
+      id,
+      body.fileName,
+      body.contentType,
+      user,
+    );
   }
 
   @Post(':id/pod')
-  @ApiOperation({ summary: 'Confirm POD upload + record receiver/date (→ DELIVERED)' })
+  @ApiOperation({
+    summary: 'Confirm POD upload + record receiver/date (→ DELIVERED)',
+  })
   confirmPod(
     @Param('id') id: string,
     @Body() body: ConfirmPodDto & { storageKey: string },
@@ -140,14 +157,20 @@ export class DeliveryChallanController {
   }
 
   @Get(':id/pod/download-url')
-  @ApiOperation({ summary: 'Presigned GET URL for the POD document (company-wide read)' })
-  podDownloadUrl(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  @ApiOperation({
+    summary: 'Presigned GET URL for the POD document (company-wide read)',
+  })
+  podDownloadUrl(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.podDownloadUrl(id, user);
   }
 
   @Post('orders/:orderId/clear-final-qc')
   @ApiOperation({
-    summary: 'Clear outbound final QC for an order (QC Inspector/SA) — dispatch precondition',
+    summary:
+      'Clear outbound final QC for an order (QC Inspector/SA) — dispatch precondition',
   })
   clearFinalQc(
     @Param('orderId') orderId: string,

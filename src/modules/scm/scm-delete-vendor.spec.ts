@@ -44,10 +44,12 @@ describe('ScmService vendor deletion', () => {
   it('allows CEO/SuperAdmin to delete an unused vendor', async () => {
     const { service, tx } = setup();
 
-    await expect(service.deleteVendor('vendor-1', superAdmin)).resolves.toEqual({
-      id: 'vendor-1',
-      deleted: true,
-    });
+    await expect(service.deleteVendor('vendor-1', superAdmin)).resolves.toEqual(
+      {
+        id: 'vendor-1',
+        deleted: true,
+      },
+    );
     expect(tx.vendor.delete).toHaveBeenCalledWith({
       where: { id: 'vendor-1' },
     });
@@ -56,9 +58,7 @@ describe('ScmService vendor deletion', () => {
   it('blocks deletion when the vendor has operational references', async () => {
     const { service, tx } = setup({ purchaseOrder: 2, rfqInvitee: 1 });
 
-    await expect(
-      service.deleteVendor('vendor-1', superAdmin),
-    ).rejects.toThrow(
+    await expect(service.deleteVendor('vendor-1', superAdmin)).rejects.toThrow(
       new ConflictException(
         'This vendor cannot be deleted because it is used by: RFQ invitations (1), purchase orders (2). Retain the vendor to preserve operational history.',
       ),

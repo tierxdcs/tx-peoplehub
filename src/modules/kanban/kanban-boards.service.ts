@@ -50,7 +50,11 @@ export class KanbanBoardsService {
       await this.provisioning.createDefaultLists(tx, created.id, user.id);
       return created;
     });
-    return this.toBoardEntity({ ...board, _count: { members: 1 } });
+    return this.toBoardEntity({
+      ...board,
+      _count: { members: 1, projectKickoffs: 0 },
+      lists: [],
+    });
   }
 
   /**
@@ -169,7 +173,19 @@ export class KanbanBoardsService {
         };
     const boards = await this.prisma.kanbanBoard.findMany({
       where,
-      include: { _count: { select: { members: true } } },
+      include: {
+        _count: { select: { members: true, projectKickoffs: true } },
+        lists: {
+          orderBy: { position: 'asc' },
+          select: {
+            isDoneList: true,
+            cards: {
+              where: { status: KanbanCardStatus.ACTIVE },
+              select: { dueDate: true },
+            },
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return boards.map((b) => this.toBoardEntity(b));
@@ -182,7 +198,19 @@ export class KanbanBoardsService {
     await this.access.assertCanViewBoard(user, id);
     const board = await this.prisma.kanbanBoard.findUniqueOrThrow({
       where: { id },
-      include: { _count: { select: { members: true } } },
+      include: {
+        _count: { select: { members: true, projectKickoffs: true } },
+        lists: {
+          orderBy: { position: 'asc' },
+          select: {
+            isDoneList: true,
+            cards: {
+              where: { status: KanbanCardStatus.ACTIVE },
+              select: { dueDate: true },
+            },
+          },
+        },
+      },
     });
     return this.toBoardEntity(board);
   }
@@ -284,14 +312,38 @@ export class KanbanBoardsService {
     status: KanbanBoardStatus;
     createdAt: Date;
     updatedAt: Date;
-    _count: { members: number };
+    _count: { members: number; projectKickoffs: number };
+    lists: { isDoneList: boolean; cards: { dueDate: Date | null }[] }[];
   }): KanbanBoardEntity {
+    const now = new Date();
+    const openLists = board.lists.filter((list) => !list.isDoneList);
+    const taskCounts = {
+      todo: openLists[0]?.cards.length ?? 0,
+      inProgress: openLists
+        .slice(1)
+        .reduce((sum, list) => sum + list.cards.length, 0),
+      complete: board.lists
+        .filter((list) => list.isDoneList)
+        .reduce((sum, list) => sum + list.cards.length, 0),
+      overdue: board.lists.reduce(
+        (sum, list) =>
+          sum +
+          (list.isDoneList
+            ? 0
+            : list.cards.filter(
+                (card) => card.dueDate !== null && card.dueDate < now,
+              ).length),
+        0,
+      ),
+    };
     return new KanbanBoardEntity({
       id: board.id,
       name: board.name,
       createdById: board.createdById,
       status: board.status,
       memberCount: board._count.members,
+      isCustomerBoard: board._count.projectKickoffs > 0,
+      taskCounts,
       createdAt: board.createdAt.toISOString(),
       updatedAt: board.updatedAt.toISOString(),
     });

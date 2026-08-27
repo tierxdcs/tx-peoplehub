@@ -14,7 +14,9 @@ describe('BidStrategyMeetingsService', () => {
 
   beforeEach(() => {
     prisma = {
-      bid: { findUnique: jest.fn().mockResolvedValue({ createdById: 'sales-1' }) },
+      bid: {
+        findUnique: jest.fn().mockResolvedValue({ createdById: 'sales-1' }),
+      },
       employee: { count: jest.fn().mockResolvedValue(2) },
       bidStrategyMeeting: {
         create: jest.fn().mockImplementation(({ data }) => ({
@@ -26,8 +28,31 @@ describe('BidStrategyMeetingsService', () => {
           notes: data.notes,
           createdAt: new Date(),
           createdBy: { firstName: 'Sales', lastName: 'User' },
-          attendees: [{ id: 'a1', employeeId: 'e1', externalName: null, createdAt: new Date(), employee: { firstName: 'Internal', lastName: 'User', email: 'i@x.com' } }],
-          actionItems: [{ id: 'x1', description: 'Follow up', ownerId: 'e2', dueDate: null, status: 'OPEN', createdAt: new Date(), updatedAt: new Date(), owner: { firstName: 'Owner', lastName: 'User' } }],
+          attendees: [
+            {
+              id: 'a1',
+              employeeId: 'e1',
+              externalName: null,
+              createdAt: new Date(),
+              employee: {
+                firstName: 'Internal',
+                lastName: 'User',
+                email: 'i@x.com',
+              },
+            },
+          ],
+          actionItems: [
+            {
+              id: 'x1',
+              description: 'Follow up',
+              ownerId: 'e2',
+              dueDate: null,
+              status: 'OPEN',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              owner: { firstName: 'Owner', lastName: 'User' },
+            },
+          ],
         })),
         findMany: jest.fn(),
       },

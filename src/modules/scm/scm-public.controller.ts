@@ -36,17 +36,18 @@ export class ScmPublicController {
 
   @Public()
   @Post(':token/save')
-  @ApiOperation({ summary: 'Partial save / resume of section data (unauthenticated)' })
-  save(
-    @Param('token') token: string,
-    @Body() dto: PublicQuestionnaireSaveDto,
-  ) {
+  @ApiOperation({
+    summary: 'Partial save / resume of section data (unauthenticated)',
+  })
+  save(@Param('token') token: string, @Body() dto: PublicQuestionnaireSaveDto) {
     return this.service.savePublic(token, dto);
   }
 
   @Public()
   @Post(':token/submit')
-  @ApiOperation({ summary: 'Final submit — locks the questionnaire (unauthenticated)' })
+  @ApiOperation({
+    summary: 'Final submit — locks the questionnaire (unauthenticated)',
+  })
   submit(
     @Param('token') token: string,
     @Body() dto: PublicQuestionnaireSaveDto,
@@ -56,7 +57,9 @@ export class ScmPublicController {
 
   @Public()
   @Post(':token/certificate-upload-url')
-  @ApiOperation({ summary: 'Presign a certificate upload (guarded like Vault)' })
+  @ApiOperation({
+    summary: 'Presign a certificate upload (guarded like Vault)',
+  })
   certUploadUrl(
     @Param('token') token: string,
     @Body() dto: PublicCertUploadUrlDto,
@@ -66,7 +69,9 @@ export class ScmPublicController {
 
   @Public()
   @Post(':token/certificate-confirm')
-  @ApiOperation({ summary: 'Confirm a completed certificate upload (size-checked)' })
+  @ApiOperation({
+    summary: 'Confirm a completed certificate upload (size-checked)',
+  })
   certConfirm(
     @Param('token') token: string,
     @Body() dto: PublicCertConfirmDto,
@@ -76,10 +81,7 @@ export class ScmPublicController {
 
   @Public()
   @Post(':token/nda-template-download')
-  ndaTemplate(
-    @Param('token') token: string,
-    @Body() dto: PublicResolveDto,
-  ) {
+  ndaTemplate(@Param('token') token: string, @Body() dto: PublicResolveDto) {
     return this.service.publicNdaTemplateDownload(token, dto.password);
   }
 

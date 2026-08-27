@@ -9,7 +9,10 @@ import { VaultStorageService } from '../src/modules/vault/vault-storage.service'
 /** Deterministic R2 stand-in so presigned-URL assertions don't need live creds. */
 class FakeStorage {
   async createDownloadUrl(storageKey: string) {
-    return { url: `https://fake-r2.local/${storageKey}?sig=abc`, expiresInSeconds: 300 };
+    return {
+      url: `https://fake-r2.local/${storageKey}?sig=abc`,
+      expiresInSeconds: 300,
+    };
   }
   async headObject(storageKey: string) {
     return { key: storageKey, size: 1024, contentType: 'application/pdf' };
@@ -134,7 +137,11 @@ describe('Project Kickoff (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     prisma = app.get(PrismaService);
@@ -222,15 +229,23 @@ describe('Project Kickoff (e2e)', () => {
     });
     await prisma.order.deleteMany({ where: { id: { in: createdOrderIds } } });
     if (createdVendorIds.length) {
-      await prisma.vendor.deleteMany({ where: { id: { in: createdVendorIds } } });
+      await prisma.vendor.deleteMany({
+        where: { id: { in: createdVendorIds } },
+      });
     }
     // Products deleted after orders (line items cascade with the order first).
     if (createdProductIds.length) {
-      await prisma.product.deleteMany({ where: { id: { in: createdProductIds } } });
+      await prisma.product.deleteMany({
+        where: { id: { in: createdProductIds } },
+      });
     }
-    await prisma.customer.deleteMany({ where: { id: { in: createdCustomerIds } } });
+    await prisma.customer.deleteMany({
+      where: { id: { in: createdCustomerIds } },
+    });
     if (createdEmployeeIds.length) {
-      await prisma.employee.deleteMany({ where: { id: { in: createdEmployeeIds } } });
+      await prisma.employee.deleteMany({
+        where: { id: { in: createdEmployeeIds } },
+      });
     }
     await app.close();
   });
@@ -265,14 +280,20 @@ describe('Project Kickoff (e2e)', () => {
     await request(app.getHttpServer())
       .post('/project-kickoffs')
       .set('Authorization', `Bearer ${plainToken}`)
-      .send({ orderId: executedOrderId, meetingDate: '2026-08-01T10:00:00.000Z' })
+      .send({
+        orderId: executedOrderId,
+        meetingDate: '2026-08-01T10:00:00.000Z',
+      })
       .expect(403);
 
     // PM, but the order's sheet isn't executed → blocked by the reused gate.
     await request(app.getHttpServer())
       .post('/project-kickoffs')
       .set('Authorization', `Bearer ${pmToken}`)
-      .send({ orderId: unexecutedOrderId, meetingDate: '2026-08-01T10:00:00.000Z' })
+      .send({
+        orderId: unexecutedOrderId,
+        meetingDate: '2026-08-01T10:00:00.000Z',
+      })
       .expect(400);
 
     // PM + executed order → created.
@@ -295,14 +316,20 @@ describe('Project Kickoff (e2e)', () => {
 
     // Auto-provisioned board: 3 lists, last is a done-list, PM is a member —
     // and the PM was NOT given Scrum Master rights.
-    const pmEmp = await prisma.employee.findUniqueOrThrow({ where: { id: pmId } });
+    const pmEmp = await prisma.employee.findUniqueOrThrow({
+      where: { id: pmId },
+    });
     expect(pmEmp.isScrumMaster).toBe(false);
 
     const lists = await prisma.kanbanList.findMany({
       where: { boardId: kickoff.kanbanBoardId },
       orderBy: { position: 'asc' },
     });
-    expect(lists.map((l) => l.name)).toEqual(['To Do', 'In progress', 'Completed']);
+    expect(lists.map((l) => l.name)).toEqual([
+      'To Do',
+      'In progress',
+      'Completed',
+    ]);
     expect(lists[2].isDoneList).toBe(true);
 
     const membership = await prisma.kanbanBoardMember.findFirst({
@@ -316,7 +343,10 @@ describe('Project Kickoff (e2e)', () => {
       await request(app.getHttpServer())
         .post('/project-kickoffs')
         .set('Authorization', `Bearer ${pmToken}`)
-        .send({ orderId: executedOrderId, meetingDate: '2026-08-02T10:00:00.000Z' })
+        .send({
+          orderId: executedOrderId,
+          meetingDate: '2026-08-02T10:00:00.000Z',
+        })
         .expect(201)
     ).body.data;
     const kid = kickoff.id;
@@ -339,7 +369,11 @@ describe('Project Kickoff (e2e)', () => {
     const ext = await request(app.getHttpServer())
       .post(`/project-kickoffs/${kid}/attendees`)
       .set('Authorization', `Bearer ${pmToken}`)
-      .send({ externalName: 'Client Rep', externalOrganization: 'Acme', designation: 'CTO' })
+      .send({
+        externalName: 'Client Rep',
+        externalOrganization: 'Acme',
+        designation: 'CTO',
+      })
       .expect(201);
     expect(ext.body.data.isInternal).toBe(false);
     expect(ext.body.data.name).toBe('Client Rep');
@@ -354,7 +388,11 @@ describe('Project Kickoff (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/project-kickoffs/${kid}/action-items`)
         .set('Authorization', `Bearer ${pmToken}`)
-        .send({ description: 'Finalise rack layout', ownerId: memberId, dueDate: '2026-08-10' })
+        .send({
+          description: 'Finalise rack layout',
+          ownerId: memberId,
+          dueDate: '2026-08-10',
+        })
         .expect(201)
     ).body.data;
     expect(ai.kanbanCardId).toBeTruthy();
@@ -382,7 +420,9 @@ describe('Project Kickoff (e2e)', () => {
         .set('Authorization', `Bearer ${pmToken}`)
         .expect(200)
     ).body.data;
-    const movedItem = afterMove.actionItems.find((x: { id: string }) => x.id === ai.id);
+    const movedItem = afterMove.actionItems.find(
+      (x: { id: string }) => x.id === ai.id,
+    );
     expect(movedItem.status).toBe('DONE');
     expect(movedItem.currentListName).toBe('Completed');
 
@@ -391,7 +431,11 @@ describe('Project Kickoff (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/project-kickoffs/${kid}/milestones`)
         .set('Authorization', `Bearer ${pmToken}`)
-        .send({ name: 'Design freeze', targetDate: '2026-08-20', ownerId: memberId })
+        .send({
+          name: 'Design freeze',
+          targetDate: '2026-08-20',
+          ownerId: memberId,
+        })
         .expect(201)
     ).body.data;
     expect(milestone.status).toBe('PENDING');
@@ -405,7 +449,12 @@ describe('Project Kickoff (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/project-kickoffs/${kid}/risks`)
         .set('Authorization', `Bearer ${pmToken}`)
-        .send({ description: 'Long lead time on doors', likelihood: 'HIGH', impact: 'MEDIUM', mitigationPlan: 'Pre-order' })
+        .send({
+          description: 'Long lead time on doors',
+          likelihood: 'HIGH',
+          impact: 'MEDIUM',
+          mitigationPlan: 'Pre-order',
+        })
         .expect(201)
     ).body.data;
     expect(risk.likelihood).toBe('HIGH');
@@ -431,7 +480,10 @@ describe('Project Kickoff (e2e)', () => {
       await request(app.getHttpServer())
         .post('/project-kickoffs')
         .set('Authorization', `Bearer ${pmToken}`)
-        .send({ orderId: executedOrderId, meetingDate: '2026-08-06T10:00:00.000Z' })
+        .send({
+          orderId: executedOrderId,
+          meetingDate: '2026-08-06T10:00:00.000Z',
+        })
         .expect(201)
     ).body.data;
     const kid = kickoff.id;
@@ -480,7 +532,9 @@ describe('Project Kickoff (e2e)', () => {
       .send({ status: 'COMPLETED' })
       .expect(403);
     await request(app.getHttpServer())
-      .delete(`/project-kickoffs/${kid}/milestones/${milestoneForPatchTests.id}`)
+      .delete(
+        `/project-kickoffs/${kid}/milestones/${milestoneForPatchTests.id}`,
+      )
       .set('Authorization', `Bearer ${memberToken}`)
       .expect(403);
     await request(app.getHttpServer())
@@ -554,7 +608,9 @@ describe('Project Kickoff (e2e)', () => {
         .expect(200)
     ).body.data;
     expect(after.hasSignedCopy).toBe(true);
-    expect(after.downloadUrl).toContain(`order-confirmations/${sheetRow.id}/signed-copy`);
+    expect(after.downloadUrl).toContain(
+      `order-confirmations/${sheetRow.id}/signed-copy`,
+    );
     expect(after.executedAt).toContain('2026-07-19');
 
     // Sanity (§ verification): if the order's latest sheet is NOT executed, the
@@ -580,7 +636,10 @@ describe('Project Kickoff (e2e)', () => {
       await request(app.getHttpServer())
         .post('/project-kickoffs')
         .set('Authorization', `Bearer ${pmToken}`)
-        .send({ orderId: freshOrderId, meetingDate: '2026-08-03T10:00:00.000Z' })
+        .send({
+          orderId: freshOrderId,
+          meetingDate: '2026-08-03T10:00:00.000Z',
+        })
         .expect(201)
     ).body.data;
     const kid = kickoff.id;
@@ -588,7 +647,9 @@ describe('Project Kickoff (e2e)', () => {
 
     // The kickoff response surfaces the order's line items as deliveryItems.
     expect(Array.isArray(kickoff.deliveryItems)).toBe(true);
-    const di = kickoff.deliveryItems.find((x: { id: string }) => x.id === freshLineItemId);
+    const di = kickoff.deliveryItems.find(
+      (x: { id: string }) => x.id === freshLineItemId,
+    );
     expect(di).toBeTruthy();
     expect(di.deliveryType).toBeNull();
     expect(di.productName).toBe('Test Rack');
@@ -654,7 +715,9 @@ describe('Project Kickoff (e2e)', () => {
 
     // A line item from a DIFFERENT order can't be edited via this kickoff.
     await request(app.getHttpServer())
-      .patch(`/project-kickoffs/${kid}/delivery-items/00000000-0000-0000-0000-000000000000`)
+      .patch(
+        `/project-kickoffs/${kid}/delivery-items/00000000-0000-0000-0000-000000000000`,
+      )
       .set('Authorization', `Bearer ${pmToken}`)
       .send({ deliveryType: 'NPD' })
       .expect(404);
@@ -680,7 +743,10 @@ describe('Project Kickoff (e2e)', () => {
       await request(app.getHttpServer())
         .post('/vendors')
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ companyName: `Gate Vendor ${Math.floor(performance.now())}`, contactEmail: 'gate@vendor.example' })
+        .send({
+          companyName: `Gate Vendor ${Math.floor(performance.now())}`,
+          contactEmail: 'gate@vendor.example',
+        })
         .expect(201)
     ).body.data;
     createdVendorIds.push(vendor.id);
@@ -725,7 +791,10 @@ describe('Project Kickoff (e2e)', () => {
     await request(app.getHttpServer())
       .patch(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
       .set('Authorization', `Bearer ${superAdminToken}`)
-      .send({ overrideClassification: 'APPROVED', reason: 'Strategic sole-source; risk accepted by SCM head.' })
+      .send({
+        overrideClassification: 'APPROVED',
+        reason: 'Strategic sole-source; risk accepted by SCM head.',
+      })
       .expect(200);
 
     // The SAME selection now succeeds — the override propagated to Vendor.status.
@@ -741,7 +810,9 @@ describe('Project Kickoff (e2e)', () => {
 
     // Clearing the override reverts Vendor.status → the gate re-blocks a new selection.
     await request(app.getHttpServer())
-      .delete(`/vendors/${vendor.id}/audits/${audit.id}/classification-override`)
+      .delete(
+        `/vendors/${vendor.id}/audits/${audit.id}/classification-override`,
+      )
       .set('Authorization', `Bearer ${superAdminToken}`)
       .expect(200);
     // Reset the line item, then re-attempt the (now-unqualified) vendor.

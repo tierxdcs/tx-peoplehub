@@ -93,7 +93,10 @@ export class PlmAccessService {
           order: { select: { ownerId: true } },
           kickoff: {
             select: {
-              attendees: { where: { employeeId: user.id }, select: { id: true } },
+              attendees: {
+                where: { employeeId: user.id },
+                select: { id: true },
+              },
             },
           },
         },
@@ -152,6 +155,8 @@ export class PlmAccessService {
       employee?.isProjectManager
     )
       return;
-    throw new ForbiddenException('You are not involved in this order’s PLM work');
+    throw new ForbiddenException(
+      'You are not involved in this order’s PLM work',
+    );
   }
 }

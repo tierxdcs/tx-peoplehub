@@ -74,7 +74,11 @@ describe('GRN + QC Inspection Gate (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     prisma = app.get(PrismaService);
@@ -84,9 +88,15 @@ describe('GRN + QC Inspection Gate (e2e)', () => {
     ).id;
     superAdminToken = await login(adminEmail, adminPassword);
 
-    const scmVertical = await prisma.vertical.findUniqueOrThrow({ where: { code: 'SCM' } });
-    const prodVertical = await prisma.vertical.findUniqueOrThrow({ where: { code: 'PRODUCTION' } });
-    const salesVertical = await prisma.vertical.findUniqueOrThrow({ where: { code: 'SALES' } });
+    const scmVertical = await prisma.vertical.findUniqueOrThrow({
+      where: { code: 'SCM' },
+    });
+    const prodVertical = await prisma.vertical.findUniqueOrThrow({
+      where: { code: 'PRODUCTION' },
+    });
+    const salesVertical = await prisma.vertical.findUniqueOrThrow({
+      where: { code: 'SALES' },
+    });
     const suffix = Date.now();
     const mk = async (firstName: string, role: string, verticalId: string) => {
       const email = `grn.${firstName.toLowerCase()}.${suffix}@peoplehub.local`;
@@ -116,25 +126,45 @@ describe('GRN + QC Inspection Gate (e2e)', () => {
     outsiderToken = await login(outsider.email, 'S3curePass!');
 
     const supplierBase = {
-      registeredAddress: 'x', factoryAddress: 'x', yearEstablished: '2000',
-      numberOfEmployees: '10', annualTurnover: '1cr', contactPersonName: 'x',
-      contactPersonDesignation: 'x', contactEmail: 'x@y.com',
-      contactPhone: '+910000000000', createdById: superAdminId,
+      registeredAddress: 'x',
+      factoryAddress: 'x',
+      yearEstablished: '2000',
+      numberOfEmployees: '10',
+      annualTurnover: '1cr',
+      contactPersonName: 'x',
+      contactPersonDesignation: 'x',
+      contactEmail: 'x@y.com',
+      contactPhone: '+910000000000',
+      createdById: superAdminId,
     };
     approvedSupplierId = (
       await prisma.supplier.create({
-        data: { ...supplierBase, companyName: `GrnSup ${suffix}`, status: 'APPROVED' },
+        data: {
+          ...supplierBase,
+          companyName: `GrnSup ${suffix}`,
+          status: 'APPROVED',
+        },
       })
     ).id;
 
     itemAId = (
       await prisma.item.create({
-        data: { itemCode: `GRN-A-${suffix}`, name: 'Steel', itemType: 'RAW_MATERIAL', baseUnitOfMeasure: 'kg' },
+        data: {
+          itemCode: `GRN-A-${suffix}`,
+          name: 'Steel',
+          itemType: 'RAW_MATERIAL',
+          baseUnitOfMeasure: 'kg',
+        },
       })
     ).id;
     itemBId = (
       await prisma.item.create({
-        data: { itemCode: `GRN-B-${suffix}`, name: 'Bolt', itemType: 'COMPONENT', baseUnitOfMeasure: 'pcs' },
+        data: {
+          itemCode: `GRN-B-${suffix}`,
+          name: 'Bolt',
+          itemType: 'COMPONENT',
+          baseUnitOfMeasure: 'pcs',
+        },
       })
     ).id;
     storeId = (
@@ -166,7 +196,9 @@ describe('GRN + QC Inspection Gate (e2e)', () => {
   });
 
   it('creates + submits a GRN with ZERO stock movement (the core rule)', async () => {
-    const po = await createIssuedPo([{ itemId: itemAId, orderedQuantity: 100, unitPrice: 10 }]);
+    const po = await createIssuedPo([
+      { itemId: itemAId, orderedQuantity: 100, unitPrice: 10 },
+    ]);
     const before = await onHand(itemAId);
 
     const year = new Date().getUTCFullYear();
@@ -177,7 +209,11 @@ describe('GRN + QC Inspection Gate (e2e)', () => {
         .send({
           purchaseOrderId: po.id,
           lines: [
-            { purchaseOrderLineId: po.lines[0].id, storeLocationId: storeId, receivedQuantity: 100 },
+            {
+              purchaseOrderLineId: po.lines[0].id,
+              storeLocationId: storeId,
+              receivedQuantity: 100,
+            },
           ],
         })
         .expect(201)
@@ -203,7 +239,9 @@ describe('GRN + QC Inspection Gate (e2e)', () => {
   });
 
   it('finalizes QC full-pass: only accepted qty generates STOCK_IN', async () => {
-    const po = await createIssuedPo([{ itemId: itemAId, orderedQuantity: 50, unitPrice: 10 }]);
+    const po = await createIssuedPo([
+      { itemId: itemAId, orderedQuantity: 50, unitPrice: 10 },
+    ]);
     const before = Number(await onHand(itemAId));
 
     const grn = (
@@ -212,17 +250,34 @@ describe('GRN + QC Inspection Gate (e2e)', () => {
         .set('Authorization', `Bearer ${prodEmployeeToken}`)
         .send({
           purchaseOrderId: po.id,
-          lines: [{ purchaseOrderLineId: po.lines[0].id, storeLocationId: storeId, receivedQuantity: 50 }],
+          lines: [
+            {
+              purchaseOrderLineId: po.lines[0].id,
+              storeLocationId: storeId,
+              receivedQuantity: 50,
+            },
+          ],
         })
         .expect(201)
     ).body.data;
-    await http().post(`/goods-receipt-notes/${grn.id}/submit`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(201);
+    await http()
+      .post(`/goods-receipt-notes/${grn.id}/submit`)
+      .set('Authorization', `Bearer ${prodEmployeeToken}`)
+      .expect(201);
 
     const finalized = (
       await http()
         .post(`/goods-receipt-notes/${grn.id}/finalize-qc`)
         .set('Authorization', `Bearer ${qcManagerToken}`)
-        .send({ lines: [{ grnLineId: grn.lines[0].id, acceptedQuantity: 50, rejectedQuantity: 0 }] })
+        .send({
+          lines: [
+            {
+              grnLineId: grn.lines[0].id,
+              acceptedQuantity: 50,
+              rejectedQuantity: 0,
+            },
+          ],
+        })
         .expect(201)
     ).body.data;
     expect(finalized.status).toBe('QC_PASSED');
@@ -231,13 +286,18 @@ describe('GRN + QC Inspection Gate (e2e)', () => {
     expect(Number(await onHand(itemAId))).toBe(before + 50);
     // PO fully received.
     const poAfter = (
-      await http().get(`/purchase-orders/${po.id}`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(200)
+      await http()
+        .get(`/purchase-orders/${po.id}`)
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .expect(200)
     ).body.data;
     expect(poAfter.status).toBe('FULLY_RECEIVED');
   });
 
   it('partial acceptance creates BOTH a STOCK_IN (accepted) and an NCR (rejected)', async () => {
-    const po = await createIssuedPo([{ itemId: itemBId, orderedQuantity: 40, unitPrice: 5 }]);
+    const po = await createIssuedPo([
+      { itemId: itemBId, orderedQuantity: 40, unitPrice: 5 },
+    ]);
     const before = Number(await onHand(itemBId));
 
     const grn = (
@@ -246,18 +306,34 @@ describe('GRN + QC Inspection Gate (e2e)', () => {
         .set('Authorization', `Bearer ${prodEmployeeToken}`)
         .send({
           purchaseOrderId: po.id,
-          lines: [{ purchaseOrderLineId: po.lines[0].id, storeLocationId: storeId, receivedQuantity: 40 }],
+          lines: [
+            {
+              purchaseOrderLineId: po.lines[0].id,
+              storeLocationId: storeId,
+              receivedQuantity: 40,
+            },
+          ],
         })
         .expect(201)
     ).body.data;
-    await http().post(`/goods-receipt-notes/${grn.id}/submit`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(201);
+    await http()
+      .post(`/goods-receipt-notes/${grn.id}/submit`)
+      .set('Authorization', `Bearer ${prodEmployeeToken}`)
+      .expect(201);
 
     const finalized = (
       await http()
         .post(`/goods-receipt-notes/${grn.id}/finalize-qc`)
         .set('Authorization', `Bearer ${qcManagerToken}`)
         .send({
-          lines: [{ grnLineId: grn.lines[0].id, acceptedQuantity: 30, rejectedQuantity: 10, rejectionReason: 'dented' }],
+          lines: [
+            {
+              grnLineId: grn.lines[0].id,
+              acceptedQuantity: 30,
+              rejectedQuantity: 10,
+              rejectionReason: 'dented',
+            },
+          ],
         })
         .expect(201)
     ).body.data;
@@ -271,27 +347,53 @@ describe('GRN + QC Inspection Gate (e2e)', () => {
     expect(finalized.ncrs[0].status).toBe('OPEN');
     // PO partially received (30 of 40).
     const poAfter = (
-      await http().get(`/purchase-orders/${po.id}`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(200)
+      await http()
+        .get(`/purchase-orders/${po.id}`)
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .expect(200)
     ).body.data;
     expect(poAfter.status).toBe('PARTIALLY_RECEIVED');
   });
 
   it('full rejection: QC_FAILED, no stock, NCR raised', async () => {
-    const po = await createIssuedPo([{ itemId: itemBId, orderedQuantity: 8, unitPrice: 5 }]);
+    const po = await createIssuedPo([
+      { itemId: itemBId, orderedQuantity: 8, unitPrice: 5 },
+    ]);
     const before = Number(await onHand(itemBId));
     const grn = (
       await http()
         .post('/goods-receipt-notes')
         .set('Authorization', `Bearer ${prodEmployeeToken}`)
-        .send({ purchaseOrderId: po.id, lines: [{ purchaseOrderLineId: po.lines[0].id, storeLocationId: storeId, receivedQuantity: 8 }] })
+        .send({
+          purchaseOrderId: po.id,
+          lines: [
+            {
+              purchaseOrderLineId: po.lines[0].id,
+              storeLocationId: storeId,
+              receivedQuantity: 8,
+            },
+          ],
+        })
         .expect(201)
     ).body.data;
-    await http().post(`/goods-receipt-notes/${grn.id}/submit`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(201);
+    await http()
+      .post(`/goods-receipt-notes/${grn.id}/submit`)
+      .set('Authorization', `Bearer ${prodEmployeeToken}`)
+      .expect(201);
     const finalized = (
       await http()
         .post(`/goods-receipt-notes/${grn.id}/finalize-qc`)
         .set('Authorization', `Bearer ${qcManagerToken}`)
-        .send({ lines: [{ grnLineId: grn.lines[0].id, acceptedQuantity: 0, rejectedQuantity: 8, rejectionReason: 'wrong spec' }] })
+        .send({
+          lines: [
+            {
+              grnLineId: grn.lines[0].id,
+              acceptedQuantity: 0,
+              rejectedQuantity: 8,
+              rejectionReason: 'wrong spec',
+            },
+          ],
+        })
         .expect(201)
     ).body.data;
     expect(finalized.status).toBe('QC_FAILED');
@@ -300,49 +402,137 @@ describe('GRN + QC Inspection Gate (e2e)', () => {
   });
 
   it('computes "previously received" across multiple GRNs against the same PO line', async () => {
-    const po = await createIssuedPo([{ itemId: itemAId, orderedQuantity: 100, unitPrice: 10 }]);
+    const po = await createIssuedPo([
+      { itemId: itemAId, orderedQuantity: 100, unitPrice: 10 },
+    ]);
     const poLineId = po.lines[0].id;
 
     // First GRN: accept 30.
     const g1 = (
-      await http().post('/goods-receipt-notes').set('Authorization', `Bearer ${prodEmployeeToken}`)
-        .send({ purchaseOrderId: po.id, lines: [{ purchaseOrderLineId: poLineId, storeLocationId: storeId, receivedQuantity: 30 }] }).expect(201)
+      await http()
+        .post('/goods-receipt-notes')
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .send({
+          purchaseOrderId: po.id,
+          lines: [
+            {
+              purchaseOrderLineId: poLineId,
+              storeLocationId: storeId,
+              receivedQuantity: 30,
+            },
+          ],
+        })
+        .expect(201)
     ).body.data;
-    await http().post(`/goods-receipt-notes/${g1.id}/submit`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(201);
-    await http().post(`/goods-receipt-notes/${g1.id}/finalize-qc`).set('Authorization', `Bearer ${qcManagerToken}`)
-      .send({ lines: [{ grnLineId: g1.lines[0].id, acceptedQuantity: 30, rejectedQuantity: 0 }] }).expect(201);
+    await http()
+      .post(`/goods-receipt-notes/${g1.id}/submit`)
+      .set('Authorization', `Bearer ${prodEmployeeToken}`)
+      .expect(201);
+    await http()
+      .post(`/goods-receipt-notes/${g1.id}/finalize-qc`)
+      .set('Authorization', `Bearer ${qcManagerToken}`)
+      .send({
+        lines: [
+          {
+            grnLineId: g1.lines[0].id,
+            acceptedQuantity: 30,
+            rejectedQuantity: 0,
+          },
+        ],
+      })
+      .expect(201);
 
     // Second GRN: previously-received should now read 30.
     const g2 = (
-      await http().post('/goods-receipt-notes').set('Authorization', `Bearer ${prodEmployeeToken}`)
-        .send({ purchaseOrderId: po.id, lines: [{ purchaseOrderLineId: poLineId, storeLocationId: storeId, receivedQuantity: 25 }] }).expect(201)
+      await http()
+        .post('/goods-receipt-notes')
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .send({
+          purchaseOrderId: po.id,
+          lines: [
+            {
+              purchaseOrderLineId: poLineId,
+              storeLocationId: storeId,
+              receivedQuantity: 25,
+            },
+          ],
+        })
+        .expect(201)
     ).body.data;
     const g2read = (
-      await http().get(`/goods-receipt-notes/${g2.id}`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(200)
+      await http()
+        .get(`/goods-receipt-notes/${g2.id}`)
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .expect(200)
     ).body.data;
     expect(g2read.lines[0].previouslyReceived).toBe('30');
 
-    await http().post(`/goods-receipt-notes/${g2.id}/submit`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(201);
-    await http().post(`/goods-receipt-notes/${g2.id}/finalize-qc`).set('Authorization', `Bearer ${qcManagerToken}`)
-      .send({ lines: [{ grnLineId: g2.lines[0].id, acceptedQuantity: 25, rejectedQuantity: 0 }] }).expect(201);
+    await http()
+      .post(`/goods-receipt-notes/${g2.id}/submit`)
+      .set('Authorization', `Bearer ${prodEmployeeToken}`)
+      .expect(201);
+    await http()
+      .post(`/goods-receipt-notes/${g2.id}/finalize-qc`)
+      .set('Authorization', `Bearer ${qcManagerToken}`)
+      .send({
+        lines: [
+          {
+            grnLineId: g2.lines[0].id,
+            acceptedQuantity: 25,
+            rejectedQuantity: 0,
+          },
+        ],
+      })
+      .expect(201);
 
     // PO now has 55 of 100 → still PARTIALLY_RECEIVED.
     const poAfter = (
-      await http().get(`/purchase-orders/${po.id}`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(200)
+      await http()
+        .get(`/purchase-orders/${po.id}`)
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .expect(200)
     ).body.data;
     expect(poAfter.status).toBe('PARTIALLY_RECEIVED');
   });
 
   it('warns (but does not block) on over-receipt beyond ordered quantity', async () => {
-    const po = await createIssuedPo([{ itemId: itemAId, orderedQuantity: 10, unitPrice: 10 }]);
+    const po = await createIssuedPo([
+      { itemId: itemAId, orderedQuantity: 10, unitPrice: 10 },
+    ]);
     const grn = (
-      await http().post('/goods-receipt-notes').set('Authorization', `Bearer ${prodEmployeeToken}`)
-        .send({ purchaseOrderId: po.id, lines: [{ purchaseOrderLineId: po.lines[0].id, storeLocationId: storeId, receivedQuantity: 15 }] }).expect(201)
+      await http()
+        .post('/goods-receipt-notes')
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .send({
+          purchaseOrderId: po.id,
+          lines: [
+            {
+              purchaseOrderLineId: po.lines[0].id,
+              storeLocationId: storeId,
+              receivedQuantity: 15,
+            },
+          ],
+        })
+        .expect(201)
     ).body.data;
-    await http().post(`/goods-receipt-notes/${grn.id}/submit`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(201);
+    await http()
+      .post(`/goods-receipt-notes/${grn.id}/submit`)
+      .set('Authorization', `Bearer ${prodEmployeeToken}`)
+      .expect(201);
     const finalized = (
-      await http().post(`/goods-receipt-notes/${grn.id}/finalize-qc`).set('Authorization', `Bearer ${qcManagerToken}`)
-        .send({ lines: [{ grnLineId: grn.lines[0].id, acceptedQuantity: 15, rejectedQuantity: 0 }] }).expect(201)
+      await http()
+        .post(`/goods-receipt-notes/${grn.id}/finalize-qc`)
+        .set('Authorization', `Bearer ${qcManagerToken}`)
+        .send({
+          lines: [
+            {
+              grnLineId: grn.lines[0].id,
+              acceptedQuantity: 15,
+              rejectedQuantity: 0,
+            },
+          ],
+        })
+        .expect(201)
     ).body.data;
     // Created despite over-receipt, with a warning attached.
     expect(finalized.status).toBe('QC_PASSED');
@@ -352,66 +542,194 @@ describe('GRN + QC Inspection Gate (e2e)', () => {
   });
 
   it('gates receiving to Production/SA and inspection to QC Inspector/SA', async () => {
-    const po = await createIssuedPo([{ itemId: itemAId, orderedQuantity: 5, unitPrice: 10 }]);
+    const po = await createIssuedPo([
+      { itemId: itemAId, orderedQuantity: 5, unitPrice: 10 },
+    ]);
     // Outsider (Sales) cannot receive.
-    await http().post('/goods-receipt-notes').set('Authorization', `Bearer ${outsiderToken}`)
-      .send({ purchaseOrderId: po.id, lines: [{ purchaseOrderLineId: po.lines[0].id, storeLocationId: storeId, receivedQuantity: 5 }] }).expect(403);
+    await http()
+      .post('/goods-receipt-notes')
+      .set('Authorization', `Bearer ${outsiderToken}`)
+      .send({
+        purchaseOrderId: po.id,
+        lines: [
+          {
+            purchaseOrderLineId: po.lines[0].id,
+            storeLocationId: storeId,
+            receivedQuantity: 5,
+          },
+        ],
+      })
+      .expect(403);
     // Production employee can, and can read company-wide.
     const grn = (
-      await http().post('/goods-receipt-notes').set('Authorization', `Bearer ${prodEmployeeToken}`)
-        .send({ purchaseOrderId: po.id, lines: [{ purchaseOrderLineId: po.lines[0].id, storeLocationId: storeId, receivedQuantity: 5 }] }).expect(201)
+      await http()
+        .post('/goods-receipt-notes')
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .send({
+          purchaseOrderId: po.id,
+          lines: [
+            {
+              purchaseOrderLineId: po.lines[0].id,
+              storeLocationId: storeId,
+              receivedQuantity: 5,
+            },
+          ],
+        })
+        .expect(201)
     ).body.data;
-    await http().post(`/goods-receipt-notes/${grn.id}/submit`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(201);
+    await http()
+      .post(`/goods-receipt-notes/${grn.id}/submit`)
+      .set('Authorization', `Bearer ${prodEmployeeToken}`)
+      .expect(201);
 
     // A non-QC-inspector (the plain Production employee) cannot finalize.
-    await http().post(`/goods-receipt-notes/${grn.id}/finalize-qc`).set('Authorization', `Bearer ${prodEmployeeToken}`)
-      .send({ lines: [{ grnLineId: grn.lines[0].id, acceptedQuantity: 5, rejectedQuantity: 0 }] }).expect(403);
+    await http()
+      .post(`/goods-receipt-notes/${grn.id}/finalize-qc`)
+      .set('Authorization', `Bearer ${prodEmployeeToken}`)
+      .send({
+        lines: [
+          {
+            grnLineId: grn.lines[0].id,
+            acceptedQuantity: 5,
+            rejectedQuantity: 0,
+          },
+        ],
+      })
+      .expect(403);
     // The designated QC inspector can.
-    await http().post(`/goods-receipt-notes/${grn.id}/finalize-qc`).set('Authorization', `Bearer ${qcManagerToken}`)
-      .send({ lines: [{ grnLineId: grn.lines[0].id, acceptedQuantity: 5, rejectedQuantity: 0 }] }).expect(201);
+    await http()
+      .post(`/goods-receipt-notes/${grn.id}/finalize-qc`)
+      .set('Authorization', `Bearer ${qcManagerToken}`)
+      .send({
+        lines: [
+          {
+            grnLineId: grn.lines[0].id,
+            acceptedQuantity: 5,
+            rejectedQuantity: 0,
+          },
+        ],
+      })
+      .expect(201);
   });
 
   it('rejects QC decisions whose accepted + rejected != received', async () => {
-    const po = await createIssuedPo([{ itemId: itemAId, orderedQuantity: 20, unitPrice: 10 }]);
+    const po = await createIssuedPo([
+      { itemId: itemAId, orderedQuantity: 20, unitPrice: 10 },
+    ]);
     const grn = (
-      await http().post('/goods-receipt-notes').set('Authorization', `Bearer ${prodEmployeeToken}`)
-        .send({ purchaseOrderId: po.id, lines: [{ purchaseOrderLineId: po.lines[0].id, storeLocationId: storeId, receivedQuantity: 20 }] }).expect(201)
+      await http()
+        .post('/goods-receipt-notes')
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .send({
+          purchaseOrderId: po.id,
+          lines: [
+            {
+              purchaseOrderLineId: po.lines[0].id,
+              storeLocationId: storeId,
+              receivedQuantity: 20,
+            },
+          ],
+        })
+        .expect(201)
     ).body.data;
-    await http().post(`/goods-receipt-notes/${grn.id}/submit`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(201);
-    await http().post(`/goods-receipt-notes/${grn.id}/finalize-qc`).set('Authorization', `Bearer ${qcManagerToken}`)
-      .send({ lines: [{ grnLineId: grn.lines[0].id, acceptedQuantity: 5, rejectedQuantity: 5 }] }).expect(400);
+    await http()
+      .post(`/goods-receipt-notes/${grn.id}/submit`)
+      .set('Authorization', `Bearer ${prodEmployeeToken}`)
+      .expect(201);
+    await http()
+      .post(`/goods-receipt-notes/${grn.id}/finalize-qc`)
+      .set('Authorization', `Bearer ${qcManagerToken}`)
+      .send({
+        lines: [
+          {
+            grnLineId: grn.lines[0].id,
+            acceptedQuantity: 5,
+            rejectedQuantity: 5,
+          },
+        ],
+      })
+      .expect(400);
     // Also requires a rejection reason when rejecting.
-    await http().post(`/goods-receipt-notes/${grn.id}/finalize-qc`).set('Authorization', `Bearer ${qcManagerToken}`)
-      .send({ lines: [{ grnLineId: grn.lines[0].id, acceptedQuantity: 15, rejectedQuantity: 5 }] }).expect(400);
+    await http()
+      .post(`/goods-receipt-notes/${grn.id}/finalize-qc`)
+      .set('Authorization', `Bearer ${qcManagerToken}`)
+      .send({
+        lines: [
+          {
+            grnLineId: grn.lines[0].id,
+            acceptedQuantity: 15,
+            rejectedQuantity: 5,
+          },
+        ],
+      })
+      .expect(400);
   });
 
   it('runs the NCR disposition workflow (QC Inspector), gated from outsiders', async () => {
-    const po = await createIssuedPo([{ itemId: itemBId, orderedQuantity: 12, unitPrice: 5 }]);
+    const po = await createIssuedPo([
+      { itemId: itemBId, orderedQuantity: 12, unitPrice: 5 },
+    ]);
     const grn = (
-      await http().post('/goods-receipt-notes').set('Authorization', `Bearer ${prodEmployeeToken}`)
-        .send({ purchaseOrderId: po.id, lines: [{ purchaseOrderLineId: po.lines[0].id, storeLocationId: storeId, receivedQuantity: 12 }] }).expect(201)
+      await http()
+        .post('/goods-receipt-notes')
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .send({
+          purchaseOrderId: po.id,
+          lines: [
+            {
+              purchaseOrderLineId: po.lines[0].id,
+              storeLocationId: storeId,
+              receivedQuantity: 12,
+            },
+          ],
+        })
+        .expect(201)
     ).body.data;
-    await http().post(`/goods-receipt-notes/${grn.id}/submit`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(201);
+    await http()
+      .post(`/goods-receipt-notes/${grn.id}/submit`)
+      .set('Authorization', `Bearer ${prodEmployeeToken}`)
+      .expect(201);
     const finalized = (
-      await http().post(`/goods-receipt-notes/${grn.id}/finalize-qc`).set('Authorization', `Bearer ${qcManagerToken}`)
-        .send({ lines: [{ grnLineId: grn.lines[0].id, acceptedQuantity: 10, rejectedQuantity: 2, rejectionReason: 'scratched' }] }).expect(201)
+      await http()
+        .post(`/goods-receipt-notes/${grn.id}/finalize-qc`)
+        .set('Authorization', `Bearer ${qcManagerToken}`)
+        .send({
+          lines: [
+            {
+              grnLineId: grn.lines[0].id,
+              acceptedQuantity: 10,
+              rejectedQuantity: 2,
+              rejectionReason: 'scratched',
+            },
+          ],
+        })
+        .expect(201)
     ).body.data;
     const ncrId = finalized.ncrs[0].id;
 
     // Outsider cannot disposition.
-    await http().post(`/non-conformance-reports/${ncrId}/disposition`).set('Authorization', `Bearer ${outsiderToken}`)
-      .send({ disposition: 'RETURN_TO_SUPPLIER' }).expect(403);
+    await http()
+      .post(`/non-conformance-reports/${ncrId}/disposition`)
+      .set('Authorization', `Bearer ${outsiderToken}`)
+      .send({ disposition: 'RETURN_TO_SUPPLIER' })
+      .expect(403);
 
     // QC inspector can.
     const dispositioned = (
-      await http().post(`/non-conformance-reports/${ncrId}/disposition`).set('Authorization', `Bearer ${qcManagerToken}`)
-        .send({ disposition: 'SCRAP', dispositionNotes: 'unusable' }).expect(201)
+      await http()
+        .post(`/non-conformance-reports/${ncrId}/disposition`)
+        .set('Authorization', `Bearer ${qcManagerToken}`)
+        .send({ disposition: 'SCRAP', dispositionNotes: 'unusable' })
+        .expect(201)
     ).body.data;
     expect(dispositioned.status).toBe('DISPOSITIONED');
     expect(dispositioned.disposition).toBe('SCRAP');
 
     const closed = (
-      await http().post(`/non-conformance-reports/${ncrId}/close`).set('Authorization', `Bearer ${qcManagerToken}`).expect(201)
+      await http()
+        .post(`/non-conformance-reports/${ncrId}/close`)
+        .set('Authorization', `Bearer ${qcManagerToken}`)
+        .expect(201)
     ).body.data;
     expect(closed.status).toBe('CLOSED');
   });

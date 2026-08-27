@@ -329,7 +329,9 @@ describe('VaultAccessService', () => {
         const id =
           args.where.resourceType_resourceId_sharedWithEmployeeId.resourceId;
         // The share is on the PARENT, not the child.
-        return Promise.resolve(id === 'parent-1' ? { permission: 'EDIT' } : null);
+        return Promise.resolve(
+          id === 'parent-1' ? { permission: 'EDIT' } : null,
+        );
       });
 
       const access = await service.computeAccess(outsider, child);

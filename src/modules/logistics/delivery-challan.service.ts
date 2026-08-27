@@ -157,7 +157,11 @@ export class DeliveryChallanService {
             lineItems: {
               some: {
                 plmTrackers: {
-                  some: { currentStage: { in: [PlmStage.DISPATCH, PlmStage.COMPLETED] } },
+                  some: {
+                    currentStage: {
+                      in: [PlmStage.DISPATCH, PlmStage.COMPLETED],
+                    },
+                  },
                 },
               },
             },

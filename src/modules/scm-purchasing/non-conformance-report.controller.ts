@@ -60,7 +60,9 @@ export class NonConformanceReportController {
   }
 
   @Post(':id/close')
-  @ApiOperation({ summary: 'Close a DISPOSITIONED NCR (QC Inspector/Production Manager+/SA)' })
+  @ApiOperation({
+    summary: 'Close a DISPOSITIONED NCR (QC Inspector/Production Manager+/SA)',
+  })
   close(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.close(id, user);
   }

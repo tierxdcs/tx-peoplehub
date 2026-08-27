@@ -18,12 +18,7 @@ describe('KanbanAccessService card ownership', () => {
     const manage = jest.spyOn(service, 'assertCanManageBoard');
 
     await expect(
-      service.assertCanEditCard(
-        owner,
-        'board-1',
-        'assignee-1',
-        owner.id,
-      ),
+      service.assertCanEditCard(owner, 'board-1', 'assignee-1', owner.id),
     ).resolves.toEqual({ canManageBoard: false });
     expect(manage).not.toHaveBeenCalled();
   });
@@ -58,9 +53,9 @@ describe('KanbanAccessService board deletion', () => {
     const service = new KanbanAccessService({} as never);
     jest.spyOn(service, 'assertCanViewBoard').mockResolvedValue(board);
 
-    await expect(
-      service.assertCanDeleteBoard(creator, board.id),
-    ).resolves.toBe(board);
+    await expect(service.assertCanDeleteBoard(creator, board.id)).resolves.toBe(
+      board,
+    );
   });
 
   it('lets a SUPER_ADMIN delete any board', async () => {

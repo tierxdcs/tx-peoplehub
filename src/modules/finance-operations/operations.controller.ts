@@ -33,24 +33,32 @@ export class OperationsController {
   @Get('production-readiness') readiness(@CurrentUser() u: AuthenticatedUser) {
     return this.operations.productionReadiness(u);
   }
-  @Get('production-settings') productionSettings(@CurrentUser() u: AuthenticatedUser) {
+  @Get('production-settings') productionSettings(
+    @CurrentUser() u: AuthenticatedUser,
+  ) {
     return this.operations.productionSettings(u);
   }
   @Patch('production-settings') saveProductionSettings(
     @Body() d: ProductionSettingsDto,
     @CurrentUser() u: AuthenticatedUser,
-  ) { return this.operations.saveProductionSettings(d, u); }
+  ) {
+    return this.operations.saveProductionSettings(d, u);
+  }
   @Post('imports/opening-balances') openingBalances(
     @Body() d: OpeningBalanceImportDto,
     @CurrentUser() u: AuthenticatedUser,
-  ) { return this.operations.importOpeningBalances(d, u); }
+  ) {
+    return this.operations.importOpeningBalances(d, u);
+  }
   @Get('imports') imports(@CurrentUser() u: AuthenticatedUser) {
     return this.operations.imports(u);
   }
   @Get('management-packs/:id/export.csv') packCsv(
     @Param('id') id: string,
     @CurrentUser() u: AuthenticatedUser,
-  ) { return this.operations.managementPackCsv(id, u); }
+  ) {
+    return this.operations.managementPackCsv(id, u);
+  }
   @Get('bank-accounts') bankAccounts(@CurrentUser() u: AuthenticatedUser) {
     return this.operations.bankAccounts(u);
   }

@@ -654,11 +654,17 @@ export class TreasuryService {
     return new Date(`${x.slice(0, 10)}T00:00:00.000Z`);
   }
   private async account(tx: Prisma.TransactionClient, code: string) {
-    const settings = await tx.financeProductionSettings.findUnique({ where: { id: 'INDIA' } });
-    const mapped = (settings?.controlAccountMap as Record<string, string> | null)?.[code] || code;
+    const settings = await tx.financeProductionSettings.findUnique({
+      where: { id: 'INDIA' },
+    });
+    const mapped =
+      (settings?.controlAccountMap as Record<string, string> | null)?.[code] ||
+      code;
     const x = await tx.ledgerAccount.findUnique({ where: { code: mapped } });
     if (!x)
-      throw new BadRequestException(`Ledger account ${mapped} is not configured`);
+      throw new BadRequestException(
+        `Ledger account ${mapped} is not configured`,
+      );
     return x;
   }
   private async openPeriod(tx: Prisma.TransactionClient, date: Date) {

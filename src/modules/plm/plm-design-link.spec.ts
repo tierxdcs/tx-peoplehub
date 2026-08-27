@@ -53,14 +53,16 @@ describe('PlmService linked design-project gate', () => {
       designProject: { findFirst: jest.fn().mockResolvedValue(null) },
       plmTracker: { findUnique: jest.fn().mockResolvedValue(raw) },
       employee: { findMany: jest.fn().mockResolvedValue([]) },
-      $transaction: jest.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
-        fn({
-          plmTracker: {
-            update: jest.fn().mockResolvedValue({ id: 'tracker-1' }),
-          },
-          plmTrackerEvent: { create: jest.fn().mockResolvedValue(undefined) },
-        }),
-      ),
+      $transaction: jest
+        .fn()
+        .mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            plmTracker: {
+              update: jest.fn().mockResolvedValue({ id: 'tracker-1' }),
+            },
+            plmTrackerEvent: { create: jest.fn().mockResolvedValue(undefined) },
+          }),
+        ),
     };
     const access = {
       assertCanCompleteDesign: jest.fn().mockResolvedValue(undefined),

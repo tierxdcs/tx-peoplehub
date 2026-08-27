@@ -160,7 +160,9 @@ export class ExpenseClaimsController {
   }
 
   @Post(':id/pay')
-  @ApiOperation({ summary: 'Mark an approved claim paid — posts payout journal' })
+  @ApiOperation({
+    summary: 'Mark an approved claim paid — posts payout journal',
+  })
   markPaid(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.claims.markPaid(id, user);
   }

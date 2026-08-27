@@ -21,6 +21,7 @@ import { UpdateVaultFolderDto } from './dto/update-vault-folder.dto';
 import { GrantVaultPermissionDto } from './dto/grant-vault-permission.dto';
 import {
   VaultAccessEntity,
+  VaultFolderCrumbEntity,
   VaultFolderEntity,
   VaultFolderPermissionEntity,
 } from './entities/vault-folder.entity';
@@ -199,7 +200,10 @@ export class VaultFoldersService {
     return visible;
   }
 
-  /** Folder + immediate children the caller can read; 403 if no read access. */
+  /**
+   * Folder + immediate children the caller can read + its breadcrumb trail;
+   * 403 if no read access.
+   */
   async findOne(
     id: string,
     user: AuthenticatedUser,
@@ -211,7 +215,10 @@ export class VaultFoldersService {
     }
 
     const children = await this.prisma.vaultFolder.findMany({
-      where: { parentFolderId: id, status: { not: VaultFolderStatus.ARCHIVED } },
+      where: {
+        parentFolderId: id,
+        status: { not: VaultFolderStatus.ARCHIVED },
+      },
       include: { permissions: true },
       orderBy: { name: 'asc' },
     });
@@ -225,7 +232,48 @@ export class VaultFoldersService {
 
     const entity = this.toEntity(folder, folderAccess);
     entity.children = visibleChildren;
+    entity.ancestors = await this.ancestorTrail(folder, user);
     return entity;
+  }
+
+  /**
+   * Breadcrumb trail for a folder: every ancestor from the root down to the
+   * immediate parent (the folder itself is not included — the page already shows
+   * its name), each with the caller's own read access so the UI can link only
+   * where a click would actually work.
+   *
+   * The trail is built walking UP the parentFolderId chain and then reversed, so
+   * an unreachable/broken link simply ends the trail rather than looping; the
+   * `seen` set guards a pathological cycle in the self-relation, exactly as
+   * VaultAccessService's inheritance walk does.
+   */
+  async ancestorTrail(
+    folder: VaultFolder,
+    user: AuthenticatedUser,
+  ): Promise<VaultFolderCrumbEntity[]> {
+    const trail: VaultFolderCrumbEntity[] = [];
+    const seen = new Set<string>([folder.id]);
+    let parentId = folder.parentFolderId;
+
+    while (parentId && !seen.has(parentId)) {
+      seen.add(parentId);
+      const ancestor = await this.prisma.vaultFolder.findUnique({
+        where: { id: parentId },
+        include: { permissions: true },
+      });
+      if (!ancestor) break;
+      const access = await this.access.computeAccess(user, ancestor);
+      trail.push(
+        new VaultFolderCrumbEntity({
+          id: ancestor.id,
+          name: ancestor.name,
+          canRead: access.canRead,
+        }),
+      );
+      parentId = ancestor.parentFolderId;
+    }
+
+    return trail.reverse();
   }
 
   /**
@@ -449,10 +497,12 @@ export class VaultFoldersService {
     return folder;
   }
 
-  private toEntity(
-    folder: VaultFolder,
-    access: VaultAccess,
-  ): VaultFolderEntity {
+  /**
+   * Folder → API entity. Public so search results (built in VaultFilesService,
+   * which returns matching folders alongside matching files) map folders through
+   * this exact shape instead of a parallel copy that could drift.
+   */
+  toEntity(folder: VaultFolder, access: VaultAccess): VaultFolderEntity {
     return new VaultFolderEntity({
       id: folder.id,
       name: folder.name,

@@ -41,9 +41,13 @@ describe('supplier-scoring', () => {
   });
 
   it('maps classifications to supplier statuses', () => {
-    expect(classificationToSupplierStatus('APPROVED_PREFERRED')).toBe('APPROVED_PREFERRED');
+    expect(classificationToSupplierStatus('APPROVED_PREFERRED')).toBe(
+      'APPROVED_PREFERRED',
+    );
     expect(classificationToSupplierStatus('APPROVED')).toBe('APPROVED');
-    expect(classificationToSupplierStatus('CONDITIONALLY_APPROVED')).toBe('CONDITIONALLY_APPROVED');
+    expect(classificationToSupplierStatus('CONDITIONALLY_APPROVED')).toBe(
+      'CONDITIONALLY_APPROVED',
+    );
     expect(classificationToSupplierStatus('NOT_APPROVED')).toBe('NOT_APPROVED');
   });
 
@@ -63,9 +67,13 @@ describe('supplier-scoring', () => {
   });
 
   it('narrows a classification-valued status back to a classification (override display)', () => {
-    expect(supplierStatusToClassification('APPROVED_PREFERRED')).toBe('APPROVED_PREFERRED');
+    expect(supplierStatusToClassification('APPROVED_PREFERRED')).toBe(
+      'APPROVED_PREFERRED',
+    );
     expect(supplierStatusToClassification('APPROVED')).toBe('APPROVED');
-    expect(supplierStatusToClassification('CONDITIONALLY_APPROVED')).toBe('CONDITIONALLY_APPROVED');
+    expect(supplierStatusToClassification('CONDITIONALLY_APPROVED')).toBe(
+      'CONDITIONALLY_APPROVED',
+    );
     expect(supplierStatusToClassification('NOT_APPROVED')).toBe('NOT_APPROVED');
     expect(supplierStatusToClassification('PENDING_QUESTIONNAIRE')).toBeNull();
   });

@@ -18,7 +18,10 @@ export class EfficiencyService {
     );
     const [pingRows, taskRows] = await Promise.all([
       this.prisma.pingRecipient.findMany({
-        where: { employeeId, ping: { createdAt: { gte: windowStart, lte: now } } },
+        where: {
+          employeeId,
+          ping: { createdAt: { gte: windowStart, lte: now } },
+        },
         select: {
           status: true,
           acknowledgedAt: true,

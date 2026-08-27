@@ -63,7 +63,11 @@ describe('BOM + Inventory (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     prisma = app.get(PrismaService);
@@ -73,12 +77,18 @@ describe('BOM + Inventory (e2e)', () => {
     ).id;
     superAdminToken = await login(adminEmail, adminPassword);
 
-    rndVerticalId = (await prisma.vertical.findUniqueOrThrow({ where: { code: 'RND' } })).id;
-    salesVerticalId = (await prisma.vertical.findUniqueOrThrow({ where: { code: 'SALES' } })).id;
+    rndVerticalId = (
+      await prisma.vertical.findUniqueOrThrow({ where: { code: 'RND' } })
+    ).id;
+    salesVerticalId = (
+      await prisma.vertical.findUniqueOrThrow({ where: { code: 'SALES' } })
+    ).id;
     productionVerticalId = (
       await prisma.vertical.findUniqueOrThrow({ where: { code: 'PRODUCTION' } })
     ).id;
-    storeId = (await prisma.storeLocation.findFirstOrThrow({ where: { code: 'MAIN' } })).id;
+    storeId = (
+      await prisma.storeLocation.findFirstOrThrow({ where: { code: 'MAIN' } })
+    ).id;
 
     const suffix = Date.now();
     const mk = async (firstName: string, role: string, verticalId: string) => {
@@ -156,7 +166,10 @@ describe('BOM + Inventory (e2e)', () => {
    * A sellable Product linked to a manufactured FINISHED_GOOD Item. Returns both
    * ids — BOMs are keyed on the ITEM, orders reference the PRODUCT.
    */
-  async function createProduct(): Promise<{ productId: string; itemId: string }> {
+  async function createProduct(): Promise<{
+    productId: string;
+    itemId: string;
+  }> {
     const fg = await createItem(rndHeadToken, {
       itemType: 'FINISHED_GOOD',
       baseUnitOfMeasure: 'each',
@@ -238,17 +251,28 @@ describe('BOM + Inventory (e2e)', () => {
       .send({ name: 'x', itemType: 'RAW_MATERIAL', baseUnitOfMeasure: 'kg' })
       .expect(403);
     // Sales outsider cannot even read.
-    await http().get('/items').set('Authorization', `Bearer ${salesToken}`).expect(403);
+    await http()
+      .get('/items')
+      .set('Authorization', `Bearer ${salesToken}`)
+      .expect(403);
     // R&D Head can create; store + author can read.
     const item = await createItem(rndHeadToken);
-    await http().get(`/items/${item.id}`).set('Authorization', `Bearer ${storeToken}`).expect(200);
-    await http().get('/items').set('Authorization', `Bearer ${rndAuthorToken}`).expect(200);
+    await http()
+      .get(`/items/${item.id}`)
+      .set('Authorization', `Bearer ${storeToken}`)
+      .expect(200);
+    await http()
+      .get('/items')
+      .set('Authorization', `Bearer ${rndAuthorToken}`)
+      .expect(200);
     // Deactivate (no hard delete): the row remains, isActive=false.
     await http()
       .delete(`/items/${item.id}`)
       .set('Authorization', `Bearer ${rndHeadToken}`)
       .expect(200);
-    const after = await prisma.item.findUniqueOrThrow({ where: { id: item.id } });
+    const after = await prisma.item.findUniqueOrThrow({
+      where: { id: item.id },
+    });
     expect(after.isActive).toBe(false);
   });
 
@@ -278,7 +302,12 @@ describe('BOM + Inventory (e2e)', () => {
           itemId: fgItemId,
           revisionNotes: 'first cut',
           lines: [
-            { itemId: itemA.id, quantityPerUnit: 2, unitOfMeasure: 'kg', wastagePercent: 10 },
+            {
+              itemId: itemA.id,
+              quantityPerUnit: 2,
+              unitOfMeasure: 'kg',
+              wastagePercent: 10,
+            },
             { itemId: itemB.id, quantityPerUnit: 4, unitOfMeasure: 'pcs' },
           ],
         })
@@ -290,13 +319,19 @@ describe('BOM + Inventory (e2e)', () => {
     expect(bom.itemId).toBe(fgItemId);
 
     // Store users may NOT browse the BOM (Engineering) module — R&D-only now.
-    await http().get('/boms').set('Authorization', `Bearer ${storeToken}`).expect(403);
+    await http()
+      .get('/boms')
+      .set('Authorization', `Bearer ${storeToken}`)
+      .expect(403);
     await http()
       .get(`/boms/${bom.id}`)
       .set('Authorization', `Bearer ${storeToken}`)
       .expect(403);
     // R&D author can browse.
-    await http().get('/boms').set('Authorization', `Bearer ${rndAuthorToken}`).expect(200);
+    await http()
+      .get('/boms')
+      .set('Authorization', `Bearer ${rndAuthorToken}`)
+      .expect(200);
 
     // Edit the draft.
     await http()
@@ -349,7 +384,16 @@ describe('BOM + Inventory (e2e)', () => {
     await http()
       .patch(`/boms/${bom.id}`)
       .set('Authorization', `Bearer ${rndAuthorToken}`)
-      .send({ lines: [{ itemId: itemA.id, quantityPerUnit: 3, unitOfMeasure: 'kg', wastagePercent: 5 }] })
+      .send({
+        lines: [
+          {
+            itemId: itemA.id,
+            quantityPerUnit: 3,
+            unitOfMeasure: 'kg',
+            wastagePercent: 5,
+          },
+        ],
+      })
       .expect(200);
     await http()
       .post(`/boms/${bom.id}/submit`)
@@ -400,9 +444,13 @@ describe('BOM + Inventory (e2e)', () => {
       .post(`/boms/${rev2.id}/approve`)
       .set('Authorization', `Bearer ${rndHead2Token}`)
       .expect(201);
-    const rev1After = await prisma.bom.findUniqueOrThrow({ where: { id: bom.id } });
+    const rev1After = await prisma.bom.findUniqueOrThrow({
+      where: { id: bom.id },
+    });
     expect(rev1After.status).toBe('OBSOLETE');
-    const rev2After = await prisma.bom.findUniqueOrThrow({ where: { id: rev2.id } });
+    const rev2After = await prisma.bom.findUniqueOrThrow({
+      where: { id: rev2.id },
+    });
     expect(rev2After.status).toBe('RELEASED');
 
     // A creator who is ALSO a head still cannot self-approve: rndHead2 creates,
@@ -412,7 +460,12 @@ describe('BOM + Inventory (e2e)', () => {
       await http()
         .post('/boms')
         .set('Authorization', `Bearer ${rndHead2Token}`)
-        .send({ itemId: ownFg.itemId, lines: [{ itemId: itemA.id, quantityPerUnit: 1, unitOfMeasure: 'kg' }] })
+        .send({
+          itemId: ownFg.itemId,
+          lines: [
+            { itemId: itemA.id, quantityPerUnit: 1, unitOfMeasure: 'kg' },
+          ],
+        })
         .expect(201)
     ).body.data;
     await http()
@@ -432,14 +485,24 @@ describe('BOM + Inventory (e2e)', () => {
     await http()
       .post('/inventory/adjustments')
       .set('Authorization', `Bearer ${rndAuthorToken}`)
-      .send({ itemId: item.id, storeLocationId: storeId, quantityChange: 10, reason: 'x' })
+      .send({
+        itemId: item.id,
+        storeLocationId: storeId,
+        quantityChange: 10,
+        reason: 'x',
+      })
       .expect(403);
     // Store adds 10.
     const bal = (
       await http()
         .post('/inventory/adjustments')
         .set('Authorization', `Bearer ${storeToken}`)
-        .send({ itemId: item.id, storeLocationId: storeId, quantityChange: 10, reason: 'GRN' })
+        .send({
+          itemId: item.id,
+          storeLocationId: storeId,
+          quantityChange: 10,
+          reason: 'GRN',
+        })
         .expect(201)
     ).body.data;
     expect(bal.onHandQuantity).toBe('10');
@@ -448,7 +511,12 @@ describe('BOM + Inventory (e2e)', () => {
     await http()
       .post('/inventory/adjustments')
       .set('Authorization', `Bearer ${storeToken}`)
-      .send({ itemId: item.id, storeLocationId: storeId, quantityChange: -15, reason: 'issue' })
+      .send({
+        itemId: item.id,
+        storeLocationId: storeId,
+        quantityChange: -15,
+        reason: 'issue',
+      })
       .expect(400);
   });
 
@@ -467,38 +535,86 @@ describe('BOM + Inventory (e2e)', () => {
 
     // Stock: shared has 100 on hand; only2 has 5 on hand + 20 expected (future);
     // noStock has NO balance row → UNKNOWN.
-    await http().post('/inventory/adjustments').set('Authorization', `Bearer ${storeToken}`)
-      .send({ itemId: shared.id, storeLocationId: storeId, quantityChange: 100, reason: 'seed' }).expect(201);
-    await http().post('/inventory/adjustments').set('Authorization', `Bearer ${storeToken}`)
+    await http()
+      .post('/inventory/adjustments')
+      .set('Authorization', `Bearer ${storeToken}`)
       .send({
-        itemId: only2.id, storeLocationId: storeId, quantityChange: 5, reason: 'seed',
-        expectedReceiptQuantity: 20, expectedReceiptDate: '2099-01-01',
-      }).expect(201);
+        itemId: shared.id,
+        storeLocationId: storeId,
+        quantityChange: 100,
+        reason: 'seed',
+      })
+      .expect(201);
+    await http()
+      .post('/inventory/adjustments')
+      .set('Authorization', `Bearer ${storeToken}`)
+      .send({
+        itemId: only2.id,
+        storeLocationId: storeId,
+        quantityChange: 5,
+        reason: 'seed',
+        expectedReceiptQuantity: 20,
+        expectedReceiptDate: '2099-01-01',
+      })
+      .expect(201);
 
     // Release the finished-good BOM for each product's item.
     async function releaseBom(itemId: string, lines: object[]) {
       const b = (
-        await http().post('/boms').set('Authorization', `Bearer ${rndAuthorToken}`)
-          .send({ itemId, lines }).expect(201)
+        await http()
+          .post('/boms')
+          .set('Authorization', `Bearer ${rndAuthorToken}`)
+          .send({ itemId, lines })
+          .expect(201)
       ).body.data;
-      await http().post(`/boms/${b.id}/submit`).set('Authorization', `Bearer ${rndAuthorToken}`).expect(201);
-      await http().post(`/boms/${b.id}/approve`).set('Authorization', `Bearer ${rndHeadToken}`).expect(201);
+      await http()
+        .post(`/boms/${b.id}/submit`)
+        .set('Authorization', `Bearer ${rndAuthorToken}`)
+        .expect(201);
+      await http()
+        .post(`/boms/${b.id}/approve`)
+        .set('Authorization', `Bearer ${rndHeadToken}`)
+        .expect(201);
       return b;
     }
     await releaseBom(p1.itemId, [
-      { itemId: shared.id, quantityPerUnit: 2, unitOfMeasure: 'kg', wastagePercent: 0 },
+      {
+        itemId: shared.id,
+        quantityPerUnit: 2,
+        unitOfMeasure: 'kg',
+        wastagePercent: 0,
+      },
     ]);
     await releaseBom(p2.itemId, [
-      { itemId: shared.id, quantityPerUnit: 3, unitOfMeasure: 'kg', wastagePercent: 10 },
-      { itemId: only2.id, quantityPerUnit: 10, unitOfMeasure: 'pcs', wastagePercent: 0 },
-      { itemId: noStock.id, quantityPerUnit: 1, unitOfMeasure: 'kg', wastagePercent: 0 },
+      {
+        itemId: shared.id,
+        quantityPerUnit: 3,
+        unitOfMeasure: 'kg',
+        wastagePercent: 10,
+      },
+      {
+        itemId: only2.id,
+        quantityPerUnit: 10,
+        unitOfMeasure: 'pcs',
+        wastagePercent: 0,
+      },
+      {
+        itemId: noStock.id,
+        quantityPerUnit: 1,
+        unitOfMeasure: 'kg',
+        wastagePercent: 0,
+      },
     ]);
     const productId1 = p1.productId;
     const productId2 = p2.productId;
 
     // Order with BOTH products; kickoff needs an EXECUTED confirmation sheet.
     const customer = await prisma.customer.create({
-      data: { name: `BOM Cust ${Date.now()}`, billingAddress: { state: 'KA' }, ownerId: superAdminId },
+      data: {
+        name: `BOM Cust ${Date.now()}`,
+        billingAddress: { state: 'KA' },
+        ownerId: superAdminId,
+      },
     });
     createdCustomerIds.push(customer.id);
     const order = await prisma.order.create({
@@ -510,8 +626,18 @@ describe('BOM + Inventory (e2e)', () => {
         ownerId: superAdminId,
         lineItems: {
           create: [
-            { productId: productId1, quantity: '10', unitPrice: '1000', lineTotal: '10000' },
-            { productId: productId2, quantity: '10', unitPrice: '1000', lineTotal: '10000' },
+            {
+              productId: productId1,
+              quantity: '10',
+              unitPrice: '1000',
+              lineTotal: '10000',
+            },
+            {
+              productId: productId2,
+              quantity: '10',
+              unitPrice: '1000',
+              lineTotal: '10000',
+            },
           ],
         },
       },
@@ -539,8 +665,11 @@ describe('BOM + Inventory (e2e)', () => {
       },
     });
     const kickoff = (
-      await http().post('/project-kickoffs').set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ orderId: order.id, meetingDate: '2026-08-01T10:00:00.000Z' }).expect(201)
+      await http()
+        .post('/project-kickoffs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ orderId: order.id, meetingDate: '2026-08-01T10:00:00.000Z' })
+        .expect(201)
     ).body.data;
 
     // Generate the report.
@@ -609,7 +738,12 @@ describe('BOM + Inventory (e2e)', () => {
       await http()
         .post(`/project-kickoffs/${kickoff.id}/reservations`)
         .set('Authorization', `Bearer ${storeToken}`)
-        .send({ itemId: shared.id, storeLocationId: storeId, quantity: 200, allowOverride: true })
+        .send({
+          itemId: shared.id,
+          storeLocationId: storeId,
+          quantity: 200,
+          allowOverride: true,
+        })
         .expect(201)
     ).body.data;
 
@@ -625,12 +759,33 @@ describe('BOM + Inventory (e2e)', () => {
       where: { itemId: p1.itemId, status: 'RELEASED' },
     });
     const rev = (
-      await http().post(`/boms/${p1Boms[0].id}/new-revision`).set('Authorization', `Bearer ${rndAuthorToken}`).expect(201)
+      await http()
+        .post(`/boms/${p1Boms[0].id}/new-revision`)
+        .set('Authorization', `Bearer ${rndAuthorToken}`)
+        .expect(201)
     ).body.data;
-    await http().patch(`/boms/${rev.id}`).set('Authorization', `Bearer ${rndAuthorToken}`)
-      .send({ lines: [{ itemId: shared.id, quantityPerUnit: 999, unitOfMeasure: 'kg', wastagePercent: 0 }] }).expect(200);
-    await http().post(`/boms/${rev.id}/submit`).set('Authorization', `Bearer ${rndAuthorToken}`).expect(201);
-    await http().post(`/boms/${rev.id}/approve`).set('Authorization', `Bearer ${rndHeadToken}`).expect(201);
+    await http()
+      .patch(`/boms/${rev.id}`)
+      .set('Authorization', `Bearer ${rndAuthorToken}`)
+      .send({
+        lines: [
+          {
+            itemId: shared.id,
+            quantityPerUnit: 999,
+            unitOfMeasure: 'kg',
+            wastagePercent: 0,
+          },
+        ],
+      })
+      .expect(200);
+    await http()
+      .post(`/boms/${rev.id}/submit`)
+      .set('Authorization', `Bearer ${rndAuthorToken}`)
+      .expect(201);
+    await http()
+      .post(`/boms/${rev.id}/approve`)
+      .set('Authorization', `Bearer ${rndHeadToken}`)
+      .expect(201);
 
     const report3 = (
       await http()
@@ -657,10 +812,16 @@ describe('BOM + Inventory (e2e)', () => {
       await http()
         .post('/boms')
         .set('Authorization', `Bearer ${rndAuthorToken}`)
-        .send({ itemId: fgItemId, lines: [{ itemId: raw.id, quantityPerUnit: 1, unitOfMeasure: 'kg' }] })
+        .send({
+          itemId: fgItemId,
+          lines: [{ itemId: raw.id, quantityPerUnit: 1, unitOfMeasure: 'kg' }],
+        })
         .expect(201)
     ).body.data;
-    await http().post(`/boms/${bom.id}/submit`).set('Authorization', `Bearer ${rndAuthorToken}`).expect(201);
+    await http()
+      .post(`/boms/${bom.id}/submit`)
+      .set('Authorization', `Bearer ${rndAuthorToken}`)
+      .expect(201);
 
     // No supplier link exists for `raw` at all — approval still succeeds.
     const released = (
@@ -677,55 +838,117 @@ describe('BOM + Inventory (e2e)', () => {
     // Item tree: FG (product) -> 2× SUB ; SUB -> 3× COMP ; COMP -> 4× RAW.
     // RAW per FG = 2*3*4 = 24. Order 10 FG → 240 RAW.
     const fg = await createProduct();
-    const sub = await createItem(rndHeadToken, { itemType: 'SUBASSEMBLY', baseUnitOfMeasure: 'ea' });
-    const comp = await createItem(rndHeadToken, { itemType: 'COMPONENT', baseUnitOfMeasure: 'ea' });
-    const raw = await createItem(rndHeadToken, { itemType: 'RAW_MATERIAL', baseUnitOfMeasure: 'kg' });
+    const sub = await createItem(rndHeadToken, {
+      itemType: 'SUBASSEMBLY',
+      baseUnitOfMeasure: 'ea',
+    });
+    const comp = await createItem(rndHeadToken, {
+      itemType: 'COMPONENT',
+      baseUnitOfMeasure: 'ea',
+    });
+    const raw = await createItem(rndHeadToken, {
+      itemType: 'RAW_MATERIAL',
+      baseUnitOfMeasure: 'kg',
+    });
     await qualifyRawMaterial(raw.id); // only the RAW leaf needs a supplier
 
     async function releaseBom(itemId: string, lines: object[]) {
       const b = (
-        await http().post('/boms').set('Authorization', `Bearer ${rndAuthorToken}`)
-          .send({ itemId, lines }).expect(201)
+        await http()
+          .post('/boms')
+          .set('Authorization', `Bearer ${rndAuthorToken}`)
+          .send({ itemId, lines })
+          .expect(201)
       ).body.data;
-      await http().post(`/boms/${b.id}/submit`).set('Authorization', `Bearer ${rndAuthorToken}`).expect(201);
-      await http().post(`/boms/${b.id}/approve`).set('Authorization', `Bearer ${rndHeadToken}`).expect(201);
+      await http()
+        .post(`/boms/${b.id}/submit`)
+        .set('Authorization', `Bearer ${rndAuthorToken}`)
+        .expect(201);
+      await http()
+        .post(`/boms/${b.id}/approve`)
+        .set('Authorization', `Bearer ${rndHeadToken}`)
+        .expect(201);
       return b;
     }
     // Release deepest-first so each parent's children already have released BOMs
     // (not required by the gate, but mirrors real practice).
-    await releaseBom(comp.id, [{ itemId: raw.id, quantityPerUnit: 4, unitOfMeasure: 'kg' }]);
-    await releaseBom(sub.id, [{ itemId: comp.id, quantityPerUnit: 3, unitOfMeasure: 'ea' }]);
-    await releaseBom(fg.itemId, [{ itemId: sub.id, quantityPerUnit: 2, unitOfMeasure: 'ea' }]);
+    await releaseBom(comp.id, [
+      { itemId: raw.id, quantityPerUnit: 4, unitOfMeasure: 'kg' },
+    ]);
+    await releaseBom(sub.id, [
+      { itemId: comp.id, quantityPerUnit: 3, unitOfMeasure: 'ea' },
+    ]);
+    await releaseBom(fg.itemId, [
+      { itemId: sub.id, quantityPerUnit: 2, unitOfMeasure: 'ea' },
+    ]);
 
     // Stock 300 RAW → covers 240.
-    await http().post('/inventory/adjustments').set('Authorization', `Bearer ${storeToken}`)
-      .send({ itemId: raw.id, storeLocationId: storeId, quantityChange: 300, reason: 'seed' }).expect(201);
+    await http()
+      .post('/inventory/adjustments')
+      .set('Authorization', `Bearer ${storeToken}`)
+      .send({
+        itemId: raw.id,
+        storeLocationId: storeId,
+        quantityChange: 300,
+        reason: 'seed',
+      })
+      .expect(201);
 
     const customer = await prisma.customer.create({
-      data: { name: `ML Cust ${Date.now()}`, billingAddress: { state: 'KA' }, ownerId: superAdminId },
+      data: {
+        name: `ML Cust ${Date.now()}`,
+        billingAddress: { state: 'KA' },
+        ownerId: superAdminId,
+      },
     });
     createdCustomerIds.push(customer.id);
     const order = await prisma.order.create({
       data: {
-        orderNumber: `ORD-ML-${Date.now()}`, customerId: customer.id, status: 'CONFIRMED',
-        totalAmount: '1000', ownerId: superAdminId,
-        lineItems: { create: [{ productId: fg.productId, quantity: '10', unitPrice: '1000', lineTotal: '10000' }] },
+        orderNumber: `ORD-ML-${Date.now()}`,
+        customerId: customer.id,
+        status: 'CONFIRMED',
+        totalAmount: '1000',
+        ownerId: superAdminId,
+        lineItems: {
+          create: [
+            {
+              productId: fg.productId,
+              quantity: '10',
+              unitPrice: '1000',
+              lineTotal: '10000',
+            },
+          ],
+        },
       },
     });
     createdOrderIds.push(order.id);
     await prisma.orderConfirmationSheet.create({
       data: {
-        orderId: order.id, confirmationNumber: `OC-ML-${Date.now()}`, revisionNumber: 1,
-        status: 'EXECUTED', createdById: superAdminId, requirementsOverview: 'x',
-        deliveryDate: new Date('2099-01-01'), deliveryLocation: 'BLR', deliveryType: 'FULL_TRUCKLOAD',
-        warrantyTerms: '12m', paymentMilestones: '100%', packagingType: 'crate',
-        protectiveMeasures: 'none', labelingRequirements: 'none', customerContactName: 'A',
-        customerContactPhone: '+910000000000', customerContactEmail: 'a@b.com',
+        orderId: order.id,
+        confirmationNumber: `OC-ML-${Date.now()}`,
+        revisionNumber: 1,
+        status: 'EXECUTED',
+        createdById: superAdminId,
+        requirementsOverview: 'x',
+        deliveryDate: new Date('2099-01-01'),
+        deliveryLocation: 'BLR',
+        deliveryType: 'FULL_TRUCKLOAD',
+        warrantyTerms: '12m',
+        paymentMilestones: '100%',
+        packagingType: 'crate',
+        protectiveMeasures: 'none',
+        labelingRequirements: 'none',
+        customerContactName: 'A',
+        customerContactPhone: '+910000000000',
+        customerContactEmail: 'a@b.com',
       },
     });
     const kickoff = (
-      await http().post('/project-kickoffs').set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ orderId: order.id, meetingDate: '2026-08-01T10:00:00.000Z' }).expect(201)
+      await http()
+        .post('/project-kickoffs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ orderId: order.id, meetingDate: '2026-08-01T10:00:00.000Z' })
+        .expect(201)
     ).body.data;
 
     const report = (
@@ -743,13 +966,25 @@ describe('BOM + Inventory (e2e)', () => {
     expect(rawRow.grossRequirement).toBe('240');
     expect(rawRow.availabilityStatus).toBe('AVAILABLE');
     // SUB/COMP are not requirements themselves.
-    expect(report.rows.some((r: { itemCode: string }) => r.itemCode === sub.itemCode)).toBe(false);
-    expect(report.rows.some((r: { itemCode: string }) => r.itemCode === comp.itemCode)).toBe(false);
+    expect(
+      report.rows.some(
+        (r: { itemCode: string }) => r.itemCode === sub.itemCode,
+      ),
+    ).toBe(false);
+    expect(
+      report.rows.some(
+        (r: { itemCode: string }) => r.itemCode === comp.itemCode,
+      ),
+    ).toBe(false);
   });
 
   it('refuses to generate a report when no released BOM exists', async () => {
     const customer = await prisma.customer.create({
-      data: { name: `NB Cust ${Date.now()}`, billingAddress: { state: 'KA' }, ownerId: superAdminId },
+      data: {
+        name: `NB Cust ${Date.now()}`,
+        billingAddress: { state: 'KA' },
+        ownerId: superAdminId,
+      },
     });
     createdCustomerIds.push(customer.id);
     const { productId } = await createProduct(); // no BOM at all
@@ -760,23 +995,41 @@ describe('BOM + Inventory (e2e)', () => {
         status: 'CONFIRMED',
         totalAmount: '1000',
         ownerId: superAdminId,
-        lineItems: { create: [{ productId, quantity: '1', unitPrice: '1000', lineTotal: '1000' }] },
+        lineItems: {
+          create: [
+            { productId, quantity: '1', unitPrice: '1000', lineTotal: '1000' },
+          ],
+        },
       },
     });
     createdOrderIds.push(order.id);
     await prisma.orderConfirmationSheet.create({
       data: {
-        orderId: order.id, confirmationNumber: `OC-NB-${Date.now()}`, revisionNumber: 1,
-        status: 'EXECUTED', createdById: superAdminId, requirementsOverview: 'x',
-        deliveryDate: new Date('2099-01-01'), deliveryLocation: 'BLR', deliveryType: 'FULL_TRUCKLOAD',
-        warrantyTerms: '12m', paymentMilestones: '100%', packagingType: 'crate',
-        protectiveMeasures: 'none', labelingRequirements: 'none', customerContactName: 'A',
-        customerContactPhone: '+910000000000', customerContactEmail: 'a@b.com',
+        orderId: order.id,
+        confirmationNumber: `OC-NB-${Date.now()}`,
+        revisionNumber: 1,
+        status: 'EXECUTED',
+        createdById: superAdminId,
+        requirementsOverview: 'x',
+        deliveryDate: new Date('2099-01-01'),
+        deliveryLocation: 'BLR',
+        deliveryType: 'FULL_TRUCKLOAD',
+        warrantyTerms: '12m',
+        paymentMilestones: '100%',
+        packagingType: 'crate',
+        protectiveMeasures: 'none',
+        labelingRequirements: 'none',
+        customerContactName: 'A',
+        customerContactPhone: '+910000000000',
+        customerContactEmail: 'a@b.com',
       },
     });
     const kickoff = (
-      await http().post('/project-kickoffs').set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ orderId: order.id, meetingDate: '2026-08-01T10:00:00.000Z' }).expect(201)
+      await http()
+        .post('/project-kickoffs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ orderId: order.id, meetingDate: '2026-08-01T10:00:00.000Z' })
+        .expect(201)
     ).body.data;
     await http()
       .post(`/project-kickoffs/${kickoff.id}/stock-availability/generate`)

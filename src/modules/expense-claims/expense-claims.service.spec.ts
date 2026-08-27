@@ -1,8 +1,10 @@
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import {
-  BadRequestException,
-  ForbiddenException,
-} from '@nestjs/common';
-import { ExpenseClaimStatus, ExpenseReceiptStatus, Prisma, Role } from '@prisma/client';
+  ExpenseClaimStatus,
+  ExpenseReceiptStatus,
+  Prisma,
+  Role,
+} from '@prisma/client';
 import { ExpenseClaimsService } from './expense-claims.service';
 
 /**
@@ -30,23 +32,40 @@ describe('ExpenseClaimsService', () => {
       aggregate: jest.fn(),
     },
     expenseCategory: { findUnique: jest.fn() },
-    expenseClaimReceipt: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    expenseClaimReceipt: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
     ledgerAccount: { findUnique: jest.fn() },
     $transaction: jest.fn(),
   };
   const numbering: any = { nextNumber: jest.fn() };
   const finance: any = { postJournalTx: jest.fn() };
-  const financeAccess: any = { accessFor: jest.fn(), assertAccountsHead: jest.fn() };
+  const financeAccess: any = {
+    accessFor: jest.fn(),
+    assertAccountsHead: jest.fn(),
+  };
   const storage: any = {
     createUploadUrl: jest.fn(),
     headObject: jest.fn(),
     createDownloadUrl: jest.fn(),
   };
-  const service = new ExpenseClaimsService(prisma, numbering, finance, financeAccess, storage);
+  const service = new ExpenseClaimsService(
+    prisma,
+    numbering,
+    finance,
+    financeAccess,
+    storage,
+  );
 
   const employee: any = { id: 'emp', role: Role.EMPLOYEE, verticalId: 'eng' };
   const head: any = { id: 'head', role: Role.EMPLOYEE, verticalId: 'accounts' };
-  const superAdmin: any = { id: 'sa', role: Role.SUPER_ADMIN, verticalId: null };
+  const superAdmin: any = {
+    id: 'sa',
+    role: Role.SUPER_ADMIN,
+    verticalId: null,
+  };
 
   const line = (id: string, amount: number, ledgerId: string) => ({
     id,
@@ -80,7 +99,11 @@ describe('ExpenseClaimsService', () => {
     paidAt: null,
     approvalJournalId: null,
     paymentJournalId: null,
-    lines: [line('a', 100, '6100'), line('b', 50, '6100'), line('c', 30, '6000')],
+    lines: [
+      line('a', 100, '6100'),
+      line('b', 50, '6100'),
+      line('c', 30, '6000'),
+    ],
     createdAt: new Date('2026-08-01'),
     ...overrides,
   });
@@ -95,8 +118,12 @@ describe('ExpenseClaimsService', () => {
     });
     financeAccess.assertAccountsHead.mockResolvedValue(undefined);
     finance.postJournalTx.mockResolvedValue({ id: 'journal-1' });
-    prisma.ledgerAccount.findUnique.mockImplementation(({ where: { code } }: any) =>
-      Promise.resolve({ id: code === '2500' ? 'pay-id' : 'cash-id', isActive: true }),
+    prisma.ledgerAccount.findUnique.mockImplementation(
+      ({ where: { code } }: any) =>
+        Promise.resolve({
+          id: code === '2500' ? 'pay-id' : 'cash-id',
+          isActive: true,
+        }),
     );
     prisma.expenseClaim.update.mockResolvedValue({});
   });
@@ -109,7 +136,10 @@ describe('ExpenseClaimsService', () => {
       employeeId: 'emp',
       status: ExpenseClaimStatus.DRAFT,
     });
-    prisma.expenseCategory.findUnique.mockResolvedValue({ id: 'cat-a', isActive: true });
+    prisma.expenseCategory.findUnique.mockResolvedValue({
+      id: 'cat-a',
+      isActive: true,
+    });
     prisma.expenseClaimReceipt.findUnique.mockResolvedValue({
       id: 'rcpt-a',
       uploadedById: 'emp',
@@ -119,7 +149,13 @@ describe('ExpenseClaimsService', () => {
     await expect(
       service.addLine(
         'claim-1',
-        { expenseDate: '2026-08-01', categoryId: 'cat-a', description: 'Taxi', amount: 100, receiptId: 'rcpt-a' } as any,
+        {
+          expenseDate: '2026-08-01',
+          categoryId: 'cat-a',
+          description: 'Taxi',
+          amount: 100,
+          receiptId: 'rcpt-a',
+        } as any,
         employee,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -132,7 +168,10 @@ describe('ExpenseClaimsService', () => {
       employeeId: 'emp',
       status: ExpenseClaimStatus.DRAFT,
     });
-    prisma.expenseCategory.findUnique.mockResolvedValue({ id: 'cat-a', isActive: true });
+    prisma.expenseCategory.findUnique.mockResolvedValue({
+      id: 'cat-a',
+      isActive: true,
+    });
     prisma.expenseClaimReceipt.findUnique.mockResolvedValue({
       id: 'rcpt-a',
       uploadedById: 'emp',
@@ -142,7 +181,13 @@ describe('ExpenseClaimsService', () => {
     await expect(
       service.addLine(
         'claim-1',
-        { expenseDate: '2026-08-01', categoryId: 'cat-a', description: 'Taxi', amount: 100, receiptId: 'rcpt-a' } as any,
+        {
+          expenseDate: '2026-08-01',
+          categoryId: 'cat-a',
+          description: 'Taxi',
+          amount: 100,
+          receiptId: 'rcpt-a',
+        } as any,
         employee,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -156,7 +201,9 @@ describe('ExpenseClaimsService', () => {
       status: ExpenseClaimStatus.DRAFT,
     });
     prisma.expenseClaimLine.findMany.mockResolvedValue([]);
-    await expect(service.submit('claim-1', employee)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.submit('claim-1', employee)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
     expect(prisma.expenseClaim.update).not.toHaveBeenCalled();
   });
 
@@ -164,25 +211,38 @@ describe('ExpenseClaimsService', () => {
 
   it('blocks a non-approver from approving a claim', async () => {
     prisma.expenseClaim.findUnique.mockResolvedValue(claim());
-    financeAccess.assertAccountsHead.mockRejectedValue(new ForbiddenException());
-    await expect(service.approve('claim-1', employee)).rejects.toBeInstanceOf(ForbiddenException);
+    financeAccess.assertAccountsHead.mockRejectedValue(
+      new ForbiddenException(),
+    );
+    await expect(service.approve('claim-1', employee)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(finance.postJournalTx).not.toHaveBeenCalled();
   });
 
   it('lets a SUPER_ADMIN approve their own claim', async () => {
-    prisma.expenseClaim.findUnique.mockResolvedValue(claim({ employeeId: 'sa' }));
+    prisma.expenseClaim.findUnique.mockResolvedValue(
+      claim({ employeeId: 'sa' }),
+    );
     await service.approve('claim-1', superAdmin);
     expect(finance.postJournalTx).toHaveBeenCalledTimes(1);
     expect(prisma.expenseClaim.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: ExpenseClaimStatus.APPROVED, approvedById: 'sa' }),
+        data: expect.objectContaining({
+          status: ExpenseClaimStatus.APPROVED,
+          approvedById: 'sa',
+        }),
       }),
     );
   });
 
   it('forbids the Accounts Head from approving their own claim', async () => {
-    prisma.expenseClaim.findUnique.mockResolvedValue(claim({ employeeId: 'head' }));
-    await expect(service.approve('claim-1', head)).rejects.toBeInstanceOf(ForbiddenException);
+    prisma.expenseClaim.findUnique.mockResolvedValue(
+      claim({ employeeId: 'head' }),
+    );
+    await expect(service.approve('claim-1', head)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(finance.postJournalTx).not.toHaveBeenCalled();
   });
 
@@ -225,8 +285,12 @@ describe('ExpenseClaimsService', () => {
   });
 
   it('only approves SUBMITTED claims', async () => {
-    prisma.expenseClaim.findUnique.mockResolvedValue(claim({ status: ExpenseClaimStatus.APPROVED }));
-    await expect(service.approve('claim-1', superAdmin)).rejects.toBeInstanceOf(BadRequestException);
+    prisma.expenseClaim.findUnique.mockResolvedValue(
+      claim({ status: ExpenseClaimStatus.APPROVED }),
+    );
+    await expect(service.approve('claim-1', superAdmin)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
     expect(finance.postJournalTx).not.toHaveBeenCalled();
   });
 
@@ -234,7 +298,10 @@ describe('ExpenseClaimsService', () => {
 
   it('posts the payout journal debiting 2500 and crediting Cash and Bank on Paid', async () => {
     prisma.expenseClaim.findUnique.mockResolvedValue(
-      claim({ status: ExpenseClaimStatus.APPROVED, totalAmount: new Prisma.Decimal(180) }),
+      claim({
+        status: ExpenseClaimStatus.APPROVED,
+        totalAmount: new Prisma.Decimal(180),
+      }),
     );
     await service.markPaid('claim-1', superAdmin);
 
@@ -251,14 +318,21 @@ describe('ExpenseClaimsService', () => {
     ]);
     expect(prisma.expenseClaim.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: ExpenseClaimStatus.PAID, paidById: 'sa' }),
+        data: expect.objectContaining({
+          status: ExpenseClaimStatus.PAID,
+          paidById: 'sa',
+        }),
       }),
     );
   });
 
   it('only pays APPROVED claims', async () => {
-    prisma.expenseClaim.findUnique.mockResolvedValue(claim({ status: ExpenseClaimStatus.SUBMITTED }));
-    await expect(service.markPaid('claim-1', superAdmin)).rejects.toBeInstanceOf(BadRequestException);
+    prisma.expenseClaim.findUnique.mockResolvedValue(
+      claim({ status: ExpenseClaimStatus.SUBMITTED }),
+    );
+    await expect(
+      service.markPaid('claim-1', superAdmin),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(finance.postJournalTx).not.toHaveBeenCalled();
   });
 });

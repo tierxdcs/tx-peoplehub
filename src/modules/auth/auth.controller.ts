@@ -49,7 +49,9 @@ export class AuthController {
   @Post('change-password')
   @AllowDuringForcedReset()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Change your own password (verifies the current one)" })
+  @ApiOperation({
+    summary: 'Change your own password (verifies the current one)',
+  })
   async changePassword(
     @Body() dto: ChangePasswordDto,
     @CurrentUser() user: AuthenticatedUser,

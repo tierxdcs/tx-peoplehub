@@ -31,17 +31,28 @@ describe('GRN logistics/sign-off fields (e2e)', () => {
 
   const http = () => request(app.getHttpServer());
   function login(email: string, password: string) {
-    return http().post('/auth/login').send({ email, password }).expect(200)
+    return http()
+      .post('/auth/login')
+      .send({ email, password })
+      .expect(200)
       .then((r) => r.body.data.accessToken as string);
   }
 
   async function createIssuedPo(): Promise<any> {
     const po = (
-      await http().post('/purchase-orders').set('Authorization', `Bearer ${scmManagerToken}`)
-        .send({ supplierId: approvedSupplierId, lines: [{ itemId: itemAId, orderedQuantity: 100, unitPrice: 10 }] })
+      await http()
+        .post('/purchase-orders')
+        .set('Authorization', `Bearer ${scmManagerToken}`)
+        .send({
+          supplierId: approvedSupplierId,
+          lines: [{ itemId: itemAId, orderedQuantity: 100, unitPrice: 10 }],
+        })
         .expect(201)
     ).body.data;
-    await http().post(`/purchase-orders/${po.id}/issue`).set('Authorization', `Bearer ${scmManagerToken}`).expect(201);
+    await http()
+      .post(`/purchase-orders/${po.id}/issue`)
+      .set('Authorization', `Bearer ${scmManagerToken}`)
+      .expect(201);
     return po;
   }
 
@@ -52,21 +63,41 @@ describe('GRN logistics/sign-off fields (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     prisma = app.get(PrismaService);
 
-    superAdminId = (await prisma.employee.findUniqueOrThrow({ where: { email: adminEmail } })).id;
+    superAdminId = (
+      await prisma.employee.findUniqueOrThrow({ where: { email: adminEmail } })
+    ).id;
     superAdminToken = await login(adminEmail, adminPassword);
 
-    const scmVertical = await prisma.vertical.findUniqueOrThrow({ where: { code: 'SCM' } });
-    const prodVertical = await prisma.vertical.findUniqueOrThrow({ where: { code: 'PRODUCTION' } });
+    const scmVertical = await prisma.vertical.findUniqueOrThrow({
+      where: { code: 'SCM' },
+    });
+    const prodVertical = await prisma.vertical.findUniqueOrThrow({
+      where: { code: 'PRODUCTION' },
+    });
     const suffix = Date.now();
     const mk = async (firstName: string, role: string, verticalId: string) => {
       const email = `grnlog.${firstName.toLowerCase()}.${suffix}@peoplehub.local`;
-      const res = await http().post('/employees').set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ firstName, lastName: 'GRNLog', email, password: 'S3curePass!', role, verticalId, reportingManagerId: superAdminId })
+      const res = await http()
+        .post('/employees')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          firstName,
+          lastName: 'GRNLog',
+          email,
+          password: 'S3curePass!',
+          role,
+          verticalId,
+          reportingManagerId: superAdminId,
+        })
         .expect(201);
       return { id: res.body.data.id as string, email };
     };
@@ -80,18 +111,34 @@ describe('GRN logistics/sign-off fields (e2e)', () => {
     approvedSupplierId = (
       await prisma.supplier.create({
         data: {
-          companyName: `GrnLogSup ${suffix}`, registeredAddress: 'x', factoryAddress: 'x', yearEstablished: '2000',
-          numberOfEmployees: '10', annualTurnover: '1cr', contactPersonName: 'x', contactPersonDesignation: 'x',
-          contactEmail: 'x@y.com', contactPhone: '+910000000000', createdById: superAdminId, status: 'APPROVED',
+          companyName: `GrnLogSup ${suffix}`,
+          registeredAddress: 'x',
+          factoryAddress: 'x',
+          yearEstablished: '2000',
+          numberOfEmployees: '10',
+          annualTurnover: '1cr',
+          contactPersonName: 'x',
+          contactPersonDesignation: 'x',
+          contactEmail: 'x@y.com',
+          contactPhone: '+910000000000',
+          createdById: superAdminId,
+          status: 'APPROVED',
         },
       })
     ).id;
     itemAId = (
       await prisma.item.create({
-        data: { itemCode: `GRNLOG-A-${suffix}`, name: 'Steel', itemType: 'RAW_MATERIAL', baseUnitOfMeasure: 'kg' },
+        data: {
+          itemCode: `GRNLOG-A-${suffix}`,
+          name: 'Steel',
+          itemType: 'RAW_MATERIAL',
+          baseUnitOfMeasure: 'kg',
+        },
       })
     ).id;
-    storeId = (await prisma.storeLocation.findFirstOrThrow({ where: { code: 'MAIN' } })).id;
+    storeId = (
+      await prisma.storeLocation.findFirstOrThrow({ where: { code: 'MAIN' } })
+    ).id;
   });
 
   afterAll(async () => {
@@ -101,7 +148,9 @@ describe('GRN logistics/sign-off fields (e2e)', () => {
   it('persists and round-trips all seven logistics/sign-off fields; notes stays free-text', async () => {
     const po = await createIssuedPo();
     const grn = (
-      await http().post('/goods-receipt-notes').set('Authorization', `Bearer ${prodEmployeeToken}`)
+      await http()
+        .post('/goods-receipt-notes')
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
         .send({
           purchaseOrderId: po.id,
           notes: 'Two cartons crushed on arrival',
@@ -112,7 +161,13 @@ describe('GRN logistics/sign-off fields (e2e)', () => {
           totalPackagesReceived: 12,
           packingCondition: 'PARTIALLY_DAMAGED',
           supervisorSignOffId: supervisorId,
-          lines: [{ purchaseOrderLineId: po.lines[0].id, storeLocationId: storeId, receivedQuantity: 100 }],
+          lines: [
+            {
+              purchaseOrderLineId: po.lines[0].id,
+              storeLocationId: storeId,
+              receivedQuantity: 100,
+            },
+          ],
         })
         .expect(201)
     ).body.data;
@@ -128,18 +183,25 @@ describe('GRN logistics/sign-off fields (e2e)', () => {
     expect(grn.supervisorSignOffName).toBeTruthy();
     // notes is pure free-text — no structured logistics leaked in.
     expect(grn.notes).toBe('Two cartons crushed on arrival');
-    expect(grn.notes).not.toMatch(/Delivery Challan:|Vehicle\/AWB:|Packing condition:|Stores keeper:/);
+    expect(grn.notes).not.toMatch(
+      /Delivery Challan:|Vehicle\/AWB:|Packing condition:|Stores keeper:/,
+    );
 
     // Re-fetch confirms persistence.
     const fetched = (
-      await http().get(`/goods-receipt-notes/${grn.id}`).set('Authorization', `Bearer ${prodEmployeeToken}`).expect(200)
+      await http()
+        .get(`/goods-receipt-notes/${grn.id}`)
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .expect(200)
     ).body.data;
     expect(fetched.packingCondition).toBe('PARTIALLY_DAMAGED');
     expect(fetched.vendorDeliveryChallanNumber).toBe('DC-9981');
     expect(fetched.supervisorSignOffId).toBe(supervisorId);
 
     // And the raw column really holds it (not embedded in notes).
-    const row = await prisma.goodsReceiptNote.findUniqueOrThrow({ where: { id: grn.id } });
+    const row = await prisma.goodsReceiptNote.findUniqueOrThrow({
+      where: { id: grn.id },
+    });
     expect(row.packingCondition).toBe('PARTIALLY_DAMAGED');
     expect(row.totalPackagesReceived).toBe(12);
     expect(row.notes).toBe('Two cartons crushed on arrival');
@@ -148,15 +210,33 @@ describe('GRN logistics/sign-off fields (e2e)', () => {
   it('updates logistics fields on a DRAFT GRN', async () => {
     const po = await createIssuedPo();
     const grn = (
-      await http().post('/goods-receipt-notes').set('Authorization', `Bearer ${prodEmployeeToken}`)
-        .send({ purchaseOrderId: po.id, packingCondition: 'DAMAGED', lines: [{ purchaseOrderLineId: po.lines[0].id, storeLocationId: storeId, receivedQuantity: 50 }] })
+      await http()
+        .post('/goods-receipt-notes')
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .send({
+          purchaseOrderId: po.id,
+          packingCondition: 'DAMAGED',
+          lines: [
+            {
+              purchaseOrderLineId: po.lines[0].id,
+              storeLocationId: storeId,
+              receivedQuantity: 50,
+            },
+          ],
+        })
         .expect(201)
     ).body.data;
     expect(grn.packingCondition).toBe('DAMAGED');
 
     const updated = (
-      await http().patch(`/goods-receipt-notes/${grn.id}`).set('Authorization', `Bearer ${prodEmployeeToken}`)
-        .send({ packingCondition: 'GOOD', vehicleOrAwbNumber: 'TN22XY9', totalPackagesReceived: 3 })
+      await http()
+        .patch(`/goods-receipt-notes/${grn.id}`)
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .send({
+          packingCondition: 'GOOD',
+          vehicleOrAwbNumber: 'TN22XY9',
+          totalPackagesReceived: 3,
+        })
         .expect(200)
     ).body.data;
     expect(updated.packingCondition).toBe('GOOD');
@@ -167,8 +247,19 @@ describe('GRN logistics/sign-off fields (e2e)', () => {
   it('creates a GRN with NO logistics fields — they load as null (older-style receipt)', async () => {
     const po = await createIssuedPo();
     const grn = (
-      await http().post('/goods-receipt-notes').set('Authorization', `Bearer ${prodEmployeeToken}`)
-        .send({ purchaseOrderId: po.id, lines: [{ purchaseOrderLineId: po.lines[0].id, storeLocationId: storeId, receivedQuantity: 10 }] })
+      await http()
+        .post('/goods-receipt-notes')
+        .set('Authorization', `Bearer ${prodEmployeeToken}`)
+        .send({
+          purchaseOrderId: po.id,
+          lines: [
+            {
+              purchaseOrderLineId: po.lines[0].id,
+              storeLocationId: storeId,
+              receivedQuantity: 10,
+            },
+          ],
+        })
         .expect(201)
     ).body.data;
     expect(grn.vendorDeliveryChallanNumber).toBeNull();
@@ -184,8 +275,20 @@ describe('GRN logistics/sign-off fields (e2e)', () => {
 
   it('rejects an invalid packing condition enum value', async () => {
     const po = await createIssuedPo();
-    await http().post('/goods-receipt-notes').set('Authorization', `Bearer ${prodEmployeeToken}`)
-      .send({ purchaseOrderId: po.id, packingCondition: 'SMASHED', lines: [{ purchaseOrderLineId: po.lines[0].id, storeLocationId: storeId, receivedQuantity: 5 }] })
+    await http()
+      .post('/goods-receipt-notes')
+      .set('Authorization', `Bearer ${prodEmployeeToken}`)
+      .send({
+        purchaseOrderId: po.id,
+        packingCondition: 'SMASHED',
+        lines: [
+          {
+            purchaseOrderLineId: po.lines[0].id,
+            storeLocationId: storeId,
+            receivedQuantity: 5,
+          },
+        ],
+      })
       .expect(400);
   });
 });

@@ -58,7 +58,9 @@ export class PurchaseOrderController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a purchase order with lines (company-wide read)' })
+  @ApiOperation({
+    summary: 'Get a purchase order with lines (company-wide read)',
+  })
   get(@Param('id') id: string) {
     return this.service.get(id);
   }
@@ -82,7 +84,10 @@ export class PurchaseOrderController {
   @Post(':id/approve-ad-hoc')
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'CEO approval for an ad-hoc purchase order' })
-  approveAdHoc(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  approveAdHoc(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.approveAdHoc(id, user);
   }
 
@@ -98,7 +103,9 @@ export class PurchaseOrderController {
   }
 
   @Post(':id/cancel')
-  @ApiOperation({ summary: 'Cancel a DRAFT or ISSUED purchase order (SCM Manager+/SA)' })
+  @ApiOperation({
+    summary: 'Cancel a DRAFT or ISSUED purchase order (SCM Manager+/SA)',
+  })
   cancel(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.cancel(id, user);
   }

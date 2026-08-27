@@ -1,6 +1,18 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsEnum, IsNotEmpty, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { QmsAuditFindingType, QmsInspectionResult, QmsTemplateType } from '@prisma/client';
+import {
+  IsArray,
+  IsEnum,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
+import {
+  QmsAuditFindingType,
+  QmsInspectionResult,
+  QmsTemplateType,
+} from '@prisma/client';
 
 export class QmsAuditProgramItemDto {
   @IsString() @IsNotEmpty() title!: string;
@@ -20,7 +32,10 @@ export class CreateQmsAuditProgramDto {
   @IsString() @IsNotEmpty() name!: string;
   @IsOptional() @IsString() description?: string;
   @IsString() financialYear!: string;
-  @IsArray() @ValidateNested({ each: true }) @Type(() => QmsAuditProgramItemDto) items!: QmsAuditProgramItemDto[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QmsAuditProgramItemDto)
+  items!: QmsAuditProgramItemDto[];
 }
 
 export class CreateQmsAuditDto extends QmsAuditProgramItemDto {
@@ -47,8 +62,14 @@ export class QmsAuditFindingDto {
 }
 
 export class CompleteQmsAuditDto {
-  @IsArray() @ValidateNested({ each: true }) @Type(() => QmsAuditResponseDto) responses!: QmsAuditResponseDto[];
-  @IsArray() @ValidateNested({ each: true }) @Type(() => QmsAuditFindingDto) findings!: QmsAuditFindingDto[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QmsAuditResponseDto)
+  responses!: QmsAuditResponseDto[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QmsAuditFindingDto)
+  findings!: QmsAuditFindingDto[];
   @IsString() @IsNotEmpty() conclusion!: string;
 }
 

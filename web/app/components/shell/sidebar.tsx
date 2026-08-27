@@ -9,6 +9,14 @@ import { MAX_NAV_SHORTCUTS } from '../../lib/nav-shortcuts';
 import { useNavShortcuts } from '../../lib/use-nav-shortcuts';
 import { cn } from '../../lib/utils';
 import { Badge } from '../ui/badge';
+import type { PendingQueue } from '../../lib/approval-queues';
+import {
+  URGENCY_BADGE_VARIANT,
+  URGENCY_PULSE_CLASS,
+  ageHours,
+  urgencyTier,
+  waitingLabel,
+} from '../../lib/urgency';
 import { iconForHref } from './nav-icons';
 import { NavJumpTo } from './nav-jump-to';
 
@@ -38,8 +46,11 @@ const EXPAND_KEY = 'sidebar:expandedSections';
  *  - Pinned shortcuts, stored per-employee on the server so they follow the user
  *    across devices.
  *
- * `badges` maps a nav item's href to a pending count; items with a count > 0
- * render a small numeric pill at the right of the row (hidden when 0/absent).
+ * `badges` maps a nav item's href to that queue's pending summary; items with a
+ * count > 0 render a small numeric pill at the right of the row (hidden when
+ * 0/absent). The pill is coloured by how long the queue's OLDEST item has been
+ * waiting — grey / amber / pulsing red on the shared scale in lib/urgency.ts —
+ * so a badge says how stuck the queue is, not just how big it is.
  */
 export function Sidebar({
   groups,
@@ -51,7 +62,7 @@ export function Sidebar({
   groups: NavGroup[];
   /** Flat leaf pages across all of the user's modules — the search index. */
   searchLeaves?: NavLeaf[];
-  badges?: Record<string, number>;
+  badges?: Record<string, PendingQueue>;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }) {
@@ -168,7 +179,7 @@ export function Sidebar({
                     href={shortcut.href}
                     label={liveLabels.get(shortcut.href) ?? shortcut.label}
                     active={shortcut.href === activeHref}
-                    count={badges?.[shortcut.href]}
+                    queue={badges?.[shortcut.href]}
                     pinned
                     onTogglePin={() =>
                       void togglePin(
@@ -239,7 +250,7 @@ export function Sidebar({
                           href={item.href}
                           label={item.label}
                           active={item.href === activeHref}
-                          count={badges?.[item.href]}
+                          queue={badges?.[item.href]}
                           pinned={pinned}
                           pinDisabled={!pinned && atCapacity}
                           onTogglePin={() =>
@@ -270,7 +281,7 @@ function NavRow({
   href,
   label,
   active,
-  count,
+  queue,
   pinned,
   pinDisabled = false,
   onTogglePin,
@@ -278,13 +289,19 @@ function NavRow({
   href: string;
   label: string;
   active: boolean;
-  count?: number;
+  queue?: PendingQueue;
   pinned: boolean;
   pinDisabled?: boolean;
   onTogglePin: () => void;
 }) {
   const ItemIcon = iconForHref(href);
   const PinIcon = pinned ? PinOff : Pin;
+  // Age of the queue's oldest item drives the pill's colour (and, at the stale
+  // tier, its pulse). No waiting-since stamp ⇒ neutral: never invent urgency.
+  const waitingHours = queue?.oldestPendingAt
+    ? ageHours(queue.oldestPendingAt)
+    : 0;
+  const tier = urgencyTier(waitingHours);
   return (
     <li className="group/nav flex items-center gap-0.5">
       <Link
@@ -300,12 +317,20 @@ function NavRow({
           <ItemIcon aria-hidden="true" className="size-4 shrink-0 opacity-75" />
           <span className="truncate">{label}</span>
         </span>
-        {typeof count === 'number' && count > 0 && (
+        {queue && queue.count > 0 && (
           <Badge
-            variant="destructive"
-            className="px-1.5 py-0 text-[10px] leading-5"
+            variant={URGENCY_BADGE_VARIANT[tier]}
+            className={cn(
+              'px-1.5 py-0 text-[10px] leading-5',
+              URGENCY_PULSE_CLASS[tier],
+            )}
+            title={
+              queue.oldestPendingAt
+                ? `${queue.count} pending · oldest ${waitingLabel(waitingHours)}`
+                : `${queue.count} pending`
+            }
           >
-            {count}
+            {queue.count}
           </Badge>
         )}
       </Link>

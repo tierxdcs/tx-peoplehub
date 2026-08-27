@@ -20,6 +20,7 @@ describe('OfferLettersService', () => {
       offerLetter: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        findFirst: jest.fn(),
         count: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
@@ -206,7 +207,10 @@ describe('OfferLettersService', () => {
   ) =>
     draftOffer({
       ...overrides,
-      employee: { ...draftOffer().employee, vertical: { name: 'Sales', ...vertical } },
+      employee: {
+        ...draftOffer().employee,
+        vertical: { name: 'Sales', ...vertical },
+      },
     });
 
   const compensation = { grandTotal: { perAnnum: '1400000.00' } };
@@ -558,29 +562,61 @@ describe('OfferLettersService', () => {
     const list = await service.listPendingApproval(user);
 
     expect(list.map((l: any) => l.id)).toEqual(['ceo', 'fallback']);
-    expect(prisma.offerLetter.findMany.mock.calls[0][0].where.status.in).toEqual(
-      [
-        OfferLetterStatus.PENDING_CEO_APPROVAL,
-        OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
-      ],
-    );
+    expect(
+      prisma.offerLetter.findMany.mock.calls[0][0].where.status.in,
+    ).toEqual([
+      OfferLetterStatus.PENDING_CEO_APPROVAL,
+      OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
+    ]);
   });
 
-  it('counts the CEO queue from the filtered list (no column-to-column DB count)', async () => {
+  it('summarises the CEO queue from the filtered list (no column-to-column DB count)', async () => {
+    const oldest = new Date('2026-01-02T00:00:00.000Z');
     prisma.offerLetter.findMany.mockResolvedValue([
-      { id: 'ceo', status: OfferLetterStatus.PENDING_CEO_APPROVAL, employeeId: 'e', createdById: 'c', employee: { vertical: { ownerId: 'x' } } },
-      { id: 'fallback', status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL, employeeId: 'e', createdById: 'c', employee: { vertical: { ownerId: null } } },
-      { id: 'owned', status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL, employeeId: 'e', createdById: 'c', employee: { vertical: { ownerId: 'x' } } },
+      {
+        id: 'ceo',
+        status: OfferLetterStatus.PENDING_CEO_APPROVAL,
+        submittedAt: oldest,
+        employeeId: 'e',
+        createdById: 'c',
+        employee: { vertical: { ownerId: 'x' } },
+      },
+      {
+        id: 'fallback',
+        status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
+        submittedAt: new Date('2026-01-05T00:00:00.000Z'),
+        employeeId: 'e',
+        createdById: 'c',
+        employee: { vertical: { ownerId: null } },
+      },
+      {
+        id: 'owned',
+        status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
+        submittedAt: new Date('2026-01-06T00:00:00.000Z'),
+        employeeId: 'e',
+        createdById: 'c',
+        employee: { vertical: { ownerId: 'x' } },
+      },
     ]);
 
-    expect(await service.countPendingApproval(user)).toBe(2);
+    // The list is already submittedAt-ascending, so the badge's "oldest
+    // waiting" stamp is the first surviving row's submittedAt.
+    expect(await service.pendingApprovalQueue(user)).toEqual({
+      count: 2,
+      oldestPendingAt: oldest,
+    });
     expect(prisma.offerLetter.count).not.toHaveBeenCalled();
   });
 
-  it('counts a non-CEO owner queue with a direct DB count', async () => {
+  it('summarises a non-CEO owner queue with a direct DB count', async () => {
+    const oldest = new Date('2026-02-03T00:00:00.000Z');
     prisma.offerLetter.count.mockResolvedValue(4);
+    prisma.offerLetter.findFirst.mockResolvedValue({ submittedAt: oldest });
 
-    expect(await service.countPendingApproval(ownerUser)).toBe(4);
+    expect(await service.pendingApprovalQueue(ownerUser)).toEqual({
+      count: 4,
+      oldestPendingAt: oldest,
+    });
     expect(prisma.offerLetter.count.mock.calls[0][0].where).toEqual({
       status: OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
       createdById: { not: 'owner-1' },

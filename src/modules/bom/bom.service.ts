@@ -13,6 +13,10 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  EMPTY_PENDING_QUEUE,
+  PendingQueue,
+} from '../../common/types/pending-queue';
 import { KanbanNotificationsService } from '../notifications/kanban-notifications.service';
 import { BomAccessService } from './bom-access.service';
 import {
@@ -129,15 +133,46 @@ export class BomService {
     return rows.map((r) => this.toEntity(r));
   }
 
+  /** Shared scope for the release-approval queue (list + badge summary). */
+  private static readonly PENDING_APPROVAL_WHERE = {
+    status: BomStatus.PENDING_APPROVAL,
+  };
+
   async pendingApproval(user: AuthenticatedUser): Promise<BomEntity[]> {
     // Only R&D Heads (the approvers) should consume the queue.
     await this.access.assertCanApproveBoms(user);
     const rows = await this.prisma.bom.findMany({
-      where: { status: BomStatus.PENDING_APPROVAL },
+      where: BomService.PENDING_APPROVAL_WHERE,
       include: BOM_INCLUDE,
       orderBy: { submittedAt: 'asc' },
     });
     return rows.map((r) => this.toEntity(r));
+  }
+
+  /**
+   * Badge summary for the release-approval queue — count plus when the oldest
+   * BOM was submitted. Same where-clause and oldest-first ordering as
+   * pendingApproval, and the same R&D-Head-only audience (SUPER_ADMIN is
+   * deliberately NOT an approver here, per the BOM spec), but it returns an
+   * empty queue instead of throwing so the notifications endpoint can call it
+   * for any role. `submittedAt` is nullable, so it falls back to `createdAt`
+   * rather than reporting "no waiting time" for a submitted BOM.
+   */
+  async pendingReleaseQueue(user: AuthenticatedUser): Promise<PendingQueue> {
+    if (!(await this.access.isRdHead(user))) return EMPTY_PENDING_QUEUE;
+    const where = BomService.PENDING_APPROVAL_WHERE;
+    const [count, oldest] = await Promise.all([
+      this.prisma.bom.count({ where }),
+      this.prisma.bom.findFirst({
+        where,
+        orderBy: { submittedAt: 'asc' },
+        select: { submittedAt: true, createdAt: true },
+      }),
+    ]);
+    return {
+      count,
+      oldestPendingAt: oldest ? (oldest.submittedAt ?? oldest.createdAt) : null,
+    };
   }
 
   async get(id: string, user: AuthenticatedUser): Promise<BomEntity> {

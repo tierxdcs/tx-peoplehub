@@ -48,7 +48,11 @@ describe('Kanban (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     prisma = app.get(PrismaService);
@@ -108,12 +112,22 @@ describe('Kanban (e2e)', () => {
     await prisma.kanbanCard.deleteMany({
       where: { list: { boardId: { in: createdBoardIds } } },
     });
-    await prisma.kanbanSprint.deleteMany({ where: { boardId: { in: createdBoardIds } } });
-    await prisma.kanbanList.deleteMany({ where: { boardId: { in: createdBoardIds } } });
-    await prisma.kanbanBoardMember.deleteMany({ where: { boardId: { in: createdBoardIds } } });
-    await prisma.kanbanBoard.deleteMany({ where: { id: { in: createdBoardIds } } });
+    await prisma.kanbanSprint.deleteMany({
+      where: { boardId: { in: createdBoardIds } },
+    });
+    await prisma.kanbanList.deleteMany({
+      where: { boardId: { in: createdBoardIds } },
+    });
+    await prisma.kanbanBoardMember.deleteMany({
+      where: { boardId: { in: createdBoardIds } },
+    });
+    await prisma.kanbanBoard.deleteMany({
+      where: { id: { in: createdBoardIds } },
+    });
     if (createdEmployeeIds.length) {
-      await prisma.employee.deleteMany({ where: { id: { in: createdEmployeeIds } } });
+      await prisma.employee.deleteMany({
+        where: { id: { in: createdEmployeeIds } },
+      });
     }
     await app.close();
   });
@@ -133,9 +147,9 @@ describe('Kanban (e2e)', () => {
       .get(`/kanban/boards/${boardId}/lists`)
       .set('Authorization', `Bearer ${memberToken}`)
       .expect(200);
-    const names = (lists.body.data as { name: string; isDoneList: boolean }[]).map(
-      (l) => l.name,
-    );
+    const names = (
+      lists.body.data as { name: string; isDoneList: boolean }[]
+    ).map((l) => l.name);
     expect(names).toEqual(['To Do', 'In progress', 'Completed']);
     expect(
       (lists.body.data as { name: string; isDoneList: boolean }[]).find(
@@ -224,14 +238,18 @@ describe('Kanban (e2e)', () => {
       .get('/kanban/boards')
       .set('Authorization', `Bearer ${scrumToken}`)
       .expect(200);
-    expect(scrumList.body.data.some((b: { id: string }) => b.id === boardId)).toBe(true);
+    expect(
+      scrumList.body.data.some((b: { id: string }) => b.id === boardId),
+    ).toBe(true);
 
     for (const token of [outsiderToken, plainAdminToken]) {
       const list = await request(app.getHttpServer())
         .get('/kanban/boards')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
-      expect(list.body.data.some((b: { id: string }) => b.id === boardId)).toBe(false);
+      expect(list.body.data.some((b: { id: string }) => b.id === boardId)).toBe(
+        false,
+      );
       // Direct fetch is forbidden for a non-member.
       await request(app.getHttpServer())
         .get(`/kanban/boards/${boardId}`)
@@ -380,7 +398,11 @@ describe('Kanban (e2e)', () => {
         await request(app.getHttpServer())
           .post(`/kanban/boards/${boardId}/sprints`)
           .set('Authorization', `Bearer ${scrumToken}`)
-          .send({ name: 'Sprint 1', durationWeeks: 'TWO_WEEKS', startDate: '2026-08-01' })
+          .send({
+            name: 'Sprint 1',
+            durationWeeks: 'TWO_WEEKS',
+            startDate: '2026-08-01',
+          })
           .expect(201)
       ).body.data.id;
     });
@@ -628,9 +650,9 @@ describe('Kanban (e2e)', () => {
         .get(`/kanban/lists/${listA}/cards`)
         .set('Authorization', `Bearer ${memberToken}`)
         .expect(200);
-      const c1After = (listACards.body.data as { id: string; position: number }[]).find(
-        (c) => c.id === c1.id,
-      );
+      const c1After = (
+        listACards.body.data as { id: string; position: number }[]
+      ).find((c) => c.id === c1.id);
       expect(c1After?.position).toBe(c1.position);
     });
 
@@ -700,7 +722,11 @@ describe('Kanban (e2e)', () => {
         await request(app.getHttpServer())
           .post(`/kanban/boards/${boardId}/sprints`)
           .set('Authorization', `Bearer ${scrumToken}`)
-          .send({ name: 'Alpha', durationWeeks: 'ONE_WEEK', startDate: '2026-08-01' })
+          .send({
+            name: 'Alpha',
+            durationWeeks: 'ONE_WEEK',
+            startDate: '2026-08-01',
+          })
           .expect(201)
       ).body.data.id;
       cardId = (
@@ -780,18 +806,22 @@ describe('Kanban (e2e)', () => {
         .get(`/kanban/cards/${cardId}/feed`)
         .set('Authorization', `Bearer ${memberToken}`)
         .expect(200);
-      const activity = (feed.body.data as { kind: string; text: string }[]).filter(
-        (i) => i.kind === 'ACTIVITY',
-      );
+      const activity = (
+        feed.body.data as { kind: string; text: string }[]
+      ).filter((i) => i.kind === 'ACTIVITY');
       const texts = activity.map((a) => a.text);
       // Exactly the four real changes — the no-op MEDIUM PATCH added nothing.
       expect(texts).toContain('changed priority to HIGH');
       expect(texts).toContain('set the due date to 2026-08-20');
-      expect(texts.some((t) => t.startsWith('assigned this card to '))).toBe(true);
+      expect(texts.some((t) => t.startsWith('assigned this card to '))).toBe(
+        true,
+      );
       expect(texts).toContain('moved this card from Backlog to In Progress');
       expect(texts).toContain('assigned this card to sprint Alpha');
       // No priority-noop entry: only one priority-change line total.
-      expect(texts.filter((t) => t.startsWith('changed priority')).length).toBe(1);
+      expect(texts.filter((t) => t.startsWith('changed priority')).length).toBe(
+        1,
+      );
     });
 
     it('feed merges comments + activity in chronological order with discriminators', async () => {
@@ -802,7 +832,9 @@ describe('Kanban (e2e)', () => {
       const items = feed.body.data as { kind: string; createdAt: string }[];
       expect(items.length).toBeGreaterThan(0);
       // Every item is tagged, and the list is non-decreasing by createdAt.
-      expect(items.every((i) => i.kind === 'COMMENT' || i.kind === 'ACTIVITY')).toBe(true);
+      expect(
+        items.every((i) => i.kind === 'COMMENT' || i.kind === 'ACTIVITY'),
+      ).toBe(true);
       const times = items.map((i) => i.createdAt);
       const sorted = [...times].sort((a, b) => a.localeCompare(b));
       expect(times).toEqual(sorted);
@@ -890,12 +922,12 @@ describe('Kanban (e2e)', () => {
         .get(`/kanban/boards/${boardId}/lists`)
         .set('Authorization', `Bearer ${memberToken}`)
         .expect(200);
-      const todoList = (lists.body.data as { id: string; cardCount: number }[]).find(
-        (l) => l.id === todo,
-      );
-      const doneList = (lists.body.data as { id: string; cardCount: number }[]).find(
-        (l) => l.id === done,
-      );
+      const todoList = (
+        lists.body.data as { id: string; cardCount: number }[]
+      ).find((l) => l.id === todo);
+      const doneList = (
+        lists.body.data as { id: string; cardCount: number }[]
+      ).find((l) => l.id === done);
       // todo has the past-due + future card; done has one.
       expect(todoList?.cardCount).toBe(2);
       expect(doneList?.cardCount).toBe(1);
@@ -927,9 +959,9 @@ describe('Kanban (e2e)', () => {
       expect(ids.every((id: string) => id !== undefined)).toBe(true);
       // Every returned card is HIGH + assigned to member.
       expect(
-        (byPriority.body.data as { priority: string; assigneeId: string }[]).every(
-          (c) => c.priority === 'HIGH' && c.assigneeId === memberId,
-        ),
+        (
+          byPriority.body.data as { priority: string; assigneeId: string }[]
+        ).every((c) => c.priority === 'HIGH' && c.assigneeId === memberId),
       ).toBe(true);
 
       // Date-range filter: dueAfter excludes the 2020 card, dueBefore excludes 2099.
@@ -992,7 +1024,9 @@ describe('Kanban (e2e)', () => {
         .set('Authorization', `Bearer ${memberToken}`)
         .expect(201);
       expect(
-        (attached.body.data.labels as { id: string }[]).some((l) => l.id === label.id),
+        (attached.body.data.labels as { id: string }[]).some(
+          (l) => l.id === label.id,
+        ),
       ).toBe(true);
 
       // Idempotent re-attach.
@@ -1062,12 +1096,20 @@ describe('Kanban (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/kanban/boards/${boardId}/sprints`)
         .set('Authorization', `Bearer ${scrumToken}`)
-        .send({ name: 'Past', durationWeeks: 'ONE_WEEK', startDate: '2020-01-01' })
+        .send({
+          name: 'Past',
+          durationWeeks: 'ONE_WEEK',
+          startDate: '2020-01-01',
+        })
         .expect(201);
       await request(app.getHttpServer())
         .post(`/kanban/boards/${boardId}/sprints`)
         .set('Authorization', `Bearer ${scrumToken}`)
-        .send({ name: 'Future', durationWeeks: 'ONE_WEEK', startDate: '2099-01-01' })
+        .send({
+          name: 'Future',
+          durationWeeks: 'ONE_WEEK',
+          startDate: '2099-01-01',
+        })
         .expect(201);
 
       const grouped = await request(app.getHttpServer())
@@ -1075,7 +1117,10 @@ describe('Kanban (e2e)', () => {
         .query({ boardId })
         .set('Authorization', `Bearer ${scrumToken}`)
         .expect(200);
-      const data = grouped.body.data as Record<string, { name: string; cardCount: number }[]>;
+      const data = grouped.body.data as Record<
+        string,
+        { name: string; cardCount: number }[]
+      >;
       expect(data.COMPLETED.some((s) => s.name === 'Past')).toBe(true);
       expect(data.UPCOMING.some((s) => s.name === 'Future')).toBe(true);
       // Counts present on every entry.
@@ -1091,7 +1136,9 @@ describe('Kanban (e2e)', () => {
         .set('Authorization', `Bearer ${outsiderToken}`)
         .expect(200);
       const od = outsiderView.body.data as Record<string, unknown[]>;
-      expect(od.COMPLETED.length + od.UPCOMING.length + od.ACTIVE.length).toBe(0);
+      expect(od.COMPLETED.length + od.UPCOMING.length + od.ACTIVE.length).toBe(
+        0,
+      );
     });
   });
 });

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { SalesModule } from '../sales/sales.module';
 import { BomModule } from '../bom/bom.module';
 import { PurchaseOrderController } from './purchase-order.controller';
@@ -21,7 +21,10 @@ import { MaterialService } from './material.service';
  * reservation-aware STOCK_OUT implementation for material issuing.
  */
 @Module({
-  imports: [SalesModule, BomModule],
+  // BomModule is forwardRef'd because this module sits inside the
+  // Notifications ↔ Bom cycle (NotificationsModule imports this module for the
+  // ad-hoc PO approval badge), so BomModule may still be mid-load here.
+  imports: [SalesModule, forwardRef(() => BomModule)],
   controllers: [
     PurchaseOrderController,
     GoodsReceiptNoteController,

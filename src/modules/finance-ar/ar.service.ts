@@ -33,9 +33,15 @@ const INVOICE_INCLUDE = {
   customer: true,
   order: true,
   milestone: true,
-  createdBy: { select: { id: true, firstName: true, lastName: true, employeeId: true } },
-  submittedBy: { select: { id: true, firstName: true, lastName: true, employeeId: true } },
-  approvedBy: { select: { id: true, firstName: true, lastName: true, employeeId: true } },
+  createdBy: {
+    select: { id: true, firstName: true, lastName: true, employeeId: true },
+  },
+  submittedBy: {
+    select: { id: true, firstName: true, lastName: true, employeeId: true },
+  },
+  approvedBy: {
+    select: { id: true, firstName: true, lastName: true, employeeId: true },
+  },
   lines: { include: { product: true }, orderBy: { sequence: 'asc' as const } },
   gstSubmissions: { orderBy: { createdAt: 'desc' as const } },
 };
@@ -341,11 +347,7 @@ export class ArService {
         new Prisma.Decimal(0),
       );
       const discount = subtotal.minus(taxable);
-      const total = taxable
-        .plus(cgst)
-        .plus(sgst)
-        .plus(igst)
-        .toDecimalPlaces(2);
+      const total = taxable.plus(cgst).plus(sgst).plus(igst).toDecimalPlaces(2);
       const invoiceDate = input.invoiceDate ?? new Date();
       // Default 30-day terms; Finance adjusts before issue.
       const dueDate =
@@ -439,15 +441,43 @@ export class ArService {
 
   private async assertCreditControl(inv: any) {
     if (inv.creditOverrideApprovedById) return;
-    const control = await this.prisma.customerCreditControl.findUnique({ where: { customerId: inv.customerId } });
+    const control = await this.prisma.customerCreditControl.findUnique({
+      where: { customerId: inv.customerId },
+    });
     if (!control) return;
-    const open = await this.prisma.salesInvoice.findMany({ where: { customerId: inv.customerId, id: { not: inv.id }, status: { in: [SalesInvoiceStatus.ISSUED, SalesInvoiceStatus.E_INVOICE_GENERATED, SalesInvoiceStatus.PARTIALLY_PAID, SalesInvoiceStatus.OVERDUE] } } });
-    const exposure = open.reduce((s, x) => s.plus(x.outstandingAmount.times(x.exchangeRateToInr)), new Prisma.Decimal(0));
-    const proposed = exposure.plus(inv.totalAmount.times(inv.exchangeRateToInr));
-    if (control.blockOnLimit && proposed.gt(control.creditLimitInr)) throw new BadRequestException(`Customer credit limit exceeded: proposed exposure INR ${proposed.toFixed(2)} exceeds INR ${control.creditLimitInr.toFixed(2)}. Finance Head override is required.`);
+    const open = await this.prisma.salesInvoice.findMany({
+      where: {
+        customerId: inv.customerId,
+        id: { not: inv.id },
+        status: {
+          in: [
+            SalesInvoiceStatus.ISSUED,
+            SalesInvoiceStatus.E_INVOICE_GENERATED,
+            SalesInvoiceStatus.PARTIALLY_PAID,
+            SalesInvoiceStatus.OVERDUE,
+          ],
+        },
+      },
+    });
+    const exposure = open.reduce(
+      (s, x) => s.plus(x.outstandingAmount.times(x.exchangeRateToInr)),
+      new Prisma.Decimal(0),
+    );
+    const proposed = exposure.plus(
+      inv.totalAmount.times(inv.exchangeRateToInr),
+    );
+    if (control.blockOnLimit && proposed.gt(control.creditLimitInr))
+      throw new BadRequestException(
+        `Customer credit limit exceeded: proposed exposure INR ${proposed.toFixed(2)} exceeds INR ${control.creditLimitInr.toFixed(2)}. Finance Head override is required.`,
+      );
     const cutoff = new Date(Date.now() - control.overdueGraceDays * 86400000);
-    const overdue = open.some((x) => x.dueDate < cutoff && x.outstandingAmount.gt(0));
-    if (control.blockOnOverdue && overdue) throw new BadRequestException('Customer has invoices beyond the permitted overdue grace period. Finance Head override is required.');
+    const overdue = open.some(
+      (x) => x.dueDate < cutoff && x.outstandingAmount.gt(0),
+    );
+    if (control.blockOnOverdue && overdue)
+      throw new BadRequestException(
+        'Customer has invoices beyond the permitted overdue grace period. Finance Head override is required.',
+      );
   }
   async rejectInvoice(id: string, comment: string, user: AuthenticatedUser) {
     await this.access.assertAccountsHead(user);
@@ -714,21 +744,80 @@ export class ArService {
     return this.issueAndPost(invoiceId, user.id);
   }
 
-  async cancelGst(submissionId: string, reason: string, user: AuthenticatedUser) {
+  async cancelGst(
+    submissionId: string,
+    reason: string,
+    user: AuthenticatedUser,
+  ) {
     await this.access.assertAccountsHead(user);
-    if (!reason?.trim()) throw new BadRequestException('A GST cancellation reason is required');
-    const submission = await this.prisma.gstSubmission.findUnique({ where: { id: submissionId }, include: { invoice: true } });
+    if (!reason?.trim())
+      throw new BadRequestException('A GST cancellation reason is required');
+    const submission = await this.prisma.gstSubmission.findUnique({
+      where: { id: submissionId },
+      include: { invoice: true },
+    });
     if (!submission) throw new NotFoundException('GST submission not found');
-    if (submission.status !== GstSubmissionStatus.SUCCEEDED) throw new BadRequestException('Only a successful GST submission can be cancelled');
-    if (submission.documentType === GstDocumentType.TAX_INVOICE && submission.invoice.eWayBillNumber) throw new BadRequestException('Cancel the linked e-way bill before cancelling the e-invoice');
-    const generatedAt = submission.documentType === GstDocumentType.TAX_INVOICE ? submission.invoice.irnAcknowledgementDate : submission.invoice.eWayBillGeneratedAt;
-    if (!generatedAt || Date.now() - generatedAt.getTime() > 24 * 60 * 60 * 1000) throw new BadRequestException('The 24-hour GST portal cancellation window has elapsed');
-    const reference = submission.documentType === GstDocumentType.TAX_INVOICE ? submission.invoice.irn : submission.invoice.eWayBillNumber;
-    if (!reference) throw new BadRequestException('The provider reference required for cancellation is missing');
-    const result = await this.gst.cancel(submission.documentType, reference, reason.trim(), `CANCEL:${submission.id}`);
+    if (submission.status !== GstSubmissionStatus.SUCCEEDED)
+      throw new BadRequestException(
+        'Only a successful GST submission can be cancelled',
+      );
+    if (
+      submission.documentType === GstDocumentType.TAX_INVOICE &&
+      submission.invoice.eWayBillNumber
+    )
+      throw new BadRequestException(
+        'Cancel the linked e-way bill before cancelling the e-invoice',
+      );
+    const generatedAt =
+      submission.documentType === GstDocumentType.TAX_INVOICE
+        ? submission.invoice.irnAcknowledgementDate
+        : submission.invoice.eWayBillGeneratedAt;
+    if (
+      !generatedAt ||
+      Date.now() - generatedAt.getTime() > 24 * 60 * 60 * 1000
+    )
+      throw new BadRequestException(
+        'The 24-hour GST portal cancellation window has elapsed',
+      );
+    const reference =
+      submission.documentType === GstDocumentType.TAX_INVOICE
+        ? submission.invoice.irn
+        : submission.invoice.eWayBillNumber;
+    if (!reference)
+      throw new BadRequestException(
+        'The provider reference required for cancellation is missing',
+      );
+    const result = await this.gst.cancel(
+      submission.documentType,
+      reference,
+      reason.trim(),
+      `CANCEL:${submission.id}`,
+    );
     await this.prisma.$transaction([
-      this.prisma.gstSubmission.update({ where: { id: submission.id }, data: { status: GstSubmissionStatus.CANCELLED, responsePayload: result.raw, errorMessage: null } }),
-      this.prisma.salesInvoice.update({ where: { id: submission.invoiceId }, data: submission.documentType === GstDocumentType.TAX_INVOICE ? { irn: null, irnAcknowledgementNumber: null, irnAcknowledgementDate: null, signedQrCode: null } : { eWayBillNumber: null, eWayBillGeneratedAt: null, eWayBillValidUntil: null } }),
+      this.prisma.gstSubmission.update({
+        where: { id: submission.id },
+        data: {
+          status: GstSubmissionStatus.CANCELLED,
+          responsePayload: result.raw,
+          errorMessage: null,
+        },
+      }),
+      this.prisma.salesInvoice.update({
+        where: { id: submission.invoiceId },
+        data:
+          submission.documentType === GstDocumentType.TAX_INVOICE
+            ? {
+                irn: null,
+                irnAcknowledgementNumber: null,
+                irnAcknowledgementDate: null,
+                signedQrCode: null,
+              }
+            : {
+                eWayBillNumber: null,
+                eWayBillGeneratedAt: null,
+                eWayBillValidUntil: null,
+              },
+      }),
     ]);
     return this.findInvoice(submission.invoiceId);
   }
@@ -1080,8 +1169,7 @@ export class ArService {
         new Prisma.Decimal(0),
       );
       const arCarrying = receipt.allocations.reduce(
-        (s: any, a: any) =>
-          s.plus(a.amount.times(a.invoice.exchangeRateToInr)),
+        (s: any, a: any) => s.plus(a.amount.times(a.invoice.exchangeRateToInr)),
         new Prisma.Decimal(0),
       );
       if (allocated.gt(0))
@@ -1098,13 +1186,33 @@ export class ArService {
           debit: 0,
           credit: receipt.unappliedAmount.times(rate),
         });
-      const realizedFx = allocated.times(rate).minus(arCarrying).toDecimalPlaces(2);
+      const realizedFx = allocated
+        .times(rate)
+        .minus(arCarrying)
+        .toDecimalPlaces(2);
       if (!realizedFx.isZero()) {
-        const settings = await tx.financeFxSettings.findUnique({ where: { id: 'INDIA' } });
-        if (!settings) throw new BadRequestException('Configure realized FX gain/loss accounts before posting this foreign-currency receipt');
-        lines.push(realizedFx.gt(0)
-          ? { sequence: lines.length + 1, accountId: settings.gainAccountId, debit: 0, credit: realizedFx }
-          : { sequence: lines.length + 1, accountId: settings.lossAccountId, debit: realizedFx.abs(), credit: 0 });
+        const settings = await tx.financeFxSettings.findUnique({
+          where: { id: 'INDIA' },
+        });
+        if (!settings)
+          throw new BadRequestException(
+            'Configure realized FX gain/loss accounts before posting this foreign-currency receipt',
+          );
+        lines.push(
+          realizedFx.gt(0)
+            ? {
+                sequence: lines.length + 1,
+                accountId: settings.gainAccountId,
+                debit: 0,
+                credit: realizedFx,
+              }
+            : {
+                sequence: lines.length + 1,
+                accountId: settings.lossAccountId,
+                debit: realizedFx.abs(),
+                credit: 0,
+              },
+        );
       }
       const journal = await this.finance.postJournalTx(tx, {
         entryDate: receipt.receiptDate,
@@ -1223,8 +1331,12 @@ export class ArService {
     return p;
   }
   private async account(tx: Prisma.TransactionClient, code: string) {
-    const settings = await tx.financeProductionSettings.findUnique({ where: { id: 'INDIA' } });
-    const mapped = (settings?.controlAccountMap as Record<string, string> | null)?.[code] || code;
+    const settings = await tx.financeProductionSettings.findUnique({
+      where: { id: 'INDIA' },
+    });
+    const mapped =
+      (settings?.controlAccountMap as Record<string, string> | null)?.[code] ||
+      code;
     const a = await tx.ledgerAccount.findUnique({ where: { code: mapped } });
     if (!a?.isActive)
       throw new BadRequestException(

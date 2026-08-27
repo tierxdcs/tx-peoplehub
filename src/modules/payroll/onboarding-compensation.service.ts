@@ -98,13 +98,15 @@ export class OnboardingCompensationService {
     let branch: 'PF_CAPPED' | 'PF_UNCAPPED' = 'PF_CAPPED';
     if (gross.times(structure.basicGrossRate).lte(pf.wageCeiling)) {
       branch = 'PF_UNCAPPED';
-      gross = annualTarget.minus(insurance).dividedBy(
-        baseAnnualGrossMonths.plus(
-          new Prisma.Decimal(12)
-            .times(pf.employerRate)
-            .times(structure.basicGrossRate),
-        ),
-      );
+      gross = annualTarget
+        .minus(insurance)
+        .dividedBy(
+          baseAnnualGrossMonths.plus(
+            new Prisma.Decimal(12)
+              .times(pf.employerRate)
+              .times(structure.basicGrossRate),
+          ),
+        );
     }
     if (!gross.isPositive()) {
       throw new BadRequestException(
@@ -127,7 +129,10 @@ export class OnboardingCompensationService {
       );
     }
 
-    const pfBase = Prisma.Decimal.min(basic, new Prisma.Decimal(pf.wageCeiling));
+    const pfBase = Prisma.Decimal.min(
+      basic,
+      new Prisma.Decimal(pf.wageCeiling),
+    );
     const employeePf = pfBase.times(pf.employeeRate).toDecimalPlaces(2);
     const employerPf = pfBase.times(pf.employerRate).toDecimalPlaces(2);
     const esiApplies = gross.lte(esi.wageThreshold);
@@ -143,9 +148,7 @@ export class OnboardingCompensationService {
         (item.slabTo === null || gross.lte(item.slabTo)),
     );
     const professionalTax = new Prisma.Decimal(slab?.amount ?? 0);
-    const deductions = employeePf
-      .plus(employeeEsi ?? 0)
-      .plus(professionalTax);
+    const deductions = employeePf.plus(employeeEsi ?? 0).plus(professionalTax);
     const incentive = gross.times(structure.incentiveGrossMonths);
     const employerPfAnnual = employerPf.times(12);
     const contributions = employerPfAnnual.plus(insurance).plus(incentive);

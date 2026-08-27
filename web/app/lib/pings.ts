@@ -1,4 +1,5 @@
 import { apiFetch } from './api';
+import { ageHours, urgencyTier } from './urgency';
 
 export type PingStatus = 'PENDING' | 'ACKNOWLEDGED' | 'RESOLVED';
 export type PingEmployee = { id: string; fullName: string; email: string; employeeId: string };
@@ -31,8 +32,16 @@ export const getContextPingRecipients = (params: { verticalCode?: string; linked
   return apiFetch<PingEmployee[]>(`/pings/recipients?${query.toString()}`);
 };
 
+/** Hours a ping has been waiting. Thin alias over the app-wide age helper so
+ *  pings and pending-approval badges measure elapsed time identically. */
 export function pingAgeHours(createdAt: string, now = new Date()) {
-  return Math.max(0, Math.floor((now.getTime() - new Date(createdAt).getTime()) / 3_600_000));
+  return ageHours(createdAt, now);
+}
+
+/** A PENDING ping past the shared aging boundary (24h) — the original
+ *  escalation this app's whole urgency scale is anchored to. */
+export function isPingOverdue(status: PingStatus, hours: number) {
+  return status === 'PENDING' && urgencyTier(hours) !== 'ok';
 }
 
 /** Resolved pings linger on the dashboard for 24 hours after resolution. */

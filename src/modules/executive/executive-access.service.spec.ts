@@ -25,34 +25,47 @@ describe('ExecutiveAccessService', () => {
   });
 
   it('grants access on the flag alone, whatever the role', async () => {
-    const service = buildService({ status: 'ACTIVE', hasExecutiveDashboardAccess: true });
+    const service = buildService({
+      status: 'ACTIVE',
+      hasExecutiveDashboardAccess: true,
+    });
     await expect(service.hasAccess(user(Role.EMPLOYEE))).resolves.toBe(true);
   });
 
   it('denies an employee without the grant', async () => {
-    const service = buildService({ status: 'ACTIVE', hasExecutiveDashboardAccess: false });
+    const service = buildService({
+      status: 'ACTIVE',
+      hasExecutiveDashboardAccess: false,
+    });
     await expect(service.hasAccess(user(Role.MANAGER))).resolves.toBe(false);
   });
 
   it('denies a holder who is no longer active', async () => {
-    const service = buildService({ status: 'INACTIVE', hasExecutiveDashboardAccess: true });
+    const service = buildService({
+      status: 'INACTIVE',
+      hasExecutiveDashboardAccess: true,
+    });
     await expect(service.hasAccess(user(Role.MANAGER))).resolves.toBe(false);
   });
 
   it('denies a caller with no employee record', async () => {
-    await expect(buildService(null).hasAccess(user(Role.ADMIN))).resolves.toBe(false);
+    await expect(buildService(null).hasAccess(user(Role.ADMIN))).resolves.toBe(
+      false,
+    );
   });
 
   it('assertAccess throws Forbidden for a non-holder and passes for a holder', async () => {
     await expect(
-      buildService({ status: 'ACTIVE', hasExecutiveDashboardAccess: false }).assertAccess(
-        user(Role.ADMIN),
-      ),
+      buildService({
+        status: 'ACTIVE',
+        hasExecutiveDashboardAccess: false,
+      }).assertAccess(user(Role.ADMIN)),
     ).rejects.toBeInstanceOf(ForbiddenException);
     await expect(
-      buildService({ status: 'ACTIVE', hasExecutiveDashboardAccess: true }).assertAccess(
-        user(Role.EMPLOYEE),
-      ),
+      buildService({
+        status: 'ACTIVE',
+        hasExecutiveDashboardAccess: true,
+      }).assertAccess(user(Role.EMPLOYEE)),
     ).resolves.toBeUndefined();
   });
 });

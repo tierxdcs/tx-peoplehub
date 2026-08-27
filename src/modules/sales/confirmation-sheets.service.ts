@@ -13,8 +13,15 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  EMPTY_PENDING_QUEUE,
+  PendingQueue,
+} from '../../common/types/pending-queue';
 import { VaultStorageService } from '../vault/vault-storage.service';
-import { SalesAccessService, isSuperAdmin } from './common/sales-access.service';
+import {
+  SalesAccessService,
+  isSuperAdmin,
+} from './common/sales-access.service';
 import { SalesNumberingService } from './common/sales-numbering.service';
 import {
   ConfirmSignedCopyDto,
@@ -182,7 +189,11 @@ export class ConfirmationSheetsService {
     id: string,
     contentType: string,
     user: AuthenticatedUser,
-  ): Promise<{ storageKey: string; uploadUrl: string; expiresInSeconds: number }> {
+  ): Promise<{
+    storageKey: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+  }> {
     const { sheet } = await this.loadForWrite(id, user);
     if (sheet.status !== OrderConfirmationStatus.AWAITING_CUSTOMER_SIGNATURE) {
       throw new BadRequestException(
@@ -210,9 +221,7 @@ export class ConfirmationSheetsService {
   ): Promise<ConfirmationSheetEntity> {
     const { sheet } = await this.loadForWrite(id, user);
     if (sheet.status !== OrderConfirmationStatus.AWAITING_CUSTOMER_SIGNATURE) {
-      throw new BadRequestException(
-        'This sheet is not awaiting a signed copy',
-      );
+      throw new BadRequestException('This sheet is not awaiting a signed copy');
     }
     const expectedKey = this.storageKeyFor(sheet.id);
     if (dto.storageKey !== expectedKey) {
@@ -265,9 +274,7 @@ export class ConfirmationSheetsService {
         signatureFont: true,
       },
     });
-    const signerName = emp
-      ? `${emp.firstName} ${emp.lastName}`.trim()
-      : null;
+    const signerName = emp ? `${emp.firstName} ${emp.lastName}`.trim() : null;
     const updated = await this.prisma.orderConfirmationSheet.update({
       where: { id },
       data: {
@@ -388,18 +395,26 @@ export class ConfirmationSheetsService {
   }
 
   /**
-   * Count of sheets awaiting the caller's countersignature — reuses the EXACT
-   * same where-clause as findPendingApproval (no drift). Returns 0 for a
-   * caller who isn't a reviewer, rather than throwing, so the unified
-   * notifications endpoint can call it uniformly for any role.
+   * Badge summary for sheets awaiting the caller's countersignature — count plus
+   * when the oldest was raised. Reuses the EXACT same where-clause and
+   * oldest-first ordering as findPendingApproval (no drift). Returns an empty
+   * queue for a caller who isn't a reviewer, rather than throwing, so the
+   * unified notifications endpoint can call it uniformly for any role.
    */
-  async countPendingForReviewer(user: AuthenticatedUser): Promise<number> {
+  async pendingReviewQueue(user: AuthenticatedUser): Promise<PendingQueue> {
     if (!(await this.isReviewer(user))) {
-      return 0;
+      return EMPTY_PENDING_QUEUE;
     }
-    return this.prisma.orderConfirmationSheet.count({
-      where: PENDING_INTERNAL_SIGNATURE_WHERE,
-    });
+    const where = PENDING_INTERNAL_SIGNATURE_WHERE;
+    const [count, oldest] = await Promise.all([
+      this.prisma.orderConfirmationSheet.count({ where }),
+      this.prisma.orderConfirmationSheet.findFirst({
+        where,
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      }),
+    ]);
+    return { count, oldestPendingAt: oldest?.createdAt ?? null };
   }
 
   /** All sheets for an order, newest revision first (full history, §7). */
@@ -408,7 +423,9 @@ export class ConfirmationSheetsService {
     user: AuthenticatedUser,
   ): Promise<ConfirmationSheetEntity[]> {
     await this.access.assertSalesAccess(user);
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order) {
       throw new NotFoundException('Order not found');
     }
@@ -607,9 +624,7 @@ export class ConfirmationSheetsService {
   > {
     return {
       requirementsOverview: dto.requirementsOverview ?? '',
-      deliveryDate: dto.deliveryDate
-        ? new Date(dto.deliveryDate)
-        : new Date(0),
+      deliveryDate: dto.deliveryDate ? new Date(dto.deliveryDate) : new Date(0),
       deliveryLocation: dto.deliveryLocation ?? '',
       deliveryType: dto.deliveryType ?? 'FULL_TRUCKLOAD',
       qualityReportsExpected: dto.qualityReportsExpected ?? [],

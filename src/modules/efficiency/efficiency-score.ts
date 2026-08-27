@@ -21,7 +21,11 @@ export function pingSla(
       row.respondedAt !== null &&
       row.respondedAt.getTime() - row.createdAt.getTime() <= limitMs,
   ).length;
-  return { percentage: percentage(onTime, rows.length), onTime, total: rows.length };
+  return {
+    percentage: percentage(onTime, rows.length),
+    onTime,
+    total: rows.length,
+  };
 }
 
 /** Due dates are calendar-day commitments, so completion anytime that day passes. */
@@ -38,7 +42,11 @@ export function taskSla(
     );
     return row.completedAt.getTime() < endOfDueDay;
   }).length;
-  return { percentage: percentage(onTime, rows.length), onTime, total: rows.length };
+  return {
+    percentage: percentage(onTime, rows.length),
+    onTime,
+    total: rows.length,
+  };
 }
 
 export function combinedEfficiency(

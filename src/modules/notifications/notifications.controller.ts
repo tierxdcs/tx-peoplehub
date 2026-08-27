@@ -50,7 +50,9 @@ export class NotificationsController {
   }
 
   @Patch(':id/read')
-  @ApiOperation({ summary: 'Mark one notification read (must be the caller’s)' })
+  @ApiOperation({
+    summary: 'Mark one notification read (must be the caller’s)',
+  })
   markRead(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.kanban.markRead(id, user);
   }

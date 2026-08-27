@@ -3,21 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from './auth-context';
 import { apiFetch } from './api';
+import type { PendingCounts } from './approval-queues';
 
 /**
- * Pending-approval counters surfaced as sidebar badges. Every key is always
- * present (0 when not applicable to the caller's role), so a `null` value
- * means "not loaded yet" rather than "no data".
+ * Pending-approval queues surfaced as sidebar badges. Every registered queue
+ * key is always present (count 0 / oldestPendingAt null when it doesn't apply
+ * to the caller's role), so a `null` result means "not loaded yet" rather than
+ * "no data". The queue set and its per-queue shape live in ./approval-queues.
  */
-export interface PendingCounts {
-  leaveApprovals: number;
-  bidDiscountApprovals: number;
-  bidAssessmentApprovals: number;
-  hrPendingAccess: number;
-  confirmationSheetsPending: number;
-  offerLetterApprovals: number;
-  provisioningApprovals: number;
-}
+export type { PendingCounts, PendingQueue } from './approval-queues';
 
 /**
  * Fetches the pending-approval counts for the current user and keeps them

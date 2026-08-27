@@ -13,7 +13,10 @@ export class CreateBusinessUnitDto {
   @MinLength(2)
   name!: string;
 
-  @ApiProperty({ example: 'EDGE', description: 'Short code, used for matching' })
+  @ApiProperty({
+    example: 'EDGE',
+    description: 'Short code, used for matching',
+  })
   @IsString()
   @MinLength(2)
   code!: string;

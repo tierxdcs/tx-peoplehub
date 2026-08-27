@@ -75,7 +75,9 @@ export class ProductsController {
 
   @Delete(':id')
   @Roles(Role.MANAGER, Role.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Delete an unused product (Sales Manager and above)' })
+  @ApiOperation({
+    summary: 'Delete an unused product (Sales Manager and above)',
+  })
   remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.productsService.remove(id, user);
   }

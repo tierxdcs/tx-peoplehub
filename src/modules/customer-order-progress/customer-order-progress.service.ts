@@ -336,7 +336,12 @@ export class CustomerOrderProgressService {
           const index = completed
             ? Math.max(1, seq.indexOf(t.currentStage) + 1)
             : 0;
-          return { tracker: t, seq, completed, fraction: index / (seq.length + 1) };
+          return {
+            tracker: t,
+            seq,
+            completed,
+            fraction: index / (seq.length + 1),
+          };
         })
         .sort((a, b) => a.fraction - b.fraction)[0];
       const tracker = representative?.tracker ?? null;

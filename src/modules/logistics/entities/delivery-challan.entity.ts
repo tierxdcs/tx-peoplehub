@@ -60,7 +60,10 @@ export class DeliveryChallanEntity {
   @ApiProperty({ nullable: true }) driverName!: string | null;
   @ApiProperty({ nullable: true }) driverPhone!: string | null;
   @ApiProperty({ nullable: true }) specialDeliveryInstructions!: string | null;
-  @ApiProperty({ nullable: true }) documentsIncluded!: Record<string, boolean> | null;
+  @ApiProperty({ nullable: true }) documentsIncluded!: Record<
+    string,
+    boolean
+  > | null;
 
   @ApiProperty({ nullable: true }) promisedDeliveryDate!: string | null;
   @ApiProperty({ nullable: true }) actualDeliveryDate!: string | null;

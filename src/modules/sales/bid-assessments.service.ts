@@ -14,6 +14,10 @@ import {
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import {
+  EMPTY_PENDING_QUEUE,
+  PendingQueue,
+} from '../../common/types/pending-queue';
+import {
   PaginatedResult,
   PaginationQueryDto,
 } from '../../common/dto/pagination.dto';
@@ -139,17 +143,26 @@ export class BidAssessmentsService {
     { status: BidAssessmentStatus.PENDING_REVIEW };
 
   /**
-   * Count of assessments awaiting review. Reuses the list where-clause and the
-   * same Sales-Head/SuperAdmin gate — but returns 0 for non-reviewers instead
-   * of throwing, so the unified notifications endpoint can call it for anyone.
+   * Badge summary for assessments awaiting review — count plus when the oldest
+   * was submitted. Reuses the list where-clause, its oldest-first ordering, and
+   * the same Sales-Head/SuperAdmin gate — but returns an empty queue for
+   * non-reviewers instead of throwing, so the unified notifications endpoint can
+   * call it for anyone.
    */
-  async countPendingForReviewer(user: AuthenticatedUser): Promise<number> {
+  async pendingReviewQueue(user: AuthenticatedUser): Promise<PendingQueue> {
     if (!(await this.isReviewer(user))) {
-      return 0;
+      return EMPTY_PENDING_QUEUE;
     }
-    return this.prisma.bidDecisionAssessment.count({
-      where: BidAssessmentsService.PENDING_REVIEW_WHERE,
-    });
+    const where = BidAssessmentsService.PENDING_REVIEW_WHERE;
+    const [count, oldest] = await Promise.all([
+      this.prisma.bidDecisionAssessment.count({ where }),
+      this.prisma.bidDecisionAssessment.findFirst({
+        where,
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      }),
+    ]);
+    return { count, oldestPendingAt: oldest?.createdAt ?? null };
   }
 
   async findPendingApproval(
@@ -271,7 +284,10 @@ export class BidAssessmentsService {
       where: { id: employeeId },
       select: { signatureText: true, signatureFont: true },
     });
-    return { text: emp?.signatureText ?? null, font: emp?.signatureFont ?? null };
+    return {
+      text: emp?.signatureText ?? null,
+      font: emp?.signatureFont ?? null,
+    };
   }
 
   /**

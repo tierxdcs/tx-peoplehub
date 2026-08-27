@@ -750,7 +750,8 @@ export class ApService {
           new Prisma.Decimal(0),
         ),
         apCarrying = p.allocations.reduce(
-          (s: any, a: any) => s.plus(a.amount.times(a.invoice.exchangeRateToInr)),
+          (s: any, a: any) =>
+            s.plus(a.amount.times(a.invoice.exchangeRateToInr)),
           new Prisma.Decimal(0),
         ),
         unapplied = p.amount.minus(allocated),
@@ -775,13 +776,32 @@ export class ApService {
         debit: 0,
         credit: p.amount.times(rate),
       });
-      const realizedFx = apCarrying.minus(allocated.times(rate)).toDecimalPlaces(2);
+      const realizedFx = apCarrying
+        .minus(allocated.times(rate))
+        .toDecimalPlaces(2);
       if (!realizedFx.isZero()) {
-        const settings = await tx.financeFxSettings.findUnique({ where: { id: 'INDIA' } });
-        if (!settings) throw new BadRequestException('Configure realized FX gain/loss accounts before posting this foreign-currency payment');
-        lines.push(realizedFx.gt(0)
-          ? { sequence: lines.length + 1, accountId: settings.gainAccountId, debit: 0, credit: realizedFx }
-          : { sequence: lines.length + 1, accountId: settings.lossAccountId, debit: realizedFx.abs(), credit: 0 });
+        const settings = await tx.financeFxSettings.findUnique({
+          where: { id: 'INDIA' },
+        });
+        if (!settings)
+          throw new BadRequestException(
+            'Configure realized FX gain/loss accounts before posting this foreign-currency payment',
+          );
+        lines.push(
+          realizedFx.gt(0)
+            ? {
+                sequence: lines.length + 1,
+                accountId: settings.gainAccountId,
+                debit: 0,
+                credit: realizedFx,
+              }
+            : {
+                sequence: lines.length + 1,
+                accountId: settings.lossAccountId,
+                debit: realizedFx.abs(),
+                credit: 0,
+              },
+        );
       }
       const j = await this.finance.postJournalTx(tx, {
         entryDate: date,
@@ -885,8 +905,11 @@ export class ApService {
     return p;
   }
   private async account(tx: Prisma.TransactionClient, c: string) {
-    const settings = await tx.financeProductionSettings.findUnique({ where: { id: 'INDIA' } });
-    const mapped = (settings?.controlAccountMap as Record<string, string> | null)?.[c] || c;
+    const settings = await tx.financeProductionSettings.findUnique({
+      where: { id: 'INDIA' },
+    });
+    const mapped =
+      (settings?.controlAccountMap as Record<string, string> | null)?.[c] || c;
     const a = await tx.ledgerAccount.findUnique({ where: { code: mapped } });
     if (!a?.isActive)
       throw new BadRequestException(

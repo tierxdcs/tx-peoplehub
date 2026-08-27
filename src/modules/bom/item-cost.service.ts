@@ -7,10 +7,7 @@ import { FinanceAccessService } from '../finance/finance-access.service';
 export interface CurrentItemCost {
   amount: Prisma.Decimal | null;
   source:
-    | 'LATEST_ACCEPTED_GRN'
-    | 'LATEST_AWARDED_QUOTE'
-    | 'MANUAL_STANDARD'
-    | null;
+    'LATEST_ACCEPTED_GRN' | 'LATEST_AWARDED_QUOTE' | 'MANUAL_STANDARD' | null;
 }
 
 @Injectable()
@@ -68,16 +65,22 @@ export class ItemCostService {
       orderBy: [{ awardedAt: 'desc' }, { createdAt: 'desc' }],
       select: { unitPrice: true },
     });
-    if (awardedQuote) return { amount: awardedQuote.unitPrice, source: 'LATEST_AWARDED_QUOTE' };
+    if (awardedQuote)
+      return { amount: awardedQuote.unitPrice, source: 'LATEST_AWARDED_QUOTE' };
     return this.manualStandardCost(itemId);
   }
 
   /** COPQ uses realized GRN cost, then manual standard cost; quotes are excluded. */
   async currentFailureCost(itemId: string): Promise<CurrentItemCost> {
-    return (await this.latestAcceptedGrnCost(itemId)) ?? this.manualStandardCost(itemId);
+    return (
+      (await this.latestAcceptedGrnCost(itemId)) ??
+      this.manualStandardCost(itemId)
+    );
   }
 
-  private async latestAcceptedGrnCost(itemId: string): Promise<CurrentItemCost | null> {
+  private async latestAcceptedGrnCost(
+    itemId: string,
+  ): Promise<CurrentItemCost | null> {
     const accepted = await this.prisma.goodsReceiptNoteLine.findFirst({
       where: {
         itemId,
@@ -96,7 +99,12 @@ export class ItemCostService {
         purchaseOrderLine: { select: { unitPrice: true } },
       },
     });
-    return accepted ? { amount: accepted.purchaseOrderLine.unitPrice, source: 'LATEST_ACCEPTED_GRN' } : null;
+    return accepted
+      ? {
+          amount: accepted.purchaseOrderLine.unitPrice,
+          source: 'LATEST_ACCEPTED_GRN',
+        }
+      : null;
   }
 
   private async manualStandardCost(itemId: string): Promise<CurrentItemCost> {

@@ -230,9 +230,7 @@ export class ScmService {
     user: AuthenticatedUser,
   ): Promise<{ id: string; deleted: true }> {
     if (user.role !== Role.SUPER_ADMIN) {
-      throw new ForbiddenException(
-        'Only CEO/SuperAdmin may delete vendors',
-      );
+      throw new ForbiddenException('Only CEO/SuperAdmin may delete vendors');
     }
 
     const vendor = await this.prisma.vendor.findUnique({

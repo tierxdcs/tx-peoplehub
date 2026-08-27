@@ -11,6 +11,10 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  EMPTY_PENDING_QUEUE,
+  PendingQueue,
+} from '../../common/types/pending-queue';
 import { SalesNumberingService } from '../sales/common/sales-numbering.service';
 import { FinanceService } from '../finance/finance.service';
 import { FinanceAccessService } from '../finance/finance-access.service';
@@ -233,13 +237,42 @@ export class ExpenseClaimsService {
   async listForReview(user: AuthenticatedUser): Promise<ExpenseClaimEntity[]> {
     await this.assertApprover(user);
     const rows = await this.prisma.expenseClaim.findMany({
-      where: {
-        status: { in: [ExpenseClaimStatus.SUBMITTED, ExpenseClaimStatus.APPROVED] },
-      },
+      where: ExpenseClaimsService.REVIEW_QUEUE_WHERE,
       include: CLAIM_INCLUDE,
       orderBy: { submittedAt: 'asc' },
     });
     return rows.map((r) => this.toEntity(r));
+  }
+
+  /** Shared scope for the approver queue (list + badge summary). */
+  private static readonly REVIEW_QUEUE_WHERE = {
+    status: {
+      in: [ExpenseClaimStatus.SUBMITTED, ExpenseClaimStatus.APPROVED],
+    },
+  };
+
+  /**
+   * Badge summary for the approver queue — count plus when the oldest claim was
+   * submitted. Same where-clause and oldest-first ordering as listForReview, so
+   * it covers both stages that need action (approve, then pay out): a claim
+   * approved but never paid keeps ageing, which is the point. Returns an empty
+   * queue for non-approvers instead of throwing.
+   */
+  async pendingReviewQueue(user: AuthenticatedUser): Promise<PendingQueue> {
+    if (!(await this.isApprover(user))) return EMPTY_PENDING_QUEUE;
+    const where = ExpenseClaimsService.REVIEW_QUEUE_WHERE;
+    const [count, oldest] = await Promise.all([
+      this.prisma.expenseClaim.count({ where }),
+      this.prisma.expenseClaim.findFirst({
+        where,
+        orderBy: { submittedAt: 'asc' },
+        select: { submittedAt: true, createdAt: true },
+      }),
+    ]);
+    return {
+      count,
+      oldestPendingAt: oldest ? (oldest.submittedAt ?? oldest.createdAt) : null,
+    };
   }
 
   async getClaim(

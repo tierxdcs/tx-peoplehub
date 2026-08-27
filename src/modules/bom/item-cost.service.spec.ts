@@ -14,9 +14,11 @@ function makeService(opts: {
 }) {
   const prisma = {
     vertical: {
-      findUnique: jest.fn().mockResolvedValue(
-        opts.verticalCode ? { code: opts.verticalCode } : null,
-      ),
+      findUnique: jest
+        .fn()
+        .mockResolvedValue(
+          opts.verticalCode ? { code: opts.verticalCode } : null,
+        ),
     },
   } as any;
   const financeAccess = {
@@ -30,8 +32,7 @@ function makeService(opts: {
 const asUser = (
   role: Role,
   verticalId: string | null = null,
-): AuthenticatedUser =>
-  ({ id: 'u1', role, verticalId } as AuthenticatedUser);
+): AuthenticatedUser => ({ id: 'u1', role, verticalId }) as AuthenticatedUser;
 
 describe('ItemCostService — cost visibility vs. management', () => {
   it('SUPER_ADMIN can both view and manage cost', async () => {
@@ -60,7 +61,10 @@ describe('ItemCostService — cost visibility vs. management', () => {
   });
 
   it('Store/Production staff can neither view nor manage cost', async () => {
-    const svc = makeService({ isFinanceUser: false, verticalCode: 'PRODUCTION' });
+    const svc = makeService({
+      isFinanceUser: false,
+      verticalCode: 'PRODUCTION',
+    });
     const user = asUser(Role.EMPLOYEE, 'prod-id');
     expect(await svc.canViewCost(user)).toBe(false);
     expect(await svc.canManageCost(user)).toBe(false);
@@ -95,9 +99,18 @@ describe('ItemCostService — awarded quote fallback', () => {
 
 describe('ItemCostService — failure cost hierarchy', () => {
   it('skips awarded quote and uses manual standard cost when no accepted GRN exists', async () => {
-    const prisma:any={goodsReceiptNoteLine:{findFirst:jest.fn().mockResolvedValue(null)},item:{findUnique:jest.fn().mockResolvedValue({manualStandardCost:80})},itemQuotedCost:{findFirst:jest.fn()}};
-    const service=new ItemCostService(prisma,{} as any);
-    await expect(service.currentFailureCost('item-1')).resolves.toEqual({amount:80,source:'MANUAL_STANDARD'});
+    const prisma: any = {
+      goodsReceiptNoteLine: { findFirst: jest.fn().mockResolvedValue(null) },
+      item: {
+        findUnique: jest.fn().mockResolvedValue({ manualStandardCost: 80 }),
+      },
+      itemQuotedCost: { findFirst: jest.fn() },
+    };
+    const service = new ItemCostService(prisma, {} as any);
+    await expect(service.currentFailureCost('item-1')).resolves.toEqual({
+      amount: 80,
+      source: 'MANUAL_STANDARD',
+    });
     expect(prisma.itemQuotedCost.findFirst).not.toHaveBeenCalled();
   });
 });

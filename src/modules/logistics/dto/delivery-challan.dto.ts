@@ -18,7 +18,9 @@ import {
 } from 'class-validator';
 
 export class DeliveryChallanLineInputDto {
-  @ApiProperty({ description: 'The order line this dispatched quantity belongs to' })
+  @ApiProperty({
+    description: 'The order line this dispatched quantity belongs to',
+  })
   @IsString()
   @MinLength(1)
   orderLineId!: string;
@@ -28,7 +30,9 @@ export class DeliveryChallanLineInputDto {
   @Min(0)
   quantity!: number;
 
-  @ApiPropertyOptional({ description: 'Override the item description; defaults from the product' })
+  @ApiPropertyOptional({
+    description: 'Override the item description; defaults from the product',
+  })
   @IsOptional()
   @IsString()
   description?: string;
@@ -49,7 +53,9 @@ export class CreateDeliveryChallanDto {
   @ApiProperty() @IsString() @MinLength(1) consigneeName!: string;
   @ApiProperty() @IsString() @MinLength(1) consigneeAddress!: string;
   @ApiPropertyOptional() @IsOptional() @IsString() consigneeGstin?: string;
-  @ApiProperty({ description: 'Two-digit GST state code; drives place-of-supply' })
+  @ApiProperty({
+    description: 'Two-digit GST state code; drives place-of-supply',
+  })
   @IsString()
   @MinLength(1)
   consigneeStateCode!: string;
@@ -61,8 +67,13 @@ export class CreateDeliveryChallanDto {
   @ApiPropertyOptional() @IsOptional() @IsString() vehicleOrAwbNumber?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() driverName?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() driverPhone?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() specialDeliveryInstructions?: string;
-  @ApiPropertyOptional({ description: 'Documents-included checklist as a JSON map' })
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  specialDeliveryInstructions?: string;
+  @ApiPropertyOptional({
+    description: 'Documents-included checklist as a JSON map',
+  })
   @IsOptional()
   @IsObject()
   documentsIncluded?: Record<string, boolean>;
@@ -96,9 +107,18 @@ export class UpdateDeliveryChallanDto {
   @ApiPropertyOptional() @IsOptional() @IsString() vehicleOrAwbNumber?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() driverName?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() driverPhone?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() specialDeliveryInstructions?: string;
-  @ApiPropertyOptional() @IsOptional() @IsObject() documentsIncluded?: Record<string, boolean>;
-  @ApiPropertyOptional() @IsOptional() @IsDateString() promisedDeliveryDate?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  specialDeliveryInstructions?: string;
+  @ApiPropertyOptional() @IsOptional() @IsObject() documentsIncluded?: Record<
+    string,
+    boolean
+  >;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  promisedDeliveryDate?: string;
   @ApiPropertyOptional({ type: [DeliveryChallanLineInputDto] })
   @IsOptional()
   @IsArray()

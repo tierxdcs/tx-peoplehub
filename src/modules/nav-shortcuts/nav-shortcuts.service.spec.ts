@@ -2,9 +2,16 @@ import { BadRequestException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { MAX_NAV_SHORTCUTS, NavShortcutsService } from './nav-shortcuts.service';
+import {
+  MAX_NAV_SHORTCUTS,
+  NavShortcutsService,
+} from './nav-shortcuts.service';
 
-const user = { id: 'emp-1', role: Role.EMPLOYEE, email: 'a@b.c' } as AuthenticatedUser;
+const user = {
+  id: 'emp-1',
+  role: Role.EMPLOYEE,
+  email: 'a@b.c',
+} as AuthenticatedUser;
 
 interface Row {
   id: string;
@@ -33,7 +40,9 @@ function buildService(seed: Array<Partial<Row>> = []) {
 
   const navShortcut = {
     findMany: jest.fn(({ where, orderBy }: any) => {
-      const filtered = rows.filter((row) => row.employeeId === where.employeeId);
+      const filtered = rows.filter(
+        (row) => row.employeeId === where.employeeId,
+      );
       void orderBy;
       filtered.sort(
         (a, b) =>
@@ -50,7 +59,9 @@ function buildService(seed: Array<Partial<Row>> = []) {
       return Promise.resolve(found ? { ...found } : null);
     }),
     count: jest.fn(({ where }: any) =>
-      Promise.resolve(rows.filter((row) => row.employeeId === where.employeeId).length),
+      Promise.resolve(
+        rows.filter((row) => row.employeeId === where.employeeId).length,
+      ),
     ),
     create: jest.fn(({ data }: any) => {
       const row: Row = {
@@ -72,7 +83,10 @@ function buildService(seed: Array<Partial<Row>> = []) {
     deleteMany: jest.fn(({ where }: any) => {
       const before = rows.length;
       for (let index = rows.length - 1; index >= 0; index -= 1) {
-        if (rows[index].employeeId === where.employeeId && rows[index].href === where.href) {
+        if (
+          rows[index].employeeId === where.employeeId &&
+          rows[index].href === where.href
+        ) {
           rows.splice(index, 1);
         }
       }
@@ -100,10 +114,19 @@ describe('NavShortcutsService', () => {
   });
 
   it('appends a new pin at the end of the strip', async () => {
-    const { service } = buildService([{ href: '/a', label: 'A', sortOrder: 0 }]);
-    const list = await service.pin(user, { href: '/sales/leads', label: 'Leads' });
+    const { service } = buildService([
+      { href: '/a', label: 'A', sortOrder: 0 },
+    ]);
+    const list = await service.pin(user, {
+      href: '/sales/leads',
+      label: 'Leads',
+    });
     expect(list).toHaveLength(2);
-    expect(list[1]).toMatchObject({ href: '/sales/leads', label: 'Leads', sortOrder: 1 });
+    expect(list[1]).toMatchObject({
+      href: '/sales/leads',
+      label: 'Leads',
+      sortOrder: 1,
+    });
   });
 
   it('is idempotent: re-pinning refreshes the label without duplicating or reordering', async () => {
@@ -111,9 +134,16 @@ describe('NavShortcutsService', () => {
       { href: '/sales/leads', label: 'Old label', sortOrder: 0 },
       { href: '/b', label: 'B', sortOrder: 1 },
     ]);
-    const list = await service.pin(user, { href: '/sales/leads', label: 'Leads' });
+    const list = await service.pin(user, {
+      href: '/sales/leads',
+      label: 'Leads',
+    });
     expect(list).toHaveLength(2);
-    expect(list[0]).toMatchObject({ href: '/sales/leads', label: 'Leads', sortOrder: 0 });
+    expect(list[0]).toMatchObject({
+      href: '/sales/leads',
+      label: 'Leads',
+      sortOrder: 0,
+    });
   });
 
   it(`rejects a pin beyond the cap of ${MAX_NAV_SHORTCUTS}`, async () => {
@@ -156,14 +186,18 @@ describe('NavShortcutsService', () => {
   });
 
   it('treats unpinning a route that is not pinned as a no-op', async () => {
-    const { service } = buildService([{ href: '/a', label: 'A', sortOrder: 0 }]);
+    const { service } = buildService([
+      { href: '/a', label: 'A', sortOrder: 0 },
+    ]);
     await expect(service.unpin(user, '/never-pinned')).resolves.toEqual([
       expect.objectContaining({ href: '/a' }),
     ]);
   });
 
   it('treats a trailing slash as the same route', async () => {
-    const { service } = buildService([{ href: '/a', label: 'A', sortOrder: 0 }]);
+    const { service } = buildService([
+      { href: '/a', label: 'A', sortOrder: 0 },
+    ]);
     await expect(service.unpin(user, '/a/')).resolves.toEqual([]);
   });
 
@@ -176,9 +210,9 @@ describe('NavShortcutsService', () => {
     ['', 'an empty route'],
   ])('rejects %s (%s)', async (href) => {
     const { service } = buildService();
-    await expect(service.pin(user, { href, label: 'X' })).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.pin(user, { href, label: 'X' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects a blank or over-long label', async () => {

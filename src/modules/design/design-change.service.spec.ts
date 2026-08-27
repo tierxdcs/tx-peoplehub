@@ -25,9 +25,9 @@ describe('DesignService engineering change controls', () => {
       acknowledgements: [{ status: 'PENDING' }],
       project: {},
     });
-    await expect(service.submitChangeApproval('change-1', user)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.submitChangeApproval('change-1', user),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.designChange.update).not.toHaveBeenCalled();
   });
 
@@ -57,7 +57,11 @@ describe('DesignService engineering change controls', () => {
       project: {},
     });
     await expect(
-      service.closeChange('change-1', { implementationNote: 'Installed' }, user),
+      service.closeChange(
+        'change-1',
+        { implementationNote: 'Installed' },
+        user,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.designChange.update).not.toHaveBeenCalled();
   });

@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma, StatutoryConfig, StatutoryConfigType } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { CreateStatutoryConfigDto } from './dto/create-statutory-config.dto';
@@ -94,10 +98,7 @@ export class StatutoryConfigService {
         'Config type cannot be changed; add a new version instead',
       );
     }
-    if (
-      dto.configType === StatutoryConfigType.PROFESSIONAL_TAX &&
-      !dto.state
-    ) {
+    if (dto.configType === StatutoryConfigType.PROFESSIONAL_TAX && !dto.state) {
       throw new BadRequestException(
         'state is required for PROFESSIONAL_TAX config',
       );

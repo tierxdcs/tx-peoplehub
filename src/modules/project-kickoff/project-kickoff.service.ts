@@ -401,9 +401,7 @@ export class ProjectKickoffService {
         dispatchStatuses: kickoff.order.deliveryChallans.map(
           (challan) => challan.status,
         ),
-        plmStages: kickoff.plmTrackers.map(
-          (tracker) => tracker.currentStage,
-        ),
+        plmStages: kickoff.plmTrackers.map((tracker) => tracker.currentStage),
         overdueMilestones: kickoff.milestones.filter(
           (milestone) =>
             milestone.status !== 'COMPLETED' &&
@@ -1047,7 +1045,8 @@ export class ProjectKickoffService {
           throw new BadRequestException('Select a valid Vendor Master record');
         }
         data.vendorId = vendor.id;
-        if (input.vendorName === undefined) data.vendorName = vendor.companyName;
+        if (input.vendorName === undefined)
+          data.vendorName = vendor.companyName;
       }
     }
     // Explicit fields win over the type-driven default (manual override).

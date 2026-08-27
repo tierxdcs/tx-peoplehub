@@ -65,35 +65,39 @@ describe('CustomerOrderProgressService', () => {
           orderNumber: 'ORD-2026-0001',
           customer: { name: 'Customer ABC' },
           customerSignoff: null,
-          confirmationSheets: [{ deliveryDate: new Date('2026-08-10T00:00:00Z') }],
+          confirmationSheets: [
+            { deliveryDate: new Date('2026-08-10T00:00:00Z') },
+          ],
           lineItems: [
             {
               id: 'line-1',
               product: { name: 'Rack System' },
               deliveryChallanLines: [],
-              plmTrackers: [{
-                currentStage: PlmStage.PRODUCTION,
-                flowType: 'VENDOR',
-                createdAt: new Date('2026-07-01T00:00:00Z'),
-                kickoff: {
-                  meetingDate: new Date('2026-07-01T10:30:00Z'),
-                  status: 'COMPLETED',
+              plmTrackers: [
+                {
+                  currentStage: PlmStage.PRODUCTION,
+                  flowType: 'VENDOR',
+                  createdAt: new Date('2026-07-01T00:00:00Z'),
+                  kickoff: {
+                    meetingDate: new Date('2026-07-01T10:30:00Z'),
+                    status: 'COMPLETED',
+                  },
+                  events: [
+                    {
+                      toStage: PlmStage.RELEASE_TO_SCM,
+                      createdAt: new Date('2026-07-01T11:00:00Z'),
+                    },
+                    {
+                      toStage: PlmStage.PRODUCTION,
+                      createdAt: new Date('2026-07-03T09:15:00Z'),
+                    },
+                  ],
+                  productionCards: [
+                    { list: { isDoneList: true } },
+                    { list: { isDoneList: false } },
+                  ],
                 },
-                events: [
-                  {
-                    toStage: PlmStage.RELEASE_TO_SCM,
-                    createdAt: new Date('2026-07-01T11:00:00Z'),
-                  },
-                  {
-                    toStage: PlmStage.PRODUCTION,
-                    createdAt: new Date('2026-07-03T09:15:00Z'),
-                  },
-                ],
-                productionCards: [
-                  { list: { isDoneList: true } },
-                  { list: { isDoneList: false } },
-                ],
-              }],
+              ],
             },
           ],
         }),
@@ -164,26 +168,28 @@ describe('CustomerOrderProgressService', () => {
               id: 'line-1',
               product: { name: 'New Rack' },
               deliveryChallanLines: [],
-              plmTrackers: [{
-                currentStage: PlmStage.DESIGN_REVIEW,
-                flowType: 'NPD',
-                createdAt: new Date('2026-07-01T00:00:00Z'),
-                kickoff: {
-                  meetingDate: new Date('2026-07-01T10:30:00Z'),
-                  status: 'COMPLETED',
+              plmTrackers: [
+                {
+                  currentStage: PlmStage.DESIGN_REVIEW,
+                  flowType: 'NPD',
+                  createdAt: new Date('2026-07-01T00:00:00Z'),
+                  kickoff: {
+                    meetingDate: new Date('2026-07-01T10:30:00Z'),
+                    status: 'COMPLETED',
+                  },
+                  events: [
+                    {
+                      toStage: PlmStage.DESIGN,
+                      createdAt: new Date('2026-07-01T11:00:00Z'),
+                    },
+                    {
+                      toStage: PlmStage.DESIGN_REVIEW,
+                      createdAt: new Date('2026-07-02T08:00:00Z'),
+                    },
+                  ],
+                  productionCards: [],
                 },
-                events: [
-                  {
-                    toStage: PlmStage.DESIGN,
-                    createdAt: new Date('2026-07-01T11:00:00Z'),
-                  },
-                  {
-                    toStage: PlmStage.DESIGN_REVIEW,
-                    createdAt: new Date('2026-07-02T08:00:00Z'),
-                  },
-                ],
-                productionCards: [],
-              }],
+              ],
             },
           ],
         }),

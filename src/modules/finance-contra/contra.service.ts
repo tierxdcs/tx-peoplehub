@@ -45,7 +45,8 @@ export class ContraService {
     if (!account) throw new NotFoundException(`${label} ledger not found`);
     const eligible =
       BANK_OR_CASH_GROUP_CODES.includes(account.code) ||
-      (account.parent && BANK_OR_CASH_GROUP_CODES.includes(account.parent.code));
+      (account.parent &&
+        BANK_OR_CASH_GROUP_CODES.includes(account.parent.code));
     if (!eligible)
       throw new BadRequestException(
         `${label} ledger "${account.name}" is not a bank or cash account — a transfer between non-bank/cash ledgers is a Journal Voucher, not a Contra`,
@@ -109,7 +110,10 @@ export class ContraService {
     const voucher = await this.findOrThrow(id);
     if (
       !(
-        [ContraVoucherStatus.DRAFT, ContraVoucherStatus.REJECTED] as ContraVoucherStatus[]
+        [
+          ContraVoucherStatus.DRAFT,
+          ContraVoucherStatus.REJECTED,
+        ] as ContraVoucherStatus[]
       ).includes(voucher.status)
     )
       throw new BadRequestException(

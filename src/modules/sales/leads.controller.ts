@@ -50,7 +50,8 @@ export class LeadsController {
   // Static route BEFORE @Get(':id') so 'attachments-folder' isn't read as an id.
   @Get('attachments-folder')
   @ApiOperation({
-    summary: 'The Vault folder id lead files are uploaded into (for the upload flow)',
+    summary:
+      'The Vault folder id lead files are uploaded into (for the upload flow)',
   })
   attachmentsFolder(@CurrentUser() user: AuthenticatedUser) {
     return this.leadsService.attachmentsFolderId(user);

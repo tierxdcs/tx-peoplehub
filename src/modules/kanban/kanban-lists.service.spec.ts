@@ -51,7 +51,8 @@ describe('KanbanListsService done-list invariant', () => {
   }
 
   it('atomically clears the previous holder when designating a new done list', async () => {
-    const { service, prisma, updateMany, update, cardUpdateMany } = setup(false);
+    const { service, prisma, updateMany, update, cardUpdateMany } =
+      setup(false);
 
     await service.updateList('list-2', { isDoneList: true }, user);
 

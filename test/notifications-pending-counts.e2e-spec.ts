@@ -56,7 +56,11 @@ describe('Notifications pending-counts (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     prisma = app.get(PrismaService);
@@ -222,15 +226,29 @@ describe('Notifications pending-counts (e2e)', () => {
       .set('Authorization', `Bearer ${salesHeadToken}`)
       .expect(200);
     const c = headCounts.body.data;
-    // Every key present (0 allowed), never omitted.
+    // Every key present as a { count, oldestPendingAt } queue summary (an empty
+    // queue is still reported, never omitted) — the badge reads both fields.
     for (const key of [
       'leaveApprovals',
       'bidDiscountApprovals',
       'bidAssessmentApprovals',
       'hrPendingAccess',
       'confirmationSheetsPending',
+      'offerLetterApprovals',
+      'provisioningApprovals',
+      'candidateRequisitionApprovals',
+      'bomReleaseApprovals',
+      'expenseClaimApprovals',
+      'adHocPoApprovals',
+      'designChangeApprovals',
     ]) {
-      expect(typeof c[key]).toBe('number');
+      expect(typeof c[key].count).toBe('number');
+      // null when empty; an ISO waiting-since stamp when something is pending.
+      expect(
+        c[key].oldestPendingAt === null ||
+          typeof c[key].oldestPendingAt === 'string',
+      ).toBe(true);
+      if (c[key].count === 0) expect(c[key].oldestPendingAt).toBeNull();
     }
 
     // confirmationSheetsPending must equal the actual OCS list length.
@@ -238,11 +256,13 @@ describe('Notifications pending-counts (e2e)', () => {
       .get('/confirmation-sheets/pending-approval')
       .set('Authorization', `Bearer ${salesHeadToken}`)
       .expect(200);
-    expect(c.confirmationSheetsPending).toBe(ocsList.body.data.length);
-    expect(c.confirmationSheetsPending).toBeGreaterThanOrEqual(1);
+    expect(c.confirmationSheetsPending.count).toBe(ocsList.body.data.length);
+    expect(c.confirmationSheetsPending.count).toBeGreaterThanOrEqual(1);
+    // A non-empty queue always carries the oldest item's waiting-since stamp.
+    expect(typeof c.confirmationSheetsPending.oldestPendingAt).toBe('string');
 
-    // Sales Head isn't an ADMIN → hrPendingAccess is 0 for them.
-    expect(c.hrPendingAccess).toBe(0);
+    // Sales Head isn't an ADMIN → hrPendingAccess is empty for them.
+    expect(c.hrPendingAccess).toEqual({ count: 0, oldestPendingAt: null });
 
     // The rep is the leave approver for the seeded request → leaveApprovals
     // matches their pending-approval list total.
@@ -254,13 +274,13 @@ describe('Notifications pending-counts (e2e)', () => {
       .get('/leave-requests/pending-approval?page=1&limit=100')
       .set('Authorization', `Bearer ${repToken}`)
       .expect(200);
-    expect(repCounts.body.data.leaveApprovals).toBe(
+    expect(repCounts.body.data.leaveApprovals.count).toBe(
       repLeaveList.body.data.total,
     );
-    expect(repCounts.body.data.leaveApprovals).toBeGreaterThanOrEqual(1);
-    // Rep isn't a reviewer → OCS + assessment counts are 0.
-    expect(repCounts.body.data.confirmationSheetsPending).toBe(0);
-    expect(repCounts.body.data.bidAssessmentApprovals).toBe(0);
+    expect(repCounts.body.data.leaveApprovals.count).toBeGreaterThanOrEqual(1);
+    // Rep isn't a reviewer → OCS + assessment queues are empty.
+    expect(repCounts.body.data.confirmationSheetsPending.count).toBe(0);
+    expect(repCounts.body.data.bidAssessmentApprovals.count).toBe(0);
   });
 
   it('SUPER_ADMIN hrPendingAccess count matches the pending-access list total', async () => {
@@ -272,6 +292,6 @@ describe('Notifications pending-counts (e2e)', () => {
       .get('/employees/pending-access?page=1&limit=1')
       .set('Authorization', `Bearer ${superAdminToken}`)
       .expect(200);
-    expect(counts.body.data.hrPendingAccess).toBe(list.body.data.total);
+    expect(counts.body.data.hrPendingAccess.count).toBe(list.body.data.total);
   });
 });

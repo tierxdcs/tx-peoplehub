@@ -1,8 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class UpdateCloseTaskDto {
-  @ApiProperty() @IsIn(['PENDING', 'COMPLETED', 'NOT_APPLICABLE']) status!: 'PENDING' | 'COMPLETED' | 'NOT_APPLICABLE';
+  @ApiProperty() @IsIn(['PENDING', 'COMPLETED', 'NOT_APPLICABLE']) status!:
+    'PENDING' | 'COMPLETED' | 'NOT_APPLICABLE';
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
 }
 

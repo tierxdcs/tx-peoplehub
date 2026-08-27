@@ -51,13 +51,18 @@ export class MaterialIndentController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a material indent with issue history (company-wide read)' })
+  @ApiOperation({
+    summary: 'Get a material indent with issue history (company-wide read)',
+  })
   get(@Param('id') id: string) {
     return this.service.getIndent(id);
   }
 
   @Post(':id/cancel')
-  @ApiOperation({ summary: 'Cancel an indent with no issued material (Production-vertical/SA)' })
+  @ApiOperation({
+    summary:
+      'Cancel an indent with no issued material (Production-vertical/SA)',
+  })
   cancel(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.cancelIndent(id, user);
   }

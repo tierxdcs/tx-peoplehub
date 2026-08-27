@@ -5,9 +5,13 @@ export function suggestedSellingPrice(
   targetMarginPercent: Prisma.Decimal | null,
 ): Prisma.Decimal | null {
   if (!cost || targetMarginPercent == null) return null;
-  const divisor = new Prisma.Decimal(1).minus(targetMarginPercent.dividedBy(100));
+  const divisor = new Prisma.Decimal(1).minus(
+    targetMarginPercent.dividedBy(100),
+  );
   if (divisor.lessThanOrEqualTo(0)) return null;
-  return cost.dividedBy(divisor).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+  return cost
+    .dividedBy(divisor)
+    .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 }
 
 export function actualMarginPercent(
@@ -15,6 +19,9 @@ export function actualMarginPercent(
   sellingPrice: Prisma.Decimal,
 ): Prisma.Decimal | null {
   if (!cost || sellingPrice.lessThanOrEqualTo(0)) return null;
-  return sellingPrice.minus(cost).dividedBy(sellingPrice).times(100)
+  return sellingPrice
+    .minus(cost)
+    .dividedBy(sellingPrice)
+    .times(100)
     .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 }

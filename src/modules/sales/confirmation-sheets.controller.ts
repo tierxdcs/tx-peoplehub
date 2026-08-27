@@ -50,7 +50,8 @@ export class ConfirmationSheetsController {
 
   @Get('orders/:orderId/confirmation-sheets')
   @ApiOperation({
-    summary: 'List all confirmation sheets for an order (newest revision first)',
+    summary:
+      'List all confirmation sheets for an order (newest revision first)',
   })
   listForOrder(
     @Param('orderId') orderId: string,

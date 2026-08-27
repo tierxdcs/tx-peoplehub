@@ -8,7 +8,7 @@ import { useNumberFormat } from '../../../../../lib/number-format-context';
 import { Input } from '../../../../../components/ui/input';
 import { Field } from '../../../../../components/ui/field';
 import { useToast } from '../../../../../components/ui/toaster';
-import { VoucherShell } from '../../_components/voucher-shell';
+import { VoucherShell, VoucherSummary } from '../../_components/voucher-shell';
 import { PartyPicker } from '../../_components/party-picker';
 
 interface Customer {
@@ -105,8 +105,19 @@ export default function NewReceiptVoucherPage() {
       submitting={submitting}
       onSaveDraft={() => void create(false)}
       onSubmitForApproval={() => void create(true)}
+      summary={
+        <VoucherSummary
+          title="Receipt summary"
+          rows={[
+            { label: 'Receipt amount', value: formatINR(Number(amount || 0), numberFormatStyle) },
+            { label: 'Allocation', value: invoiceId ? 'Against invoice' : 'Unapplied advance' },
+          ]}
+          totalLabel="Amount received"
+          total={formatINR(Number(amount || 0), numberFormatStyle)}
+        />
+      }
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="contents">
         <Field label="Party (Customer)" required>
           <PartyPicker
             options={customers.map((c) => ({ id: c.id, label: c.name }))}

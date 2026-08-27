@@ -54,10 +54,7 @@ export class PlmController {
   }
 
   @Get('trackers/:id')
-  get(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  get(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.get(id, user);
   }
 

@@ -27,6 +27,7 @@ import {
 import {
   getReceivedPings,
   getSentPings,
+  isPingOverdue,
   linkedPingHref,
   orderReceivedForDashboard,
   pingAgeHours,
@@ -34,6 +35,12 @@ import {
   type ReceivedPing,
   type SentPing,
 } from '../../lib/pings';
+import { usePendingApprovalCounts } from '../../lib/use-pending-approval-counts';
+import {
+  oldestPendingApproval,
+  type OldestApproval,
+} from '../../lib/approval-queues';
+import { ageHours } from '../../lib/urgency';
 import {
   getMyEfficiencyScore,
   type EfficiencyScore,
@@ -64,6 +71,62 @@ function daysUntil(dueDate: string, now: Date): number {
   return Math.round((b - a) / DAY_MS);
 }
 
+/**
+ * What the top-of-dashboard banner is showing. One shape for both candidates —
+ * an overdue Kanban task and a stuck approval queue — so the banner renders
+ * identically whichever wins, and "whichever is most urgent" is a plain
+ * comparison of `hoursWaiting`.
+ */
+interface UrgentFocus {
+  /** Hours since the deadline passed / since the oldest item started waiting. */
+  hoursWaiting: number;
+  amount: number;
+  amountLabel: string;
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  href: string;
+}
+
+/**
+ * Pick the banner's subject: the most-overdue task vs the longest-waiting
+ * approval. An approval only competes once it has crossed the shared aging
+ * boundary (24h, the Pings escalation line) — a queue that is merely non-empty
+ * isn't urgent, and would otherwise permanently replace "you're clear".
+ */
+function mostUrgentFocus(
+  task: MyCard | null,
+  approval: OldestApproval | null,
+  now: Date,
+): UrgentFocus | null {
+  const candidates: UrgentFocus[] = [];
+  if (task?.dueDate) {
+    candidates.push({
+      hoursWaiting: ageHours(task.dueDate, now),
+      amount: -daysUntil(task.dueDate, now),
+      amountLabel: 'days over',
+      eyebrow: 'Most urgent task',
+      title: task.title,
+      subtitle: task.boardName ?? 'My Task',
+      href: `/kanban/cards/${task.id}`,
+    });
+  }
+  if (approval && approval.tier !== 'ok') {
+    candidates.push({
+      hoursWaiting: approval.hoursWaiting,
+      amount: Math.floor(approval.hoursWaiting / 24),
+      amountLabel: 'days waiting',
+      eyebrow: 'Oldest pending approval',
+      title: approval.queue.label,
+      subtitle: `${approval.count} awaiting your decision`,
+      href: approval.queue.hrefs[0],
+    });
+  }
+  return (
+    candidates.sort((a, b) => b.hoursWaiting - a.hoursWaiting)[0] ?? null
+  );
+}
+
 /** Heat color by days overdue — the spec's three-step scale. */
 function heat(daysOver: number): string {
   if (daysOver >= 15) return '#FF5257';
@@ -73,6 +136,9 @@ function heat(daysOver: number): string {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  // Same hook the sidebar badges use (polled + refetched on focus), so the
+  // banner and the badges can never disagree about what's waiting.
+  const { counts } = usePendingApprovalCounts();
 
   const [firstName, setFirstName] = useState<string | null>(null);
   const [cards, setCards] = useState<MyCard[] | null>(null);
@@ -220,6 +286,13 @@ export default function DashboardPage() {
     () => tasks.find((t) => t.isOverdue) ?? null,
     [tasks],
   );
+  // The banner surfaces the single most urgent thing in the whole workload, so
+  // it weighs the most-overdue task against the longest-waiting approval (any
+  // queue) and shows whichever has been sitting longer.
+  const urgentFocus = useMemo(
+    () => mostUrgentFocus(mostUrgentOverdue, oldestPendingApproval(counts, now), now),
+    [mostUrgentOverdue, counts, now],
+  );
   const maxDaysOver = useMemo(
     () =>
       Math.max(
@@ -326,8 +399,8 @@ export default function DashboardPage() {
             </figcaption>
           </figure>
         </header>
-        {mostUrgentOverdue ? (
-          <UrgentTaskCard task={mostUrgentOverdue} now={now} />
+        {urgentFocus ? (
+          <UrgentFocusCard focus={urgentFocus} />
         ) : (
           <div className="rounded-xl border border-black/10 dark:border-white/[.08] bg-white dark:bg-[#232323] p-[18px] text-[12px] text-black/40 dark:text-white/[.32]">
             Nothing overdue — you’re clear.
@@ -592,8 +665,8 @@ function Panel({
   );
 }
 
-function UrgentTaskCard({ task, now }: { task: MyCard; now: Date }) {
-  const daysOver = -daysUntil(task.dueDate!, now);
+function UrgentFocusCard({ focus }: { focus: UrgentFocus }) {
+  const { amount: daysOver, amountLabel, eyebrow, title, subtitle, href } = focus;
   return (
     <div className="flex items-center gap-[18px] rounded-xl border border-[#E5484D]/35 bg-gradient-to-br from-[#E5484D]/20 to-[#E5484D]/5 px-[18px] py-4">
       <div className="flex-none text-center">
@@ -601,22 +674,22 @@ function UrgentTaskCard({ task, now }: { task: MyCard; now: Date }) {
           {daysOver}
         </div>
         <div className="mt-[5px] text-[9.5px] font-semibold uppercase tracking-[.16em] text-black/50 dark:text-white/45">
-          days over
+          {amountLabel}
         </div>
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-[9.5px] font-semibold uppercase tracking-[.16em] text-[#C13438] dark:text-[#FF8A8D]">
-          Most urgent task
+          {eyebrow}
         </div>
         <div className="mt-[5px] text-[15px] font-bold leading-[1.3] xl:text-[16px]">
-          {task.title}
+          {title}
         </div>
         <div className="mt-[3px] text-[11.5px] text-black/50 dark:text-white/[.42]">
-          {task.boardName ?? 'My Task'}
+          {subtitle}
         </div>
       </div>
       <Link
-        href={`/kanban/cards/${task.id}`}
+        href={href}
         className="flex-none rounded-lg bg-[#3B6FB5] px-[15px] py-[9px] text-[12px] font-bold text-white"
       >
         Open
@@ -1053,7 +1126,7 @@ function PingsCard({
           ) : (
             visible.map((row) => {
               const hours = pingAgeHours(row.ping.createdAt, now);
-              const overdue = row.status === 'PENDING' && hours >= 24;
+              const overdue = isPingOverdue(row.status, hours);
               const href = linkedPingHref(
                 row.ping.linkedRecordType,
                 row.ping.linkedRecordId,

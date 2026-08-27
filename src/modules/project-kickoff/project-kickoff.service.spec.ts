@@ -128,8 +128,8 @@ describe('ProjectKickoffService — internal-order gate', () => {
           customer: { name: 'Beta' },
         },
       ]);
-      confirmationSheets.latestIsExecutedFor.mockImplementation(
-        (id: string) => Promise.resolve(id === 'o-exec'),
+      confirmationSheets.latestIsExecutedFor.mockImplementation((id: string) =>
+        Promise.resolve(id === 'o-exec'),
       );
 
       const result = await service.eligibleOrders(pm);
@@ -321,7 +321,9 @@ describe('ProjectKickoffService — delivery splits', () => {
     await service.updateDeliveryItem(
       'ko-1',
       'line-1',
-      { splits: [{ id: 's1', quantity: 100, deliveryType: 'IN_HOUSE' }] } as any,
+      {
+        splits: [{ id: 's1', quantity: 100, deliveryType: 'IN_HOUSE' }],
+      } as any,
       pm,
     );
 

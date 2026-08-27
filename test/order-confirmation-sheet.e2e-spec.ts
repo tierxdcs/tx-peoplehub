@@ -23,10 +23,16 @@ class FakeStorage {
   async createUploadUrl(storageKey: string, contentType: string) {
     // Simulate the browser's direct PUT landing immediately.
     this.objects.set(storageKey, { contentType });
-    return { url: `https://fake-r2/${storageKey}?sig=put`, expiresInSeconds: 300 };
+    return {
+      url: `https://fake-r2/${storageKey}?sig=put`,
+      expiresInSeconds: 300,
+    };
   }
   async createDownloadUrl(storageKey: string) {
-    return { url: `https://fake-r2/${storageKey}?sig=get`, expiresInSeconds: 300 };
+    return {
+      url: `https://fake-r2/${storageKey}?sig=get`,
+      expiresInSeconds: 300,
+    };
   }
   async headObject(storageKey: string) {
     return this.objects.has(storageKey)
@@ -87,7 +93,10 @@ describe('Order Confirmation Sheet (e2e)', () => {
       deliveryDate: '2026-09-01',
       deliveryLocation: 'Plot 12, Industrial Area, Bengaluru',
       deliveryType: 'FULL_TRUCKLOAD',
-      qualityReportsExpected: ['MATERIAL_TEST_CERTIFICATE', 'CALIBRATION_CERTIFICATE'],
+      qualityReportsExpected: [
+        'MATERIAL_TEST_CERTIFICATE',
+        'CALIBRATION_CERTIFICATE',
+      ],
       warrantyTerms: '24 months on-site warranty.',
       paymentMilestones: '50% on dispatch, 50% on installation.',
       packagingType: 'Wooden Crate',
@@ -138,7 +147,11 @@ describe('Order Confirmation Sheet (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     prisma = app.get(PrismaService);
@@ -225,7 +238,9 @@ describe('Order Confirmation Sheet (e2e)', () => {
     await prisma.order.deleteMany({ where: { id: { in: allOrderIds } } });
     await prisma.customer.deleteMany({ where: { id: customerId } });
     if (createdEmployeeIds.length) {
-      await prisma.employee.deleteMany({ where: { id: { in: createdEmployeeIds } } });
+      await prisma.employee.deleteMany({
+        where: { id: { in: createdEmployeeIds } },
+      });
     }
     await app.close();
   });
@@ -309,7 +324,9 @@ describe('Order Confirmation Sheet (e2e)', () => {
       .get(`/confirmation-sheets/${rev2.id}`)
       .set('Authorization', `Bearer ${repToken}`)
       .expect(200);
-    expect(rev2AfterUpload.body.data.status).toBe('AWAITING_INTERNAL_SIGNATURE');
+    expect(rev2AfterUpload.body.data.status).toBe(
+      'AWAITING_INTERNAL_SIGNATURE',
+    );
     expect(rev2AfterUpload.body.data.hasSignedCopy).toBe(true);
 
     // A plain rep cannot sign or reject.
@@ -388,8 +405,12 @@ describe('Order Confirmation Sheet (e2e)', () => {
     expect(history).toHaveLength(3);
     // Newest first.
     expect(history.map((h) => h.revisionNumber)).toEqual([3, 2, 1]);
-    expect(history.find((h) => h.revisionNumber === 3)?.status).toBe('EXECUTED');
-    expect(history.find((h) => h.revisionNumber === 2)?.status).toBe('REJECTED');
+    expect(history.find((h) => h.revisionNumber === 3)?.status).toBe(
+      'EXECUTED',
+    );
+    expect(history.find((h) => h.revisionNumber === 2)?.status).toBe(
+      'REJECTED',
+    );
     expect(history.find((h) => h.revisionNumber === 1)?.status).toBe(
       'AWAITING_CUSTOMER_SIGNATURE',
     );

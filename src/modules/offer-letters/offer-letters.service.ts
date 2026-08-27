@@ -11,6 +11,10 @@ import {
   Role,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  PendingQueue,
+  pendingQueueFromRows,
+} from '../../common/types/pending-queue';
 import { PrismaService } from '../../core/database/prisma.service';
 import { PayrollComputationService } from '../payroll/payroll-computation.service';
 import { CtcBreakdownEntity } from '../payroll/entities/ctc-breakdown.entity';
@@ -322,9 +326,10 @@ export class OfferLettersService {
         select: { effectiveFrom: true },
       }),
     ]);
-    const candidates = [employee?.dateOfJoining, earliest?.effectiveFrom].filter(
-      (date): date is Date => date != null,
-    );
+    const candidates = [
+      employee?.dateOfJoining,
+      earliest?.effectiveFrom,
+    ].filter((date): date is Date => date != null);
     const asOf = candidates.length
       ? new Date(Math.max(...candidates.map((date) => date.getTime())))
       : new Date();
@@ -553,16 +558,28 @@ export class OfferLettersService {
     );
   }
 
-  /** Count backing the pending-approval sidebar badge. The CEO's fallback set
-   *  can't be counted in the DB (no column-to-column comparison), so their
-   *  count reuses the filtered list; owners get a direct count. */
-  async countPendingApproval(user: AuthenticatedUser): Promise<number> {
+  /** Summary backing the pending-approval sidebar badge: count plus when the
+   *  oldest letter was submitted (what the badge's age colour reads). The CEO's
+   *  fallback set can't be expressed in the DB (no column-to-column
+   *  comparison), so theirs reduces the already-submittedAt-ordered filtered
+   *  list; owners get a direct count + oldest lookup. */
+  async pendingApprovalQueue(user: AuthenticatedUser): Promise<PendingQueue> {
     if (user.role === Role.SUPER_ADMIN) {
-      return (await this.listPendingApproval(user)).length;
+      return pendingQueueFromRows(
+        await this.listPendingApproval(user),
+        (offer) => offer.submittedAt,
+      );
     }
-    return this.prisma.offerLetter.count({
-      where: this.verticalOwnerPendingWhere(user),
-    });
+    const where = this.verticalOwnerPendingWhere(user);
+    const [count, oldest] = await Promise.all([
+      this.prisma.offerLetter.count({ where }),
+      this.prisma.offerLetter.findFirst({
+        where,
+        orderBy: { submittedAt: 'asc' },
+        select: { submittedAt: true },
+      }),
+    ]);
+    return { count, oldestPendingAt: oldest?.submittedAt ?? null };
   }
 
   // ---- internals ----------------------------------------------------------

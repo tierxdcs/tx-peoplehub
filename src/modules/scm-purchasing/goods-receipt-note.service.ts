@@ -476,7 +476,8 @@ export class GoodsReceiptNoteService {
     if (
       !po.supplierId &&
       !po.vendorId &&
-      (!po.ceoApprovedAt || po.status === PurchaseOrderStatus.PENDING_CEO_APPROVAL)
+      (!po.ceoApprovedAt ||
+        po.status === PurchaseOrderStatus.PENDING_CEO_APPROVAL)
     ) {
       throw new BadRequestException(
         'Cannot receive against an ad-hoc purchase order before CEO/SuperAdmin approval',

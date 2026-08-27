@@ -9,7 +9,7 @@ import { Input } from '../../../../../components/ui/input';
 import { Field } from '../../../../../components/ui/field';
 import { Button } from '../../../../../components/ui/button';
 import { useToast } from '../../../../../components/ui/toaster';
-import { VoucherShell } from '../../_components/voucher-shell';
+import { VoucherShell, VoucherSummary } from '../../_components/voucher-shell';
 import { PartyPicker } from '../../_components/party-picker';
 
 interface Account {
@@ -114,10 +114,21 @@ export default function NewJournalVoucherPage() {
       submitting={submitting}
       onSaveDraft={() => void create(false)}
       onSubmitForApproval={() => void create(true)}
+      summary={
+        <VoucherSummary
+          title="Journal summary"
+          rows={[
+            { label: 'Debit total', value: formatINR(totalDebit, numberFormatStyle) },
+            { label: 'Credit total', value: formatINR(totalCredit, numberFormatStyle) },
+          ]}
+          totalLabel="Difference"
+          total={formatINR(Math.abs(totalDebit - totalCredit), numberFormatStyle)}
+        />
+      }
     >
-      <div className="space-y-3">
+      <div className="space-y-3 md:col-span-2">
         {lines.map((line, i) => (
-          <div key={i} className="grid grid-cols-[1fr_140px_140px_auto] items-end gap-2">
+          <div key={i} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px_120px_auto] sm:items-end">
             <Field label={i === 0 ? 'Ledger Account' : ''}>
               <PartyPicker
                 options={accountOptions}

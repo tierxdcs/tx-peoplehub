@@ -35,20 +35,35 @@ describe('Finance AR spine (e2e)', () => {
 
   const http = () => request(app.getHttpServer());
   const login = (email: string, password: string) =>
-    http().post('/auth/login').send({ email, password }).expect(200)
+    http()
+      .post('/auth/login')
+      .send({ email, password })
+      .expect(200)
       .then((r) => r.body.data.accessToken as string);
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     await app.init();
     prisma = app.get(PrismaService);
 
     // The seed provisions these — this is the whole point of Part 2.1.
-    const head = await prisma.employee.findUniqueOrThrow({ where: { email: 'accounts.head@phaze-dynamics.com' } });
-    const clerk = await prisma.employee.findUniqueOrThrow({ where: { email: 'accounts.clerk@phaze-dynamics.com' } });
+    const head = await prisma.employee.findUniqueOrThrow({
+      where: { email: 'accounts.head@phaze-dynamics.com' },
+    });
+    const clerk = await prisma.employee.findUniqueOrThrow({
+      where: { email: 'accounts.clerk@phaze-dynamics.com' },
+    });
     headId = head.id;
     clerkId = clerk.id;
     expect(head.isAccountsHead).toBe(true);
@@ -60,13 +75,37 @@ describe('Finance AR spine (e2e)', () => {
     const suffix = Date.now();
     // Customer WITHOUT a GSTIN so invoice approval posts straight to ISSUED
     // (a GSTIN would route through the e-invoice GST_PENDING step).
-    const superAdminId = (await prisma.employee.findUniqueOrThrow({ where: { email: adminEmail } })).id;
+    const superAdminId = (
+      await prisma.employee.findUniqueOrThrow({ where: { email: adminEmail } })
+    ).id;
     const customer = await prisma.customer.create({
-      data: { name: `Fin Cust ${suffix}`, billingAddress: { state: 'Karnataka', stateCode: '29' }, ownerId: superAdminId },
+      data: {
+        name: `Fin Cust ${suffix}`,
+        billingAddress: { state: 'Karnataka', stateCode: '29' },
+        ownerId: superAdminId,
+      },
     });
     customerId = customer.id;
-    const item = await prisma.item.create({ data: { itemCode: `FIN-IT-${suffix}`, name: 'Widget', itemType: 'FINISHED_GOOD', baseUnitOfMeasure: 'NOS' } });
-    productId = (await prisma.product.create({ data: { sku: `FIN-SKU-${suffix}`, name: 'Widget', unitPrice: '1000', unitOfMeasure: 'NOS', hsnCode: '8479', itemId: item.id } })).id;
+    const item = await prisma.item.create({
+      data: {
+        itemCode: `FIN-IT-${suffix}`,
+        name: 'Widget',
+        itemType: 'FINISHED_GOOD',
+        baseUnitOfMeasure: 'NOS',
+      },
+    });
+    productId = (
+      await prisma.product.create({
+        data: {
+          sku: `FIN-SKU-${suffix}`,
+          name: 'Widget',
+          unitPrice: '1000',
+          unitOfMeasure: 'NOS',
+          hsnCode: '8479',
+          itemId: item.id,
+        },
+      })
+    ).id;
   });
 
   afterAll(async () => {
@@ -77,7 +116,9 @@ describe('Finance AR spine (e2e)', () => {
   async function createInvoice(token: string) {
     const today = new Date().toISOString().slice(0, 10);
     return (
-      await http().post('/finance/ar/invoices').set('Authorization', `Bearer ${token}`)
+      await http()
+        .post('/finance/ar/invoices')
+        .set('Authorization', `Bearer ${token}`)
         .send({
           customerId,
           invoiceDate: today,
@@ -86,9 +127,19 @@ describe('Finance AR spine (e2e)', () => {
           placeOfSupplyState: 'Karnataka',
           placeOfSupplyStateCode: '29',
           lines: [
-            { productId, description: 'Widget', hsnSacCode: '8479', quantity: 10, unitOfMeasure: 'NOS', unitPrice: 1000, cgstRate: 9, sgstRate: 9 },
+            {
+              productId,
+              description: 'Widget',
+              hsnSacCode: '8479',
+              quantity: 10,
+              unitOfMeasure: 'NOS',
+              unitPrice: 1000,
+              cgstRate: 9,
+              sgstRate: 9,
+            },
           ],
-        }).expect(201)
+        })
+        .expect(201)
     ).body.data;
   }
 
@@ -98,10 +149,16 @@ describe('Finance AR spine (e2e)', () => {
     // taxable 10*1000=10000; cgst 900 + sgst 900 → total 11800.
     expect(Number(inv.totalAmount)).toBe(11800);
 
-    await http().post(`/finance/ar/invoices/${inv.id}/submit`).set('Authorization', `Bearer ${clerkToken}`).expect(201);
+    await http()
+      .post(`/finance/ar/invoices/${inv.id}/submit`)
+      .set('Authorization', `Bearer ${clerkToken}`)
+      .expect(201);
 
     const approved = (
-      await http().post(`/finance/ar/invoices/${inv.id}/approve`).set('Authorization', `Bearer ${headToken}`).expect(201)
+      await http()
+        .post(`/finance/ar/invoices/${inv.id}/approve`)
+        .set('Authorization', `Bearer ${headToken}`)
+        .expect(201)
     ).body.data;
     expect(approved.status).toBe('ISSUED');
     expect(approved.journalEntryId).toBeTruthy();
@@ -126,34 +183,66 @@ describe('Finance AR spine (e2e)', () => {
     // cannot approve one THEY created. Create as the head, then head tries to
     // approve → blocked because createdById === approver.
     const inv = await createInvoice(headToken);
-    await http().post(`/finance/ar/invoices/${inv.id}/submit`).set('Authorization', `Bearer ${headToken}`).expect(201);
-    await http().post(`/finance/ar/invoices/${inv.id}/approve`).set('Authorization', `Bearer ${headToken}`).expect(400);
+    await http()
+      .post(`/finance/ar/invoices/${inv.id}/submit`)
+      .set('Authorization', `Bearer ${headToken}`)
+      .expect(201);
+    await http()
+      .post(`/finance/ar/invoices/${inv.id}/approve`)
+      .set('Authorization', `Bearer ${headToken}`)
+      .expect(400);
     // And a non-Accounts-Head (the clerk) cannot approve at all.
-    await http().post(`/finance/ar/invoices/${inv.id}/approve`).set('Authorization', `Bearer ${clerkToken}`).expect(403);
+    await http()
+      .post(`/finance/ar/invoices/${inv.id}/approve`)
+      .set('Authorization', `Bearer ${clerkToken}`)
+      .expect(403);
   });
 
   it('receipt allocation updates paid/outstanding correctly', async () => {
     // Issue a fresh invoice (clerk makes, head approves).
     const inv = await createInvoice(clerkToken);
-    await http().post(`/finance/ar/invoices/${inv.id}/submit`).set('Authorization', `Bearer ${clerkToken}`).expect(201);
-    const issued = (await http().post(`/finance/ar/invoices/${inv.id}/approve`).set('Authorization', `Bearer ${headToken}`).expect(201)).body.data;
+    await http()
+      .post(`/finance/ar/invoices/${inv.id}/submit`)
+      .set('Authorization', `Bearer ${clerkToken}`)
+      .expect(201);
+    const issued = (
+      await http()
+        .post(`/finance/ar/invoices/${inv.id}/approve`)
+        .set('Authorization', `Bearer ${headToken}`)
+        .expect(201)
+    ).body.data;
     expect(Number(issued.outstandingAmount)).toBe(11800);
 
     // Record a partial receipt of 5000, allocated to the invoice; head approves.
     const today = new Date().toISOString().slice(0, 10);
     const receipt = (
-      await http().post('/finance/ar/receipts').set('Authorization', `Bearer ${clerkToken}`)
+      await http()
+        .post('/finance/ar/receipts')
+        .set('Authorization', `Bearer ${clerkToken}`)
         .send({
-          customerId, receiptDate: today, currencyCode: 'INR', amount: 5000,
-          paymentMethod: 'NEFT', bankReference: `REF-${Date.now()}`,
+          customerId,
+          receiptDate: today,
+          currencyCode: 'INR',
+          amount: 5000,
+          paymentMethod: 'NEFT',
+          bankReference: `REF-${Date.now()}`,
           allocations: [{ invoiceId: inv.id, amount: 5000 }],
-        }).expect(201)
+        })
+        .expect(201)
     ).body.data;
-    await http().post(`/finance/ar/receipts/${receipt.id}/submit`).set('Authorization', `Bearer ${clerkToken}`).expect(201);
-    await http().post(`/finance/ar/receipts/${receipt.id}/approve`).set('Authorization', `Bearer ${headToken}`).expect(201);
+    await http()
+      .post(`/finance/ar/receipts/${receipt.id}/submit`)
+      .set('Authorization', `Bearer ${clerkToken}`)
+      .expect(201);
+    await http()
+      .post(`/finance/ar/receipts/${receipt.id}/approve`)
+      .set('Authorization', `Bearer ${headToken}`)
+      .expect(201);
 
     // Invoice now PARTIALLY_PAID: paid 5000, outstanding 6800.
-    const after = await prisma.salesInvoice.findUniqueOrThrow({ where: { id: inv.id } });
+    const after = await prisma.salesInvoice.findUniqueOrThrow({
+      where: { id: inv.id },
+    });
     expect(Number(after.paidAmount)).toBe(5000);
     expect(Number(after.outstandingAmount)).toBe(6800);
     expect(after.status).toBe('PARTIALLY_PAID');
@@ -167,7 +256,9 @@ describe('Finance AR spine (e2e)', () => {
     // that boundary still works after the GL-posting consolidation.
     const draft = await createInvoice(clerkToken);
     expect(draft.status).toBe('DRAFT');
-    const row = await prisma.salesInvoice.findUniqueOrThrow({ where: { id: draft.id } });
+    const row = await prisma.salesInvoice.findUniqueOrThrow({
+      where: { id: draft.id },
+    });
     expect(row.journalEntryId).toBeNull();
     expect(row.status).toBe('DRAFT');
   });

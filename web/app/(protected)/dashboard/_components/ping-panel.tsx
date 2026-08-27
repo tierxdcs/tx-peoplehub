@@ -5,7 +5,8 @@ import { Check, CheckCheck, Radio } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { cn } from '../../../lib/utils';
-import { linkedPingHref, orderReceivedForDashboard, pingAgeHours, respondToPing, type ReceivedPing, type SentPing } from '../../../lib/pings';
+import { isPingOverdue, linkedPingHref, orderReceivedForDashboard, pingAgeHours, respondToPing, type ReceivedPing, type SentPing } from '../../../lib/pings';
+import { AGING_AFTER_HOURS } from '../../../lib/urgency';
 
 export function PingPanel({ received, sent, onChanged }: { received: ReceivedPing[]; sent: SentPing[]; onChanged: () => void }) {
   const act = async (id: string, status: 'ACKNOWLEDGED' | 'RESOLVED') => { await respondToPing(id, status); onChanged(); };
@@ -18,9 +19,9 @@ export function PingPanel({ received, sent, onChanged }: { received: ReceivedPin
         <div className="border-b px-4 py-3 text-sm font-medium">Received</div>
         {visible.length === 0 ? <p className="p-4 text-sm text-muted-foreground">No pings waiting.</p> : (
           <ul className="divide-y">{visible.slice(0, 6).map((row) => {
-            const hours = pingAgeHours(row.ping.createdAt); const overdue = row.status === 'PENDING' && hours >= 24; const href = linkedPingHref(row.ping.linkedRecordType, row.ping.linkedRecordId);
+            const hours = pingAgeHours(row.ping.createdAt); const overdue = isPingOverdue(row.status, hours); const href = linkedPingHref(row.ping.linkedRecordType, row.ping.linkedRecordId);
             return <li key={row.id} className={cn('space-y-2 p-4', row.status === 'PENDING' && (overdue ? 'ping-overdue bg-destructive/10' : 'ping-new bg-destructive/5'))}>
-              <div className="flex gap-2"><Radio className={cn('mt-0.5 size-4 shrink-0', row.status === 'PENDING' ? 'text-destructive' : 'text-success')} /><div className="min-w-0"><p className="text-sm">{row.ping.message}</p><p className="mt-1 text-xs text-muted-foreground">{row.ping.fromEmployee.fullName} · {hours}h ago{overdue ? ` · ${hours - 24}h overdue` : ''}</p></div></div>
+              <div className="flex gap-2"><Radio className={cn('mt-0.5 size-4 shrink-0', row.status === 'PENDING' ? 'text-destructive' : 'text-success')} /><div className="min-w-0"><p className="text-sm">{row.ping.message}</p><p className="mt-1 text-xs text-muted-foreground">{row.ping.fromEmployee.fullName} · {hours}h ago{overdue ? ` · ${hours - AGING_AFTER_HOURS}h overdue` : ''}</p></div></div>
               {href && <Link href={href} className="block text-xs text-primary hover:underline">Open linked record</Link>}
               {row.status === 'PENDING' && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => act(row.id, 'ACKNOWLEDGED')}><Check className="mr-1 size-3" />Acknowledge</Button><Button size="sm" onClick={() => act(row.id, 'RESOLVED')}><CheckCheck className="mr-1 size-3" />Resolve</Button></div>}
               {row.status !== 'PENDING' && <span className="text-xs font-medium text-success">{row.status === 'RESOLVED' ? 'Resolved' : 'Acknowledged'}</span>}

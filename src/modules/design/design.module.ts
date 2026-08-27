@@ -1,1 +1,12 @@
-import{Module}from'@nestjs/common';import{DesignController}from'./design.controller';import{DesignService}from'./design.service';import{DesignAccessService}from'./design-access.service';import{VaultModule}from'../vault/vault.module';@Module({imports:[VaultModule],controllers:[DesignController],providers:[DesignService,DesignAccessService],exports:[DesignService,DesignAccessService]})export class DesignModule{}
+import { Module } from '@nestjs/common';
+import { DesignController } from './design.controller';
+import { DesignService } from './design.service';
+import { DesignAccessService } from './design-access.service';
+import { VaultModule } from '../vault/vault.module';
+@Module({
+  imports: [VaultModule],
+  controllers: [DesignController],
+  providers: [DesignService, DesignAccessService],
+  exports: [DesignService, DesignAccessService],
+})
+export class DesignModule {}

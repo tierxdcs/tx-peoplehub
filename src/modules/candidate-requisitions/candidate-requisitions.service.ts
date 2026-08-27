@@ -12,6 +12,10 @@ import {
   Role,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  PendingQueue,
+  pendingQueueFromRows,
+} from '../../common/types/pending-queue';
 import { PrismaService } from '../../core/database/prisma.service';
 import { SalesNumberingService } from '../sales/common/sales-numbering.service';
 import {
@@ -374,10 +378,63 @@ export class CandidateRequisitionsService {
     });
     return rows.filter(
       (req) =>
-        req.status ===
-          CandidateRequisitionStatus.PENDING_SUPERADMIN_APPROVAL ||
+        req.status === CandidateRequisitionStatus.PENDING_SUPERADMIN_APPROVAL ||
         this.ceoMayFinaliseAtVerticalStage(req),
     );
+  }
+
+  /**
+   * Badge summary for requisitions awaiting the caller — count plus when the
+   * oldest was raised. Mirrors the two queue scopes exactly: the CEO gets the
+   * final-approval set plus the vertical-stage fallbacks (which need the same
+   * in-memory filter as listSuperAdminPending, since the owner-is-requester case
+   * can't be expressed in a where-clause), everyone else gets their own
+   * vertical-owner queue. Never throws — a caller who approves nothing reports
+   * an empty queue.
+   */
+  async pendingApprovalQueue(user: AuthenticatedUser): Promise<PendingQueue> {
+    if (user.role === Role.SUPER_ADMIN) {
+      const rows = await this.prisma.candidateRequisition.findMany({
+        where: {
+          status: {
+            in: [
+              CandidateRequisitionStatus.PENDING_SUPERADMIN_APPROVAL,
+              CandidateRequisitionStatus.PENDING_VERTICAL_APPROVAL,
+            ],
+          },
+        },
+        select: {
+          status: true,
+          createdAt: true,
+          requestedById: true,
+          vertical: { select: { ownerId: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      return pendingQueueFromRows(
+        rows.filter(
+          (req) =>
+            req.status ===
+              CandidateRequisitionStatus.PENDING_SUPERADMIN_APPROVAL ||
+            this.ceoMayFinaliseAtVerticalStage(req),
+        ),
+        (req) => req.createdAt,
+      );
+    }
+    const where = {
+      status: CandidateRequisitionStatus.PENDING_VERTICAL_APPROVAL,
+      requestedById: { not: user.id },
+      vertical: { ownerId: user.id },
+    };
+    const [count, oldest] = await Promise.all([
+      this.prisma.candidateRequisition.count({ where }),
+      this.prisma.candidateRequisition.findFirst({
+        where,
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      }),
+    ]);
+    return { count, oldestPendingAt: oldest?.createdAt ?? null };
   }
 
   async approveVertical(id: string, user: AuthenticatedUser) {

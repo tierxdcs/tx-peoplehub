@@ -21,10 +21,6 @@ import { LeaveAccrualService } from './leave-accrual.service';
     LeaveRequestsService,
     LeaveAccrualService,
   ],
-  exports: [
-    LeaveBalancesService,
-    LeaveAccrualService,
-    LeaveRequestsService,
-  ],
+  exports: [LeaveBalancesService, LeaveAccrualService, LeaveRequestsService],
 })
 export class LeaveModule {}

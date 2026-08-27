@@ -297,7 +297,9 @@ export class PayrollComputationService {
       this.monthlyRow('Special Allowance', specialAllowance),
     ];
     if (otherAllowances.gt(0)) {
-      directComponents.push(this.monthlyRow('Other Allowances', otherAllowances));
+      directComponents.push(
+        this.monthlyRow('Other Allowances', otherAllowances),
+      );
     }
     directComponents.push(
       this.monthlyRow('Sub Total – Gross Salary', grossMonthly, true),
@@ -325,7 +327,11 @@ export class PayrollComputationService {
         note: 'As per Income Tax Act',
       },
       {
-        ...this.monthlyRow('Net Take Home Salary', salaryBeforeTaxesMonthly, true),
+        ...this.monthlyRow(
+          'Net Take Home Salary',
+          salaryBeforeTaxesMonthly,
+          true,
+        ),
         note: 'Before TDS',
       },
     ];
@@ -352,7 +358,9 @@ export class PayrollComputationService {
       {
         label: 'Sub Total – Indirect Benefits',
         perMonth: this.money(indirectMonthlyTotal),
-        perAnnum: this.money(indirectMonthlyTotal.times(12).plus(variablePayAnnual)),
+        perAnnum: this.money(
+          indirectMonthlyTotal.times(12).plus(variablePayAnnual),
+        ),
         emphasize: true,
       },
     ];

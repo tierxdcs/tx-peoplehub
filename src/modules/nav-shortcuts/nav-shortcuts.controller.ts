@@ -1,5 +1,10 @@
 import { Body, Controller, Delete, Get, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   AuthenticatedUser,
   CurrentUser,
@@ -9,7 +14,10 @@ import {
   UnpinNavShortcutQueryDto,
 } from './dto/nav-shortcut.dto';
 import { NavShortcutEntity } from './entities/nav-shortcut.entity';
-import { MAX_NAV_SHORTCUTS, NavShortcutsService } from './nav-shortcuts.service';
+import {
+  MAX_NAV_SHORTCUTS,
+  NavShortcutsService,
+} from './nav-shortcuts.service';
 
 /**
  * The caller's own sidebar shortcuts. No @Roles decorator and no access service:

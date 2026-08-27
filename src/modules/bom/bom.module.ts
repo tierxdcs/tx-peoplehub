@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SalesModule } from '../sales/sales.module';
 import { BomAccessService } from './bom-access.service';
@@ -23,7 +23,9 @@ import { BomCostSnapshotService } from './bom-cost-snapshot.service';
  * codes reuse the same sales_sequences-backed mechanism as Bids/Orders/POs).
  */
 @Module({
-  imports: [NotificationsModule, SalesModule, FinanceModule],
+  // NotificationsModule's pending-approval badges call BomService, so this
+  // edge is a cycle — forwardRef on both sides.
+  imports: [forwardRef(() => NotificationsModule), SalesModule, FinanceModule],
   controllers: [
     ItemController,
     BomController,
@@ -44,6 +46,7 @@ import { BomCostSnapshotService } from './bom-cost-snapshot.service';
   // single reservation-aware STOCK_OUT implementation and access rules, and so
   // SCM Resource Planning can reuse leaf costing + the amended cost-view gate.
   exports: [
+    BomService,
     InventoryService,
     BomAccessService,
     StockReportService,

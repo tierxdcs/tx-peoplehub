@@ -21,7 +21,9 @@ export class SupplierPublicController {
 
   @Public()
   @Post(':token/resolve')
-  @ApiOperation({ summary: 'Resolve a supplier questionnaire invite (unauthenticated)' })
+  @ApiOperation({
+    summary: 'Resolve a supplier questionnaire invite (unauthenticated)',
+  })
   resolve(@Param('token') token: string, @Body() dto: PublicResolveDto) {
     return this.service.resolvePublic(token, dto.password);
   }
@@ -35,22 +37,37 @@ export class SupplierPublicController {
 
   @Public()
   @Post(':token/submit')
-  @ApiOperation({ summary: 'Final submit — locks the questionnaire (unauthenticated)' })
-  submit(@Param('token') token: string, @Body() dto: PublicQuestionnaireSaveDto) {
+  @ApiOperation({
+    summary: 'Final submit — locks the questionnaire (unauthenticated)',
+  })
+  submit(
+    @Param('token') token: string,
+    @Body() dto: PublicQuestionnaireSaveDto,
+  ) {
     return this.service.submitPublic(token, dto);
   }
 
   @Public()
   @Post(':token/certificate-upload-url')
-  @ApiOperation({ summary: 'Presign a certificate upload (guarded like Vault)' })
-  certUploadUrl(@Param('token') token: string, @Body() dto: PublicCertUploadUrlDto) {
+  @ApiOperation({
+    summary: 'Presign a certificate upload (guarded like Vault)',
+  })
+  certUploadUrl(
+    @Param('token') token: string,
+    @Body() dto: PublicCertUploadUrlDto,
+  ) {
     return this.service.publicCertUploadUrl(token, dto);
   }
 
   @Public()
   @Post(':token/certificate-confirm')
-  @ApiOperation({ summary: 'Confirm a completed certificate upload (size-checked)' })
-  certConfirm(@Param('token') token: string, @Body() dto: PublicCertConfirmDto) {
+  @ApiOperation({
+    summary: 'Confirm a completed certificate upload (size-checked)',
+  })
+  certConfirm(
+    @Param('token') token: string,
+    @Body() dto: PublicCertConfirmDto,
+  ) {
     return this.service.publicCertConfirm(token, dto);
   }
 }

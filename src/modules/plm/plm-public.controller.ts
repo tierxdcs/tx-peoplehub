@@ -34,20 +34,16 @@ export class PlmPublicController {
   @Public()
   @Post(':token/submit')
   @ApiOperation({ summary: 'Submit an attributed vendor production update' })
-  submit(
-    @Param('token') token: string,
-    @Body() dto: PlmProductionUpdateDto,
-  ) {
+  submit(@Param('token') token: string, @Body() dto: PlmProductionUpdateDto) {
     return this.service.submitPublic(token, dto);
   }
 
   @Public()
   @Post(':token/comment')
-  @ApiOperation({ summary: 'Submit a vendor quick comment without changing progress' })
-  comment(
-    @Param('token') token: string,
-    @Body() dto: PlmQuickCommentDto,
-  ) {
+  @ApiOperation({
+    summary: 'Submit a vendor quick comment without changing progress',
+  })
+  comment(@Param('token') token: string, @Body() dto: PlmQuickCommentDto) {
     return this.service.submitPublicComment(token, dto);
   }
 }

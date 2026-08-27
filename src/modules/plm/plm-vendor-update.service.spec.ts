@@ -22,7 +22,9 @@ describe('PlmVendorUpdateService', () => {
     const tx = {
       plmProductionUpdate: {
         create: jest.fn().mockResolvedValue({ id: 'update-1', photos: [] }),
-        aggregate: jest.fn().mockResolvedValue({ _max: { completedSteps: null } }),
+        aggregate: jest
+          .fn()
+          .mockResolvedValue({ _max: { completedSteps: null } }),
       },
       plmTrackerEvent: { create: jest.fn().mockResolvedValue({}) },
     };
@@ -85,7 +87,9 @@ describe('PlmVendorUpdateService', () => {
       }),
     );
     expect(tx.plmTrackerEvent.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ actorId: null }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ actorId: null }),
+      }),
     );
     expect(notifications.notifyPlm).toHaveBeenCalledWith(
       expect.objectContaining({

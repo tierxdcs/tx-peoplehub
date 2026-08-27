@@ -7,7 +7,8 @@ export class MaterialIndentEntity {
   @ApiProperty() indentNumber!: string;
   @ApiProperty({
     enum: MaterialIndentStatus,
-    description: 'DERIVED from cumulative issued vs requested — never set by hand',
+    description:
+      'DERIVED from cumulative issued vs requested — never set by hand',
   })
   status!: MaterialIndentStatus;
 

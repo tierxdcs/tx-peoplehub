@@ -38,7 +38,10 @@ describe('Password reset / force-change (e2e)', () => {
   function login(email: string, password: string) {
     return http().post('/auth/login').send({ email, password });
   }
-  async function mkEmployee(tag: string, verticalId: string): Promise<{ id: string; email: string }> {
+  async function mkEmployee(
+    tag: string,
+    verticalId: string,
+  ): Promise<{ id: string; email: string }> {
     const email = `pwr.${tag}.${Date.now()}@peoplehub.local`;
     const res = await http()
       .post('/employees')
@@ -64,7 +67,11 @@ describe('Password reset / force-change (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     prisma = app.get(PrismaService);
@@ -134,10 +141,7 @@ describe('Password reset / force-change (e2e)', () => {
       .set('Authorization', `Bearer ${staleAccess}`)
       .expect(401);
     // The previously-issued refresh cookie is dead too.
-    await http()
-      .post('/auth/refresh')
-      .set('Cookie', refreshCookie)
-      .expect(401);
+    await http().post('/auth/refresh').set('Cookie', refreshCookie).expect(401);
     // The old password no longer logs in.
     await login(userEmail, initialPassword).expect(401);
 
@@ -181,10 +185,13 @@ describe('Password reset / force-change (e2e)', () => {
 
   it('a self-service change invalidates OTHER outstanding sessions', async () => {
     // Two concurrent sessions for the rep.
-    const sessionA = (await login(
-      (await prisma.employee.findUniqueOrThrow({ where: { id: repId } })).email,
-      initialPassword,
-    ).expect(200)).body.data.accessToken as string;
+    const sessionA = (
+      await login(
+        (await prisma.employee.findUniqueOrThrow({ where: { id: repId } }))
+          .email,
+        initialPassword,
+      ).expect(200)
+    ).body.data.accessToken as string;
     const repEmail = (
       await prisma.employee.findUniqueOrThrow({ where: { id: repId } })
     ).email;

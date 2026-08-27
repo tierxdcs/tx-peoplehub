@@ -39,7 +39,10 @@ export class OfferLettersController {
 
   @Post()
   @ApiOperation({ summary: 'Create or update authored offer-letter content' })
-  save(@Body() dto: SaveOfferLetterDto, @CurrentUser() user: AuthenticatedUser) {
+  save(
+    @Body() dto: SaveOfferLetterDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.save(dto, user);
   }
 

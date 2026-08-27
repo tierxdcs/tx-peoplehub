@@ -231,9 +231,7 @@ export class KanbanAttachmentsService {
 
   // ── internals ──────────────────────────────────────────────────────
 
-  private async getCardOrThrow(
-    id: string,
-  ): Promise<{
+  private async getCardOrThrow(id: string): Promise<{
     id: string;
     boardId: string;
     assigneeId: string | null;

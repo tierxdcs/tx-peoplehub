@@ -15,6 +15,10 @@ import {
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import {
+  EMPTY_PENDING_QUEUE,
+  PendingQueue,
+} from '../../common/types/pending-queue';
+import {
   PaginatedResult,
   PaginationQueryDto,
 } from '../../common/dto/pagination.dto';
@@ -302,15 +306,25 @@ export class BidsService {
   }
 
   /**
-   * Count of bids awaiting the caller's approval. Reuses the list scope. Non-
-   * Sales callers get 0 (not a thrown error) so the unified notifications
-   * endpoint can call this for any role.
+   * Badge summary for bids awaiting the caller's approval — count plus when the
+   * oldest was raised. Reuses the list scope and its oldest-first ordering.
+   * Non-Sales callers get an empty queue (not a thrown error) so the unified
+   * notifications endpoint can call this for any role.
    */
-  async countPendingApproval(user: AuthenticatedUser): Promise<number> {
+  async pendingApprovalQueue(user: AuthenticatedUser): Promise<PendingQueue> {
     if (!isSuperAdmin(user) && !(await this.access.isSalesStaff(user))) {
-      return 0;
+      return EMPTY_PENDING_QUEUE;
     }
-    return this.prisma.bid.count({ where: this.pendingApprovalWhere(user) });
+    const where = this.pendingApprovalWhere(user);
+    const [count, oldest] = await Promise.all([
+      this.prisma.bid.count({ where }),
+      this.prisma.bid.findFirst({
+        where,
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      }),
+    ]);
+    return { count, oldestPendingAt: oldest?.createdAt ?? null };
   }
 
   async findPendingApproval(

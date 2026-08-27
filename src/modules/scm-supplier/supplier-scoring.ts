@@ -33,10 +33,7 @@ export const TOTAL_MAX_SCORE = AUDIT_SCORE_KEYS.reduce(
 );
 
 export type SupplierClassification =
-  | 'APPROVED_PREFERRED'
-  | 'APPROVED'
-  | 'CONDITIONALLY_APPROVED'
-  | 'NOT_APPROVED';
+  'APPROVED_PREFERRED' | 'APPROVED' | 'CONDITIONALLY_APPROVED' | 'NOT_APPROVED';
 
 export function computeTotalScore(
   scores: Record<AuditScoreKey, number | string>,

@@ -67,7 +67,9 @@ export class EmployeesController {
 
   @Post('onboard/compensation-preview')
   @Roles(Role.MANAGER, Role.EMPLOYEE, Role.ADMIN, Role.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Calculate the read-only salary breakdown from monthly CTC' })
+  @ApiOperation({
+    summary: 'Calculate the read-only salary breakdown from monthly CTC',
+  })
   previewOnboardingCompensation(
     @Body() dto: CtcPreviewDto,
     @CurrentUser() user: AuthenticatedUser,

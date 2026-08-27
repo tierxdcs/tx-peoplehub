@@ -37,7 +37,9 @@ export class UpdateExpenseCategoryDto {
   @IsUUID()
   defaultExpenseLedgerId?: string;
 
-  @ApiPropertyOptional({ description: 'Soft deactivate — hides from the picker' })
+  @ApiPropertyOptional({
+    description: 'Soft deactivate — hides from the picker',
+  })
   @IsOptional()
   isActive?: boolean;
 }

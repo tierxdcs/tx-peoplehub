@@ -23,9 +23,7 @@ describe('KanbanFeedService', () => {
       },
     };
     const access = {
-      assertCanViewCard: jest
-        .fn()
-        .mockResolvedValue({ hasBoardAccess: true }),
+      assertCanViewCard: jest.fn().mockResolvedValue({ hasBoardAccess: true }),
       assertCanEditCard: jest.fn(),
     };
     const notifications = {
@@ -37,15 +35,11 @@ describe('KanbanFeedService', () => {
       notifications as never,
     );
 
-    await service.addComment(
-      'card-1',
-      { text: 'Reply' },
-      {
-        id: 'author-1',
-        email: 'punith@example.com',
-        role: 'EMPLOYEE',
-      } as never,
-    );
+    await service.addComment('card-1', { text: 'Reply' }, {
+      id: 'author-1',
+      email: 'punith@example.com',
+      role: 'EMPLOYEE',
+    } as never);
 
     expect(access.assertCanViewCard).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'author-1' }),
@@ -98,9 +92,7 @@ describe('KanbanFeedService', () => {
       },
     };
     const access = {
-      assertCanViewCard: jest
-        .fn()
-        .mockResolvedValue({ hasBoardAccess: true }),
+      assertCanViewCard: jest.fn().mockResolvedValue({ hasBoardAccess: true }),
     };
     const service = new KanbanFeedService(
       prisma as never,

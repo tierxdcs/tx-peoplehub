@@ -14,8 +14,16 @@ import {
 } from 'class-validator';
 
 export class PurchaseOrderLineInputDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MinLength(1) itemId?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MinLength(1) adHocItemName?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  itemId?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  adHocItemName?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() adHocDescription?: string;
   @ApiProperty({ description: 'Ordered quantity' })
   @IsNumber({ maxDecimalPlaces: 4 })
@@ -67,7 +75,10 @@ export class UpdatePurchaseOrderDto {
   @ApiPropertyOptional() @IsOptional() @IsString() supplierId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() vendorId?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() orderDate?: string;
-  @ApiPropertyOptional() @IsOptional() @IsDateString() expectedDeliveryDate?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  expectedDeliveryDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
   @ApiPropertyOptional({ type: [PurchaseOrderLineInputDto] })
   @IsOptional()

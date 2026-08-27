@@ -267,7 +267,9 @@ export class LeadsService {
    * Vault upload. Any Sales-vertical user can read it, matching lead-read
    * access. Returns just the id.
    */
-  async attachmentsFolderId(user: AuthenticatedUser): Promise<{ folderId: string }> {
+  async attachmentsFolderId(
+    user: AuthenticatedUser,
+  ): Promise<{ folderId: string }> {
     await this.access.assertSalesAccess(user);
     const folder = await this.prisma.vaultFolder.findFirst({
       where: { name: 'Lead Attachments', type: 'DEFAULT' },
@@ -307,9 +309,7 @@ export class LeadsService {
    * currentVersionIds. VaultFile has no relation back to its current version
    * (deliberate, to avoid an FK cycle — see schema), so we resolve it here.
    */
-  private async loadVersions(
-    ids: (string | null)[],
-  ): Promise<
+  private async loadVersions(ids: (string | null)[]): Promise<
     Map<
       string,
       {
@@ -323,7 +323,12 @@ export class LeadsService {
     if (present.length === 0) return new Map();
     const versions = await this.prisma.vaultFileVersion.findMany({
       where: { id: { in: present } },
-      select: { id: true, mimeType: true, sizeBytes: true, previewStatus: true },
+      select: {
+        id: true,
+        mimeType: true,
+        sizeBytes: true,
+        previewStatus: true,
+      },
     });
     return new Map(versions.map((v) => [v.id, v]));
   }
@@ -356,7 +361,9 @@ export class LeadsService {
       select: { id: true },
     });
     if (existing) {
-      throw new BadRequestException('That file is already attached to this lead');
+      throw new BadRequestException(
+        'That file is already attached to this lead',
+      );
     }
 
     const created = await this.prisma.leadAttachment.create({
@@ -366,7 +373,9 @@ export class LeadsService {
         vaultFile: { select: { name: true, currentVersionId: true } },
       },
     });
-    const versions = await this.loadVersions([created.vaultFile.currentVersionId]);
+    const versions = await this.loadVersions([
+      created.vaultFile.currentVersionId,
+    ]);
     return this.toAttachmentEntity(created, versions);
   }
 
@@ -479,8 +488,7 @@ export class LeadsService {
       source: lead.source,
       status: lead.status,
       ownerId: lead.ownerId,
-      ownerName:
-        `${lead.owner.firstName} ${lead.owner.lastName}`.trim(),
+      ownerName: `${lead.owner.firstName} ${lead.owner.lastName}`.trim(),
       enquiryCreatorId: lead.enquiryCreatorId,
       enquiryCreatorName:
         `${lead.enquiryCreator.firstName} ${lead.enquiryCreator.lastName}`.trim(),

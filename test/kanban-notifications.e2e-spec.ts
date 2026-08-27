@@ -64,7 +64,11 @@ describe('Kanban notifications (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     prisma = app.get(PrismaService);
@@ -139,7 +143,11 @@ describe('Kanban notifications (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/kanban/boards/${boardId}/sprints`)
         .set('Authorization', `Bearer ${smToken}`)
-        .send({ name: 'Sp', durationWeeks: 'ONE_WEEK', startDate: '2026-08-01' })
+        .send({
+          name: 'Sp',
+          durationWeeks: 'ONE_WEEK',
+          startDate: '2026-08-01',
+        })
         .expect(201)
     ).body.data.id;
   });
@@ -151,12 +159,22 @@ describe('Kanban notifications (e2e)', () => {
     await prisma.kanbanCard.deleteMany({
       where: { list: { boardId: { in: createdBoardIds } } },
     });
-    await prisma.kanbanSprint.deleteMany({ where: { boardId: { in: createdBoardIds } } });
-    await prisma.kanbanList.deleteMany({ where: { boardId: { in: createdBoardIds } } });
-    await prisma.kanbanBoardMember.deleteMany({ where: { boardId: { in: createdBoardIds } } });
-    await prisma.kanbanBoard.deleteMany({ where: { id: { in: createdBoardIds } } });
+    await prisma.kanbanSprint.deleteMany({
+      where: { boardId: { in: createdBoardIds } },
+    });
+    await prisma.kanbanList.deleteMany({
+      where: { boardId: { in: createdBoardIds } },
+    });
+    await prisma.kanbanBoardMember.deleteMany({
+      where: { boardId: { in: createdBoardIds } },
+    });
+    await prisma.kanbanBoard.deleteMany({
+      where: { id: { in: createdBoardIds } },
+    });
     if (createdEmployeeIds.length) {
-      await prisma.employee.deleteMany({ where: { id: { in: createdEmployeeIds } } });
+      await prisma.employee.deleteMany({
+        where: { id: { in: createdEmployeeIds } },
+      });
     }
     await app.close();
   });

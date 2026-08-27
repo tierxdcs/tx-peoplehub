@@ -162,9 +162,9 @@ describe('deriveProjectProgress', () => {
         inspectionStatuses: ['FAILED'],
       }),
     );
-    expect(
-      result.stages.find((stage) => stage.key === 'quality')?.state,
-    ).toBe('ATTENTION');
+    expect(result.stages.find((stage) => stage.key === 'quality')?.state).toBe(
+      'ATTENTION',
+    );
     expect(result.currentStage).toBe('quality');
     expect(result.health).toBe('BLOCKED');
   });

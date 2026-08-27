@@ -1,6 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { PreviewStatus, VaultFileStatus } from '@prisma/client';
-import { VaultAccessEntity } from './vault-folder.entity';
+import {
+  VaultFileOrigin,
+  VaultFileTypeCategory,
+} from '../dto/vault-search-query.dto';
+import { VaultAccessEntity, VaultFolderEntity } from './vault-folder.entity';
 
 export class VaultFileVersionEntity {
   @ApiProperty()
@@ -118,6 +122,27 @@ export class VaultFileListItemEntity {
   @ApiProperty({ enum: PreviewStatus, nullable: true })
   previewStatus!: PreviewStatus | null;
 
+  @ApiProperty({
+    enum: VaultFileTypeCategory,
+    description:
+      'Type bucket derived from the filename extension and mimetype (drives the type filter and the type sort)',
+  })
+  fileType!: VaultFileTypeCategory;
+
+  @ApiProperty({
+    enum: VaultFileOrigin,
+    description:
+      'Which module filed this document, derived from back-relations and module-owned folder identity; MANUAL when a person uploaded it',
+  })
+  origin!: VaultFileOrigin;
+
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Name of the containing folder — search results are shown outside their folder',
+  })
+  folderName!: string | null;
+
   @ApiProperty({ description: 'Number of retained versions for this file' })
   versionCount!: number;
 
@@ -136,6 +161,41 @@ export class VaultFileListItemEntity {
   updatedAt!: Date;
 
   constructor(partial: Partial<VaultFileListItemEntity>) {
+    Object.assign(this, partial);
+  }
+}
+
+/**
+ * Result of a Vault search: matching folders AND matching files, since people
+ * look for "the RFQ folder" as often as for a specific document. `truncated`
+ * says the scan cap was reached, so the UI can tell the user to narrow rather
+ * than silently implying it saw everything.
+ */
+export class VaultSearchResultEntity {
+  @ApiProperty({
+    type: [VaultFolderEntity],
+    description: 'Folders whose name matched, in relevance order',
+  })
+  folders!: VaultFolderEntity[];
+
+  @ApiProperty({
+    type: [VaultFileListItemEntity],
+    description: 'Matching files, in the requested sort order',
+  })
+  files!: VaultFileListItemEntity[];
+
+  @ApiProperty({
+    description: 'Files matched before the result limit was applied',
+  })
+  totalFileMatches!: number;
+
+  @ApiProperty({
+    description:
+      'True when more candidate files existed than the scan cap allowed — narrow the search',
+  })
+  truncated!: boolean;
+
+  constructor(partial: Partial<VaultSearchResultEntity>) {
     Object.assign(this, partial);
   }
 }

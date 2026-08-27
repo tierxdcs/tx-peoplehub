@@ -24,6 +24,8 @@ export interface KanbanBoard {
   createdById: string;
   status: 'ACTIVE' | 'ARCHIVED';
   memberCount: number;
+  isCustomerBoard: boolean;
+  taskCounts: { todo: number; inProgress: number; complete: number; overdue: number };
   createdAt: string;
   updatedAt: string;
 }

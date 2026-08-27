@@ -10,7 +10,11 @@ import { CloseControlsService } from './close-controls.service';
 
 @Module({
   imports: [FinanceModule, VaultModule],
-  controllers: [ComplianceController, FilingsController, CloseControlsController],
+  controllers: [
+    ComplianceController,
+    FilingsController,
+    CloseControlsController,
+  ],
   providers: [ComplianceService, FilingsService, CloseControlsService],
 })
 export class FinanceComplianceModule {}

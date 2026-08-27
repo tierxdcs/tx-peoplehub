@@ -15,6 +15,7 @@ import { useQmsAccess } from '../lib/use-qms-access';
 import { useDesignAccess } from '../lib/use-design-access';
 import { useExecutiveAccess } from '../lib/use-executive-access';
 import { usePendingApprovalCounts } from '../lib/use-pending-approval-counts';
+import { approvalBadgesByHref } from '../lib/approval-queues';
 import {
   activeModule as resolveActiveModule,
   availableModules,
@@ -111,7 +112,7 @@ export default function ProtectedLayout({
     hasExecutiveDashboardAccess,
     // Surface the Offer Letter Approvals inbox to whoever currently has letters
     // routed to them (vertical owner / Super Admin fallback) — self-cleaning.
-    offerLetterApprovalsPending: (counts?.offerLetterApprovals ?? 0) > 0,
+    offerLetterApprovalsPending: (counts?.offerLetterApprovals.count ?? 0) > 0,
     payslipsEnabled,
   };
 
@@ -125,23 +126,11 @@ export default function ProtectedLayout({
   // active one, so no page is more than a search away from any other page.
   const searchLeaves = navLeaves(access, modules);
 
-  // Join the pending counts to nav items by href. leaveApprovals maps to both
-  // the manager and admin queues — a given user only sees one, so mapping to
-  // both hrefs is safe.
-  const badges: Record<string, number> = counts
-    ? {
-        '/team/leave-approvals': counts.leaveApprovals,
-        '/admin/leave-approvals': counts.leaveApprovals,
-        '/admin/pending-access': counts.hrPendingAccess,
-        '/sales/bids/pending-approval': counts.bidDiscountApprovals,
-        '/sales/bid-assessments/pending-approval':
-          counts.bidAssessmentApprovals,
-        '/sales/confirmation-sheets/pending-approval':
-          counts.confirmationSheetsPending,
-        '/hr/offer-letters/pending-approval': counts.offerLetterApprovals,
-        '/hr/provisioning-approvals': counts.provisioningApprovals,
-      }
-    : {};
+  // Join the pending queues to nav items by href. The href mapping (including
+  // leaveApprovals covering both the manager and admin queue pages) lives in
+  // the shared APPROVAL_QUEUES registry, which the dashboard's urgent banner
+  // reads too — so a new queue is badged in both places from one edit.
+  const badges = approvalBadgesByHref(counts);
 
   function switchModule(m: ModuleKey) {
     const target = moduleHome(m, access);

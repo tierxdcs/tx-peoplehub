@@ -1,6 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { VendorAuditType, VendorCoreCompetency, VendorStatus } from '@prisma/client';
+import {
+  VendorAuditType,
+  VendorCoreCompetency,
+  VendorStatus,
+} from '@prisma/client';
 import {
   IsDateString,
   IsEnum,
@@ -129,9 +133,15 @@ export class PublicCompanyInfoDto {
   @ApiPropertyOptional() @IsOptional() @IsString() yearEstablished?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() numberOfEmployees?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() annualTurnover?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() msmeUdyamCertificate?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  msmeUdyamCertificate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() contactPersonName?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() contactPersonDesignation?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  contactPersonDesignation?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() contactPhone?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() website?: string;
 }
@@ -154,11 +164,17 @@ export class PublicQuestionnaireSaveDto {
   companyInfo?: PublicCompanyInfoDto;
 
   @ApiPropertyOptional() @IsOptional() @IsObject() businessProfile?: object;
-  @ApiPropertyOptional() @IsOptional() @IsObject() manufacturingCapability?: object;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  manufacturingCapability?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() equipmentDetails?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() productionCapacity?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() qualityManagement?: object;
-  @ApiPropertyOptional() @IsOptional() @IsObject() engineeringCapability?: object;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  engineeringCapability?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() supplyChain?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() traceability?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() logistics?: object;
@@ -166,7 +182,10 @@ export class PublicQuestionnaireSaveDto {
   @ApiPropertyOptional() @IsOptional() @IsObject() informationSecurity?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() businessContinuity?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() ehs?: object;
-  @ApiPropertyOptional() @IsOptional() @IsObject() financialInformation?: object;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  financialInformation?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() customerSupport?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() compliance?: object;
   @ApiPropertyOptional() @IsOptional() @IsObject() references?: object;
@@ -254,7 +273,11 @@ export class CreateAuditDto {
   @IsEnum(VendorCoreCompetency)
   coreCompetency!: VendorCoreCompetency;
 
-  @ApiProperty() @IsNumber() @Min(0) @Max(20) manufacturingCapabilityScore!: number;
+  @ApiProperty()
+  @IsNumber()
+  @Min(0)
+  @Max(20)
+  manufacturingCapabilityScore!: number;
   @ApiProperty() @IsNumber() @Min(0) @Max(10) capacityScore!: number;
   @ApiProperty() @IsNumber() @Min(0) @Max(20) qualitySystemScore!: number;
   @ApiProperty() @IsNumber() @Min(0) @Max(10) engineeringScore!: number;

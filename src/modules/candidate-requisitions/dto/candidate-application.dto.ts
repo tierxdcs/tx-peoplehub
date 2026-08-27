@@ -11,10 +11,17 @@ import {
 import { CandidateApplicationStatus } from '@prisma/client';
 
 export class CreateCandidateApplicationInviteDto {
-  @ApiPropertyOptional({ description: 'Optional link password; blank means public' })
-  @IsOptional() @IsString() password?: string;
+  @ApiPropertyOptional({
+    description: 'Optional link password; blank means public',
+  })
+  @IsOptional()
+  @IsString()
+  password?: string;
   @ApiPropertyOptional({ default: 2160, description: 'Link lifetime in hours' })
-  @IsOptional() @IsInt() @Min(1) expiresInHours?: number;
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  expiresInHours?: number;
 }
 
 export class CandidateApplicationResolveDto {

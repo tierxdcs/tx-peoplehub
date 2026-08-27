@@ -8,7 +8,7 @@ import { useNumberFormat } from '../../../../../lib/number-format-context';
 import { Input } from '../../../../../components/ui/input';
 import { Field } from '../../../../../components/ui/field';
 import { useToast } from '../../../../../components/ui/toaster';
-import { VoucherShell } from '../../_components/voucher-shell';
+import { VoucherShell, VoucherSummary } from '../../_components/voucher-shell';
 import { PartyPicker } from '../../_components/party-picker';
 
 interface Partner {
@@ -108,8 +108,19 @@ export default function NewPaymentVoucherPage() {
       submitting={submitting}
       onSaveDraft={() => void create(false)}
       onSubmitForApproval={() => void create(true)}
+      summary={
+        <VoucherSummary
+          title="Payment summary"
+          rows={[
+            { label: 'Payment amount', value: formatINR(Number(amount || 0), numberFormatStyle) },
+            { label: 'Allocation', value: invoiceId ? 'Against bill' : 'Unallocated' },
+          ]}
+          totalLabel="Amount payable"
+          total={formatINR(Number(amount || 0), numberFormatStyle)}
+        />
+      }
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="contents">
         <Field label="Party (Vendor/Supplier)" required>
           <PartyPicker
             options={[

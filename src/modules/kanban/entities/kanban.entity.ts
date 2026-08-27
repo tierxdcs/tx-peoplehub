@@ -27,6 +27,17 @@ export class KanbanBoardEntity {
   @ApiProperty({ enum: KanbanBoardStatus }) status!: KanbanBoardStatus;
   @ApiProperty({ description: 'Number of members on the board' })
   memberCount!: number;
+  @ApiProperty({
+    description: 'Whether this board is linked to a customer project',
+  })
+  isCustomerBoard!: boolean;
+  @ApiProperty({ description: 'Active task counts by board progress' })
+  taskCounts!: {
+    todo: number;
+    inProgress: number;
+    complete: number;
+    overdue: number;
+  };
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
 
@@ -87,10 +98,16 @@ export class KanbanCardEntity {
   @ApiProperty({ nullable: true }) description!: string | null;
   @ApiProperty({ nullable: true }) assigneeId!: string | null;
   @ApiProperty({ nullable: true }) assigneeName!: string | null;
-  @ApiProperty({ nullable: true, description: "Vertical this card's work belongs to" })
+  @ApiProperty({
+    nullable: true,
+    description: "Vertical this card's work belongs to",
+  })
   verticalId!: string | null;
   @ApiProperty({ nullable: true }) verticalName!: string | null;
-  @ApiProperty({ nullable: true, description: 'Vertical code, e.g. PRODUCTION' })
+  @ApiProperty({
+    nullable: true,
+    description: 'Vertical code, e.g. PRODUCTION',
+  })
   verticalCode!: string | null;
   @ApiProperty({ nullable: true }) startDate!: string | null;
   @ApiProperty({ nullable: true }) dueDate!: string | null;

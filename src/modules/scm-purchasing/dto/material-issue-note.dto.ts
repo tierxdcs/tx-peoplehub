@@ -25,7 +25,9 @@ export class CreateMaterialIssueDto {
   @Min(0)
   issuedQuantity!: number;
 
-  @ApiPropertyOptional({ description: 'Free-text bin location within the store' })
+  @ApiPropertyOptional({
+    description: 'Free-text bin location within the store',
+  })
   @IsOptional()
   @IsString()
   binLocation?: string;

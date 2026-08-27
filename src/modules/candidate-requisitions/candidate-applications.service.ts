@@ -52,13 +52,17 @@ export class CandidateApplicationsService {
       );
     }
     if (requisition.hiringStage === CandidateHiringStage.CANDIDATE_SELECTED) {
-      throw new BadRequestException('A Fulfilled requisition is already closed');
+      throw new BadRequestException(
+        'A Fulfilled requisition is already closed',
+      );
     }
     const created = await this.prisma.candidateApplicationInvite.create({
       data: {
         requisitionId,
         token: generateInviteToken(),
-        passwordHash: await hashInvitePassword(dto.password?.trim() || undefined),
+        passwordHash: await hashInvitePassword(
+          dto.password?.trim() || undefined,
+        ),
         expiresAt: computeExpiry(dto.expiresInHours ?? 2160),
         createdById: user.id,
       },
@@ -75,21 +79,25 @@ export class CandidateApplicationsService {
 
   async listInvites(requisitionId: string, user: AuthenticatedUser) {
     await this.assertCanView(requisitionId, user);
-    return this.prisma.candidateApplicationInvite.findMany({
-      where: { requisitionId },
-      select: {
-        id: true,
-        token: true,
-        expiresAt: true,
-        revokedAt: true,
-        createdAt: true,
-        passwordHash: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    }).then((rows) => rows.map(({ passwordHash, ...row }) => ({
-      ...row,
-      hasPassword: !!passwordHash,
-    })));
+    return this.prisma.candidateApplicationInvite
+      .findMany({
+        where: { requisitionId },
+        select: {
+          id: true,
+          token: true,
+          expiresAt: true,
+          revokedAt: true,
+          createdAt: true,
+          passwordHash: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+      .then((rows) =>
+        rows.map(({ passwordHash, ...row }) => ({
+          ...row,
+          hasPassword: !!passwordHash,
+        })),
+      );
   }
 
   async revokeInvite(inviteId: string, user: AuthenticatedUser) {
@@ -117,10 +125,7 @@ export class CandidateApplicationsService {
     };
   }
 
-  async createResumeUploadUrl(
-    token: string,
-    dto: CandidateResumeUploadUrlDto,
-  ) {
+  async createResumeUploadUrl(token: string, dto: CandidateResumeUploadUrlDto) {
     await this.validInvite(token, dto.password);
     assertExtensionAllowed(dto.fileName);
     assertSizeWithinCap(dto.sizeBytes);
@@ -183,10 +188,16 @@ export class CandidateApplicationsService {
     const application = await this.prisma.candidateApplication.findUnique({
       where: { id: applicationId },
     });
-    if (!application) throw new NotFoundException('Candidate application not found');
+    if (!application)
+      throw new NotFoundException('Candidate application not found');
     await this.assertCanView(application.requisitionId, user);
-    const signed = await this.storage.createDownloadUrl(application.resumeFileKey);
-    return { downloadUrl: signed.url, expiresInSeconds: signed.expiresInSeconds };
+    const signed = await this.storage.createDownloadUrl(
+      application.resumeFileKey,
+    );
+    return {
+      downloadUrl: signed.url,
+      expiresInSeconds: signed.expiresInSeconds,
+    };
   }
 
   async updateStatus(
@@ -199,8 +210,11 @@ export class CandidateApplicationsService {
       where: { id: applicationId },
       include: { requisition: true },
     });
-    if (!application) throw new NotFoundException('Candidate application not found');
-    if (application.requisition.status !== CandidateRequisitionStatus.APPROVED) {
+    if (!application)
+      throw new NotFoundException('Candidate application not found');
+    if (
+      application.requisition.status !== CandidateRequisitionStatus.APPROVED
+    ) {
       throw new BadRequestException('The requisition is not Approved');
     }
     if (
@@ -247,13 +261,17 @@ export class CandidateApplicationsService {
       invite.requisition.status !== CandidateRequisitionStatus.APPROVED ||
       invite.requisition.hiringStage === CandidateHiringStage.CANDIDATE_SELECTED
     ) {
-      throw new ForbiddenException('This position is no longer accepting applications');
+      throw new ForbiddenException(
+        'This position is no longer accepting applications',
+      );
     }
     return invite;
   }
 
   private async requisition(id: string) {
-    const row = await this.prisma.candidateRequisition.findUnique({ where: { id } });
+    const row = await this.prisma.candidateRequisition.findUnique({
+      where: { id },
+    });
     if (!row) throw new NotFoundException('Candidate requisition not found');
     return row;
   }

@@ -6,7 +6,11 @@ export class SaveOfferLetterDto {
   @IsUUID()
   employeeId!: string;
 
-  @ApiProperty({ required: false, description: 'Required when creating a new offer letter; omitted only for historical/existing-letter edits' })
+  @ApiProperty({
+    required: false,
+    description:
+      'Required when creating a new offer letter; omitted only for historical/existing-letter edits',
+  })
   @IsOptional()
   @IsUUID()
   candidateRequisitionId?: string;

@@ -159,7 +159,11 @@ describe('DesignService project stage gates', () => {
       );
       access.assertHead.mockRejectedValue(new ForbiddenException());
       await expect(
-        service.updateProjectStatus('project-1', 'RELEASED_FOR_PRODUCTION', user),
+        service.updateProjectStatus(
+          'project-1',
+          'RELEASED_FOR_PRODUCTION',
+          user,
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.designProject.update).not.toHaveBeenCalled();
     });
@@ -172,7 +176,11 @@ describe('DesignService project stage gates', () => {
         }),
       );
       await expect(
-        service.updateProjectStatus('project-1', 'RELEASED_FOR_PRODUCTION', user),
+        service.updateProjectStatus(
+          'project-1',
+          'RELEASED_FOR_PRODUCTION',
+          user,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 

@@ -469,15 +469,42 @@ export class ComplianceService {
       throw new BadRequestException(
         'Resolve all open finance transactions before period close',
       );
-    const [taskCount, openTasks, reconciliationRun, blockingExceptions] = await Promise.all([
-      this.prisma.periodCloseTask.count({ where: { periodCloseId: close.id } }),
-      this.prisma.periodCloseTask.count({ where: { periodCloseId: close.id, isRequired: true, status: 'PENDING' } }),
-      this.prisma.closeReconciliationRun.findUnique({ where: { periodCloseId: close.id }, select: { id: true } }),
-      this.prisma.reconciliationException.count({ where: { run: { periodCloseId: close.id }, status: 'OPEN', severity: 'BLOCKING' } }),
-    ]);
-    if (taskCount === 0 || !reconciliationRun) throw new BadRequestException('Initialize close controls and run reconciliations before submission');
-    if (openTasks > 0) throw new BadRequestException('Complete every required close task before submission');
-    if (blockingExceptions > 0) throw new BadRequestException('Resolve or Finance Head-waive every blocking reconciliation exception');
+    const [taskCount, openTasks, reconciliationRun, blockingExceptions] =
+      await Promise.all([
+        this.prisma.periodCloseTask.count({
+          where: { periodCloseId: close.id },
+        }),
+        this.prisma.periodCloseTask.count({
+          where: {
+            periodCloseId: close.id,
+            isRequired: true,
+            status: 'PENDING',
+          },
+        }),
+        this.prisma.closeReconciliationRun.findUnique({
+          where: { periodCloseId: close.id },
+          select: { id: true },
+        }),
+        this.prisma.reconciliationException.count({
+          where: {
+            run: { periodCloseId: close.id },
+            status: 'OPEN',
+            severity: 'BLOCKING',
+          },
+        }),
+      ]);
+    if (taskCount === 0 || !reconciliationRun)
+      throw new BadRequestException(
+        'Initialize close controls and run reconciliations before submission',
+      );
+    if (openTasks > 0)
+      throw new BadRequestException(
+        'Complete every required close task before submission',
+      );
+    if (blockingExceptions > 0)
+      throw new BadRequestException(
+        'Resolve or Finance Head-waive every blocking reconciliation exception',
+      );
     const checks = close.checklist as Record<string, unknown>;
     const confirmations = [
       'bankReconciled',
@@ -513,8 +540,17 @@ export class ComplianceService {
       throw new BadRequestException(
         'Finance Head cannot approve a close they prepared',
       );
-    const blockingExceptions = await this.prisma.reconciliationException.count({ where: { run: { periodCloseId: close.id }, status: 'OPEN', severity: 'BLOCKING' } });
-    if (blockingExceptions > 0) throw new BadRequestException('Period close has unresolved blocking reconciliation exceptions');
+    const blockingExceptions = await this.prisma.reconciliationException.count({
+      where: {
+        run: { periodCloseId: close.id },
+        status: 'OPEN',
+        severity: 'BLOCKING',
+      },
+    });
+    if (blockingExceptions > 0)
+      throw new BadRequestException(
+        'Period close has unresolved blocking reconciliation exceptions',
+      );
     return this.prisma.$transaction(async (tx) => {
       await tx.accountingPeriod.update({
         where: { id: periodId },
@@ -820,11 +856,17 @@ export class ComplianceService {
     return c;
   }
   private async account(tx: Prisma.TransactionClient, code: string) {
-    const settings = await tx.financeProductionSettings.findUnique({ where: { id: 'INDIA' } });
-    const mapped = (settings?.controlAccountMap as Record<string, string> | null)?.[code] || code;
+    const settings = await tx.financeProductionSettings.findUnique({
+      where: { id: 'INDIA' },
+    });
+    const mapped =
+      (settings?.controlAccountMap as Record<string, string> | null)?.[code] ||
+      code;
     const a = await tx.ledgerAccount.findUnique({ where: { code: mapped } });
     if (!a)
-      throw new BadRequestException(`Ledger account ${mapped} is not configured`);
+      throw new BadRequestException(
+        `Ledger account ${mapped} is not configured`,
+      );
     return a;
   }
   private async openPeriod(tx: Prisma.TransactionClient, date: Date) {

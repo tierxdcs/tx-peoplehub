@@ -15,6 +15,10 @@ import {
   Prisma,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  EMPTY_PENDING_QUEUE,
+  PendingQueue,
+} from '../../common/types/pending-queue';
 import { PrismaService } from '../../core/database/prisma.service';
 import { VaultAccessService } from '../vault/vault-access.service';
 import { DesignAccessService } from './design-access.service';
@@ -87,13 +91,14 @@ const APPROVING_REVIEW_OUTCOMES: DesignReviewOutcome[] = [
 // Manual triage transitions for a design request. CONVERTED is deliberately
 // unreachable here — it's set implicitly when a project is created from the
 // request (see createProject).
-const REQUEST_TRANSITIONS: Record<DesignRequestStatus, DesignRequestStatus[]> = {
-  OPEN: ['ACCEPTED', 'REJECTED', 'CLOSED'],
-  ACCEPTED: ['REJECTED', 'CLOSED'],
-  REJECTED: [],
-  CONVERTED: [],
-  CLOSED: [],
-};
+const REQUEST_TRANSITIONS: Record<DesignRequestStatus, DesignRequestStatus[]> =
+  {
+    OPEN: ['ACCEPTED', 'REJECTED', 'CLOSED'],
+    ACCEPTED: ['REJECTED', 'CLOSED'],
+    REJECTED: [],
+    CONVERTED: [],
+    CLOSED: [],
+  };
 
 // Revision statuses that mean a document has reached "at least submitted for
 // approval" — used by the DETAILED_DESIGN -> INTERNAL_REVIEW gate.
@@ -987,6 +992,37 @@ export class DesignService {
       data: { status: 'PENDING_APPROVAL' },
     });
   }
+  /**
+   * Badge summary for ECRs awaiting the Design Head's decision — count plus
+   * when the oldest was submitted. Scoped exactly like approveChange: only the
+   * Design Head decides, and never on their own ECR. Returns an empty queue
+   * (never throws) for everyone else so the notifications endpoint can call it
+   * for any role. `submittedAt` is nullable, so the oldest row falls back to
+   * `createdAt` — a submitted ECR always reports some waiting time.
+   */
+  async pendingChangeApprovalQueue(
+    u: AuthenticatedUser,
+  ): Promise<PendingQueue> {
+    if (!(await this.access.accessFor(u)).isDesignHead)
+      return EMPTY_PENDING_QUEUE;
+    const where: Prisma.DesignChangeWhereInput = {
+      status: 'PENDING_APPROVAL',
+      requestedById: { not: u.id },
+    };
+    const [count, oldest] = await Promise.all([
+      this.prisma.designChange.count({ where }),
+      this.prisma.designChange.findFirst({
+        where,
+        orderBy: { submittedAt: 'asc' },
+        select: { submittedAt: true, createdAt: true },
+      }),
+    ]);
+    return {
+      count,
+      oldestPendingAt: oldest ? (oldest.submittedAt ?? oldest.createdAt) : null,
+    };
+  }
+
   async approveChange(id: string, u: AuthenticatedUser) {
     await this.access.assertHead(u);
     const x = await this.requireChange(id);

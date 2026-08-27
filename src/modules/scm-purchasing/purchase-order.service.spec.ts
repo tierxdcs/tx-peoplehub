@@ -44,14 +44,21 @@ function poRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('PurchaseOrderService ad-hoc approval', () => {
-  function setup(rows: ReturnType<typeof poRow>[] = [poRow(), poRow({
-    status: PurchaseOrderStatus.DRAFT,
-    ceoApprovedById: ceo.id,
-    ceoApprovedAt: new Date('2026-08-22T12:00:00Z'),
-  })]) {
+  function setup(
+    rows: ReturnType<typeof poRow>[] = [
+      poRow(),
+      poRow({
+        status: PurchaseOrderStatus.DRAFT,
+        ceoApprovedById: ceo.id,
+        ceoApprovedAt: new Date('2026-08-22T12:00:00Z'),
+      }),
+    ],
+  ) {
     const prisma = {
       purchaseOrder: {
-        findUnique: jest.fn().mockImplementation(() => Promise.resolve(rows.shift())),
+        findUnique: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(rows.shift())),
         update: jest.fn().mockResolvedValue({}),
       },
     };

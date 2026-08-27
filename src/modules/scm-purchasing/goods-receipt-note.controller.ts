@@ -65,7 +65,9 @@ export class GoodsReceiptNoteController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Edit a DRAFT goods receipt note (Production-vertical/SA)' })
+  @ApiOperation({
+    summary: 'Edit a DRAFT goods receipt note (Production-vertical/SA)',
+  })
   update(
     @Param('id') id: string,
     @Body() dto: UpdateGoodsReceiptNoteDto,

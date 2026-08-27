@@ -293,14 +293,7 @@ describe('BidsService', () => {
       expect(bidAssessments.latestApprovedFor).toHaveBeenCalledWith('opp-1');
     });
 
-    it.each([
-      'INFRA',
-      'EDGE',
-      'HYPERSCALE',
-      'MOD',
-      'INTELLIGENCE',
-      'SERVICES',
-    ])(
+    it.each(['INFRA', 'EDGE', 'HYPERSCALE', 'MOD', 'INTELLIGENCE', 'SERVICES'])(
       'allows products from every business unit for a %s opportunity',
       async (opportunityBusinessUnitId) => {
         prisma.opportunity.findUnique.mockResolvedValue({
@@ -312,9 +305,7 @@ describe('BidsService', () => {
             id: 'prod-1',
             sku: 'CROSS-SELL-1',
             businessUnitId:
-              opportunityBusinessUnitId === 'SERVICES'
-                ? 'EDGE'
-                : 'SERVICES',
+              opportunityBusinessUnitId === 'SERVICES' ? 'EDGE' : 'SERVICES',
             unitPrice: new Prisma.Decimal(125000),
           },
         ]);
@@ -503,9 +494,7 @@ describe('BidsService', () => {
             opportunityId: 'opp-1',
             customerId: 'cust-1',
             validUntil: '2026-10-31',
-            lineItems: [
-              { adHocProductName: 'Missing price', quantity: 1 },
-            ],
+            lineItems: [{ adHocProductName: 'Missing price', quantity: 1 }],
           },
           rep,
         ),

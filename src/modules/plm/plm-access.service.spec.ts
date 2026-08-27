@@ -78,8 +78,8 @@ describe('PlmAccessService — Project Manager authority', () => {
     await expect(
       service.assertCanOperate(employee, 'someone-else'),
     ).rejects.toBeInstanceOf(ForbiddenException);
-    await expect(
-      service.assertProductionHead(employee),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.assertProductionHead(employee)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 });
