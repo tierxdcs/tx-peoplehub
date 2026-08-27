@@ -39,6 +39,7 @@ import {
   isBrowsing,
   loadViewMode,
   saveViewMode,
+  sortFolders,
   type VaultBrowseState,
   type VaultViewMode,
 } from './_lib/vault-query';
@@ -97,6 +98,17 @@ export default function VaultLandingPage() {
     [browse, debouncedTerm],
   );
   const browsing = isBrowsing(query);
+
+  // The folder endpoints take no sort, so the chosen sort is applied here —
+  // otherwise the control would only ever reorder search results.
+  const sortedFolders = useMemo(
+    () => sortFolders(folders, browse.sort),
+    [folders, browse.sort],
+  );
+  const matchedFolders = useMemo(
+    () => sortFolders(results?.folders ?? [], browse.sort),
+    [results, browse.sort],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -235,6 +247,8 @@ export default function VaultLandingPage() {
           onChange={(patch) =>
             setBrowse((current) => ({ ...current, ...patch }))
           }
+          // Idle, this page lists only folders; a search brings files with it.
+          sortTarget={browsing ? 'files' : 'folders'}
           view={view}
           onViewChange={(next) => {
             setView(next);
@@ -251,13 +265,14 @@ export default function VaultLandingPage() {
           <div className="min-w-0 space-y-4">
             {browsing ? (
               <>
-                {results && results.folders.length > 0 && (
+                {matchedFolders.length > 0 && (
                   <VaultFolderList
-                    folders={results.folders}
+                    folders={matchedFolders}
                     title="Matching folders"
-                    subtitle={`${results.folders.length} match${
-                      results.folders.length === 1 ? '' : 'es'
+                    subtitle={`${matchedFolders.length} match${
+                      matchedFolders.length === 1 ? '' : 'es'
                     }`}
+                    view={view}
                   />
                 )}
 
@@ -321,9 +336,10 @@ export default function VaultLandingPage() {
               </SCard>
             ) : (
               <VaultFolderList
-                folders={folders}
+                folders={sortedFolders}
                 title="Folders"
-                subtitle={`${folders.length} you can access`}
+                subtitle={`${sortedFolders.length} you can access`}
+                view={view}
                 onRename={setRenameTarget}
               />
             )}

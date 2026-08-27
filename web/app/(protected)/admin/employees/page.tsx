@@ -34,7 +34,7 @@ export default function EmployeesListPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [verticalFilter, setVerticalFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ACTIVE');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

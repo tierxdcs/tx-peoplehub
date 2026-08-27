@@ -53,6 +53,7 @@ import {
   isBrowsing,
   loadViewMode,
   saveViewMode,
+  sortFolders,
   type VaultBrowseState,
   type VaultViewMode,
 } from '../../_lib/vault-query';
@@ -265,7 +266,12 @@ export default function FolderDetailPage() {
 
   const { access } = folder;
   // Browsing replaces the folder's own children with the folders that matched.
-  const shownFolders = matchedFolders ?? folder.children ?? [];
+  // The file list is sorted by the backend; the folder endpoints take no sort,
+  // so the same choice is applied to the folders here.
+  const shownFolders = sortFolders(
+    matchedFolders ?? folder.children ?? [],
+    browse.sort,
+  );
   // External links aren't allowed on PERSONAL folders (backend rule), so hide
   // the action there rather than surface a guaranteed error.
   const canLinkFolder = access.canWrite && folder.type !== 'PERSONAL';
@@ -362,6 +368,7 @@ export default function FolderDetailPage() {
             subtitle={`${shownFolders.length} folder${
               shownFolders.length === 1 ? '' : 's'
             }`}
+            view={view}
           />
         )}
 

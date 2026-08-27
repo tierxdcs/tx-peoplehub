@@ -84,6 +84,57 @@ export function buildSearchQuery(
   return params.toString();
 }
 
+// ---- sorting folders (client-side) ----
+
+/**
+ * The sorts that mean anything for a folder: a folder has no size, no file
+ * type, and no relevance outside a search. Used to narrow the sort dropdown on
+ * a folders-only view, so no option is offered that couldn't do anything.
+ */
+export const FOLDER_SORT_OPTIONS: VaultSortOption[] = [
+  'NAME_ASC',
+  'NAME_DESC',
+  'MODIFIED_DESC',
+  'MODIFIED_ASC',
+];
+
+/**
+ * Apply the chosen sort to a folder list in the browser. Folders come from the
+ * folder endpoints, which don't take a sort — roots arrive grouped
+ * PERSONAL → DEFAULT → CUSTOM (name-ordered inside each group) and children
+ * name-ordered.
+ *
+ * An unset sort therefore returns the list untouched, which keeps that grouping
+ * and keeps a search's relevance ranking; the same is true of a file-only sort
+ * (size, type) that a folder can't answer. Only an explicit, applicable choice
+ * reorders — so picking a sort always visibly does what it says.
+ */
+export function sortFolders<T extends { name: string; updatedAt: string }>(
+  folders: T[],
+  sort: VaultSortOption | '',
+): T[] {
+  const byName = (a: T, b: T) =>
+    a.name.localeCompare(b.name, undefined, {
+      sensitivity: 'base',
+      numeric: true,
+    });
+  const byModified = (a: T, b: T) =>
+    new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+
+  switch (sort) {
+    case 'NAME_ASC':
+      return [...folders].sort(byName);
+    case 'NAME_DESC':
+      return [...folders].sort((a, b) => byName(b, a));
+    case 'MODIFIED_DESC':
+      return [...folders].sort((a, b) => byModified(b, a));
+    case 'MODIFIED_ASC':
+      return [...folders].sort(byModified);
+    default:
+      return folders;
+  }
+}
+
 // ---- view mode ----
 
 export type VaultViewMode = 'grid' | 'list';

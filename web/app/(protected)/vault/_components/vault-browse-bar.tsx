@@ -23,6 +23,7 @@ import {
 } from '../_lib/vault-format';
 import {
   EMPTY_BROWSE_STATE,
+  FOLDER_SORT_OPTIONS,
   hasActiveFilters,
   isBrowsing,
   type VaultBrowseState,
@@ -42,6 +43,7 @@ export function VaultBrowseBar({
   state,
   onChange,
   scopeFolderName,
+  sortTarget = 'files',
   view,
   onViewChange,
   searchPlaceholder = 'Search files and folders…',
@@ -54,6 +56,12 @@ export function VaultBrowseBar({
    * absent = the view is inherently vault-wide (the Vault landing page).
    */
   scopeFolderName?: string;
+  /**
+   * What the list below currently holds. 'folders' (the Vault landing page with
+   * no search running) narrows the sort dropdown to the sorts a folder can
+   * answer, rather than offering size/type options that would do nothing.
+   */
+  sortTarget?: 'files' | 'folders';
   view: VaultViewMode;
   onViewChange: (view: VaultViewMode) => void;
   searchPlaceholder?: string;
@@ -76,12 +84,21 @@ export function VaultBrowseBar({
     state.uploadedTo,
     state.origin,
   ].filter(Boolean).length;
-  // Relevance only ranks when there's something to be relevant to.
+  // Relevance only ranks when there's something to be relevant to, and a
+  // folders-only list can't be sorted by size or file type.
   const sortOptions = SORT_OPTIONS.filter(
-    (option) => option.value !== 'RELEVANCE' || searching,
+    (option) =>
+      (option.value !== 'RELEVANCE' || searching) &&
+      (sortTarget === 'files' || FOLDER_SORT_OPTIONS.includes(option.value)),
   );
-  const effectiveSort: VaultSortOption =
+  const chosenSort: VaultSortOption =
     state.sort || (searching ? 'RELEVANCE' : 'NAME_ASC');
+  // Never show a value the dropdown no longer offers (clearing a search drops
+  // RELEVANCE; a folders-only list drops the file-only sorts) — a native select
+  // with no matching option renders blank.
+  const effectiveSort = sortOptions.some((o) => o.value === chosenSort)
+    ? chosenSort
+    : (sortOptions[0]?.value ?? 'NAME_ASC');
 
   function clearFilters() {
     onChange({

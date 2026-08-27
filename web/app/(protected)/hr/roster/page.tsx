@@ -51,7 +51,7 @@ export default function RosterPage() {
   const [verticalFilter, setVerticalFilter] = useState('');
   const [accessStatusFilter, setAccessStatusFilter] = useState<
     AccessStatus | ''
-  >('');
+  >('ACTIVE');
   const [territoryFilter, setTerritoryFilter] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
