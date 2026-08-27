@@ -4,6 +4,7 @@ import {
   activeModule,
   availableModules,
   landingRoute,
+  navLeaves,
   sidebarNav,
   type Access,
 } from './nav';
@@ -568,5 +569,45 @@ describe('sharedNav — Executive Dashboards', () => {
     expect(
       availableModules(granted(access('EMPLOYEE', { isHrStaff: true }))),
     ).toEqual(['hr']);
+  });
+});
+
+describe('navLeaves (Jump-to search index)', () => {
+  it('spans every module the user can reach, not just one', () => {
+    const a = access('SUPER_ADMIN', { isHrStaff: true, isSalesStaff: true });
+    const modules = availableModules(a);
+    expect(modules.length).toBeGreaterThan(1);
+    const hrefs = navLeaves(a, modules).map((l) => l.href);
+    // An HR page and a Sales page are both jumpable from anywhere.
+    expect(hrefs).toContain('/admin/employees');
+    expect(hrefs).toContain('/sales/leads');
+  });
+
+  it('lists a page shared by two modules exactly once', () => {
+    const a = access('SUPER_ADMIN', { isHrStaff: true, isSalesStaff: true });
+    const hrefs = navLeaves(a, availableModules(a)).map((l) => l.href);
+    expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+
+  it('tags each leaf with the section it is nested under', () => {
+    const a = access('SUPER_ADMIN', { isHrStaff: true });
+    const leaf = navLeaves(a, availableModules(a)).find(
+      (l) => l.href === '/dashboard',
+    );
+    expect(leaf?.section).toBe('Home');
+  });
+
+  it('still indexes the shared nav for a user with no module', () => {
+    const a = access('EMPLOYEE');
+    expect(availableModules(a)).toEqual([]);
+    const hrefs = navLeaves(a, availableModules(a)).map((l) => l.href);
+    expect(hrefs).toContain('/dashboard');
+    expect(hrefs.length).toBeGreaterThan(0);
+  });
+
+  it('never indexes a page the user cannot reach', () => {
+    const a = access('EMPLOYEE');
+    const hrefs = navLeaves(a, availableModules(a)).map((l) => l.href);
+    expect(hrefs).not.toContain('/admin/employees');
   });
 });

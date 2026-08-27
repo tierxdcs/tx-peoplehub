@@ -19,6 +19,7 @@ import {
   activeModule as resolveActiveModule,
   availableModules,
   moduleHome,
+  navLeaves,
   sidebarNav,
   type ModuleKey,
 } from '../lib/nav';
@@ -120,6 +121,9 @@ export default function ProtectedLayout({
   // multi-module users (SuperAdmin) resolve the active module from the path.
   const currentModule = resolveActiveModule(pathname, modules);
   const groups = sidebarNav(access, currentModule);
+  // The "Jump to" index spans every module the user can reach, not just the
+  // active one, so no page is more than a search away from any other page.
+  const searchLeaves = navLeaves(access, modules);
 
   // Join the pending counts to nav items by href. leaveApprovals maps to both
   // the manager and admin queues — a given user only sees one, so mapping to
@@ -167,6 +171,7 @@ export default function ProtectedLayout({
       <div className="flex flex-1">
         <Sidebar
           groups={groups}
+          searchLeaves={searchLeaves}
           badges={badges}
           mobileOpen={mobileNavOpen}
           onMobileClose={() => setMobileNavOpen(false)}

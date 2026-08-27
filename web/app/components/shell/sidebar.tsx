@@ -1,192 +1,90 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  ArrowLeftRight,
-  BadgeCheck,
-  Banknote,
-  BarChart3,
-  Boxes,
-  Building2,
-  CalendarDays,
-  CalendarRange,
-  CheckSquare2,
-  ChevronDown,
-  ClipboardCheck,
-  ClipboardList,
-  Columns3,
-  ContactRound,
-  FileCheck2,
-  FileText,
-  FolderOpen,
-  Gauge,
-  GraduationCap,
-  IndianRupee,
-  LayoutDashboard,
-  ListChecks,
-  BookOpen,
-  Package,
-  PackageCheck,
-  ReceiptText,
-  Rocket,
-  ScrollText,
-  Settings2,
-  ShieldCheck,
-  ShoppingCart,
-  Target,
-  Truck,
-  UserPlus,
-  Users,
-  UsersRound,
-  Warehouse,
-  Wrench,
-  Workflow,
-  X,
-  type LucideIcon,
-} from 'lucide-react';
-import type { NavGroup } from '../../lib/nav';
+import { ChevronDown, Pin, PinOff, X } from 'lucide-react';
+import type { NavGroup, NavLeaf } from '../../lib/nav';
+import { MAX_NAV_SHORTCUTS } from '../../lib/nav-shortcuts';
+import { useNavShortcuts } from '../../lib/use-nav-shortcuts';
 import { cn } from '../../lib/utils';
 import { Badge } from '../ui/badge';
-
-const COLLAPSE_KEY = 'sidebar:collapsedGroups';
-
-/**
- * Route-aware icon selection keeps the nav model serializable and guarantees
- * every current/future menu entry receives an icon. More-specific routes must
- * be checked before their broader module prefixes.
- */
-function iconForHref(href: string): LucideIcon {
-  if (href === '/dashboard') return LayoutDashboard;
-  if (href === '/help') return BookOpen;
-  if (href === '/learning') return GraduationCap;
-  if (href === '/vault' || href.includes('/documents')) return FolderOpen;
-  if (href === '/kanban') return Columns3;
-  if (href.includes('/sprints')) return CalendarRange;
-  if (href === '/project-kickoff') return Rocket;
-  if (href === '/plm') return Workflow;
-
-  if (href.includes('pending-approval') || href.includes('leave-approvals'))
-    return BadgeCheck;
-  if (href.includes('attendance')) return CalendarDays;
-  if (href.includes('employees') || href.includes('/roster')) return Users;
-  if (href.includes('onboard') || href.includes('pending-access'))
-    return UserPlus;
-  if (href.includes('verticals')) return Building2;
-  if (href.includes('auditor')) return ShieldCheck;
-  if (
-    href.includes('payroll') ||
-    href.includes('salary') ||
-    href.includes('payslip')
-  )
-    return IndianRupee;
-  if (href.includes('statutory')) return ScrollText;
-
-  if (href.includes('/leads')) return ContactRound;
-  if (href.includes('/opportunities')) return Target;
-  if (href.includes('/bids') || href.includes('confirmation-sheets'))
-    return FileText;
-  if (href.includes('/orders') || href.includes('purchase-orders'))
-    return ShoppingCart;
-  if (href.includes('/customers')) return Building2;
-  if (href.includes('/products') || href.includes('/items')) return Package;
-
-  if (href.includes('/vendors') || href.includes('/suppliers'))
-    return UsersRound;
-  if (href.includes('/rfqs')) return FileCheck2;
-  if (href.includes('/bom')) return Boxes;
-  if (href.includes('/inventory')) return Warehouse;
-  if (href.includes('/grn')) return PackageCheck;
-  if (href.includes('material-issue')) return Warehouse;
-  if (href.includes('/dispatch')) return Truck;
-  if (href.includes('/otd')) return Gauge;
-
-  if (href.includes('expense-claim') || href.includes('expense-categories'))
-    return ReceiptText;
-  if (href.includes('/daybook')) return ScrollText;
-  if (href.includes('/contra')) return ArrowLeftRight;
-  if (href.includes('/invoices') || href.includes('/adjustments'))
-    return ReceiptText;
-  if (href.includes('/payments') || href.includes('/receipts')) return Banknote;
-  if (href.includes('calendar')) return CalendarDays;
-  if (href.includes('/accounts') || href.includes('/journals'))
-    return ScrollText;
-  if (
-    href.includes('/reports') ||
-    href.includes('/analytics') ||
-    href.includes('/summary')
-  )
-    return BarChart3;
-  if (
-    href.includes('compliance') ||
-    href.includes('filings') ||
-    href.includes('period-close')
-  )
-    return ShieldCheck;
-
-  if (href.includes('/inspections') || href.includes('/audits'))
-    return ClipboardCheck;
-  if (href.includes('/plans') || href.includes('/templates'))
-    return ClipboardList;
-  if (
-    href.includes('/ncr') ||
-    href.includes('/capas') ||
-    href.includes('/complaints')
-  )
-    return Wrench;
-  if (href.includes('/calibration')) return Gauge;
-  if (href.includes('/design')) return Settings2;
-
-  return CheckSquare2;
-}
+import { iconForHref } from './nav-icons';
+import { NavJumpTo } from './nav-jump-to';
 
 /**
- * Per-module left nav. Renders only the groups/items passed in (already
- * gated by the nav model), highlighting the active route. Longest-prefix
- * match so e.g. /sales/bids/new keeps "Bids" active.
+ * Headings the user has opened, persisted per-device.
  *
- * Each group heading is a collapsible toggle: clicking it hides/shows that
- * group's items. Collapse state is per-heading and persisted to localStorage
- * so it survives navigation; the group containing the active route is always
- * forced open so the current page is never hidden.
+ * Deliberately a NEW key rather than the old `sidebar:collapsedGroups`: that key
+ * stored the *collapsed* headings (default = expanded), and the default is now
+ * inverted. Reusing it would make every previously-collapsed section read as the
+ * only expanded one.
+ */
+const EXPAND_KEY = 'sidebar:expandedSections';
+
+/**
+ * Per-module left nav. Renders only the groups/items passed in (already gated by
+ * the nav model), highlighting the active route. Longest-prefix match so e.g.
+ * /sales/bids/new keeps "Bids" active.
+ *
+ * Three things keep 20+ sections manageable:
+ *  - Sections are accordions, **collapsed by default**. The section holding the
+ *    current page is always expanded, so the active row is never hidden. Toggling
+ *    is independent — opening one section leaves the others alone, since
+ *    cross-referencing two areas is normal. Open headings persist in
+ *    localStorage (a per-device convenience, not worth a backend round-trip).
+ *  - "Jump to" search over every leaf page in every module the user can reach —
+ *    collapsing costs nothing when any page is a few keystrokes away.
+ *  - Pinned shortcuts, stored per-employee on the server so they follow the user
+ *    across devices.
  *
  * `badges` maps a nav item's href to a pending count; items with a count > 0
  * render a small numeric pill at the right of the row (hidden when 0/absent).
  */
 export function Sidebar({
   groups,
+  searchLeaves = [],
   badges,
   mobileOpen = false,
   onMobileClose,
 }: {
   groups: NavGroup[];
+  /** Flat leaf pages across all of the user's modules — the search index. */
+  searchLeaves?: NavLeaf[];
   badges?: Record<string, number>;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }) {
   const pathname = usePathname();
+  const {
+    shortcuts,
+    pinnedHrefs,
+    toggle: togglePin,
+    error: shortcutError,
+    atCapacity,
+  } = useNavShortcuts();
 
-  // Set of collapsed group headings. Hydrated from localStorage after mount
-  // (kept empty on first render so server and client markup match).
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Set of expanded group headings. Hydrated from localStorage after mount
+  // (kept empty on first render so server and client markup match — the active
+  // section is expanded either way, so the pre-hydration paint is usable).
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(COLLAPSE_KEY);
-      if (raw) setCollapsed(new Set(JSON.parse(raw) as string[]));
+      const raw = localStorage.getItem(EXPAND_KEY);
+      if (raw) setExpanded(new Set(JSON.parse(raw) as string[]));
     } catch {
       /* ignore malformed / unavailable storage */
     }
   }, []);
 
-  function toggle(heading: string) {
-    setCollapsed((prev) => {
+  function toggleSection(heading: string) {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(heading)) next.delete(heading);
       else next.add(heading);
       try {
-        localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next]));
+        localStorage.setItem(EXPAND_KEY, JSON.stringify([...next]));
       } catch {
         /* ignore */
       }
@@ -210,6 +108,13 @@ export function Sidebar({
       items.findIndex((candidate) => candidate.href === item.href) === index,
   );
 
+  // Live labels win over the snapshot stored with the pin, so a renamed page
+  // shows its current name; the snapshot covers pins made in another module.
+  const liveLabels = useMemo(
+    () => new Map(searchLeaves.map((leaf) => [leaf.href, leaf.label])),
+    [searchLeaves],
+  );
+
   return (
     <>
       {mobileOpen && (
@@ -220,9 +125,16 @@ export function Sidebar({
           className="fixed inset-0 top-14 z-40 bg-black/40 md:hidden"
         />
       )}
+      {/*
+        The sidebar owns its own scroll: on desktop it is a sticky, viewport-tall
+        box (`md:h-[calc(100dvh-3.5rem)]` under the 3.5rem header) that does not
+        stretch (`md:self-start`). Without that, the aside's intrinsic content
+        height set the flex row's height and left dead space below shorter pages.
+      */}
       <aside
         className={cn(
-          'fixed bottom-0 left-0 top-14 z-50 w-[min(20rem,86vw)] shrink-0 overflow-y-auto border-r bg-card transition-transform md:static md:z-auto md:w-60 md:translate-x-0',
+          'fixed bottom-0 left-0 top-14 z-50 w-[min(20rem,86vw)] shrink-0 overflow-y-auto border-r bg-card transition-transform',
+          'md:sticky md:top-14 md:z-auto md:h-[calc(100dvh-3.5rem)] md:w-60 md:translate-x-0 md:self-start',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -238,6 +150,39 @@ export function Sidebar({
           </button>
         </div>
         <nav className="flex flex-col gap-4 p-4">
+          <NavJumpTo leaves={searchLeaves} onNavigate={onMobileClose} />
+
+          {shortcutError && (
+            <p className="px-2 text-xs text-destructive">{shortcutError}</p>
+          )}
+
+          {shortcuts.length > 0 && (
+            <div>
+              <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Pinned
+              </p>
+              <ul className="flex flex-col gap-0.5">
+                {shortcuts.map((shortcut) => (
+                  <NavRow
+                    key={`pinned-${shortcut.href}`}
+                    href={shortcut.href}
+                    label={liveLabels.get(shortcut.href) ?? shortcut.label}
+                    active={shortcut.href === activeHref}
+                    count={badges?.[shortcut.href]}
+                    pinned
+                    onTogglePin={() =>
+                      void togglePin(
+                        shortcut.href,
+                        liveLabels.get(shortcut.href) ?? shortcut.label,
+                      )
+                    }
+                  />
+                ))}
+              </ul>
+              <div className="mt-3 border-t" />
+            </div>
+          )}
+
           {quickItems.length > 0 && (
             <div className="md:hidden">
               <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -262,60 +207,45 @@ export function Sidebar({
               <div className="mt-4 border-t" />
             </div>
           )}
+
           {groups.map((group) => {
-            // Never hide the group that holds the current page.
+            // The section holding the current page is always open, whatever the
+            // stored state says — the active row must never be hidden.
             const hasActive = group.items.some((i) => i.href === activeHref);
-            const isCollapsed = collapsed.has(group.heading) && !hasActive;
+            const isOpen = hasActive || expanded.has(group.heading);
             return (
               <div key={group.heading}>
                 <button
                   type="button"
-                  onClick={() => toggle(group.heading)}
-                  aria-expanded={!isCollapsed}
+                  onClick={() => toggleSection(group.heading)}
+                  aria-expanded={isOpen}
                   className="mb-1 flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <span>{group.heading}</span>
                   <ChevronDown
                     className={cn(
                       'h-3.5 w-3.5 shrink-0 transition-transform',
-                      isCollapsed && '-rotate-90',
+                      !isOpen && '-rotate-90',
                     )}
                   />
                 </button>
-                {!isCollapsed && (
+                {isOpen && (
                   <ul className="flex flex-col gap-0.5">
                     {group.items.map((item) => {
-                      const active = item.href === activeHref;
-                      const count = badges?.[item.href];
-                      const ItemIcon = iconForHref(item.href);
+                      const pinned = pinnedHrefs.has(item.href);
                       return (
-                        <li key={item.href}>
-                          <Link
-                            href={item.href}
-                            className={cn(
-                              'flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                              active
-                                ? 'bg-primary/10 font-medium text-primary'
-                                : 'text-foreground/80 hover:bg-accent hover:text-accent-foreground',
-                            )}
-                          >
-                            <span className="flex min-w-0 items-center gap-2">
-                              <ItemIcon
-                                aria-hidden="true"
-                                className="size-4 shrink-0 opacity-75"
-                              />
-                              <span className="truncate">{item.label}</span>
-                            </span>
-                            {typeof count === 'number' && count > 0 && (
-                              <Badge
-                                variant="destructive"
-                                className="px-1.5 py-0 text-[10px] leading-5"
-                              >
-                                {count}
-                              </Badge>
-                            )}
-                          </Link>
-                        </li>
+                        <NavRow
+                          key={item.href}
+                          href={item.href}
+                          label={item.label}
+                          active={item.href === activeHref}
+                          count={badges?.[item.href]}
+                          pinned={pinned}
+                          pinDisabled={!pinned && atCapacity}
+                          onTogglePin={() =>
+                            void togglePin(item.href, item.label)
+                          }
+                        />
                       );
                     })}
                   </ul>
@@ -326,5 +256,85 @@ export function Sidebar({
         </nav>
       </aside>
     </>
+  );
+}
+
+/**
+ * One leaf row: the link, its pending-count pill, and the pin toggle.
+ *
+ * The pin sits outside the <Link> (nesting a button inside an anchor is invalid)
+ * and stays invisible until the row is hovered or the button itself is focused —
+ * except when pinned, where it must always show so the state is readable.
+ */
+function NavRow({
+  href,
+  label,
+  active,
+  count,
+  pinned,
+  pinDisabled = false,
+  onTogglePin,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  count?: number;
+  pinned: boolean;
+  pinDisabled?: boolean;
+  onTogglePin: () => void;
+}) {
+  const ItemIcon = iconForHref(href);
+  const PinIcon = pinned ? PinOff : Pin;
+  return (
+    <li className="group/nav flex items-center gap-0.5">
+      <Link
+        href={href}
+        className={cn(
+          'flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+          active
+            ? 'bg-primary/10 font-medium text-primary'
+            : 'text-foreground/80 hover:bg-accent hover:text-accent-foreground',
+        )}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <ItemIcon aria-hidden="true" className="size-4 shrink-0 opacity-75" />
+          <span className="truncate">{label}</span>
+        </span>
+        {typeof count === 'number' && count > 0 && (
+          <Badge
+            variant="destructive"
+            className="px-1.5 py-0 text-[10px] leading-5"
+          >
+            {count}
+          </Badge>
+        )}
+      </Link>
+      <button
+        type="button"
+        onClick={onTogglePin}
+        disabled={pinDisabled}
+        aria-pressed={pinned}
+        aria-label={pinned ? `Unpin ${label}` : `Pin ${label}`}
+        title={
+          pinDisabled
+            ? `Unpin one of your ${MAX_NAV_SHORTCUTS} shortcuts first`
+            : pinned
+              ? 'Remove from pinned shortcuts'
+              : 'Pin to the top of the sidebar'
+        }
+        className={cn(
+          'flex size-7 shrink-0 items-center justify-center rounded-md transition-colors',
+          'hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'disabled:cursor-not-allowed disabled:text-muted-foreground/40 disabled:hover:bg-transparent',
+          pinned
+            ? 'text-primary'
+            : // Hover-reveal is a desktop affordance; touch has no hover, so on
+              // small screens the pin is always visible.
+              'text-muted-foreground md:opacity-0 md:group-hover/nav:opacity-100 md:focus-visible:opacity-100',
+        )}
+      >
+        <PinIcon className="size-3.5" />
+      </button>
+    </li>
   );
 }

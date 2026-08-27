@@ -719,6 +719,10 @@ model Employee {
   rfqAttachmentsUploaded  RfqAttachment[]        @relation("RfqAttachmentUploader")
   rfqRevisionsRequested   RfqInvitee[]           @relation("RfqInviteeRevisionRequestedBy")
 
+  /// Personal sidebar shortcuts (see NavShortcut). Backend-persisted rather than
+  /// local, so they follow the employee across devices and browsers.
+  navShortcuts NavShortcut[] @relation("NavShortcutOwner")
+
   auditLogs AuditLog[] @relation("AuditActor")
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -727,6 +731,36 @@ model Employee {
   @@index([reportingManagerId])
   @@index([accessStatus])
   @@map("employees")
+}
+
+/// A page the employee pinned to the top of their sidebar. Deliberately the
+/// smallest possible model: the owner, the route, a display label and an order.
+///
+/// Why the backend and not localStorage: pinned shortcuts are a personal
+/// workspace setup that should follow the employee to any device or browser,
+/// unlike the sidebar's expand/collapse state (which stays local, per-device).
+///
+/// `href` is the nav route and the identity of the pin (unique per employee, so
+/// pinning twice is idempotent). `label` is snapshotted for display so a pin
+/// still renders if the route is not in the employee's current module nav; the
+/// UI prefers the live nav label whenever it can resolve one. No FK to a page
+/// registry exists — routes are declared in the frontend nav model — so the
+/// service validates only the shape of the route, and every page still enforces
+/// its own access on the server.
+model NavShortcut {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation("NavShortcutOwner", fields: [employeeId], references: [id], onDelete: Cascade)
+  href       String
+  label      String
+  /// Dense 0-based display order, re-sequenced on unpin so gaps never appear.
+  sortOrder  Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([employeeId, href])
+  @@index([employeeId, sortOrder])
+  @@map("nav_shortcuts")
 }
 
 enum LearningCourseStatus {

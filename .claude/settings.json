@@ -153,12 +153,14 @@
       "Bash(ps -p 94952 -o pid,command=)",
       "Bash(kill 20149 94952)",
       "Bash(pkill -f \"npm exec next start\")",
-      "Bash(xargs -I{} cat prisma/migrations/{}/migration.sql)"
+      "Bash(xargs -I{} cat prisma/migrations/{}/migration.sql)",
+      "Bash(ls src/modules/expense-claims src/modules/expense-claims/dto 2>/dev/null; echo \"-----\"; sed -n '1,40p' src/modules/expense-claims/dto/*.ts | head -45)"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",
       "/Users/nithin/Documents/GitHub/tx-peoplehub/app/(protected)/sales/orders/[id]",
-      "/Users/nithin/Documents/GitHub/tx-peoplehub/web/app/(protected)/sales/bids/new"
+      "/Users/nithin/Documents/GitHub/tx-peoplehub/web/app/(protected)/sales/bids/new",
+      "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/expense-claims/dto"
     ]
   }
 }

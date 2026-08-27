@@ -60,6 +60,7 @@ import { ExpenseClaimsModule } from './modules/expense-claims/expense-claims.mod
 import { PingsModule } from './modules/pings/pings.module';
 import { EfficiencyModule } from './modules/efficiency/efficiency.module';
 import { ExecutiveModule } from './modules/executive/executive.module';
+import { NavShortcutsModule } from './modules/nav-shortcuts/nav-shortcuts.module';
 
 @Module({
   imports: [
@@ -113,6 +114,7 @@ import { ExecutiveModule } from './modules/executive/executive.module';
     PingsModule,
     EfficiencyModule,
     ExecutiveModule,
+    NavShortcutsModule,
     HealthModule,
   ],
   providers: [

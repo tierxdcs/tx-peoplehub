@@ -537,6 +537,38 @@ export function sidebarNav(
   return [...home, ...moduleGroups, ...remainingShared];
 }
 
+/** A leaf page plus the section heading it sits under — the search index row. */
+export interface NavLeaf extends NavItem {
+  section: string;
+}
+
+/**
+ * Every leaf page this user can see, flattened and de-duplicated by href — the
+ * dataset behind the sidebar's "Jump to" search.
+ *
+ * Built across ALL of the user's modules, not just the active one, because the
+ * point of the search is to reach any page without knowing where it lives: a
+ * SuperAdmin sitting on an HR page can jump straight to Leads. A route that
+ * appears in two groups (e.g. Item Master under both SCM and Store Management)
+ * keeps its first occurrence, so each page is offered once.
+ */
+export function navLeaves(access: Access, modules: ModuleKey[]): NavLeaf[] {
+  const groups =
+    modules.length === 0
+      ? sidebarNav(access, undefined)
+      : modules.flatMap((module) => sidebarNav(access, module));
+  const seen = new Set<string>();
+  const leaves: NavLeaf[] = [];
+  for (const group of groups) {
+    for (const item of group.items) {
+      if (seen.has(item.href)) continue;
+      seen.add(item.href);
+      leaves.push({ ...item, section: group.heading });
+    }
+  }
+  return leaves;
+}
+
 /** First reachable route for a module — used for post-login landing + toggle. */
 export function moduleHome(
   module: ModuleKey,
