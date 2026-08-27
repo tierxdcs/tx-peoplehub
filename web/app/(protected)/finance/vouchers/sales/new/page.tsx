@@ -126,6 +126,10 @@ export default function NewSalesVoucherPage() {
   const [sgstRate, setSgstRate] = useState('0');
   const [state, setState] = useState('Karnataka');
   const [stateCode, setStateCode] = useState('29');
+  // The customer's own PO number for this supply. Optional — some customers
+  // raise none — but when present it must reach the printed tax invoice, which
+  // is where the customer's AP team matches the bill against their PO.
+  const [customerPoReference, setCustomerPoReference] = useState('');
   const [narration, setNarration] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -244,6 +248,9 @@ export default function NewSalesVoucherPage() {
           orderId,
           invoiceDate: date,
           dueDate,
+          // Omitted when blank so the column stays NULL rather than holding an
+          // empty string — every reader renders NULL as an em dash.
+          customerPoReference: customerPoReference.trim() || undefined,
           currencyCode: 'INR',
           placeOfSupplyState: state,
           placeOfSupplyStateCode: stateCode,
@@ -555,6 +562,16 @@ export default function NewSalesVoucherPage() {
             orders.find((order) => order.id === orderId)?.customer?.name ?? ''
           }
           placeholder="Selected automatically from the order"
+        />
+      </Field>
+      <Field
+        label="Customer PO Reference"
+        hint="Printed on the tax invoice as “Customer PO”. Leave blank if the customer raised none."
+      >
+        <Input
+          value={customerPoReference}
+          onChange={(e) => setCustomerPoReference(e.target.value)}
+          placeholder="Customer's PO number"
         />
       </Field>
       <div className="grid gap-3 sm:grid-cols-2">
