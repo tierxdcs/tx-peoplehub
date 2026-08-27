@@ -12,6 +12,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Select } from '../../../components/ui/select';
+import { SCard } from '../../../components/ui/signal';
 import { EmployeePicker } from './employee-picker';
 import {
   FILE_TYPE_OPTIONS,
@@ -93,7 +94,7 @@ export function VaultBrowseBar({
   }
 
   return (
-    <div className="mb-4 space-y-3">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1 sm:max-w-sm">
           <Search
@@ -224,7 +225,7 @@ export function VaultBrowseBar({
       )}
 
       {showFilters && (
-        <div className="grid gap-3 rounded-md border bg-muted/30 p-3 sm:grid-cols-2 lg:grid-cols-4">
+        <SCard className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
             <Label htmlFor="vault-filter-type">File type</Label>
             <Select
@@ -337,7 +338,7 @@ export function VaultBrowseBar({
               </span>
             )}
           </div>
-        </div>
+        </SCard>
       )}
 
       {!showFilters && summary && (

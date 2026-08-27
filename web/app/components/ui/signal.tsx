@@ -107,6 +107,7 @@ export function SignalPage({
 export function SignalHeader({
   backHref,
   backLabel,
+  breadcrumb,
   title,
   description,
   chip,
@@ -114,6 +115,12 @@ export function SignalHeader({
 }: {
   backHref?: string;
   backLabel?: string;
+  /**
+   * A multi-level path trail, for pages nested deeper than one level (Vault
+   * folders). Rendered on its own row above the title; use `backHref` instead
+   * when a single "back to the register" link says everything.
+   */
+  breadcrumb?: React.ReactNode;
   title: React.ReactNode;
   /** One-line register/page description shown under the title row. */
   description?: React.ReactNode;
@@ -122,6 +129,7 @@ export function SignalHeader({
 }) {
   return (
     <div className="border-b border-black/10 bg-[#ECECEC] px-5 py-3.5 lg:px-7 dark:border-white/[.07] dark:bg-[#1F1F1F]">
+      {breadcrumb && <div className="mb-1.5">{breadcrumb}</div>}
       <div className="flex flex-wrap items-center gap-3.5">
         {backHref && (
           <>

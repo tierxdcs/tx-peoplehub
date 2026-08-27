@@ -117,6 +117,15 @@ audit for unpaired tokens:
   on settings-style pages; a card with a bordered title strip
   (`border-b px-5 py-3.5` + `SCardTitle`) above a full-bleed `Table` yields
   exactly one hairline, since `TableHeader` has no top border.
+- ✅ Vault (DMS) — landing page + folder detail, and the shared browse bar,
+  file view, folder list and breadcrumb. Layout decision made here: the landing
+  page is a two-column `xl:grid-cols-[minmax(0,1fr)_360px]` — folders in the
+  main column, recent files as a sticky rail — because a stacked "Recent files"
+  section sat a full scroll below the folder grid. Folders render as one
+  hairline-divided card of rows (`VaultFolderList`), not tiles, which is what
+  makes both columns fit one screen. `SignalHeader` gained an optional
+  `breadcrumb` slot for pages nested deeper than one level (folder trees),
+  where a single `backHref` can't express the path.
 - ⬜ Sales Master Data (Customer Master) · stores/SCM rest · kanban/my-tasks ·
   finance · QMS · design · HR rest (leave) — convert module by
   module using this playbook. Signature screens with novel layouts (Kanban

@@ -2,15 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  Building2,
-  Clock,
-  Folder,
-  FolderLock,
-  Pencil,
-  Search as SearchIcon,
-  Users,
-} from 'lucide-react';
+import { Folder, Search as SearchIcon } from 'lucide-react';
 import { apiFetch, ApiError } from '../../lib/api';
 import type {
   VaultDownloadUrlResponse,
@@ -19,15 +11,18 @@ import type {
   VaultSearchResult,
 } from '../../lib/types';
 import { useAuth } from '../../lib/auth-context';
-import { PageContainer } from '../../components/ui/page-container';
-import { PageHeader } from '../../components/ui/page-header';
-import { Card, CardContent } from '../../components/ui/card';
-import { Badge } from '../../components/ui/badge';
+import {
+  SCard,
+  SignalHeader,
+  SignalPage,
+  SIGNAL_HAIRLINE,
+} from '../../components/ui/signal';
 import { Button } from '../../components/ui/button';
 import { Skeleton } from '../../components/ui/skeleton';
 import { EmptyState } from '../../components/ui/empty-state';
 import { useToast } from '../../components/ui/toaster';
 import { useConfirm } from '../../components/ui/confirm';
+import { cn } from '../../lib/utils';
 import { NewFolderDialog } from './_components/new-folder-dialog';
 import { RenameFolderDialog } from './_components/rename-folder-dialog';
 import { InternalShareDialog } from './_components/internal-share-dialog';
@@ -36,7 +31,8 @@ import { PreviewModal } from './_components/preview-modal';
 import { VersionPanel } from './_components/version-panel';
 import { VaultBrowseBar } from './_components/vault-browse-bar';
 import { VaultFileView } from './_components/vault-file-view';
-import { folderScopeLabel, folderScopeVariant } from './_lib/vault-format';
+import { VaultFolderList } from './_components/vault-folder-list';
+import { VaultRecentRail } from './_components/vault-recent-rail';
 import {
   EMPTY_BROWSE_STATE,
   buildSearchQuery,
@@ -159,13 +155,6 @@ export default function VaultLandingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  function iconFor(folder: VaultFolder) {
-    if (folder.type === 'PERSONAL') return FolderLock;
-    if (folder.visibilityScope === 'COMPANY_WIDE') return Building2;
-    if (folder.visibilityScope === 'TEAM') return Users;
-    return Folder;
-  }
-
   async function handleDownload(file: VaultFile) {
     try {
       const res = await apiFetch<VaultDownloadUrlResponse>(
@@ -223,188 +212,131 @@ export default function VaultLandingPage() {
       : undefined;
 
   return (
-    <PageContainer>
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
         title="Vault"
         description="Your documents and the folders you have access to."
-        action={
+        actions={
           canCreateFolder ? (
             <Button onClick={() => setShowNew(true)}>+ New Folder</Button>
           ) : undefined
         }
       />
 
-      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+        {error && (
+          <p className="text-[12.5px] font-semibold text-[#C13438] dark:text-[#FF8A8D]">
+            {error}
+          </p>
+        )}
 
-      <VaultBrowseBar
-        state={browse}
-        onChange={(patch) => setBrowse((current) => ({ ...current, ...patch }))}
-        view={view}
-        onViewChange={(next) => {
-          setView(next);
-          saveViewMode(next);
-        }}
-        searchPlaceholder="Search all of Vault…"
-        summary={summary}
-      />
-
-      {browsing ? (
-        <>
-          {results && results.folders.length > 0 && (
-            <div className="mb-6">
-              <h2 className="mb-2 text-sm font-medium text-muted-foreground">
-                Matching folders
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {results.folders.map((folder) => {
-                  const Icon = iconFor(folder);
-                  return (
-                    <button
-                      key={folder.id}
-                      onClick={() => router.push(`/vault/folders/${folder.id}`)}
-                      className="text-left"
-                    >
-                      <Card className="transition-colors hover:border-primary/50 hover:bg-accent/40">
-                        <CardContent className="flex items-center gap-3 p-4">
-                          <Icon className="size-7 shrink-0 text-muted-foreground" />
-                          <p className="min-w-0 flex-1 truncate font-medium">
-                            {folder.name}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {results && results.files.length > 0 && (
-            <VaultFileView
-              files={results.files}
-              view={view}
-              showFolder
-              actions={fileActions}
-            />
-          )}
-
-          {!searching &&
-            results &&
-            results.files.length === 0 &&
-            results.folders.length === 0 && (
-              <div className="flex flex-col items-center">
-                <EmptyState
-                  icon={SearchIcon}
-                  title="No matches"
-                  description="No file or folder you can access matches your search and filters."
-                />
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    setBrowse({ ...EMPTY_BROWSE_STATE, scope: 'VAULT' })
-                  }
-                >
-                  Clear search and filters
-                </Button>
-              </div>
-            )}
-        </>
-      ) : loading ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-4">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="mt-3 h-4 w-20" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : folders.length === 0 ? (
-        <EmptyState
-          icon={Folder}
-          title="No folders yet"
-          description={
-            canCreateFolder
-              ? 'Create a folder to start organizing documents.'
-              : 'You don’t have access to any folders yet.'
+        <VaultBrowseBar
+          state={browse}
+          onChange={(patch) =>
+            setBrowse((current) => ({ ...current, ...patch }))
           }
+          view={view}
+          onViewChange={(next) => {
+            setView(next);
+            saveViewMode(next);
+          }}
+          searchPlaceholder="Search all of Vault…"
+          summary={summary}
         />
-      ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {folders.map((folder) => {
-              const Icon = iconFor(folder);
-              return (
-                <Card
-                  key={folder.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => router.push(`/vault/folders/${folder.id}`)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      router.push(`/vault/folders/${folder.id}`);
-                    }
-                  }}
-                  className="group cursor-pointer transition-colors hover:border-primary/50 hover:bg-accent/40"
-                >
-                  <CardContent className="flex items-center gap-3 p-4">
-                    <Icon className="size-8 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{folder.name}</p>
-                      <div className="mt-1 flex items-center gap-2">
-                        <Badge variant={folderScopeVariant(folder)}>
-                          {folderScopeLabel(folder)}
-                        </Badge>
-                        {folder.versioningEnabled && (
-                          <Badge variant="muted">Versioned</Badge>
-                        )}
-                      </div>
-                    </div>
-                    {folder.access.canWrite && (
-                      <button
-                        type="button"
-                        aria-label={`Rename ${folder.name}`}
-                        title="Rename"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRenameTarget(folder);
-                        }}
-                        className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+
+        {/* Folders and the latest documents side by side: the recent files are a
+            persistent rail rather than a section stacked underneath, so neither
+            costs a scroll to reach. Below xl the rail stacks under the folders. */}
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="min-w-0 space-y-4">
+            {browsing ? (
+              <>
+                {results && results.folders.length > 0 && (
+                  <VaultFolderList
+                    folders={results.folders}
+                    title="Matching folders"
+                    subtitle={`${results.folders.length} match${
+                      results.folders.length === 1 ? '' : 'es'
+                    }`}
+                  />
+                )}
+
+                {results && results.files.length > 0 && (
+                  <VaultFileView
+                    files={results.files}
+                    view={view}
+                    showFolder
+                    actions={fileActions}
+                  />
+                )}
+
+                {!searching &&
+                  results &&
+                  results.files.length === 0 &&
+                  results.folders.length === 0 && (
+                    <SCard className="flex flex-col items-center py-2">
+                      <EmptyState
+                        icon={SearchIcon}
+                        title="No matches"
+                        description="No file or folder you can access matches your search and filters."
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          setBrowse({ ...EMPTY_BROWSE_STATE, scope: 'VAULT' })
+                        }
                       >
-                        <Pencil className="size-4" />
-                      </button>
+                        Clear search and filters
+                      </Button>
+                    </SCard>
+                  )}
+              </>
+            ) : loading ? (
+              <SCard className="overflow-hidden">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      'flex items-center gap-3 border-b px-4 py-3 last:border-b-0',
+                      SIGNAL_HAIRLINE,
                     )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+                  >
+                    <Skeleton className="size-5 rounded" />
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                ))}
+              </SCard>
+            ) : folders.length === 0 ? (
+              <SCard>
+                <EmptyState
+                  icon={Folder}
+                  title="No folders yet"
+                  description={
+                    canCreateFolder
+                      ? 'Create a folder to start organizing documents.'
+                      : 'You don’t have access to any folders yet.'
+                  }
+                />
+              </SCard>
+            ) : (
+              <VaultFolderList
+                folders={folders}
+                title="Folders"
+                subtitle={`${folders.length} you can access`}
+                onRename={setRenameTarget}
+              />
+            )}
           </div>
 
-          {recent.length > 0 && (
-            <section className="mt-8">
-              <div className="mb-2 flex items-baseline gap-2">
-                <h2 className="flex items-center gap-2 text-sm font-medium">
-                  <Clock className="size-4 text-muted-foreground" /> Recent
-                  files
-                </h2>
-                {/* Vault keeps no internal view log, so this is honestly
-                    "added or updated" — never "recently viewed". */}
-                <span className="text-xs text-muted-foreground">
-                  Most recently added or updated across your folders
-                </span>
-              </div>
-              <VaultFileView
-                files={recent}
-                view={view}
-                showFolder
-                actions={fileActions}
-              />
-            </section>
-          )}
-        </>
-      )}
+          <VaultRecentRail
+            files={recent}
+            loading={loading}
+            actions={fileActions}
+            className="xl:sticky xl:top-[4.5rem]"
+          />
+        </div>
+      </div>
 
       {showNew && (
         <NewFolderDialog
@@ -458,6 +390,6 @@ export default function VaultLandingPage() {
           onChanged={load}
         />
       )}
-    </PageContainer>
+    </SignalPage>
   );
 }

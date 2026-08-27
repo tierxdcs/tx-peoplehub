@@ -5,7 +5,7 @@ import { Download, Eye, History, Link2, Share2, Trash2 } from 'lucide-react';
 import type { VaultFile } from '../../../lib/types';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
-import { Card } from '../../../components/ui/card';
+import { SCard } from '../../../components/ui/signal';
 import {
   Table,
   TableBody,
@@ -55,18 +55,26 @@ function showVersions(
   return Boolean(actions.onVersions) && (versioningEnabled || file.versionCount > 1);
 }
 
-/** The icon row shared by both view modes, so the two can't drift apart. */
-function FileActions({
+/**
+ * The icon row shared by every view mode, so they can't drift apart — the
+ * card grid, the dense list, and the landing page's recent-files rail all get
+ * the same actions under the same permission gates. `compact` only shrinks the
+ * buttons, for the rail where full-size hit targets don't fit.
+ */
+export function FileActions({
   file,
   versioningEnabled,
   actions,
   align = 'end',
+  compact = false,
 }: {
   file: VaultFile;
   versioningEnabled: boolean;
   actions: VaultFileActions;
   align?: 'start' | 'end';
+  compact?: boolean;
 }) {
+  const button = compact ? 'size-7 [&_svg]:size-3.5' : undefined;
   return (
     <div
       className={`flex items-center gap-0.5 ${
@@ -76,6 +84,7 @@ function FileActions({
       <Button
         variant="ghost"
         size="icon"
+        className={button}
         onClick={() => actions.onPreview(file)}
         aria-label={`Preview ${file.name}`}
       >
@@ -84,6 +93,7 @@ function FileActions({
       <Button
         variant="ghost"
         size="icon"
+        className={button}
         onClick={() => actions.onDownload(file)}
         aria-label={`Download ${file.name}`}
       >
@@ -93,6 +103,7 @@ function FileActions({
         <Button
           variant="ghost"
           size="icon"
+          className={button}
           onClick={() => actions.onVersions?.(file)}
           aria-label={`Version history for ${file.name}`}
         >
@@ -103,6 +114,7 @@ function FileActions({
         <Button
           variant="ghost"
           size="icon"
+          className={button}
           onClick={() => actions.onShare?.(file)}
           aria-label={`Share ${file.name}`}
         >
@@ -113,6 +125,7 @@ function FileActions({
         <Button
           variant="ghost"
           size="icon"
+          className={button}
           onClick={() => actions.onLink?.(file)}
           aria-label={`Public link for ${file.name}`}
         >
@@ -123,6 +136,7 @@ function FileActions({
         <Button
           variant="ghost"
           size="icon"
+          className={button}
           onClick={() => actions.onDelete?.(file)}
           aria-label={`Delete ${file.name}`}
         >
@@ -148,7 +162,7 @@ export function VaultFileView({
 }: VaultFileViewProps) {
   if (view === 'list') {
     return (
-      <Card>
+      <SCard className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -211,16 +225,16 @@ export function VaultFileView({
             })}
           </TableBody>
         </Table>
-      </Card>
+      </SCard>
     );
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
       {files.map((file) => {
         const Icon = fileTypeIcon(file.fileType);
         return (
-          <Card key={file.id} className="flex flex-col p-4">
+          <SCard key={file.id} className="flex flex-col p-4">
             <div className="flex min-w-0 items-start gap-3">
               <Icon className="size-8 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
@@ -266,7 +280,7 @@ export function VaultFileView({
                 align="start"
               />
             </div>
-          </Card>
+          </SCard>
         );
       })}
     </div>

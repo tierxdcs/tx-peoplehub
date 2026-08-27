@@ -20,22 +20,21 @@ export function VaultBreadcrumb({
   ancestors: VaultFolderCrumb[];
   current: string;
 }) {
+  const link =
+    'max-w-[12rem] truncate hover:text-black/70 hover:underline dark:hover:text-white/70';
   return (
-    <nav aria-label="Folder path" className="mb-4 min-w-0 text-sm">
-      <ol className="flex flex-wrap items-center gap-1 text-muted-foreground">
+    <nav aria-label="Folder path" className="min-w-0 text-[12px]">
+      <ol className="flex flex-wrap items-center gap-1 text-black/45 dark:text-white/45">
         <li>
-          <Link href="/vault" className="hover:text-foreground hover:underline">
+          <Link href="/vault" className={link}>
             Vault
           </Link>
         </li>
         {ancestors.map((crumb) => (
           <li key={crumb.id} className="flex min-w-0 items-center gap-1">
-            <ChevronRight className="size-3.5 shrink-0" aria-hidden />
+            <ChevronRight className="size-3 shrink-0" aria-hidden />
             {crumb.canRead ? (
-              <Link
-                href={`/vault/folders/${crumb.id}`}
-                className="max-w-[12rem] truncate hover:text-foreground hover:underline"
-              >
+              <Link href={`/vault/folders/${crumb.id}`} className={link}>
                 {crumb.name}
               </Link>
             ) : (
@@ -49,10 +48,10 @@ export function VaultBreadcrumb({
           </li>
         ))}
         <li className="flex min-w-0 items-center gap-1">
-          <ChevronRight className="size-3.5 shrink-0" aria-hidden />
+          <ChevronRight className="size-3 shrink-0" aria-hidden />
           <span
             aria-current="page"
-            className="max-w-[16rem] truncate font-medium text-foreground"
+            className="max-w-[16rem] truncate font-medium text-black/70 dark:text-white/70"
           >
             {current}
           </span>

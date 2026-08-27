@@ -174,7 +174,14 @@
       "Bash(node ./vault-fixture.tmp.js)",
       "Bash(echo \"LINT_EXIT=$?\")",
       "Bash(awk 'NR>=200 && NR<=260' /tmp/committed-vfs.ts)",
-      "Bash(node ./vault-fixture-cleanup.tmp.js)"
+      "Bash(node ./vault-fixture-cleanup.tmp.js)",
+      "Bash(ps -o pid,command -p 5051)",
+      "Bash(curl -s -o /tmp/vault.html -w \"%{http_code}\\\\n\" http://localhost:3001/vault)",
+      "Bash(ps -o ppid= -p 5051)",
+      "Bash(ps -o pid,command -p 5029)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/vault)",
+      "Bash(curl -s -o /dev/null -w \"web:%{http_code}\\\\n\" http://localhost:3001/vault)",
+      "Bash(curl -s -o /dev/null -w \"api:%{http_code}\\\\n\" http://localhost:3000/health)"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",

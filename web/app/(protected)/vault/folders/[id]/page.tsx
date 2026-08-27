@@ -1,21 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
-  ArrowLeft,
-  Building2,
   File as FileIcon,
   Folder,
-  FolderLock,
   Link2,
   Pencil,
   Search as SearchIcon,
   Share2,
   Trash2,
   Upload,
-  Users,
 } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import type {
@@ -25,9 +20,11 @@ import type {
   VaultSearchResult,
 } from '../../../../lib/types';
 import { useAuth } from '../../../../lib/auth-context';
-import { PageContainer } from '../../../../components/ui/page-container';
-import { PageHeader } from '../../../../components/ui/page-header';
-import { Card, CardContent } from '../../../../components/ui/card';
+import {
+  SCard,
+  SignalHeader,
+  SignalPage,
+} from '../../../../components/ui/signal';
 import { Badge } from '../../../../components/ui/badge';
 import { Button } from '../../../../components/ui/button';
 import { Skeleton } from '../../../../components/ui/skeleton';
@@ -44,6 +41,7 @@ import { UploadQueueDialog } from '../../_components/upload-queue-dialog';
 import { VaultBreadcrumb } from '../../_components/vault-breadcrumb';
 import { VaultBrowseBar } from '../../_components/vault-browse-bar';
 import { VaultFileView } from '../../_components/vault-file-view';
+import { VaultFolderList } from '../../_components/vault-folder-list';
 import {
   folderScopeLabel,
   folderScopeVariant,
@@ -70,13 +68,6 @@ type Dialog =
   | { kind: 'linkFile'; file: VaultFile }
   | { kind: 'versions'; file: VaultFile }
   | null;
-
-function subfolderIcon(folder: VaultFolder) {
-  if (folder.type === 'PERSONAL') return FolderLock;
-  if (folder.visibilityScope === 'COMPANY_WIDE') return Building2;
-  if (folder.visibilityScope === 'TEAM') return Users;
-  return Folder;
-}
 
 export default function FolderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -248,25 +239,27 @@ export default function FolderDetailPage() {
 
   if (loading) {
     return (
-      <PageContainer>
-        <Skeleton className="mb-4 h-5 w-48" />
-        <Skeleton className="mb-6 h-9 w-64" />
-        <Skeleton className="h-48 w-full" />
-      </PageContainer>
+      <SignalPage>
+        <SignalHeader backHref="/vault" backLabel="Vault" title="Vault" />
+        <div className="px-5 pb-7 pt-[18px] lg:px-7">
+          <Skeleton className="mb-4 h-5 w-48" />
+          <Skeleton className="mb-6 h-9 w-64" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      </SignalPage>
     );
   }
 
   if (error || !folder) {
     return (
-      <PageContainer>
-        <Link
-          href="/vault"
-          className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" /> Vault
-        </Link>
-        <p className="text-destructive">{error ?? 'Folder not found.'}</p>
-      </PageContainer>
+      <SignalPage>
+        <SignalHeader backHref="/vault" backLabel="Vault" title="Vault" />
+        <div className="px-5 pb-7 pt-[18px] lg:px-7">
+          <p className="text-[13px] font-semibold text-[#C13438] dark:text-[#FF8A8D]">
+            {error ?? 'Folder not found.'}
+          </p>
+        </div>
+      </SignalPage>
     );
   }
 
@@ -294,15 +287,16 @@ export default function FolderDetailPage() {
       : `${files.length} file${files.length === 1 ? '' : 's'}`;
 
   return (
-    <PageContainer>
-      <VaultBreadcrumb
-        ancestors={folder.ancestors ?? []}
-        current={folder.name}
-      />
-
-      <PageHeader
+    <SignalPage>
+      <SignalHeader
+        breadcrumb={
+          <VaultBreadcrumb
+            ancestors={folder.ancestors ?? []}
+            current={folder.name}
+          />
+        }
         title={folder.name}
-        description={
+        chip={
           <span className="flex items-center gap-2">
             <Badge variant={folderScopeVariant(folder)}>
               {folderScopeLabel(folder)}
@@ -310,8 +304,8 @@ export default function FolderDetailPage() {
             {folder.versioningEnabled && <Badge variant="muted">Versioned</Badge>}
           </span>
         }
-        action={
-          <div className="flex flex-wrap items-center gap-2">
+        actions={
+          <>
             {access.canWrite && (
               <Button variant="outline" onClick={() => setDialog({ kind: 'rename' })}>
                 <Pencil /> Rename
@@ -342,102 +336,87 @@ export default function FolderDetailPage() {
                 <Trash2 /> Delete Folder
               </Button>
             )}
-          </div>
+          </>
         }
       />
 
-      <VaultBrowseBar
-        state={browse}
-        onChange={(patch) => setBrowse((current) => ({ ...current, ...patch }))}
-        scopeFolderName={folder.name}
-        view={view}
-        onViewChange={(next) => {
-          setView(next);
-          saveViewMode(next);
-        }}
-        summary={summary}
-      />
+      <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+        <VaultBrowseBar
+          state={browse}
+          onChange={(patch) =>
+            setBrowse((current) => ({ ...current, ...patch }))
+          }
+          scopeFolderName={folder.name}
+          view={view}
+          onViewChange={(next) => {
+            setView(next);
+            saveViewMode(next);
+          }}
+          summary={summary}
+        />
 
-      {shownFolders.length > 0 && (
-        <div className="mb-6">
-          {browsing && (
-            <h2 className="mb-2 text-sm font-medium text-muted-foreground">
-              Matching folders
-            </h2>
-          )}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {shownFolders.map((child) => {
-              const Icon = subfolderIcon(child);
-              return (
-                <button
-                  key={child.id}
-                  onClick={() => router.push(`/vault/folders/${child.id}`)}
-                  className="text-left"
+        {shownFolders.length > 0 && (
+          <VaultFolderList
+            folders={shownFolders}
+            title={browsing ? 'Matching folders' : 'Subfolders'}
+            subtitle={`${shownFolders.length} folder${
+              shownFolders.length === 1 ? '' : 's'
+            }`}
+          />
+        )}
+
+        {files.length === 0 ? (
+          browsing ? (
+            shownFolders.length === 0 && (
+              <SCard className="flex flex-col items-center py-2">
+                <EmptyState
+                  icon={SearchIcon}
+                  title="No matches"
+                  description="Nothing here matches your search and filters."
+                />
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setBrowse({ ...EMPTY_BROWSE_STATE, scope: browse.scope })
+                  }
                 >
-                  <Card className="transition-colors hover:border-primary/50 hover:bg-accent/40">
-                    <CardContent className="flex items-center gap-3 p-4">
-                      <Icon className="size-7 shrink-0 text-muted-foreground" />
-                      <p className="min-w-0 flex-1 truncate font-medium">
-                        {child.name}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {files.length === 0 ? (
-        browsing ? (
-          shownFolders.length === 0 && (
-            <div className="flex flex-col items-center">
+                  Clear search and filters
+                </Button>
+              </SCard>
+            )
+          ) : (
+            <SCard>
               <EmptyState
-                icon={SearchIcon}
-                title="No matches"
-                description="Nothing here matches your search and filters."
-              />
-              <Button
-                variant="outline"
-                onClick={() =>
-                  setBrowse({ ...EMPTY_BROWSE_STATE, scope: browse.scope })
+                icon={FileIcon}
+                title="No files yet"
+                description={
+                  access.canWrite
+                    ? 'Upload a file to get started.'
+                    : 'This folder has no files you can see.'
                 }
-              >
-                Clear search and filters
-              </Button>
-            </div>
+              />
+            </SCard>
           )
         ) : (
-          <EmptyState
-            icon={FileIcon}
-            title="No files yet"
-            description={
-              access.canWrite
-                ? 'Upload a file to get started.'
-                : 'This folder has no files you can see.'
-            }
+          <VaultFileView
+            files={files}
+            view={view}
+            // Browsing can return files from other folders, so name the folder —
+            // and this folder's versioning setting no longer speaks for every
+            // row, so history is offered only where versions actually exist.
+            showFolder={browsing}
+            versioningEnabled={!browsing && folder.versioningEnabled}
+            actions={{
+              onPreview: (file) => setDialog({ kind: 'preview', file }),
+              onDownload: handleDownload,
+              onVersions: (file) => setDialog({ kind: 'versions', file }),
+              onShare: (file) => setDialog({ kind: 'shareFile', file }),
+              onLink: (file) => setDialog({ kind: 'linkFile', file }),
+              onDelete: handleDeleteFile,
+            }}
           />
-        )
-      ) : (
-        <VaultFileView
-          files={files}
-          view={view}
-          // Browsing can return files from other folders, so name the folder —
-          // and this folder's versioning setting no longer speaks for every row,
-          // so history is offered only where versions actually exist.
-          showFolder={browsing}
-          versioningEnabled={!browsing && folder.versioningEnabled}
-          actions={{
-            onPreview: (file) => setDialog({ kind: 'preview', file }),
-            onDownload: handleDownload,
-            onVersions: (file) => setDialog({ kind: 'versions', file }),
-            onShare: (file) => setDialog({ kind: 'shareFile', file }),
-            onLink: (file) => setDialog({ kind: 'linkFile', file }),
-            onDelete: handleDeleteFile,
-          }}
-        />
-      )}
+        )}
+      </div>
 
       {dialog?.kind === 'upload' && (
         <UploadQueueDialog
@@ -514,6 +493,6 @@ export default function FolderDetailPage() {
           onChanged={loadFiles}
         />
       )}
-    </PageContainer>
+    </SignalPage>
   );
 }
