@@ -1,4 +1,4 @@
-import { VaultFolderType, VaultVisibilityScope } from '@prisma/client';
+import { VaultFolderType } from '@prisma/client';
 import {
   VaultFileTypeCategory,
   VaultFileOrigin,
@@ -240,11 +240,14 @@ export const FILE_TYPE_SORT_ORDER: VaultFileTypeCategory[] = [
  * There is NO stored "source module" column on VaultFile (audited against the
  * schema), so origin is derived from real referential data: the module's own
  * back-relation when one exists, else the identity of the module-owned folder
- * the file was filed into. Folder identity is not a guess — it is exactly how
- * the modules themselves resolve these folders (by name + DEFAULT +
- * COMPANY_WIDE): see scm.service.ts ('Vendor NDA'),
+ * the file was filed into. Folder identity is not a guess — name + DEFAULT is
+ * exactly how the modules themselves resolve these folders:
  * rfq-quote-vault.service.ts ('RFQ Quotes'), leads.service.ts
- * ('Lead Attachments').
+ * ('Lead Attachments'), scm.service.ts ('Vendor NDA'). The scope is
+ * deliberately NOT part of the match: as seeded, Vendor NDA is COMPANY_WIDE
+ * while RFQ Quotes and Lead Attachments are VERTICAL-scoped. DEFAULT is the
+ * meaningful guard — only a SUPER_ADMIN can create a DEFAULT folder, so a
+ * same-named CUSTOM folder someone made is not mistaken for a module's.
  */
 export const ORIGIN_FOLDER_NAMES: Record<string, VaultFileOrigin> = {
   'Vendor NDA': VaultFileOrigin.VENDOR_QUALIFICATION,
@@ -260,7 +263,6 @@ export interface VaultOriginSignals {
   hasVendorNda: boolean;
   folderName: string;
   folderType: VaultFolderType;
-  folderVisibilityScope: VaultVisibilityScope;
 }
 
 /**
@@ -276,10 +278,7 @@ export function deriveVaultFileOrigin(
   if (signals.hasLeadAttachment) return VaultFileOrigin.SALES_LEAD;
   if (signals.hasVendorNda) return VaultFileOrigin.VENDOR_QUALIFICATION;
 
-  if (
-    signals.folderType === VaultFolderType.DEFAULT &&
-    signals.folderVisibilityScope === VaultVisibilityScope.COMPANY_WIDE
-  ) {
+  if (signals.folderType === VaultFolderType.DEFAULT) {
     const byFolder = ORIGIN_FOLDER_NAMES[signals.folderName];
     if (byFolder) return byFolder;
   }

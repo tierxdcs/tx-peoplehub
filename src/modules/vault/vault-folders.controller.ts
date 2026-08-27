@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -22,6 +23,7 @@ import { UpdateVaultFolderDto } from './dto/update-vault-folder.dto';
 import { GrantVaultPermissionDto } from './dto/grant-vault-permission.dto';
 import { CreateInternalShareDto } from './dto/create-internal-share.dto';
 import { CreateShareLinkDto } from './dto/create-share-link.dto';
+import { VaultBrowseQueryDto } from './dto/vault-search-query.dto';
 import { VaultFoldersService } from './vault-folders.service';
 import { VaultFilesService } from './vault-files.service';
 import { VaultSharesService } from './vault-shares.service';
@@ -78,10 +80,14 @@ export class VaultFoldersController {
   @Get(':id/files')
   @ApiOperation({
     summary:
-      'List the files in this folder, enriched (size/mime/preview/versions + per-file access)',
+      'List the files in this folder, enriched (size/mime/preview/versions + per-file access), with optional type/uploader/date/origin filters and sort',
   })
-  listFiles(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.files.listFilesInFolder(id, user);
+  listFiles(
+    @Param('id') id: string,
+    @Query() query: VaultBrowseQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.files.listFilesInFolder(id, user, query);
   }
 
   @Get(':id/shares')

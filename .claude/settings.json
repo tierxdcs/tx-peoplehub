@@ -162,7 +162,19 @@
       "Bash(awk '/^model DesignChange /,/^}/' prisma/schema.prisma)",
       "Bash(awk '/^model VaultFolder /,/^}/' prisma/schema.prisma)",
       "Bash(awk '/^model VaultFile /,/^}/' prisma/schema.prisma)",
-      "Bash(awk '/^model VaultFileVersion /,/^}/' prisma/schema.prisma)"
+      "Bash(awk '/^model VaultFileVersion /,/^}/' prisma/schema.prisma)",
+      "Bash(node -e \"const l=require\\('lucide-react'\\); for \\(const n of ['FileText','FileSpreadsheet','FileImage','FileArchive','FileCode','Presentation','Box','LayoutGrid','List','Clock','Search','SlidersHorizontal','ChevronRight','X','FileType']\\) console.log\\(n, !!l[n]\\);\")",
+      "Bash(lsof -ti:3000)",
+      "Bash(ps -p 80832 -o command=)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/api/health)",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"roots:%{http_code}\\\\n\" http://localhost:3000/vault/folders/roots)",
+      "Bash(python3 -c \"import sys,json;print\\(json.load\\(sys.stdin\\)['data']['accessToken']\\)\")",
+      "Bash(curl -s -H 'Authorization: Bearer __TRACKED_VAR__' http://localhost:3000/vault/files/recent?limit=5)",
+      "Bash(node ./vault-fixture.tmp.js)",
+      "Bash(echo \"LINT_EXIT=$?\")",
+      "Bash(awk 'NR>=200 && NR<=260' /tmp/committed-vfs.ts)",
+      "Bash(node ./vault-fixture-cleanup.tmp.js)"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",

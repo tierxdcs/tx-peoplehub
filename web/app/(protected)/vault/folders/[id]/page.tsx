@@ -1,19 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Building2,
-  Download,
-  Eye,
   File as FileIcon,
   Folder,
   FolderLock,
-  History,
   Link2,
   Pencil,
+  Search as SearchIcon,
   Share2,
   Trash2,
   Upload,
@@ -24,6 +22,7 @@ import type {
   VaultDownloadUrlResponse,
   VaultFile,
   VaultFolder,
+  VaultSearchResult,
 } from '../../../../lib/types';
 import { useAuth } from '../../../../lib/auth-context';
 import { PageContainer } from '../../../../components/ui/page-container';
@@ -33,14 +32,6 @@ import { Badge } from '../../../../components/ui/badge';
 import { Button } from '../../../../components/ui/button';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { EmptyState } from '../../../../components/ui/empty-state';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../../../../components/ui/table';
 import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
 import { NewFolderDialog } from '../../_components/new-folder-dialog';
@@ -50,12 +41,23 @@ import { ExternalShareDialog } from '../../_components/external-share-dialog';
 import { PreviewModal } from '../../_components/preview-modal';
 import { VersionPanel } from '../../_components/version-panel';
 import { UploadQueueDialog } from '../../_components/upload-queue-dialog';
+import { VaultBreadcrumb } from '../../_components/vault-breadcrumb';
+import { VaultBrowseBar } from '../../_components/vault-browse-bar';
+import { VaultFileView } from '../../_components/vault-file-view';
 import {
   folderScopeLabel,
   folderScopeVariant,
-  formatBytes,
-  formatDate,
 } from '../../_lib/vault-format';
+import {
+  EMPTY_BROWSE_STATE,
+  buildBrowseQuery,
+  buildSearchQuery,
+  isBrowsing,
+  loadViewMode,
+  saveViewMode,
+  type VaultBrowseState,
+  type VaultViewMode,
+} from '../../_lib/vault-query';
 
 type Dialog =
   | { kind: 'newSubfolder' }
@@ -85,22 +87,49 @@ export default function FolderDetailPage() {
 
   const [folder, setFolder] = useState<VaultFolder | null>(null);
   const [files, setFiles] = useState<VaultFile[]>([]);
+  const [matchedFolders, setMatchedFolders] = useState<VaultFolder[] | null>(
+    null,
+  );
+  const [totalMatches, setTotalMatches] = useState<number | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [filesLoading, setFilesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
 
+  // A folder page starts scoped to the folder you opened; "Entire Vault" is the
+  // deliberate widening, never the default.
+  const [browse, setBrowse] = useState<VaultBrowseState>({
+    ...EMPTY_BROWSE_STATE,
+    scope: 'FOLDER',
+  });
+  const [debouncedTerm, setDebouncedTerm] = useState('');
+  const [view, setView] = useState<VaultViewMode>('grid');
+
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
-  const load = useCallback(async () => {
+  // localStorage is only readable after mount, so grid renders first and the
+  // remembered choice is applied immediately after.
+  useEffect(() => {
+    setView(loadViewMode());
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedTerm(browse.term), 250);
+    return () => clearTimeout(timer);
+  }, [browse.term]);
+
+  const query = useMemo<VaultBrowseState>(
+    () => ({ ...browse, term: debouncedTerm }),
+    [browse, debouncedTerm],
+  );
+  const browsing = isBrowsing(query);
+
+  const loadFolder = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [f, list] = await Promise.all([
-        apiFetch<VaultFolder>(`/vault/folders/${id}`),
-        apiFetch<VaultFile[]>(`/vault/folders/${id}/files`),
-      ]);
-      setFolder(f);
-      setFiles(list);
+      setFolder(await apiFetch<VaultFolder>(`/vault/folders/${id}`));
     } catch (err) {
       setError(
         err instanceof ApiError && err.statusCode === 403
@@ -112,9 +141,59 @@ export default function FolderDetailPage() {
     }
   }, [id]);
 
+  /**
+   * Two request shapes, one funnel: browsing (a term and/or filters) goes to the
+   * search endpoint so the chosen scope decides whether subfolders are included;
+   * a plain visit lists just this folder, with sort applied.
+   */
+  const loadFiles = useCallback(async () => {
+    setFilesLoading(true);
+    try {
+      if (isBrowsing(query)) {
+        const result = await apiFetch<VaultSearchResult>(
+          `/vault/files/search?${buildSearchQuery(query, id)}`,
+        );
+        setFiles(result.files);
+        setMatchedFolders(result.folders);
+        setTotalMatches(result.totalFileMatches);
+        setTruncated(result.truncated);
+      } else {
+        const search = buildBrowseQuery(query);
+        setFiles(
+          await apiFetch<VaultFile[]>(
+            `/vault/folders/${id}/files${search ? `?${search}` : ''}`,
+          ),
+        );
+        setMatchedFolders(null);
+        setTotalMatches(null);
+        setTruncated(false);
+      }
+    } catch (err) {
+      // The folder request owns the access/not-found message; a failure here is
+      // about this list only, so don't blank the page out.
+      if (!(err instanceof ApiError && err.statusCode === 403)) {
+        toast.error('Failed to load files.');
+      }
+      setFiles([]);
+    } finally {
+      setFilesLoading(false);
+    }
+    // toast is stable for the component's life; excluding it keeps this from
+    // re-firing a request on unrelated re-renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, query]);
+
+  const reload = useCallback(async () => {
+    await Promise.all([loadFolder(), loadFiles()]);
+  }, [loadFolder, loadFiles]);
+
   useEffect(() => {
-    load();
-  }, [load]);
+    void loadFolder();
+  }, [loadFolder]);
+
+  useEffect(() => {
+    void loadFiles();
+  }, [loadFiles]);
 
   async function handleDownload(file: VaultFile) {
     try {
@@ -138,7 +217,7 @@ export default function FolderDetailPage() {
     try {
       await apiFetch(`/vault/files/${file.id}`, { method: 'DELETE' });
       toast.success('File deleted.');
-      await load();
+      await loadFiles();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Failed to delete file');
     }
@@ -170,7 +249,7 @@ export default function FolderDetailPage() {
   if (loading) {
     return (
       <PageContainer>
-        <Skeleton className="mb-4 h-5 w-24" />
+        <Skeleton className="mb-4 h-5 w-48" />
         <Skeleton className="mb-6 h-9 w-64" />
         <Skeleton className="h-48 w-full" />
       </PageContainer>
@@ -192,7 +271,8 @@ export default function FolderDetailPage() {
   }
 
   const { access } = folder;
-  const subfolders = folder.children ?? [];
+  // Browsing replaces the folder's own children with the folders that matched.
+  const shownFolders = matchedFolders ?? folder.children ?? [];
   // External links aren't allowed on PERSONAL folders (backend rule), so hide
   // the action there rather than surface a guaranteed error.
   const canLinkFolder = access.canWrite && folder.type !== 'PERSONAL';
@@ -201,18 +281,24 @@ export default function FolderDetailPage() {
   const canDeleteFolder =
     user?.role === 'SUPER_ADMIN' && folder.type === 'DEFAULT';
 
+  const summary = filesLoading
+    ? 'Loading…'
+    : browsing
+      ? `${files.length} of ${totalMatches ?? files.length} file${
+          (totalMatches ?? files.length) === 1 ? '' : 's'
+        }${truncated ? ' (more exist — narrow the filters)' : ''}${
+          shownFolders.length > 0
+            ? `, ${shownFolders.length} folder${shownFolders.length === 1 ? '' : 's'}`
+            : ''
+        }`
+      : `${files.length} file${files.length === 1 ? '' : 's'}`;
+
   return (
     <PageContainer>
-      <Link
-        href={
-          folder.parentFolderId
-            ? `/vault/folders/${folder.parentFolderId}`
-            : '/vault'
-        }
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> {folder.parentFolderId ? 'Back' : 'Vault'}
-      </Link>
+      <VaultBreadcrumb
+        ancestors={folder.ancestors ?? []}
+        current={folder.name}
+      />
 
       <PageHeader
         title={folder.name}
@@ -260,147 +346,104 @@ export default function FolderDetailPage() {
         }
       />
 
-      {subfolders.length > 0 && (
-        <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {subfolders.map((child) => {
-            const Icon = subfolderIcon(child);
-            return (
-              <button
-                key={child.id}
-                onClick={() => router.push(`/vault/folders/${child.id}`)}
-                className="text-left"
-              >
-                <Card className="transition-colors hover:border-primary/50 hover:bg-accent/40">
-                  <CardContent className="flex items-center gap-3 p-4">
-                    <Icon className="size-7 shrink-0 text-muted-foreground" />
-                    <p className="min-w-0 flex-1 truncate font-medium">
-                      {child.name}
-                    </p>
-                  </CardContent>
-                </Card>
-              </button>
-            );
-          })}
+      <VaultBrowseBar
+        state={browse}
+        onChange={(patch) => setBrowse((current) => ({ ...current, ...patch }))}
+        scopeFolderName={folder.name}
+        view={view}
+        onViewChange={(next) => {
+          setView(next);
+          saveViewMode(next);
+        }}
+        summary={summary}
+      />
+
+      {shownFolders.length > 0 && (
+        <div className="mb-6">
+          {browsing && (
+            <h2 className="mb-2 text-sm font-medium text-muted-foreground">
+              Matching folders
+            </h2>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {shownFolders.map((child) => {
+              const Icon = subfolderIcon(child);
+              return (
+                <button
+                  key={child.id}
+                  onClick={() => router.push(`/vault/folders/${child.id}`)}
+                  className="text-left"
+                >
+                  <Card className="transition-colors hover:border-primary/50 hover:bg-accent/40">
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <Icon className="size-7 shrink-0 text-muted-foreground" />
+                      <p className="min-w-0 flex-1 truncate font-medium">
+                        {child.name}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
       {files.length === 0 ? (
-        <EmptyState
-          icon={FileIcon}
-          title="No files yet"
-          description={
-            access.canWrite
-              ? 'Upload a file to get started.'
-              : 'This folder has no files you can see.'
-          }
-        />
+        browsing ? (
+          shownFolders.length === 0 && (
+            <div className="flex flex-col items-center">
+              <EmptyState
+                icon={SearchIcon}
+                title="No matches"
+                description="Nothing here matches your search and filters."
+              />
+              <Button
+                variant="outline"
+                onClick={() =>
+                  setBrowse({ ...EMPTY_BROWSE_STATE, scope: browse.scope })
+                }
+              >
+                Clear search and filters
+              </Button>
+            </div>
+          )
+        ) : (
+          <EmptyState
+            icon={FileIcon}
+            title="No files yet"
+            description={
+              access.canWrite
+                ? 'Upload a file to get started.'
+                : 'This folder has no files you can see.'
+            }
+          />
+        )
       ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead>Uploaded by</TableHead>
-                <TableHead>Modified</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {files.map((file) => (
-                <TableRow key={file.id}>
-                  <TableCell>
-                    <button
-                      onClick={() => setDialog({ kind: 'preview', file })}
-                      className="flex items-center gap-2 text-left hover:underline"
-                    >
-                      <FileIcon className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 truncate font-medium">
-                        {file.name}
-                      </span>
-                    </button>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatBytes(file.sizeBytes)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {file.uploadedByName ?? '—'}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatDate(file.updatedAt)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setDialog({ kind: 'preview', file })}
-                        aria-label="Preview"
-                      >
-                        <Eye />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDownload(file)}
-                        aria-label="Download"
-                      >
-                        <Download />
-                      </Button>
-                      {folder.versioningEnabled && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDialog({ kind: 'versions', file })}
-                          aria-label="Version history"
-                        >
-                          <History />
-                        </Button>
-                      )}
-                      {file.access.canWrite && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDialog({ kind: 'shareFile', file })}
-                          aria-label="Share"
-                        >
-                          <Share2 />
-                        </Button>
-                      )}
-                      {file.access.canWrite && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDialog({ kind: 'linkFile', file })}
-                          aria-label="Public link"
-                        >
-                          <Link2 />
-                        </Button>
-                      )}
-                      {file.access.canDelete && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteFile(file)}
-                          aria-label="Delete"
-                        >
-                          <Trash2 className="text-destructive" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+        <VaultFileView
+          files={files}
+          view={view}
+          // Browsing can return files from other folders, so name the folder —
+          // and this folder's versioning setting no longer speaks for every row,
+          // so history is offered only where versions actually exist.
+          showFolder={browsing}
+          versioningEnabled={!browsing && folder.versioningEnabled}
+          actions={{
+            onPreview: (file) => setDialog({ kind: 'preview', file }),
+            onDownload: handleDownload,
+            onVersions: (file) => setDialog({ kind: 'versions', file }),
+            onShare: (file) => setDialog({ kind: 'shareFile', file }),
+            onLink: (file) => setDialog({ kind: 'linkFile', file }),
+            onDelete: handleDeleteFile,
+          }}
+        />
       )}
 
       {dialog?.kind === 'upload' && (
         <UploadQueueDialog
           folderId={folder.id}
           onClose={() => setDialog(null)}
-          onUploaded={load}
+          onUploaded={reload}
         />
       )}
 
@@ -421,7 +464,7 @@ export default function FolderDetailPage() {
           onClose={() => setDialog(null)}
           onRenamed={() => {
             setDialog(null);
-            void load();
+            void loadFolder();
           }}
         />
       )}
@@ -468,7 +511,7 @@ export default function FolderDetailPage() {
         <VersionPanel
           file={dialog.file}
           onClose={() => setDialog(null)}
-          onChanged={load}
+          onChanged={loadFiles}
         />
       )}
     </PageContainer>

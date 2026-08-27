@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ClipboardList, LayoutGrid, Users } from 'lucide-react';
+import { Archive, ClipboardList, LayoutGrid, Users } from 'lucide-react';
 import { listBoards, type KanbanBoard } from '../../lib/kanban';
 import { useAuth } from '../../lib/auth-context';
 import { PageContainer } from '../../components/ui/page-container';
@@ -46,8 +46,10 @@ export default function KanbanBoardsPage() {
   }, [load]);
 
   const filteredBoards = boards.filter((board) =>
-    boardFilter === 'all' || board.isCustomerBoard === (boardFilter === 'customer'),
+    board.status === 'ACTIVE' &&
+    (boardFilter === 'all' || board.isCustomerBoard === (boardFilter === 'customer')),
   );
+  const archivedBoards = boards.filter((board) => board.status === 'ARCHIVED');
 
   return (
     <PageContainer>
@@ -69,7 +71,7 @@ export default function KanbanBoardsPage() {
           >
             {filter === 'all' ? 'All boards' : filter === 'customer' ? 'Customer boards' : 'Personal boards'}
             <span className="text-xs text-muted-foreground">
-              {filter === 'all' ? boards.length : boards.filter((board) => board.isCustomerBoard === (filter === 'customer')).length}
+              {filter === 'all' ? boards.filter((board) => board.status === 'ACTIVE').length : boards.filter((board) => board.status === 'ACTIVE' && board.isCustomerBoard === (filter === 'customer')).length}
             </span>
           </Button>
         ))}
@@ -133,6 +135,43 @@ export default function KanbanBoardsPage() {
             </button>
           ))}
         </div>
+      )}
+
+      {archivedBoards.length > 0 && (
+        <section className="mt-10">
+          <div className="mb-4 flex items-center gap-2">
+            <Archive className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-lg font-semibold">Archived boards</h2>
+            <Badge variant="muted">{archivedBoards.length}</Badge>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {archivedBoards.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => router.push(`/kanban/boards/${b.id}`)}
+                className="text-left"
+              >
+                <Card className="h-full opacity-75 transition-colors hover:border-primary hover:bg-accent/40">
+                  <CardContent className="flex h-full flex-col gap-3 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="block font-semibold leading-tight">{b.name}</span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {b.isCustomerBoard ? 'Customer board' : 'Personal board'}
+                        </span>
+                      </div>
+                      <Badge variant="muted">Archived</Badge>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {b.taskCounts.complete} completed {b.taskCounts.complete === 1 ? 'task' : 'tasks'}
+                    </span>
+                  </CardContent>
+                </Card>
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
       {creating && (

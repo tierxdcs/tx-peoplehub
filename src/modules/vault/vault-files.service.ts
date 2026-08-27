@@ -216,7 +216,7 @@ export class VaultFilesService {
       params.mimeType,
     );
     const created = await this.prisma.$transaction(async (tx) => {
-      const file = await tx.vaultFile.create({
+      await tx.vaultFile.create({
         data: {
           id: fileId,
           folderId: folder.id,
@@ -769,15 +769,36 @@ export class VaultFilesService {
     const extraIdSet = new Set(extraFileIds);
     const keepExtra = opts.keepExtraFile ?? (() => true);
 
+    // Scope pass first: a row outside the caller's scope can never be shown,
+    // and dropping it here keeps the folder fetch below to what is really used.
+    const inScope = candidates.filter(
+      (file) =>
+        inScopeFolderIds.has(file.folderId) ||
+        (extraIdSet.has(file.id) && keepExtra(file.folderId)),
+    );
+
+    // Folder rows for everything in scope — the in-scope ones are already
+    // loaded; an individually shared file's folder has to be fetched so its
+    // access base and displayed folder name resolve. These are resolved BEFORE
+    // the filter pass because origin derivation needs the containing folder:
+    // deriving it without one would call every module-filed document MANUAL.
+    const folderById = new Map(opts.folders.map((f) => [f.id, f]));
+    const missingFolderIds = [
+      ...new Set(
+        inScope.map((f) => f.folderId).filter((id) => !folderById.has(id)),
+      ),
+    ];
+    if (missingFolderIds.length) {
+      const extraFolders = await this.prisma.vaultFolder.findMany({
+        where: { id: { in: missingFolderIds } },
+        include: { permissions: true },
+      });
+      for (const folder of extraFolders) folderById.set(folder.id, folder);
+    }
+
     const normalisedQuery = opts.normalisedQuery ?? '';
     const scores = new Map<string, number>();
-    const matched = candidates.filter((file) => {
-      if (
-        !inScopeFolderIds.has(file.folderId) &&
-        !(extraIdSet.has(file.id) && keepExtra(file.folderId))
-      ) {
-        return false;
-      }
+    const matched = inScope.filter((file) => {
       const currentVersion = currentVersionOf(file);
       if (
         query.uploadedById &&
@@ -793,7 +814,15 @@ export class VaultFilesService {
       ) {
         return false;
       }
-      if (query.origin && this.originOf(file) !== query.origin) return false;
+      // Filtered on the SAME derived value the row displays, folder included,
+      // so "show me everything auto-filed from Vendor Qualification" can never
+      // disagree with the origin badge on the card.
+      if (
+        query.origin &&
+        this.originOf(file, folderById.get(file.folderId)) !== query.origin
+      ) {
+        return false;
+      }
       if (normalisedQuery) {
         const score = vaultFuzzyScore(normalisedQuery, file.name);
         if (score < VAULT_SEARCH_MIN_SCORE) return false;
@@ -801,23 +830,6 @@ export class VaultFilesService {
       }
       return true;
     });
-
-    // Folder rows for everything that survived — the in-scope ones are already
-    // loaded; an individually shared file's folder has to be fetched so its
-    // access base and displayed folder name resolve.
-    const folderById = new Map(opts.folders.map((f) => [f.id, f]));
-    const missingFolderIds = [
-      ...new Set(
-        matched.map((f) => f.folderId).filter((id) => !folderById.has(id)),
-      ),
-    ];
-    if (missingFolderIds.length) {
-      const extraFolders = await this.prisma.vaultFolder.findMany({
-        where: { id: { in: missingFolderIds } },
-        include: { permissions: true },
-      });
-      for (const folder of extraFolders) folderById.set(folder.id, folder);
-    }
 
     const accessById = await this.access.computeFileAccessMany(
       user,
@@ -1222,10 +1234,7 @@ export class VaultFilesService {
    * only feeds them the signals. A missing folder row (shouldn't happen — the
    * FK is Restrict) degrades to MANUAL rather than throwing mid-listing.
    */
-  private originOf(
-    file: QueriedFile,
-    folder?: VaultFolder,
-  ): VaultFileOrigin {
+  private originOf(file: QueriedFile, folder?: VaultFolder): VaultFileOrigin {
     if (!folder) return VaultFileOrigin.MANUAL;
     return deriveVaultFileOrigin({
       hasDesignDocument: file.designDocuments.length > 0,
@@ -1233,7 +1242,6 @@ export class VaultFilesService {
       hasVendorNda: !!file.vendorSignedNda || !!file.ndaTemplateConfig,
       folderName: folder.name,
       folderType: folder.type,
-      folderVisibilityScope: folder.visibilityScope,
     });
   }
 

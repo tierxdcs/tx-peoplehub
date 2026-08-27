@@ -277,12 +277,61 @@ export type VaultPreviewStatus =
 export type VaultSharePermission = 'VIEW' | 'EDIT';
 export type VaultShareResourceType = 'FILE' | 'FOLDER';
 
+/** Type bucket derived from a file's extension + mimetype (backend-derived). */
+export type VaultFileTypeCategory =
+  | 'PDF'
+  | 'IMAGE'
+  | 'SPREADSHEET'
+  | 'DOCUMENT'
+  | 'PRESENTATION'
+  | 'CAD'
+  | 'ARCHIVE'
+  | 'TEXT'
+  | 'OTHER';
+
+/**
+ * Which module filed a document. Derived on the backend from module
+ * back-relations and module-owned folder identity — Vault stores no
+ * source-module column, so this is never a user-editable field.
+ */
+export type VaultFileOrigin =
+  | 'DESIGN'
+  | 'SALES_LEAD'
+  | 'VENDOR_QUALIFICATION'
+  | 'RFQ'
+  | 'MANUAL';
+
+/** RELEVANCE only ranks meaningfully when a search term is present. */
+export type VaultSortOption =
+  | 'RELEVANCE'
+  | 'NAME_ASC'
+  | 'NAME_DESC'
+  | 'MODIFIED_DESC'
+  | 'MODIFIED_ASC'
+  | 'SIZE_DESC'
+  | 'SIZE_ASC'
+  | 'TYPE_ASC';
+
+/** Search slice: the current folder (and everything under it) vs all of Vault. */
+export type VaultSearchScope = 'FOLDER' | 'VAULT';
+
 /** The caller's computed effective access on a folder or file. */
 export interface VaultAccess {
   canRead: boolean;
   canWrite: boolean;
   canDelete: boolean;
   canCreateSubfolder: boolean;
+}
+
+/**
+ * One step of a folder's breadcrumb trail. `canRead` can be false: access may
+ * be granted on a child without the parent, so an ancestor is shown for
+ * orientation but only linked when opening it would actually work.
+ */
+export interface VaultFolderCrumb {
+  id: string;
+  name: string;
+  canRead: boolean;
 }
 
 export interface VaultFolder {
@@ -298,6 +347,8 @@ export interface VaultFolder {
   status: VaultFolderStatus;
   access: VaultAccess;
   children?: VaultFolder[];
+  /** Root first, excluding this folder itself. Only on GET /vault/folders/:id. */
+  ancestors?: VaultFolderCrumb[];
   createdAt: string;
   updatedAt: string;
 }
@@ -315,9 +366,23 @@ export interface VaultFile {
   mimeType: string | null;
   previewStatus: VaultPreviewStatus | null;
   versionCount: number;
+  fileType: VaultFileTypeCategory;
+  origin: VaultFileOrigin;
+  /** The containing folder's name — needed when results span folders. */
+  folderName: string | null;
   access: VaultAccess;
   createdAt: string;
   updatedAt: string;
+}
+
+/** GET /vault/files/search — folders and files that match, plus scan honesty. */
+export interface VaultSearchResult {
+  folders: VaultFolder[];
+  files: VaultFile[];
+  /** Matches before the result limit was applied. */
+  totalFileMatches: number;
+  /** True when the scan cap was hit, so the match count is a lower bound. */
+  truncated: boolean;
 }
 
 export interface VaultFileVersion {

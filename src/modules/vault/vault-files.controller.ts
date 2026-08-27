@@ -21,6 +21,10 @@ import { CreateUploadUrlDto } from './dto/create-upload-url.dto';
 import { CreateVersionUrlDto } from './dto/create-version-url.dto';
 import { CreateInternalShareDto } from './dto/create-internal-share.dto';
 import { CreateShareLinkDto } from './dto/create-share-link.dto';
+import {
+  VaultRecentQueryDto,
+  VaultSearchQueryDto,
+} from './dto/vault-search-query.dto';
 import { VaultShareResourceType } from '@prisma/client';
 import { VaultFilesService } from './vault-files.service';
 import { VaultSharesService } from './vault-shares.service';
@@ -32,8 +36,9 @@ import { VaultExternalShareService } from './vault-external-share.service';
  * (reusing Phase 1's permission model). The backend only issues presigned
  * URLs — bytes flow browser↔R2 directly, never through here.
  *
- * Route order: static segments (upload-url) declared before nothing that
- * collides; :id routes are all suffixed, so no ambiguity.
+ * Route order: the static segments (upload-url, search, recent) are declared
+ * BEFORE @Get(':id') — Nest matches in declaration order, so a later :id route
+ * would otherwise swallow /search and /recent as file ids.
  */
 @ApiTags('vault')
 @ApiBearerAuth()
@@ -57,6 +62,30 @@ export class VaultFilesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.createUploadUrl(dto, user);
+  }
+
+  @Get('search')
+  @ApiOperation({
+    summary:
+      'Fuzzy search file + folder names with filters and sort (scope=FOLDER searches a folder and everything under it; scope=VAULT searches everything readable)',
+  })
+  search(
+    @Query() query: VaultSearchQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.search(query, user);
+  }
+
+  @Get('recent')
+  @ApiOperation({
+    summary:
+      'Recently added or updated files across every readable folder (Vault keeps no internal view log, so this is not a "recently viewed" list)',
+  })
+  listRecent(
+    @Query() query: VaultRecentQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.listRecent(query.limit, user);
   }
 
   @Post(':id/confirm-upload')

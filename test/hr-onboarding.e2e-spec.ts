@@ -45,8 +45,9 @@ describe('HR onboarding (e2e)', () => {
       emergencyContactRelation: 'Spouse',
       emergencyContactPhone: '+91 9876500000',
       compensation: {
-        basicSalary: 50000,
-        hra: 10000,
+        // Onboarding takes a target monthly CTC; the structure (basic/HRA/…) is
+        // derived by the compensation calculator, not supplied here.
+        monthlyCtc: 60000,
         effectiveDate: '2026-07-05',
       },
       statutoryInfo: {

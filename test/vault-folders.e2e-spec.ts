@@ -363,8 +363,7 @@ describe('Vault folders (e2e)', () => {
         emergencyContactRelation: 'Parent',
         emergencyContactPhone: '8888888888',
         compensation: {
-          basicSalary: 50000,
-          hra: 20000,
+          monthlyCtc: 70000,
           effectiveDate: '2026-07-01',
         },
         statutoryInfo: {

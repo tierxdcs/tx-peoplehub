@@ -166,11 +166,8 @@ export class KanbanBoardsService {
   /** Boards the caller can see: their memberships, or all for SUPER_ADMIN. */
   async findAll(user: AuthenticatedUser): Promise<KanbanBoardEntity[]> {
     const where = this.access.isSuperAdmin(user)
-      ? { status: KanbanBoardStatus.ACTIVE }
-      : {
-          status: KanbanBoardStatus.ACTIVE,
-          members: { some: { employeeId: user.id } },
-        };
+      ? {}
+      : { members: { some: { employeeId: user.id } } };
     const boards = await this.prisma.kanbanBoard.findMany({
       where,
       include: {
