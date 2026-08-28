@@ -108,9 +108,13 @@ export class KickoffMilestoneEntity {
   }
 }
 
-/** The action item's status is COMPUTED from its linked Kanban card, never stored. */
-export type ActionItemComputedStatus =
-  'TODO' | 'IN_PROGRESS' | 'DONE' | 'ARCHIVED' | 'UNLINKED';
+/**
+ * The action item's status is COMPUTED from its linked Kanban card, never
+ * stored. Re-exported from the shared work-item predicates so the entity, the
+ * project-health inputs and the executive PM dashboard all name one type.
+ */
+import type { ActionItemComputedStatus } from '../kickoff-work-items';
+export type { ActionItemComputedStatus };
 
 export class KickoffActionItemEntity {
   @ApiProperty() id!: string;

@@ -28,6 +28,7 @@ import {
 import { PlmAccessService } from './plm-access.service';
 import { KanbanNotificationsService } from '../notifications/kanban-notifications.service';
 import { deriveVendorCadence } from './plm-vendor-cadence';
+import { wholeDaysUntil } from '../../common/utils/date.util';
 import {
   IN_HOUSE_FACILITY_LABEL,
   IN_HOUSE_NPD_LABEL,
@@ -321,19 +322,7 @@ export class PlmService {
         const promisedDeliveryDate =
           tracker.order.confirmationSheets[0]?.deliveryDate ?? null;
         const daysUntilDue = promisedDeliveryDate
-          ? Math.ceil(
-              (Date.UTC(
-                promisedDeliveryDate.getUTCFullYear(),
-                promisedDeliveryDate.getUTCMonth(),
-                promisedDeliveryDate.getUTCDate(),
-              ) -
-                Date.UTC(
-                  new Date().getUTCFullYear(),
-                  new Date().getUTCMonth(),
-                  new Date().getUTCDate(),
-                )) /
-                86_400_000,
-            )
+          ? wholeDaysUntil(promisedDeliveryDate, new Date())
           : null;
         return {
           trackerId: tracker.id,

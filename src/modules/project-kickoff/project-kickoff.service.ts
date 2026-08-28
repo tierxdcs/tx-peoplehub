@@ -47,6 +47,12 @@ import {
   deriveProjectProgress,
   type ProjectProgressView,
 } from './project-progress';
+import {
+  deriveActionItemStatus,
+  isActionItemOverdue,
+  isMilestoneOverdue,
+  isRiskHighImpactOpen,
+} from './kickoff-work-items';
 import { deriveVendorCadence } from '../plm/plm-vendor-cadence';
 
 /** Employee shape needed to render an owner/attendee name. */
@@ -294,7 +300,9 @@ export class ProjectKickoffService {
             kanbanCard: {
               select: {
                 status: true,
-                list: { select: { isDoneList: true } },
+                // `name` feeds the shared TODO-vs-IN_PROGRESS heuristic in
+                // deriveActionItemStatus; both count as open here.
+                list: { select: { name: true, isDoneList: true } },
               },
             },
           },
@@ -362,6 +370,7 @@ export class ProjectKickoffService {
       }),
     ]);
     const now = Date.now();
+    const nowDate = new Date(now);
 
     return kickoffs.map((kickoff) => {
       const designProject = designProjects.find(
@@ -422,23 +431,14 @@ export class ProjectKickoffService {
           (challan) => challan.status,
         ),
         plmStages: kickoff.plmTrackers.map((tracker) => tracker.currentStage),
-        overdueMilestones: kickoff.milestones.filter(
-          (milestone) =>
-            milestone.status !== 'COMPLETED' &&
-            (milestone.status === 'DELAYED' ||
-              milestone.targetDate.getTime() < now),
+        overdueMilestones: kickoff.milestones.filter((milestone) =>
+          isMilestoneOverdue(milestone, nowDate),
         ).length,
-        overdueActions: kickoff.actionItems.filter(
-          (action) =>
-            !!action.dueDate &&
-            action.dueDate.getTime() < now &&
-            action.kanbanCard?.status === KanbanCardStatus.ACTIVE &&
-            !action.kanbanCard.list.isDoneList,
+        overdueActions: kickoff.actionItems.filter((action) =>
+          isActionItemOverdue(action, nowDate),
         ).length,
-        openHighRisks: kickoff.risks.filter(
-          (risk) =>
-            risk.status === 'OPEN' &&
-            (risk.impact === 'HIGH' || risk.likelihood === 'HIGH'),
+        openHighRisks: kickoff.risks.filter((risk) =>
+          isRiskHighImpactOpen(risk),
         ).length,
         overdueVendorUpdates: vendorCadenceStatuses.filter(
           (cadence) => cadence.status === 'RED',
@@ -1269,24 +1269,13 @@ export class ProjectKickoffService {
   }
 
   private toActionItem(i: ActionItemRow): KickoffActionItemEntity {
-    // Status is COMPUTED from the linked card's list — no stored status.
-    let status: ActionItemComputedStatus = 'UNLINKED';
-    let currentListName: string | null = null;
-    if (i.kanbanCard) {
-      currentListName = i.kanbanCard.list.name;
-      if (i.kanbanCard.status === KanbanCardStatus.ARCHIVED) {
-        status = 'ARCHIVED';
-      } else if (i.kanbanCard.list.isDoneList) {
-        status = 'DONE';
-      } else {
-        // Heuristic: the lowest open list is "to do"; any other open list is
-        // in-progress. We only stored the name/flag, so treat a common "to do"
-        // name as TODO and everything else open as IN_PROGRESS.
-        status = /to\s*do|backlog/i.test(i.kanbanCard.list.name)
-          ? 'TODO'
-          : 'IN_PROGRESS';
-      }
-    }
+    // Status is COMPUTED from the linked card's list — no stored status. Shared
+    // with the project-health inputs and the executive PM dashboard so all
+    // three read the same item identically.
+    const status: ActionItemComputedStatus = deriveActionItemStatus(
+      i.kanbanCard,
+    );
+    const currentListName = i.kanbanCard?.list.name ?? null;
     return new KickoffActionItemEntity({
       id: i.id,
       kickoffId: i.kickoffId,

@@ -65,6 +65,7 @@ export function EmployeePhotoField({
     try {
       const storageKey = await uploadEmployeePhoto(file, setProgress);
       await onUploaded(storageKey);
+      window.dispatchEvent(new CustomEvent('employee-photo-updated'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
       // Drop the failed preview so the UI doesn't imply success.
@@ -85,6 +86,7 @@ export function EmployeePhotoField({
     setBusy(true);
     try {
       await onRemove();
+      window.dispatchEvent(new CustomEvent('employee-photo-updated'));
       setLocalPreview((prev) => {
         if (prev) URL.revokeObjectURL(prev);
         return null;

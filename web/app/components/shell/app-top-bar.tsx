@@ -15,6 +15,7 @@ import type { DecodedAccessToken } from '../../lib/jwt';
 import type { ModuleKey } from '../../lib/nav';
 import { roleLabel } from '../../lib/status';
 import { useAuth } from '../../lib/auth-context';
+import { getEmployeePhotoUrl } from '../../lib/employee-photo';
 import { Avatar } from '../ui/avatar';
 import { cn } from '../../lib/utils';
 import { ResetPasswordDialog } from './reset-password-dialog';
@@ -44,6 +45,7 @@ export function AppTopBar({
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close the profile menu on any outside click / Escape.
@@ -66,6 +68,38 @@ export function AppTopBar({
   }, [menuOpen]);
 
   const MODULE_LABEL: Record<ModuleKey, string> = { hr: 'HR', sales: 'Sales' };
+
+  useEffect(() => {
+    let cancelled = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+
+    async function loadPhoto() {
+      try {
+        const result = await getEmployeePhotoUrl(user.sub);
+        if (cancelled) return;
+        setPhotoUrl(result.url);
+        if (result.url && result.expiresInSeconds) {
+          refreshTimer = setTimeout(
+            () => void loadPhoto(),
+            Math.max(result.expiresInSeconds - 60, 30) * 1000,
+          );
+        }
+      } catch {
+        if (!cancelled) setPhotoUrl(null);
+      }
+    }
+
+    void loadPhoto();
+    function onPhotoUpdated() {
+      void loadPhoto();
+    }
+    window.addEventListener('employee-photo-updated', onPhotoUpdated);
+    return () => {
+      cancelled = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      window.removeEventListener('employee-photo-updated', onPhotoUpdated);
+    };
+  }, [user.sub]);
 
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-card px-3 md:gap-6 md:px-4">
@@ -120,7 +154,7 @@ export function AppTopBar({
             aria-expanded={menuOpen}
             className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
           >
-            <Avatar name={user.email} />
+            <Avatar name={user.email} imageUrl={photoUrl} />
             <span className="hidden text-left leading-tight lg:inline">
               <span className="block font-medium">{user.email}</span>
               <span className="block text-xs text-muted-foreground">

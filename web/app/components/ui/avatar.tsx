@@ -8,9 +8,11 @@ import { cn } from '../../lib/utils';
  */
 export function Avatar({
   name,
+  imageUrl,
   className,
 }: {
   name: string;
+  imageUrl?: string | null;
   className?: string;
 }) {
   const initials =
@@ -29,7 +31,12 @@ export function Avatar({
       )}
       aria-hidden="true"
     >
-      {initials}
+      {imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageUrl} alt="" className="size-full object-cover" />
+      ) : (
+        initials
+      )}
     </span>
   );
 }

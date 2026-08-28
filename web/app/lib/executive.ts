@@ -280,19 +280,339 @@ export function fetchOperationsDashboard() {
   return apiFetch<OperationsDashboard>('/executive/dashboards/operations');
 }
 
+/** The health states the shared project-progress builder emits. */
+export type ProjectHealth = 'ON_TRACK' | 'AT_RISK' | 'BLOCKED';
+export type ProjectStageState =
+  | 'COMPLETE'
+  | 'IN_PROGRESS'
+  | 'ATTENTION'
+  | 'UPCOMING';
+
+/** A whole-day bucket of ages, pre-counted so the page never re-buckets. */
+export interface PmAgeBucket {
+  key: string;
+  label: string;
+  count: number;
+}
+
+export interface PmProject {
+  kickoffId: string;
+  projectName: string;
+  orderId: string;
+  orderNumber: string;
+  pmId: string;
+  pm: string;
+  health: ProjectHealth;
+  healthReason: string;
+  currentStage: string;
+  stages: Array<{
+    key: string;
+    label: string;
+    state: ProjectStageState;
+    detail: string;
+  }>;
+  ageDays: number;
+  promisedDeliveryDate: string | null;
+  /** Whole days until the promised date; null when no executed OCS date exists. */
+  daysUntilDue: number | null;
+  fulfilmentStatus: string;
+  lineCount: number;
+  openMilestones: number;
+  overdueMilestones: number;
+  openActionItems: number;
+  overdueActionItems: number;
+  openHighRisks: number;
+  openTasks: number;
+  overdueTasks: number;
+  nextMilestone: {
+    name: string;
+    targetDate: string;
+    owner: string;
+    overdue: boolean;
+  } | null;
+}
+
+export interface PmBlockerEntry {
+  kickoffId: string;
+  project: string;
+  orderNumber: string;
+  pm: string;
+  pmId: string;
+  kind: 'HEALTH' | 'MILESTONE' | 'ACTION_ITEM' | 'RISK';
+  blocker: string;
+  owner: string;
+  ownerIsPm: boolean;
+  overdueDays: number | null;
+  severity: 'BLOCKED' | 'AT_RISK';
+}
+
+export interface PmWorkloadRow {
+  pmId: string;
+  pm: string;
+  activeProjects: number;
+  openTasks: number;
+  overdueTasks: number;
+  unassignedTasks: number;
+  openMilestones: number;
+  overdueMilestones: number;
+  openActionItems: number;
+  overdueActionItems: number;
+  openHighRisks: number;
+  blockedProjects: number;
+  atRiskProjects: number;
+  onTrackProjects: number;
+  overdueDeliveries: number;
+  /** 0-100 against the busiest PM; null when nobody carries any task. */
+  loadPercent: string | null;
+  tasksPerProject: number | null;
+  troubledPercent: string | null;
+}
+
+/**
+ * The executive Project Management dashboard.
+ *
+ * Two conventions carry over from the backend and must be rendered as they
+ * arrive:
+ *
+ *  - `null` means "the data cannot answer this", never zero. A percentage with
+ *    no denominator arrives null and renders as an em dash beside the section's
+ *    own `note`, which explains why.
+ *  - Percentages arrive as fixed-2 strings so the page never re-rounds them.
+ *
+ * Deliberately project-side only: no revenue, margin, customer or purchasing
+ * figure is on the wire at all.
+ */
 export interface ProjectManagementDashboard {
   asOf: string;
   basis: string[];
-  projects: Array<{ kickoffId: string; projectName: string; orderId: string; orderNumber: string; pm: string; health: 'ON_TRACK' | 'AT_RISK' | 'BLOCKED'; healthReason: string; currentStage: string; deliveryDate: string | null; fulfilmentStatus: string }>;
-  blockers: Array<{ project: string; pm: string; blocker: string; owner: string }>;
-  delivery: Array<{ kickoffId: string; projectName: string; orderNumber: string; pm: string; deliveryDate: string | null; fulfilmentStatus: string; overdue: boolean }>;
-  workload: Array<{ pm: string; openTasks: number; activeProjects: number }>;
-  awaitingKickoff: Array<{ id: string; orderNumber: string; orderType: string; createdAt: string }>;
-  ordersAwaitingDelivery: Array<{ orderId: string; orderNumber: string; projectName: string; pm: string }>;
-  milestoneHealth: Array<{ project: string; pm: string; name: string; targetDate: string; owner: string }>;
-  actionItemHealth: Array<{ project: string; pm: string; description: string; dueDate: string | null; owner: string }>;
-  risks: Array<{ project: string; pm: string; description: string; owner: string }>;
-  pings: Array<{ id: string; project: string; message: string; from: string; owners: string[]; createdAt: string }>;
+  portfolio: {
+    activeTotal: number;
+    totalEverStarted: number;
+    onTrack: number;
+    atRisk: number;
+    blocked: number;
+    total: number;
+    troubledPercent: string | null;
+    averageAgeDays: number | null;
+    ageBuckets: PmAgeBucket[];
+    stages: Array<{
+      key: string;
+      label: string;
+      count: number;
+      blocked: number;
+      atRisk: number;
+      percentOfActive: string | null;
+    }>;
+    /** The one project to look at first, straight from the backend's ranking. */
+    worst: PmProject | null;
+    pmCount: number;
+    note: string | null;
+    asOf: string;
+  };
+  projects: PmProject[];
+  blockers: {
+    total: number;
+    projectsAffected: number;
+    unassigned: number;
+    byKind: Array<{ kind: string; label: string; count: number }>;
+    owners: Array<{
+      owner: string;
+      count: number;
+      projectCount: number;
+      sharePercent: string | null;
+    }>;
+    entries: PmBlockerEntry[];
+    note: string | null;
+  };
+  delivery: {
+    measured: number;
+    unconfirmed: number;
+    overdue: number;
+    overduePercent: string | null;
+    averageOverrunDays: number | null;
+    rows: Array<{
+      kickoffId: string;
+      projectName: string;
+      orderNumber: string;
+      pm: string;
+      pmId: string;
+      health: ProjectHealth;
+      currentStage: string;
+      promisedDeliveryDate: string | null;
+      daysUntilDue: number | null;
+      fulfilmentStatus: string;
+    }>;
+    note: string | null;
+    asOf: string;
+  };
+  workload: {
+    pmCount: number;
+    totalOpenTasks: number;
+    peakOpenTasks: number;
+    /** 0 = evenly spread, 100 = one PM carries everything; null under 2 PMs. */
+    taskImbalancePercent: string | null;
+    projectImbalancePercent: string | null;
+    averageTasksPerPm: number | null;
+    averageProjectsPerPm: number | null;
+    rows: PmWorkloadRow[];
+    note: string | null;
+  };
+  awaitingKickoff: {
+    total: number;
+    alreadyOverdue: number;
+    averageWaitingDays: number | null;
+    ageBuckets: PmAgeBucket[];
+    rows: Array<{
+      id: string;
+      orderNumber: string;
+      orderType: string;
+      source: 'OCS_EXECUTED' | 'INTERNAL_CONFIRMED';
+      lineCount: number;
+      qualifiedAt: string;
+      waitingDays: number;
+      promisedDeliveryDate: string | null;
+      daysUntilDue: number | null;
+    }>;
+    note: string | null;
+  };
+  ordersAwaitingDelivery: {
+    total: number;
+    lineCount: number;
+    byStatus: Array<{
+      status: string;
+      label: string;
+      count: number;
+      percentOfOutstanding: string | null;
+    }>;
+    rows: Array<{
+      orderId: string;
+      orderNumber: string;
+      projectName: string;
+      pm: string;
+      pmId: string;
+      fulfilmentStatus: string;
+      lineCount: number;
+      daysUntilDue: number | null;
+    }>;
+    note: string | null;
+  };
+  milestones: {
+    total: number;
+    completed: number;
+    open: number;
+    overdue: number;
+    flaggedDelayed: number;
+    completionPercent: string | null;
+    overdueOfOpenPercent: string | null;
+    averageSlipDays: number | null;
+    slipBuckets: PmAgeBucket[];
+    upcoming: Array<{
+      id: string;
+      kickoffId: string;
+      project: string;
+      pm: string;
+      pmId: string;
+      name: string;
+      status: string;
+      targetDate: string;
+      owner: string;
+      daysUntilDue: number;
+    }>;
+    rows: Array<{
+      id: string;
+      kickoffId: string;
+      project: string;
+      pm: string;
+      pmId: string;
+      name: string;
+      status: string;
+      targetDate: string;
+      owner: string;
+      overdue: boolean;
+      overdueDays: number;
+      flaggedDelayed: boolean;
+    }>;
+    note: string | null;
+  };
+  actionItems: {
+    total: number;
+    open: number;
+    overdue: number;
+    done: number;
+    undated: number;
+    /** Card archived or deleted: no live status left to act on. */
+    withoutLiveStatus: number;
+    completionPercent: string | null;
+    overdueOfOpenPercent: string | null;
+    averageSlipDays: number | null;
+    byStatus: Array<{ status: string; label: string; count: number }>;
+    rows: Array<{
+      id: string;
+      kickoffId: string;
+      project: string;
+      pm: string;
+      pmId: string;
+      description: string;
+      owner: string;
+      dueDate: string | null;
+      status: string;
+      open: boolean;
+      overdue: boolean;
+      overdueDays: number | null;
+    }>;
+    note: string | null;
+  };
+  risks: {
+    total: number;
+    open: number;
+    highImpactOpen: number;
+    unmitigated: number;
+    unmitigatedPercent: string | null;
+    projectsAffected: number;
+    matrix: Array<{ impact: string; likelihood: string; count: number }>;
+    rows: Array<{
+      id: string;
+      kickoffId: string;
+      project: string;
+      pm: string;
+      pmId: string;
+      description: string;
+      likelihood: string;
+      impact: string;
+      status: string;
+      owner: string;
+      hasMitigation: boolean;
+      highImpactOpen: boolean;
+      severity: number;
+    }>;
+    note: string | null;
+  };
+  pings: {
+    total: number;
+    pastEscalation: number;
+    escalationRatePercent: string | null;
+    unacknowledged: number;
+    averageAgeHours: number | null;
+    oldestAgeHours: number | null;
+    projectsAffected: number;
+    byLinkedRecord: Array<{ type: string; label: string; count: number }>;
+    rows: Array<{
+      id: string;
+      kickoffId: string;
+      project: string;
+      pm: string;
+      pmId: string | null;
+      message: string;
+      from: string;
+      linkedRecordType: string | null;
+      linkedRecordId: string | null;
+      createdAt: string;
+      ageHours: number;
+      unacknowledged: boolean;
+      owners: string[];
+    }>;
+    note: string | null;
+  };
 }
 
 export function fetchProjectManagementDashboard() {

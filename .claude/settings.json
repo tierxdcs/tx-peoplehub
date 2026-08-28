@@ -212,7 +212,9 @@
       "Bash(kill -9 3189)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/executive/scm)",
       "Bash(curl -s -o /dev/null -w \"/executive/scm -> %{http_code}\\\\n\" http://localhost:3001/executive/scm)",
-      "Bash(curl -s -o /dev/null -w \"/executive/operations -> %{http_code}\\\\n\" http://localhost:3001/executive/operations)"
+      "Bash(curl -s -o /dev/null -w \"/executive/operations -> %{http_code}\\\\n\" http://localhost:3001/executive/operations)",
+      "Bash(ps -eo pid,stat,command)",
+      "Bash(xargs -r kill -TERM)"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",

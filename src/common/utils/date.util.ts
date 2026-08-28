@@ -36,6 +36,23 @@ export function toDateOnly(date: Date): Date {
   );
 }
 
+/**
+ * Whole calendar days from `now` until `target` — negative once `target` has
+ * passed. Both instants are truncated to their UTC calendar date first, so the
+ * answer is a day count and not a fractional-hours artefact: a delivery promised
+ * for today reads 0 regardless of the time of day it is read at.
+ *
+ * This is the promised-delivery clock behind the app's one delivery-urgency
+ * scale (PLM rows, the Operations dashboard and the PM dashboard all tier off
+ * it), which is why it lives here rather than inline at any one call site.
+ */
+export function wholeDaysUntil(target: Date, now: Date): number {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.round(
+    (toDateOnly(target).getTime() - toDateOnly(now).getTime()) / msPerDay,
+  );
+}
+
 /** Inclusive day count between two date-only Dates (e.g. Mon..Wed = 3). */
 export function daysBetweenInclusive(start: Date, end: Date): number {
   const msPerDay = 24 * 60 * 60 * 1000;
