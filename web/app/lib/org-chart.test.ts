@@ -198,15 +198,24 @@ describe('layoutOrgTree', () => {
     expect(at('dev1').y).toBeGreaterThan(at('cto').y);
   });
 
-  it('a folded node lays out as a leaf and reports the headcount it hides', () => {
+  it('a folded node lays out as a leaf and still reports its rolled-up headcount', () => {
     const layout = layoutOrgTree(buildOrgTree(CHART), new Set(['cto']));
     const ids = layout.nodes.map((n) => n.node.id).sort();
     expect(ids).toEqual(['ceo', 'cfo', 'cto', 'orphan']);
     const cto = layout.nodes.find((n) => n.node.id === 'cto')!;
     expect(cto.collapsed).toBe(true);
-    expect(cto.hiddenCount).toBe(2);
+    expect(cto.totalCount).toBe(2);
     // Folding reclaims the space its subtree used.
     expect(layout.width).toBe(3 * (ORG_NODE_WIDTH + ORG_GAP_X) - ORG_GAP_X);
+  });
+
+  it('rolls the whole subtree up onto every node, folded or not', () => {
+    const layout = layoutOrgTree(buildOrgTree(CHART), new Set());
+    const at = (id: string) => layout.nodes.find((n) => n.node.id === id)!;
+    // The top carries everyone below it, not just its two direct reports.
+    expect(at('ceo')).toMatchObject({ directCount: 2, totalCount: 4 });
+    expect(at('cto')).toMatchObject({ directCount: 2, totalCount: 2 });
+    expect(at('dev1')).toMatchObject({ directCount: 0, totalCount: 0 });
   });
 
   it('drops the edges under a folded node', () => {

@@ -38,9 +38,12 @@ export function OrgChartNode({
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
 }) {
-  const { node, collapsed, hiddenCount } = placed;
-  const reports = node.children.length;
+  const { node, collapsed, directCount, totalCount } = placed;
   const secondary = node.designation ?? node.verticalName ?? node.employeeId;
+  // The pill is the rolled-up headcount: everyone underneath at any depth, not
+  // just the direct line. Folding hides exactly that set, so the number never
+  // changes when you collapse — only its tint does.
+  const countLabel = `${directCount} direct · ${totalCount} in total`;
 
   return (
     <div
@@ -75,7 +78,7 @@ export function OrgChartNode({
         <Avatar
           name={node.fullName}
           imageUrl={node.photoUrl}
-          className="size-8"
+          className="size-11 border border-border/60 text-sm"
         />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold leading-tight">
@@ -93,14 +96,13 @@ export function OrgChartNode({
         </span>
       )}
 
-      {reports > 0 && (
+      {directCount > 0 && (
         <button
           type="button"
           onClick={() => onToggle(node.id)}
           aria-expanded={!collapsed}
-          aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${node.fullName}'s team (${
-            collapsed ? hiddenCount : reports
-          } ${collapsed ? 'hidden' : 'direct'})`}
+          title={countLabel}
+          aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${node.fullName}'s team (${countLabel})`}
           className={cn(
             'absolute -bottom-2.5 left-1/2 z-10 flex h-5 -translate-x-1/2 items-center gap-0.5 rounded-full border bg-card px-1.5 text-[10px] font-semibold tabular-nums text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           )}
@@ -119,7 +121,7 @@ export function OrgChartNode({
           ) : (
             <ChevronUp className="size-3" />
           )}
-          {collapsed ? hiddenCount : reports}
+          {totalCount}
         </button>
       )}
     </div>

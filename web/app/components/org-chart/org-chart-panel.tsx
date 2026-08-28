@@ -437,7 +437,7 @@ export function OrgChartPanel({
                 <Avatar
                   name={node.fullName}
                   imageUrl={node.photoUrl}
-                  className="size-5 text-[9px]"
+                  className="size-6 text-[9.5px]"
                 />
                 {node.fullName}
                 {node.id === meId && (

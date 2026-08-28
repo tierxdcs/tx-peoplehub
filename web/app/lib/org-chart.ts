@@ -190,9 +190,10 @@ export function initialCollapsedIds(
   return ids;
 }
 
-/** Node box geometry — shared by the layout pass and the cards that render it. */
-export const ORG_NODE_WIDTH = 208;
-export const ORG_NODE_HEIGHT = 62;
+/** Node box geometry — shared by the layout pass and the cards that render it.
+ *  Sized around a 44px photo, so the card is tall enough for the face to read. */
+export const ORG_NODE_WIDTH = 224;
+export const ORG_NODE_HEIGHT = 74;
 export const ORG_GAP_X = 26;
 export const ORG_GAP_Y = 66;
 
@@ -201,8 +202,11 @@ export interface OrgLayoutNode {
   /** Left/top of the card in canvas space (cards are absolutely positioned). */
   x: number;
   y: number;
-  /** Reports hidden by this node being folded (0 when it is open). */
-  hiddenCount: number;
+  /** Direct reports only. */
+  directCount: number;
+  /** Everyone underneath, at any depth — the rolled-up headcount the card
+   *  shows, so the CEO reads as the whole company rather than 3 directs. */
+  totalCount: number;
   collapsed: boolean;
 }
 
@@ -274,7 +278,8 @@ export function layoutOrgTree(
       x,
       y: depth * stepY + yOffset,
       collapsed: isFolded,
-      hiddenCount: isFolded ? descendantCount(node) : 0,
+      directCount: node.children.length,
+      totalCount: descendantCount(node),
     };
     nodes.push(placed);
     at.set(node.id, placed);

@@ -93,7 +93,7 @@ describe('OrgChartPanel', () => {
     // Hari (depth 2, has a report) starts folded, so Iris is off the canvas.
     expect(
       screen.getByRole('button', {
-        name: "Expand Hari Bose's team (1 hidden)",
+        name: "Expand Hari Bose's team (1 direct · 1 in total)",
       }),
     ).toBeTruthy();
     expect(
@@ -101,13 +101,29 @@ describe('OrgChartPanel', () => {
     ).toBeNull();
   });
 
-  it('collapses and expands a mid-tree node, swapping the pill to the hidden headcount', async () => {
+  it('rolls the whole org up onto the CEO pill, not just their direct reports', async () => {
+    await renderPanel();
+
+    // Asha has 3 directs but 8 people beneath her.
+    const ceoPill = screen.getByRole('button', {
+      name: "Collapse Asha Rao's team (3 direct · 8 in total)",
+    });
+    expect(ceoPill.textContent).toContain('8');
+    // Gita: 1 direct (Hari), 2 in total (Hari + Iris).
+    expect(
+      screen.getByRole('button', {
+        name: "Collapse Gita Menon's team (1 direct · 2 in total)",
+      }).textContent,
+    ).toContain('2');
+  });
+
+  it('collapses and expands a mid-tree node, keeping the rolled-up headcount', async () => {
     await renderPanel();
 
     expect(card('Chetan Kaur', 'Analyst')).toBeTruthy();
     fireEvent.click(
       screen.getByRole('button', {
-        name: "Collapse Bela Nair's team (2 direct)",
+        name: "Collapse Bela Nair's team (2 direct · 2 in total)",
       }),
     );
 
@@ -115,7 +131,7 @@ describe('OrgChartPanel', () => {
       screen.queryByRole('button', { name: 'Chetan Kaur, Analyst' }),
     ).toBeNull();
     const pill = screen.getByRole('button', {
-      name: "Expand Bela Nair's team (2 hidden)",
+      name: "Expand Bela Nair's team (2 direct · 2 in total)",
     });
     expect(pill.getAttribute('aria-expanded')).toBe('false');
 
@@ -188,7 +204,7 @@ describe('OrgChartPanel', () => {
 
     fireEvent.click(
       screen.getByRole('button', {
-        name: "Expand Hari Bose's team (1 hidden)",
+        name: "Expand Hari Bose's team (1 direct · 1 in total)",
       }),
     );
     fireEvent.click(card('Iris Dev', 'Sourcer'));
