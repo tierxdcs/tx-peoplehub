@@ -24,8 +24,7 @@ import { Skeleton } from '../../components/ui/skeleton';
 import { SignatureEditorFields } from '../../components/ui/signature-setup-inline';
 import { useToast } from '../../components/ui/toaster';
 import { cn } from '../../lib/utils';
-import { CompanyOrgChart } from '../../components/org-chart/company-org-chart';
-import { MiniOrgChart } from '../../components/org-chart/mini-org-chart';
+import { OrgChartPanel } from '../../components/org-chart/org-chart-panel';
 import { TeamSection } from '../_sections/team-section';
 import { LeaveSection } from '../_sections/leave-section';
 import { AttendanceSection } from '../_sections/attendance-section';
@@ -192,29 +191,11 @@ export default function ProfilePage() {
         ))}
       </div>
 
-      {/* Org Chart tab — the only home of the org chart. Your own tier first
-      (manager above, you in the middle, direct reports below), then the whole
-      company as a collapsible tree. Every node opens that person's profile. */}
+      {/* Org Chart tab — one interactive chart, not two panels. Your own chain
+      up to the top is the reporting-line strip inside it, so there is no
+      separate ego-centric card to duplicate the tree. */}
       {tab === 'org-chart' && (
-        <div className="space-y-4">
-          <Card className="max-w-2xl">
-            <CardHeader>
-              <CardTitle>Your reporting structure</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <MiniOrgChart employeeId={employee.id} currentUserId={user?.sub} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Company org chart</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <CompanyOrgChart focusId={focusId} currentUserId={user?.sub} />
-            </CardContent>
-          </Card>
-        </div>
+        <OrgChartPanel focusId={focusId} meId={employee.id} />
       )}
 
       {tab === 'team' && <TeamSection embedded />}
@@ -225,100 +206,106 @@ export default function ProfilePage() {
 
       {tab === 'profile' && (
         <>
-      {/* Profile header card: identity up top, details row below a divider. */}
-      <Card className="mb-4 max-w-2xl">
-        <CardContent className="p-6">
-          <div className="flex items-center gap-4">
-            {photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={photoUrl}
-                alt={fullName}
-                className="size-14 shrink-0 rounded-full object-cover"
-              />
-            ) : (
-              <Avatar name={fullName} className="size-14 text-lg" />
-            )}
-            <div className="min-w-0">
-              <div className="truncate text-xl font-semibold tracking-tight">
-                {fullName}
-              </div>
-              <div className="truncate text-sm text-muted-foreground">
-                {employee.employeeId} · {employee.email}
-              </div>
-            </div>
-          </div>
-
-          <div className="my-5 border-t" />
-
-          <div className="grid gap-6 sm:grid-cols-3">
-            <div>
-              <DetailLabel>Vertical</DetailLabel>
-              <div className="mt-1.5">
-                {verticalName ? (
-                  <Badge variant="muted">{verticalName}</Badge>
+          {/* Profile header card: identity up top, details row below a divider. */}
+          <Card className="mb-4 max-w-2xl">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                {photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photoUrl}
+                    alt={fullName}
+                    className="size-14 shrink-0 rounded-full object-cover"
+                  />
                 ) : (
-                  <span className="text-sm text-muted-foreground">—</span>
+                  <Avatar name={fullName} className="size-14 text-lg" />
                 )}
-              </div>
-            </div>
-            <div>
-              <DetailLabel>Role</DetailLabel>
-              <div className="mt-1.5">
-                {employee.role ? (
-                  <Badge variant="muted">{roleLabel(employee.role)}</Badge>
-                ) : (
-                  <span className="text-sm text-muted-foreground">—</span>
-                )}
-              </div>
-            </div>
-            <div>
-              <DetailLabel>Manager</DetailLabel>
-              <div className="mt-1.5">
-                {managerName ? (
-                  <div className="flex items-center gap-2">
-                    <Avatar name={managerName} className="size-6 text-[10px]" />
-                    <span className="text-sm font-medium">{managerName}</span>
+                <div className="min-w-0">
+                  <div className="truncate text-xl font-semibold tracking-tight">
+                    {fullName}
                   </div>
-                ) : (
-                  <span className="text-sm text-muted-foreground">—</span>
-                )}
+                  <div className="truncate text-sm text-muted-foreground">
+                    {employee.employeeId} · {employee.email}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Signature card. */}
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle>Signature</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-0">
-          <div className="flex gap-3 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-            <Info className="mt-0.5 size-4 shrink-0" />
-            <p>
-              Your internal e-signature is applied when you approve requests.
-              This is a display convenience, not a legally-binding e-signature.
-            </p>
-          </div>
+              <div className="my-5 border-t" />
 
-          <SignatureEditorFields
-            text={sigText}
-            font={sigFont}
-            onTextChange={setSigText}
-            onFontChange={setSigFont}
-            disabled={savingSig}
-          />
+              <div className="grid gap-6 sm:grid-cols-3">
+                <div>
+                  <DetailLabel>Vertical</DetailLabel>
+                  <div className="mt-1.5">
+                    {verticalName ? (
+                      <Badge variant="muted">{verticalName}</Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <DetailLabel>Role</DetailLabel>
+                  <div className="mt-1.5">
+                    {employee.role ? (
+                      <Badge variant="muted">{roleLabel(employee.role)}</Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <DetailLabel>Manager</DetailLabel>
+                  <div className="mt-1.5">
+                    {managerName ? (
+                      <div className="flex items-center gap-2">
+                        <Avatar
+                          name={managerName}
+                          className="size-6 text-[10px]"
+                        />
+                        <span className="text-sm font-medium">
+                          {managerName}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-          <Button
-            onClick={saveSignature}
-            disabled={savingSig || !sigText.trim()}
-          >
-            {savingSig ? 'Saving…' : 'Save signature'}
-          </Button>
-        </CardContent>
-      </Card>
+          {/* Signature card. */}
+          <Card className="max-w-2xl">
+            <CardHeader>
+              <CardTitle>Signature</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-0">
+              <div className="flex gap-3 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+                <Info className="mt-0.5 size-4 shrink-0" />
+                <p>
+                  Your internal e-signature is applied when you approve
+                  requests. This is a display convenience, not a legally-binding
+                  e-signature.
+                </p>
+              </div>
+
+              <SignatureEditorFields
+                text={sigText}
+                font={sigFont}
+                onTextChange={setSigText}
+                onFontChange={setSigFont}
+                disabled={savingSig}
+              />
+
+              <Button
+                onClick={saveSignature}
+                disabled={savingSig || !sigText.trim()}
+              >
+                {savingSig ? 'Saving…' : 'Save signature'}
+              </Button>
+            </CardContent>
+          </Card>
         </>
       )}
     </PageContainer>
