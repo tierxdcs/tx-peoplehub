@@ -11,6 +11,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { IN_HOUSE_FACILITY_NAME } from '../../common/constants/in-house-facility';
 import { ConfirmationSheetsService } from '../sales/confirmation-sheets.service';
 import { KanbanBoardsService } from '../kanban/kanban-boards.service';
 import { PlmService } from '../plm/plm.service';
@@ -55,11 +56,12 @@ function fullName(e: EmployeeName): string | null {
 }
 
 /**
- * IN_HOUSE work always goes to this fixed manufacturing partner. Hardcoded for
- * now (per business confirmation) — kept as one named constant so it's trivial
- * to relocate to company-config if it ever needs to be configurable.
+ * IN_HOUSE work always goes to this fixed manufacturing partner. Shared with the
+ * Executive Operations dashboard, which labels every in-house line with it — see
+ * common/constants/in-house-facility.ts for why it is a display string rather
+ * than a Vendor Master row.
  */
-const IN_HOUSE_VENDOR_NAME = 'Balaji MetalTech, Bengaluru';
+const IN_HOUSE_VENDOR_NAME = IN_HOUSE_FACILITY_NAME;
 
 @Injectable()
 export class ProjectKickoffService {
@@ -229,16 +231,34 @@ export class ProjectKickoffService {
   async progressForUser(
     user: AuthenticatedUser,
   ): Promise<ProjectProgressView[]> {
-    const where: Prisma.ProjectKickoffWhereInput = this.access.isSuperAdmin(
-      user,
-    )
-      ? {}
-      : {
-          OR: [
-            { createdById: user.id },
-            { attendees: { some: { employeeId: user.id } } },
-          ],
-        };
+    return this.progressForScope(
+      this.access.isSuperAdmin(user)
+        ? {}
+        : {
+            OR: [
+              { createdById: user.id },
+              { attendees: { some: { employeeId: user.id } } },
+            ],
+          },
+    );
+  }
+
+  /**
+   * Every project in the company, for the Executive Operations dashboard (the
+   * COO's view). Identical projection and identical `deriveProjectProgress`
+   * health as the personal dashboard above — only the scope widens, so an
+   * On Track / At Risk / Blocked count can never mean two different things
+   * depending on which page you read it from.
+   *
+   * Access is checked by ExecutiveAccessService at that controller, not here.
+   */
+  async progressCompanyWide(): Promise<ProjectProgressView[]> {
+    return this.progressForScope({});
+  }
+
+  private async progressForScope(
+    where: Prisma.ProjectKickoffWhereInput,
+  ): Promise<ProjectProgressView[]> {
     const kickoffs = await this.prisma.projectKickoff.findMany({
       where,
       orderBy: { updatedAt: 'desc' },

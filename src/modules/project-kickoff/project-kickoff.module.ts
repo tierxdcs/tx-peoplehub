@@ -16,5 +16,6 @@ import { PlmModule } from '../plm/plm.module';
   imports: [SalesModule, KanbanModule, PlmModule],
   controllers: [ProjectKickoffController],
   providers: [ProjectKickoffService, ProjectKickoffAccessService],
+  exports: [ProjectKickoffService],
 })
 export class ProjectKickoffModule {}

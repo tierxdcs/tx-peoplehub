@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { PlmDesignReviewStatus, PlmStage, Role } from '@prisma/client';
+import { PlmDesignReviewStatus, PlmStage, Prisma, Role } from '@prisma/client';
 import { PlmService } from './plm.service';
 
 describe('PlmService', () => {
@@ -26,6 +26,10 @@ describe('PlmService', () => {
       designReviewStatus: PlmDesignReviewStatus.PENDING,
       designSubmittedById: user.id,
       order: { id: 'order-1', orderNumber: 'ORD-2026-0001', ownerId: user.id },
+      split: {
+        quantity: new Prisma.Decimal(10),
+        vendorName: 'Shakti Fabricators',
+      },
       orderLine: {
         product: { item: { boms: [] } },
         qmsInspections: [],

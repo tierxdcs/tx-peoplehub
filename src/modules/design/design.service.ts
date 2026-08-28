@@ -72,7 +72,12 @@ const CHANGE_IMPACT_AREAS: DesignChangeImpactArea[] = [
 // The ordered design-project stage ladder. Advancing along it is gated per
 // step (see updateProjectStatus); ON_HOLD and CLOSED sit outside the ladder and
 // are never gated.
-const STAGE_LADDER: DesignProjectStatus[] = [
+/**
+ * The design stage-gate ladder. Exported so the Executive Operations dashboard
+ * reports stage-gate occupancy in this exact order instead of declaring its own
+ * copy. ON_HOLD and CLOSED are off-ladder by design.
+ */
+export const DESIGN_STAGE_LADDER: DesignProjectStatus[] = [
   'REQUIREMENTS',
   'CONCEPT',
   'DETAILED_DESIGN',
@@ -80,6 +85,16 @@ const STAGE_LADDER: DesignProjectStatus[] = [
   'CUSTOMER_APPROVAL',
   'RELEASED_FOR_PRODUCTION',
 ];
+const STAGE_LADDER = DESIGN_STAGE_LADDER;
+
+/**
+ * A design project still in flight. Exported alongside the ladder so "active
+ * projects" means the same set on this module's dashboard and on the executive
+ * one. ON_HOLD counts as active — it is stalled work, not finished work.
+ */
+export const ACTIVE_DESIGN_PROJECT_WHERE = {
+  status: { notIn: ['CLOSED', 'RELEASED_FOR_PRODUCTION'] },
+} as const satisfies Prisma.DesignProjectWhereInput;
 
 // A design review "passes" its gate when its latest closed instance of the
 // required type carries either of these outcomes.
@@ -130,14 +145,9 @@ export class DesignService {
       this.prisma.designRequest.count({
         where: { status: { in: ['OPEN', 'ACCEPTED'] } },
       }),
+      this.prisma.designProject.count({ where: ACTIVE_DESIGN_PROJECT_WHERE }),
       this.prisma.designProject.count({
-        where: { status: { notIn: ['CLOSED', 'RELEASED_FOR_PRODUCTION'] } },
-      }),
-      this.prisma.designProject.count({
-        where: {
-          status: { notIn: ['CLOSED', 'RELEASED_FOR_PRODUCTION'] },
-          targetDate: { lt: now },
-        },
+        where: { ...ACTIVE_DESIGN_PROJECT_WHERE, targetDate: { lt: now } },
       }),
       this.prisma.designDocumentRevision.count({
         where: { status: { in: ['PENDING_CHECK', 'PENDING_APPROVAL'] } },

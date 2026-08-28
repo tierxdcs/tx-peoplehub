@@ -162,6 +162,21 @@ export interface PlmDashboardItem {
   daysUntilDue: number | null;
   blocker: string | null;
   health: 'ON_TRACK' | 'AT_RISK' | 'BLOCKED';
+  /**
+   * Who is actually executing this line. Derived on the server from the delivery
+   * flow, so it is correct even when the split carries no vendor name:
+   * IN_HOUSE work is our own facility, NPD with no vendor is our own
+   * development, and everything else is a genuine external vendor.
+   */
+  facilityKind: 'IN_HOUSE' | 'IN_HOUSE_NPD' | 'EXTERNAL_VENDOR';
+  /** Bold-able label: the vendor's own name, or "In-House — Balaji MetalTech". */
+  facilityLabel: string;
+  /** Vendor Master id when a real vendor row backs the label, else null. */
+  facilityVendorId: string | null;
+  /** The portion of the order line this tracker covers, as a fixed-2 string. */
+  splitQuantity: string;
+  /** The tracker's own vendor-update cadence verdict; null when none is running. */
+  vendorCadenceStatus: 'GREEN' | 'AMBER' | 'RED' | null;
   production: { done: number; total: number };
   hasPendingPing: boolean;
   updatedAt: string;

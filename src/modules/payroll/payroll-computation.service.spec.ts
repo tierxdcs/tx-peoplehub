@@ -56,6 +56,8 @@ describe('PayrollComputationService', () => {
     isProductionHead: false,
     isRdHead: false,
     isAccountsHead: false,
+    isScmHead: false,
+    hasExecutiveDashboardAccess: false,
     signatureText: null,
     signatureFont: null,
     dateOfBirth: null,

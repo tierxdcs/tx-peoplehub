@@ -6,6 +6,7 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { ExecutiveAccessService } from './executive-access.service';
 import { SalesDashboardService } from './sales-dashboard.service';
+import { OperationsDashboardService } from './operations-dashboard.service';
 
 /**
  * The Executive Dashboards section. One controller, one gate: every route here
@@ -23,6 +24,7 @@ export class ExecutiveController {
   constructor(
     private readonly access: ExecutiveAccessService,
     private readonly salesDashboard: SalesDashboardService,
+    private readonly operationsDashboard: OperationsDashboardService,
   ) {}
 
   @Get('access')
@@ -42,5 +44,15 @@ export class ExecutiveController {
   async sales(@CurrentUser() user: AuthenticatedUser) {
     await this.access.assertAccess(user);
     return this.salesDashboard.build();
+  }
+
+  @Get('dashboards/operations')
+  @ApiOperation({
+    summary:
+      'Executive Operations dashboard: company-wide project health, delivery urgency, blockers, PLM stage funnel, OTD, design stage gates, vendor cadence and procurement cycle health — deliberately no revenue, margin, cash flow or receivables',
+  })
+  async operations(@CurrentUser() user: AuthenticatedUser) {
+    await this.access.assertAccess(user);
+    return this.operationsDashboard.build(user);
   }
 }

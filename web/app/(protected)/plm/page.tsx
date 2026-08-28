@@ -12,6 +12,11 @@ import {
 } from 'lucide-react';
 import { ApiError } from '../../lib/api';
 import { getMyPlmWork, PlmDashboardItem, plmTrackerHref } from '../../lib/plm';
+import {
+  DELIVERY_URGENCY_TEXT_CLASS,
+  deliveryCountdownLabel,
+  deliveryUrgencyTier,
+} from '../../lib/delivery-urgency';
 import { prettyEnum } from '../../lib/sales';
 import { PageContainer } from '../../components/ui/page-container';
 import { PageHeader } from '../../components/ui/page-header';
@@ -488,33 +493,24 @@ function LifecycleRow({
 }
 
 function DeliveryUrgency({ item }: { item: PlmDashboardItem }) {
-  if (!item.promisedDeliveryDate || item.daysUntilDue == null)
+  const tier = deliveryUrgencyTier(item.daysUntilDue);
+  if (!item.promisedDeliveryDate || tier === 'UNCONFIRMED')
     return (
       <p className="mt-1 text-xs text-muted-foreground">
-        Delivery date not confirmed
+        {deliveryCountdownLabel(null)}
       </p>
     );
-  const overdue = item.daysUntilDue < 0;
-  const urgent = item.daysUntilDue <= 2;
-  const approaching = item.daysUntilDue <= 7;
   return (
     <p
       className={cn(
         'mt-1 text-xs font-medium',
-        (overdue || urgent) && 'text-destructive',
-        !overdue && !urgent && approaching && 'text-warning-foreground',
-        !overdue && !approaching && 'text-success',
+        DELIVERY_URGENCY_TEXT_CLASS[tier],
       )}
     >
       <time dateTime={item.promisedDeliveryDate}>
         Delivery {new Date(item.promisedDeliveryDate).toLocaleDateString()}
       </time>{' '}
-      ·{' '}
-      {overdue
-        ? `${Math.abs(item.daysUntilDue)} day(s) overdue`
-        : item.daysUntilDue === 0
-          ? 'Due today'
-          : `${item.daysUntilDue} day(s) remaining`}
+      · {deliveryCountdownLabel(item.daysUntilDue)}
     </p>
   );
 }

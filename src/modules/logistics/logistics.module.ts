@@ -22,5 +22,6 @@ import { OtdService } from './otd.service';
   imports: [SalesModule, BomModule, FinanceArModule, VaultModule],
   controllers: [DeliveryChallanController, OtdController],
   providers: [DeliveryChallanService, DispatchAccessService, OtdService],
+  exports: [OtdService],
 })
 export class LogisticsModule {}

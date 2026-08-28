@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DeliveryChallanStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { delayDays, onTimePercentage } from './otd.math';
 
 /**
  * On-Time Delivery reporting. Fully COMPUTED from DeliveryChallan data (promised
@@ -44,7 +45,6 @@ export class OtdService {
       orderBy: { actualDeliveryDate: 'desc' },
     });
 
-    const DAY = 24 * 60 * 60 * 1000;
     let onTime = 0;
     let late = 0;
     let totalDelayDays = 0;
@@ -60,14 +60,11 @@ export class OtdService {
     >();
 
     const rows = dcs.map((dc) => {
-      const promised = dc.promisedDeliveryDate!.getTime();
-      const actual = dc.actualDeliveryDate!.getTime();
-      // Delay in whole days, rounded up; <= 0 means on-time.
-      const delayDays = Math.ceil((actual - promised) / DAY);
-      const isLate = delayDays > 0;
+      const delay = delayDays(dc.promisedDeliveryDate!, dc.actualDeliveryDate!);
+      const isLate = delay > 0;
       if (isLate) {
         late += 1;
-        totalDelayDays += delayDays;
+        totalDelayDays += delay;
       } else {
         onTime += 1;
       }
@@ -89,7 +86,7 @@ export class OtdService {
         customerName: dc.customer?.name ?? '—',
         promisedDeliveryDate: dc.promisedDeliveryDate!.toISOString(),
         actualDeliveryDate: dc.actualDeliveryDate!.toISOString(),
-        delayDays,
+        delayDays: delay,
         onTime: !isLate,
       };
     });
@@ -100,18 +97,14 @@ export class OtdService {
         totalDelivered: total,
         onTime,
         late,
-        onTimePercentage: total
-          ? Math.round((onTime / total) * 1000) / 10
-          : null,
+        onTimePercentage: onTimePercentage(onTime, total),
         averageDelayDays: late
           ? Math.round((totalDelayDays / late) * 10) / 10
           : 0,
       },
       byCustomer: [...byCustomer.values()].map((c) => ({
         ...c,
-        onTimePercentage: c.total
-          ? Math.round((c.onTime / c.total) * 1000) / 10
-          : null,
+        onTimePercentage: onTimePercentage(c.onTime, c.total),
       })),
       dispatches: rows,
     };

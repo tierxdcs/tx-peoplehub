@@ -28,6 +28,11 @@ import {
 import { PlmAccessService } from './plm-access.service';
 import { KanbanNotificationsService } from '../notifications/kanban-notifications.service';
 import { deriveVendorCadence } from './plm-vendor-cadence';
+import {
+  IN_HOUSE_FACILITY_LABEL,
+  IN_HOUSE_NPD_LABEL,
+  UNNAMED_VENDOR_LABEL,
+} from '../../common/constants/in-house-facility';
 
 const INITIAL_STAGE: Record<OrderLineDeliveryType, PlmStage> = {
   NPD: PlmStage.DESIGN,
@@ -47,6 +52,52 @@ const DESIGN_STAGE_LADDER: DesignProjectStatus[] = [
   'CUSTOMER_APPROVAL',
   'RELEASED_FOR_PRODUCTION',
 ];
+
+/** Who is executing a line: the in-house facility, or a genuine external vendor. */
+export type PlmFacilityKind = 'IN_HOUSE' | 'IN_HOUSE_NPD' | 'EXTERNAL_VENDOR';
+
+/**
+ * The "who is building this" attribution every PLM dashboard row carries, so no
+ * consumer has to re-derive it from flowType + vendor + split name.
+ *
+ * An external vendor is named by its Vendor Master `companyName`, or — when the
+ * split records only free text and no Vendor row — by that text. An IN_HOUSE
+ * line always reads as the fixed in-house facility, from the same constant
+ * Kickoff writes onto the split, so the label can never drift from the data.
+ * NPD is engineering-led in-house work and gets its own kind: it is deliberately
+ * NOT counted as in-house *manufacturing*.
+ */
+function facilityOf(tracker: {
+  flowType: OrderLineDeliveryType;
+  vendor: { id: string; companyName: string } | null;
+  split: { quantity: Prisma.Decimal; vendorName: string | null };
+}): {
+  facilityKind: PlmFacilityKind;
+  facilityLabel: string;
+  facilityVendorId: string | null;
+  splitQuantity: string;
+} {
+  const named = tracker.vendor?.companyName ?? tracker.split.vendorName;
+  const attribution =
+    tracker.flowType === OrderLineDeliveryType.IN_HOUSE
+      ? {
+          facilityKind: 'IN_HOUSE' as const,
+          facilityLabel: IN_HOUSE_FACILITY_LABEL,
+          facilityVendorId: null,
+        }
+      : tracker.flowType === OrderLineDeliveryType.NPD && !named
+        ? {
+            facilityKind: 'IN_HOUSE_NPD' as const,
+            facilityLabel: IN_HOUSE_NPD_LABEL,
+            facilityVendorId: null,
+          }
+        : {
+            facilityKind: 'EXTERNAL_VENDOR' as const,
+            facilityLabel: named ?? UNNAMED_VENDOR_LABEL,
+            facilityVendorId: tracker.vendor?.id ?? null,
+          };
+  return { ...attribution, splitQuantity: tracker.split.quantity.toFixed(2) };
+}
 
 @Injectable()
 export class PlmService {
@@ -154,19 +205,43 @@ export class PlmService {
       employee?.isProductionHead ||
       employee?.isInternalAuditor ||
       employee?.isProjectManager;
+    return this.dashboardItems(
+      privileged
+        ? {}
+        : {
+            OR: [
+              { ownerId: user.id },
+              { order: { ownerId: user.id } },
+              { kickoff: { attendees: { some: { employeeId: user.id } } } },
+            ],
+          },
+      user.id,
+    );
+  }
+
+  /**
+   * Every active tracker in the company, for the Executive Operations dashboard.
+   * Deliberately the SAME builder as the personal PLM workspace above — the
+   * blocker reasons, health, delivery countdown and production counts are one
+   * computation with a wider `where`, so the COO's rollup can never disagree
+   * with what the owning team sees on /plm.
+   *
+   * Access is checked by ExecutiveAccessService at that controller, not here.
+   */
+  async dashboardCompanyWide(user: AuthenticatedUser) {
+    return this.dashboardItems({}, user.id);
+  }
+
+  /**
+   * @param scope  extra tracker filter (visibility); ACTIVE is always applied.
+   * @param viewerId whose unresolved pings light up the row's ping flag.
+   */
+  private async dashboardItems(
+    scope: Prisma.PlmTrackerWhereInput,
+    viewerId: string,
+  ) {
     const trackers = await this.prisma.plmTracker.findMany({
-      where: {
-        status: PlmTrackerStatus.ACTIVE,
-        ...(privileged
-          ? {}
-          : {
-              OR: [
-                { ownerId: user.id },
-                { order: { ownerId: user.id } },
-                { kickoff: { attendees: { some: { employeeId: user.id } } } },
-              ],
-            }),
-      },
+      where: { status: PlmTrackerStatus.ACTIVE, ...scope },
       include: this.detailInclude(),
       orderBy: { updatedAt: 'desc' },
     });
@@ -184,8 +259,8 @@ export class PlmService {
               },
               {
                 OR: [
-                  { employeeId: user.id },
-                  { ping: { fromEmployeeId: user.id } },
+                  { employeeId: viewerId },
+                  { ping: { fromEmployeeId: viewerId } },
                 ],
               },
             ],
@@ -285,6 +360,10 @@ export class PlmService {
             : cadenceAtRisk || ageDays >= 7
               ? 'AT_RISK'
               : 'ON_TRACK',
+          // Who is actually executing this line. Carried on every row so no
+          // consumer has to re-derive it from flowType + vendor + split name.
+          ...facilityOf(tracker),
+          vendorCadenceStatus: derived.derived.vendorCadence?.status ?? null,
           production: derived.derived.production,
           hasPendingPing: trackerIdsWithPendingPings.has(tracker.id),
           updatedAt: tracker.updatedAt.toISOString(),
@@ -698,6 +777,9 @@ export class PlmService {
     return {
       owner: { select: { id: true, firstName: true, lastName: true } },
       vendor: { select: { id: true, companyName: true } },
+      // The portion of the order line this tracker covers, plus the vendor name
+      // captured at classification — the fallback when no Vendor row is linked.
+      split: { select: { quantity: true, vendorName: true } },
       order: {
         select: {
           id: true,
