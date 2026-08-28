@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Info } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 import { apiFetch, ApiError } from '../../lib/api';
@@ -23,6 +24,8 @@ import { Skeleton } from '../../components/ui/skeleton';
 import { SignatureEditorFields } from '../../components/ui/signature-setup-inline';
 import { useToast } from '../../components/ui/toaster';
 import { cn } from '../../lib/utils';
+import { CompanyOrgChart } from '../../components/org-chart/company-org-chart';
+import { MiniOrgChart } from '../../components/org-chart/mini-org-chart';
 import { TeamSection } from '../_sections/team-section';
 import { LeaveSection } from '../_sections/leave-section';
 import { AttendanceSection } from '../_sections/attendance-section';
@@ -31,6 +34,7 @@ import { TeamAttendanceSection } from '../_sections/team-attendance-section';
 
 type ProfileTab =
   | 'profile'
+  | 'org-chart'
   | 'team'
   | 'team-approvals'
   | 'team-attendance'
@@ -48,6 +52,12 @@ function DetailLabel({ children }: { children: React.ReactNode }) {
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  // ?tab= lets a link open a specific tab (the org chart is reached this way, from
+  // a colleague's mini chart); ?focus= reveals + highlights that person in the
+  // company tree. Unknown values just fall back to the Profile tab.
+  const requestedTab = searchParams.get('tab');
+  const focusId = searchParams.get('focus');
   const toast = useToast();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [verticalName, setVerticalName] = useState<string | null>(null);
@@ -58,7 +68,9 @@ export default function ProfilePage() {
   const [sigText, setSigText] = useState('');
   const [sigFont, setSigFont] = useState<SignatureFont>(SIGNATURE_FONTS[0]);
   const [savingSig, setSavingSig] = useState(false);
-  const [tab, setTab] = useState<ProfileTab>('profile');
+  const [tab, setTab] = useState<ProfileTab>(
+    requestedTab === 'org-chart' ? 'org-chart' : 'profile',
+  );
 
   // Team self-service (roster + leave approvals) is manager/admin-only; the
   // team-attendance grid is MANAGER-only (its backend endpoint is), matching
@@ -142,6 +154,8 @@ export default function ProfilePage() {
 
   const tabs: { key: ProfileTab; label: string }[] = [
     { key: 'profile', label: 'Profile' },
+    // Reporting structure — every employee has one, so this tab is ungated.
+    { key: 'org-chart', label: 'Org Chart' },
     ...(showTeam
       ? [
           { key: 'team' as const, label: 'My Team' },
@@ -177,6 +191,31 @@ export default function ProfilePage() {
           </button>
         ))}
       </div>
+
+      {/* Org Chart tab — the only home of the org chart. Your own tier first
+      (manager above, you in the middle, direct reports below), then the whole
+      company as a collapsible tree. Every node opens that person's profile. */}
+      {tab === 'org-chart' && (
+        <div className="space-y-4">
+          <Card className="max-w-2xl">
+            <CardHeader>
+              <CardTitle>Your reporting structure</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <MiniOrgChart employeeId={employee.id} currentUserId={user?.sub} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Company org chart</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <CompanyOrgChart focusId={focusId} currentUserId={user?.sub} />
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {tab === 'team' && <TeamSection embedded />}
       {tab === 'team-approvals' && <TeamLeaveApprovalsSection embedded />}

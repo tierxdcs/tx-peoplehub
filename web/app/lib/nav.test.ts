@@ -337,6 +337,21 @@ describe('sidebarNav — the reported bug', () => {
     }
   });
 
+  // The org chart is a tab under My Profile, not a sidebar destination — same
+  // rule as My Team / My Leave / My Attendance above.
+  it('does not put the Org Chart in the sidebar for any role', () => {
+    for (const role of [
+      'SUPER_ADMIN',
+      'ADMIN',
+      'MANAGER',
+      'EMPLOYEE',
+    ] as const) {
+      const a = access(role);
+      const shown = labels(a, activeModule('/profile', availableModules(a)));
+      expect(shown).not.toContain('Org Chart');
+    }
+  });
+
   it('a module-less EMPLOYEE (Production) sees only shared items', () => {
     const a = access('EMPLOYEE');
     const shown = labels(a, activeModule('/leave', availableModules(a)));

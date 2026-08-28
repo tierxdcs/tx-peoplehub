@@ -214,7 +214,19 @@
       "Bash(curl -s -o /dev/null -w \"/executive/scm -> %{http_code}\\\\n\" http://localhost:3001/executive/scm)",
       "Bash(curl -s -o /dev/null -w \"/executive/operations -> %{http_code}\\\\n\" http://localhost:3001/executive/operations)",
       "Bash(ps -eo pid,stat,command)",
-      "Bash(xargs -r kill -TERM)"
+      "Bash(xargs -r kill -TERM)",
+      "Bash(awk 'NR>=409 && NR<=740' prisma/schema.prisma)",
+      "Bash(echo \"grep-exit:$?\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/employees/org-chart)",
+      "Bash(curl -s http://localhost:3000/api-json)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\([p for p in d['paths'] if 'org-chart' in p]\\)\")",
+      "Bash(ps -o pid,command -p 18879 -p 19087)",
+      "Bash(kill -TERM 19087)",
+      "Bash(curl -s -o /dev/null -w \"api /employees/abc/org-chart -> %{http_code}\\\\n\" http://localhost:3000/employees/abc/org-chart)",
+      "Bash(nohup npm start)",
+      "Bash(curl -s -o /dev/null -w \"web / -> %{http_code}\\\\n\" http://localhost:3001/)",
+      "Bash(curl -s -o /dev/null -w \"web /org-chart -> %{http_code}\\\\n\" http://localhost:3001/org-chart)",
+      "Bash(curl -s -o /dev/null -w \"/profile -> %{http_code}\\\\n\" http://localhost:3001/profile)"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",

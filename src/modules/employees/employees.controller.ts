@@ -35,6 +35,7 @@ import {
   SetEmployeePhotoDto,
 } from './dto/employee-photo.dto';
 import { EmployeesService } from './employees.service';
+import { OrgChartService } from './org-chart.service';
 import { CtcPreviewDto } from '../payroll/dto/ctc-preview.dto';
 
 /**
@@ -50,7 +51,10 @@ import { CtcPreviewDto } from '../payroll/dto/ctc-preview.dto';
 @UseGuards(RolesGuard)
 @Controller('employees')
 export class EmployeesController {
-  constructor(private readonly employeesService: EmployeesService) {}
+  constructor(
+    private readonly employeesService: EmployeesService,
+    private readonly orgChart: OrgChartService,
+  ) {}
 
   @Post('onboard')
   @Roles(Role.MANAGER, Role.EMPLOYEE, Role.ADMIN, Role.SUPER_ADMIN)
@@ -105,6 +109,19 @@ export class EmployeesController {
       query.q,
       Number.isFinite(limit) ? limit : undefined,
     );
+  }
+
+  // Org chart — the reporting structure is standard organisational information,
+  // not sensitive PII, so both routes are open to every authenticated employee
+  // (the same audience as /search, and the node shape carries no more than it
+  // does). Static route declared before @Get(':id').
+  @Get('org-chart')
+  @Roles(Role.MANAGER, Role.EMPLOYEE, Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Full company reporting hierarchy (flat nodes + root ids)',
+  })
+  getCompanyOrgChart() {
+    return this.orgChart.companyChart();
   }
 
   @Get('pending-access')
@@ -181,6 +198,17 @@ export class EmployeesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.employeesService.update(id, dto, user);
+  }
+
+  // The mini org chart on a profile page: manager above, this employee, direct
+  // reports below. Same company-wide audience as /org-chart.
+  @Get(':id/org-chart')
+  @Roles(Role.MANAGER, Role.EMPLOYEE, Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary: "One employee's manager, self and direct reports",
+  })
+  getEmployeeOrgChart(@Param('id') id: string) {
+    return this.orgChart.neighbourhood(id);
   }
 
   // Photo read: signed download URL, gated by the same rule as GET :id (self /

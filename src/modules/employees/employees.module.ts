@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { EmployeesController } from './employees.controller';
 import { EmployeesService } from './employees.service';
+import { OrgChartService } from './org-chart.service';
 import { VaultStorageService } from '../vault/vault-storage.service';
 import { ProvisioningModule } from '../provisioning/provisioning.module';
 import { PayrollModule } from '../payroll/payroll.module';
@@ -14,7 +15,7 @@ import { PayrollModule } from '../payroll/payroll.module';
 @Module({
   imports: [ProvisioningModule, PayrollModule],
   controllers: [EmployeesController],
-  providers: [EmployeesService, VaultStorageService],
+  providers: [EmployeesService, OrgChartService, VaultStorageService],
   exports: [EmployeesService],
 })
 export class EmployeesModule {}

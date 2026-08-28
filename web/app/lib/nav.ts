@@ -157,6 +157,10 @@ export function sharedNav(access: Access): NavGroup[] {
   me.push({ label: 'My Expense Claims', href: '/expense-claims' });
   if (me.length) groups.push({ heading: 'Me', items: me });
 
+  // The org chart is NOT a sidebar item: it lives as the Org Chart tab under My
+  // Profile (reached from the account dropdown), alongside My Team / My Leave /
+  // My Attendance — same rule as those, so it isn't duplicated here.
+
   // Offer Letter Approvals — surfaced to whoever currently has letters routed
   // to them as the new hire's vertical owner (or a Super Admin fallback). This
   // audience spans every vertical, so the link appears dynamically off the live

@@ -40,6 +40,7 @@ import {
   setEmployeePhoto,
 } from '../../../../lib/employee-photo';
 import { ProvisioningChecklist } from '../../../../components/provisioning/provisioning-checklist';
+import { MiniOrgChart } from '../../../../components/org-chart/mini-org-chart';
 
 export default function EditEmployeePage() {
   const { id } = useParams<{ id: string }>();
@@ -720,6 +721,20 @@ export default function EditEmployeePage() {
                 onRemove={photoUrl ? handlePhotoRemove : undefined}
               />
             </div>
+          </SCard>
+
+          {/* Where this employee sits in the reporting structure — a read-only
+          view of the reportingManagerId set in Details above. */}
+          <SCard className="px-5 py-[18px]">
+            <SCardTitle
+              title="Reporting structure"
+              subtitle="Click anyone to open their profile"
+            />
+            <MiniOrgChart
+              employeeId={id}
+              currentUserId={user?.sub}
+              className="mt-3.5"
+            />
           </SCard>
 
           {/* Designations & roles — capability grants, secondary to the details. */}
