@@ -562,6 +562,7 @@ describe('sharedNav — Executive Dashboards', () => {
     expect(group.items).toEqual([
       { label: 'Sales Dashboard', href: '/executive/sales' },
       { label: 'Operations Dashboard', href: '/executive/operations' },
+      { label: 'SCM Dashboard', href: '/executive/scm' },
     ]);
   });
 

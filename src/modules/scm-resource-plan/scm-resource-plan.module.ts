@@ -14,5 +14,9 @@ import { ScmResourcePlanController } from './scm-resource-plan.controller';
   imports: [BomModule],
   controllers: [ScmResourcePlanController],
   providers: [ScmResourcePlanAccessService, ScmResourcePlanService],
+  // Exported so the executive SCM dashboard reads this module's own
+  // cross-project variance — including its own cost-view gate — instead of
+  // carrying a second copy of the benchmark-vs-negotiated arithmetic.
+  exports: [ScmResourcePlanService],
 })
 export class ScmResourcePlanModule {}

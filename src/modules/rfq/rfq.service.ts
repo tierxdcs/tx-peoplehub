@@ -18,6 +18,7 @@ import {
   hashInvitePassword,
 } from '../../common/utils/token-invite';
 import { RfqAccessService } from './rfq-access.service';
+import { autoDraftPoNote } from './rfq-po-provenance';
 import {
   AddInviteeDto,
   AwardRfqDto,
@@ -1476,10 +1477,7 @@ export class RfqService {
         ...(invitee.supplierId
           ? { supplierId: invitee.supplierId }
           : { vendorId: invitee.vendorId! }),
-        notes:
-          awardedQuote.revisionNumber > 1
-            ? `Auto-drafted from awarded RFQ ${rfq.rfqNumber} (quote revision ${awardedQuote.revisionNumber})`
-            : `Auto-drafted from awarded RFQ ${rfq.rfqNumber}`,
+        notes: autoDraftPoNote(rfq.rfqNumber, awardedQuote.revisionNumber),
         lines: awardedQuote.lines.map((ql) => {
           const rl = rfqLineById.get(ql.rfqLineId);
           return {

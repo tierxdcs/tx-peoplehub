@@ -7,6 +7,8 @@ import {
 import { ExecutiveAccessService } from './executive-access.service';
 import { SalesDashboardService } from './sales-dashboard.service';
 import { OperationsDashboardService } from './operations-dashboard.service';
+import { ScmDashboardService } from './scm-dashboard.service';
+import { ProjectManagementDashboardService } from './project-management-dashboard.service';
 
 /**
  * The Executive Dashboards section. One controller, one gate: every route here
@@ -25,6 +27,8 @@ export class ExecutiveController {
     private readonly access: ExecutiveAccessService,
     private readonly salesDashboard: SalesDashboardService,
     private readonly operationsDashboard: OperationsDashboardService,
+    private readonly scmDashboard: ScmDashboardService,
+    private readonly projectManagementDashboard: ProjectManagementDashboardService,
   ) {}
 
   @Get('access')
@@ -54,5 +58,22 @@ export class ExecutiveController {
   async operations(@CurrentUser() user: AuthenticatedUser) {
     await this.access.assertAccess(user);
     return this.operationsDashboard.build(user);
+  }
+
+  @Get('dashboards/scm')
+  @ApiOperation({
+    summary:
+      'Executive SCM dashboard: RFQ and purchase-order health, vendor/supplier base and classification overrides, vendor-executed project detail, sourcing backlog, resource-plan cost variance, vendor-caused quality and quoted lead-time trend — deliberately no revenue, margin or customer data',
+  })
+  async scm(@CurrentUser() user: AuthenticatedUser) {
+    await this.access.assertAccess(user);
+    return this.scmDashboard.build(user);
+  }
+
+  @Get('dashboards/project-management')
+  @ApiOperation({ summary: 'Executive Project Management dashboard: PM-attributed project health, blockers, delivery, workload and kickoff readiness' })
+  async projectManagement(@CurrentUser() user: AuthenticatedUser) {
+    await this.access.assertAccess(user);
+    return this.projectManagementDashboard.build();
   }
 }

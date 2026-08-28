@@ -279,3 +279,423 @@ export interface ExternalVendorHealth {
 export function fetchOperationsDashboard() {
   return apiFetch<OperationsDashboard>('/executive/dashboards/operations');
 }
+
+export interface ProjectManagementDashboard {
+  asOf: string;
+  basis: string[];
+  projects: Array<{ kickoffId: string; projectName: string; orderId: string; orderNumber: string; pm: string; health: 'ON_TRACK' | 'AT_RISK' | 'BLOCKED'; healthReason: string; currentStage: string; deliveryDate: string | null; fulfilmentStatus: string }>;
+  blockers: Array<{ project: string; pm: string; blocker: string; owner: string }>;
+  delivery: Array<{ kickoffId: string; projectName: string; orderNumber: string; pm: string; deliveryDate: string | null; fulfilmentStatus: string; overdue: boolean }>;
+  workload: Array<{ pm: string; openTasks: number; activeProjects: number }>;
+  awaitingKickoff: Array<{ id: string; orderNumber: string; orderType: string; createdAt: string }>;
+  ordersAwaitingDelivery: Array<{ orderId: string; orderNumber: string; projectName: string; pm: string }>;
+  milestoneHealth: Array<{ project: string; pm: string; name: string; targetDate: string; owner: string }>;
+  actionItemHealth: Array<{ project: string; pm: string; description: string; dueDate: string | null; owner: string }>;
+  risks: Array<{ project: string; pm: string; description: string; owner: string }>;
+  pings: Array<{ id: string; project: string; message: string; from: string; owners: string[]; createdAt: string }>;
+}
+
+export function fetchProjectManagementDashboard() {
+  return apiFetch<ProjectManagementDashboard>('/executive/dashboards/project-management');
+}
+
+/**
+ * The SCM dashboard. Deliberately supply-side only: no revenue, no margin and no
+ * customer name is on the wire at all — the backend strips the customer from the
+ * PLM rows, the resource-plan rows and the BOM intakes rather than relying on the
+ * page not to render it.
+ *
+ * Two honesty conventions carry through from the backend and must be rendered as
+ * they arrive:
+ *  - a `null` number means "the data cannot answer this", never zero;
+ *  - `note` is the backend's own explanation of what a metric is measured from
+ *    (the RFQ clock's start, the award→PO provenance match, the audit queue), so
+ *    it is shown rather than paraphrased.
+ */
+export type ScmTrendDirection = 'RISING' | 'FALLING' | 'FLAT';
+
+export interface ScmMonthPoint {
+  key: string;
+  label: string;
+  value: number | null;
+}
+
+export interface ScmPartnerParticipation {
+  key: string;
+  partnerName: string;
+  partnerType: 'VENDOR' | 'SUPPLIER';
+  invited: number;
+  submitted: number;
+  declined: number;
+  /** Invited, never answered — the reliability gap qualification cannot show. */
+  silent: number;
+  participationPercent: string | null;
+  averageResponseDays: number | null;
+  revisions: number;
+  revisionRequests: number;
+}
+
+export interface ScmVendorLine {
+  trackerId: string;
+  orderId: string;
+  orderNumber: string;
+  productName: string;
+  productSku: string;
+  splitQuantity: string;
+  currentStage: PlmDashboardItem['currentStage'];
+  ownerName: string;
+  ageDays: number;
+  promisedDeliveryDate: string | null;
+  daysUntilDue: number | null;
+  blocker: string | null;
+  health: 'ON_TRACK' | 'AT_RISK' | 'BLOCKED';
+  cadenceStatus: 'GREEN' | 'AMBER' | 'RED' | null;
+  updateOverdue: boolean;
+  cadenceDueAt: string | null;
+  lastUpdateAt: string | null;
+  production: { done: number; total: number };
+  /** What the vendor last told us about this line — not something we measured. */
+  selfReport: {
+    reportedAt: string;
+    reporterDisplayName: string;
+    stepPercent: number | null;
+    completedSteps: number | null;
+    fabricationPercent: number | null;
+    surfaceFinishPercent: number | null;
+    assemblyPercent: number | null;
+    notes: string | null;
+  } | null;
+}
+
+export interface ScmDashboard {
+  asOf: string;
+  period: { label: string; startsOn: string; endsBefore: string };
+  basis: string[];
+  rfqHealth: {
+    open: {
+      total: number;
+      draft: number;
+      awaitingPmApproval: number;
+      pmRejected: number;
+      approvedNotIssued: number;
+      issued: number;
+      closedAwaitingAward: number;
+      awaitingPmApprovalRfqs: Array<{
+        id: string;
+        rfqNumber: string;
+        title: string;
+        lineCount: number;
+        inviteeCount: number;
+        createdAt: string;
+        waitingDays: number;
+        rejectedOnce: boolean;
+      }>;
+    };
+    responseTime: {
+      averageDays: number | null;
+      quotesMeasured: number;
+      status: DataMaturity;
+      note: string;
+      pmApprovalLagDays: number | null;
+      pmApprovalsMeasured: number;
+    };
+    awardCycle: {
+      averageDays: number | null;
+      rfqsMeasured: number;
+      status: DataMaturity;
+      note: string;
+    };
+    participation: {
+      invited: number;
+      submitted: number;
+      percent: string | null;
+      status: DataMaturity;
+      note: string;
+      partners: ScmPartnerParticipation[];
+    };
+    nonLowestAwards: {
+      count: number;
+      comparableAwards: number;
+      lowestWins: number;
+      percent: string | null;
+      status: DataMaturity;
+      note: string;
+      awards: Array<{
+        rfqId: string;
+        rfqNumber: string;
+        title: string;
+        awardedTo: string;
+        awardedAt: string;
+        premiumAmount: string | null;
+        premiumPercent: string | null;
+        justification: string | null;
+        quotesCompared: number;
+      }>;
+    };
+    quoteRevisions: {
+      revisions: number;
+      revisionRequests: number;
+      note: string;
+      partners: Array<{
+        key: string;
+        partnerName: string;
+        partnerType: 'VENDOR' | 'SUPPLIER';
+        revisions: number;
+        revisionRequests: number;
+      }>;
+    };
+  };
+  purchaseOrders: {
+    open: {
+      count: number;
+      value: string | null;
+      pendingReceipt: number;
+      partiallyReceived: number;
+      note: string;
+    };
+    overdue: {
+      count: number;
+      value: string | null;
+      orders: Array<{
+        id: string;
+        poNumber: string;
+        status: string;
+        partyName: string;
+        expectedDeliveryDate: string | null;
+        daysOverdue: number;
+        value: string | null;
+      }>;
+      /** Neither overdue nor on time — simply unmeasurable, and said so. */
+      withoutExpectedDate: number;
+    };
+    adHoc: {
+      pendingCount: number;
+      pendingValue: string | null;
+      oldestPendingAt: string | null;
+      approvedThisPeriod: number;
+      note: string;
+      orders: Array<{
+        id: string;
+        poNumber: string;
+        partyName: string;
+        createdAt: string;
+        waitingDays: number;
+        value: string | null;
+      }>;
+    };
+    cycleTime: {
+      averageDays: number | null;
+      posMeasured: number;
+      awardsInPeriod: number;
+      awardsMatched: number;
+      status: DataMaturity;
+      note: string;
+    };
+  };
+  supplyBase: {
+    registered: {
+      total: number;
+      vendors: number;
+      suppliers: number;
+      classified: number;
+      unclassified: number;
+      note: string;
+    };
+    classification: ScmPartnerBreakdown[];
+    onboarded: {
+      thisPeriod: number;
+      vendors: number;
+      suppliers: number;
+      percentOfBase: string | null;
+      note: string;
+    };
+    auditQueue: {
+      total: number;
+      stages: ScmPartnerBreakdown[];
+      note: string;
+    };
+    overrides: {
+      count: number;
+      note: string;
+      partners: Array<{
+        id: string;
+        partnerName: string;
+        partnerType: 'VENDOR' | 'SUPPLIER';
+        status: string;
+        statusLabel: string;
+      }>;
+    };
+    concentration: {
+      totalPoValue: string | null;
+      status: DataMaturity;
+      note: string;
+      topPartnerName: string | null;
+      topPartnerPercent: string | null;
+      partners: Array<{
+        name: string;
+        value: string;
+        percentOfTotal: string | null;
+      }>;
+    };
+  };
+  vendorProjects: {
+    vendorCount: number;
+    lineCount: number;
+    overdueUpdates: number;
+    blockedLines: number;
+    unlinkedVendorCount: number;
+    note: string;
+    vendors: Array<{
+      key: string;
+      vendorName: string;
+      vendorId: string | null;
+      activeLines: number;
+      blockedLines: number;
+      overdueUpdates: number;
+      dueSoonUpdates: number;
+      onScheduleUpdates: number;
+      lines: ScmVendorLine[];
+    }>;
+  };
+  sourcingBacklog: {
+    total: number;
+    intakes: {
+      count: number;
+      note: string;
+      rows: Array<{
+        id: string;
+        productName: string;
+        businessUnit: string;
+        lineCount: number;
+        hasBom: boolean;
+        readySince: string;
+        idleDays: number;
+      }>;
+    };
+    draftRfqs: {
+      count: number;
+      note: string;
+      rows: Array<{
+        id: string;
+        rfqNumber: string;
+        title: string;
+        lineCount: number;
+        inviteeCount: number;
+        awaitingPmApproval: boolean;
+        fromKickoff: boolean;
+        fromBomIntake: boolean;
+        idleSince: string;
+        idleDays: number;
+      }>;
+    };
+  };
+  costPerformance: {
+    /**
+     * RESTRICTED when the viewer holds the executive grant but not item-cost
+     * visibility: the section is withheld rather than the cost-view policy
+     * widened.
+     */
+    status: DataMaturity | 'RESTRICTED';
+    note: string;
+    projectsWithPlan: number;
+    projectsCostComplete: number;
+    projectsOverBenchmark: number;
+    totalBenchmarkCost: string | null;
+    totalNegotiatedCost: string | null;
+    varianceAmount: string | null;
+    variancePercent: string | null;
+    projects: Array<{
+      planId: string;
+      projectKickoffId: string;
+      projectName: string;
+      orderNumber: string;
+      totalBenchmarkCost: string | null;
+      totalNegotiatedCost: string | null;
+      varianceAmount: string | null;
+      variancePercent: string | null;
+      isCostComplete: boolean;
+      lineCount: number;
+      negotiatedLineCount: number;
+    }>;
+  };
+  qualityOfSupply: {
+    ncrs: {
+      raisedThisPeriod: number;
+      open: number;
+      dispositioned: number;
+      closed: number;
+      status: DataMaturity;
+      note: string;
+      trend: Array<{ key: string; label: string; value: number }>;
+      direction: ScmTrendDirection | null;
+      dispositions: Array<{
+        disposition: string;
+        label: string;
+        count: number;
+      }>;
+      undispositioned: number;
+      recent: Array<{
+        id: string;
+        ncrNumber: string;
+        itemName: string;
+        itemCode: string;
+        partnerName: string;
+        poNumber: string;
+        grnNumber: string;
+        rejectedQuantity: string;
+        status: string;
+        disposition: string | null;
+        raisedAt: string;
+      }>;
+    };
+    partners: Array<{
+      key: string;
+      partnerName: string;
+      partnerType: 'VENDOR' | 'SUPPLIER' | 'AD_HOC';
+      ncrCount: number;
+      openCount: number;
+      returned: number;
+      rejectedQuantity: string;
+    }>;
+    grnBacklog: {
+      count: number;
+      oldestReceivedAt: string | null;
+      note: string;
+      rows: Array<{
+        id: string;
+        grnNumber: string;
+        poNumber: string;
+        partyName: string;
+        receivedDate: string;
+        waitingDays: number;
+      }>;
+    };
+    periodLabel: string;
+  };
+  leadTime: {
+    averageDays: number | null;
+    quotesMeasured: number;
+    status: DataMaturity;
+    note: string;
+    direction: ScmTrendDirection | null;
+    trend: ScmMonthPoint[];
+    partners: Array<{
+      key: string;
+      partnerName: string;
+      quotesMeasured: number;
+      averageDays: number;
+    }>;
+  };
+}
+
+export interface ScmPartnerBreakdown {
+  status: string;
+  label: string;
+  vendors: number;
+  suppliers: number;
+  total: number;
+}
+
+export function fetchScmDashboard() {
+  return apiFetch<ScmDashboard>('/executive/dashboards/scm');
+}

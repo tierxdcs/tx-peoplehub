@@ -177,6 +177,13 @@ export interface PlmDashboardItem {
   splitQuantity: string;
   /** The tracker's own vendor-update cadence verdict; null when none is running. */
   vendorCadenceStatus: 'GREEN' | 'AMBER' | 'RED' | null;
+  /**
+   * When the next self-report is due and when the last one actually arrived, so a
+   * consumer can say "quiet since Tuesday" rather than only "overdue". Both null
+   * whenever no cadence is running on this tracker.
+   */
+  vendorCadenceDueAt: string | null;
+  lastVendorUpdateAt: string | null;
   production: { done: number; total: number };
   hasPendingPing: boolean;
   updatedAt: string;

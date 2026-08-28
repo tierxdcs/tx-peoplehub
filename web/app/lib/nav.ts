@@ -126,9 +126,9 @@ export function sharedNav(access: Access): NavGroup[] {
   });
 
   // Executive Dashboards — the CEO-granted cross-vertical executive view. Placed
-  // immediately under Home because for a holder it IS their overview. Sales and
-  // Operations are the first two of the series; a Finance dashboard will be a
-  // further item in this same group, sharing this one gate. Deliberately
+  // immediately under Home because for a holder it IS their overview. Sales,
+  // Operations and SCM are the first three of the series; a Finance dashboard
+  // will be a further item in this same group, sharing this one gate. Deliberately
   // independent of module, role and vertical: a Sales rep holding the grant sees
   // it here, and an Admin without the grant does not.
   if (access.hasExecutiveDashboardAccess) {
@@ -137,6 +137,7 @@ export function sharedNav(access: Access): NavGroup[] {
       items: [
         { label: 'Sales Dashboard', href: '/executive/sales' },
         { label: 'Operations Dashboard', href: '/executive/operations' },
+        { label: 'SCM Dashboard', href: '/executive/scm' },
       ],
     });
   }

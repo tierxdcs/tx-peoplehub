@@ -364,6 +364,13 @@ export class PlmService {
           // consumer has to re-derive it from flowType + vendor + split name.
           ...facilityOf(tracker),
           vendorCadenceStatus: derived.derived.vendorCadence?.status ?? null,
+          // When the next self-report is due and when the last one arrived —
+          // already derived above, surfaced so a consumer can say "quiet since
+          // Tuesday" instead of only "overdue". Null whenever no cadence runs.
+          vendorCadenceDueAt:
+            derived.derived.vendorCadence?.dueAt.toISOString() ?? null,
+          lastVendorUpdateAt:
+            derived.derived.lastVendorUpdateAt?.toISOString() ?? null,
           production: derived.derived.production,
           hasPendingPing: trackerIdsWithPendingPings.has(tracker.id),
           updatedAt: tracker.updatedAt.toISOString(),

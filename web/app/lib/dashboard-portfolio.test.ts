@@ -52,6 +52,8 @@ function line(
     facilityVendorId: 'vendor-1',
     splitQuantity: '5.00',
     vendorCadenceStatus: null,
+    vendorCadenceDueAt: null,
+    lastVendorUpdateAt: null,
     production: { done: 0, total: 1 },
     hasPendingPing: false,
     updatedAt: '2026-08-01T00:00:00.000Z',

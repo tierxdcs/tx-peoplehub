@@ -38,6 +38,8 @@ function item(overrides: Partial<PlmDashboardItem>): PlmDashboardItem {
     facilityVendorId: 'vendor-1',
     splitQuantity: '10.00',
     vendorCadenceStatus: 'GREEN',
+    vendorCadenceDueAt: null,
+    lastVendorUpdateAt: null,
     production: { done: 1, total: 2 },
     hasPendingPing: false,
     updatedAt: '2026-08-20T00:00:00.000Z',

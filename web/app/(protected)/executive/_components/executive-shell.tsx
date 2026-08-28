@@ -25,6 +25,8 @@ import { useExecutiveAccess } from '../../../lib/use-executive-access';
 export const EXECUTIVE_DASHBOARDS = [
   { key: 'sales', label: 'Sales', href: '/executive/sales' },
   { key: 'operations', label: 'Operations', href: '/executive/operations' },
+  { key: 'project-management', label: 'Project Management', href: '/executive/project-management' },
+  { key: 'scm', label: 'SCM', href: '/executive/scm' },
 ] as const;
 
 export type ExecutiveDashboardKey = (typeof EXECUTIVE_DASHBOARDS)[number]['key'];

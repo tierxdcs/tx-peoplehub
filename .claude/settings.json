@@ -206,7 +206,13 @@
       "Bash(awk '/^enum QmsCopqSource /,/^}/' prisma/schema.prisma)",
       "Bash(awk '/^enum PlmTrackerStatus /,/^}/' prisma/schema.prisma)",
       "Bash(perl -0pi -e \"s/production: \\\\{ done: 0, total: 0, percent: 0 \\\\}/production: { done: 0, total: 0 }/; s/production: \\\\{ done: 3, total: 4, percent: 75 \\\\}/production: { done: 3, total: 4 }/; s/production: \\\\{ done: 1, total: 4, percent: 25 \\\\}/production: { done: 1, total: 4 }/; s/production: \\\\{ done: 9, total: 9, percent: 100 \\\\}/production: { done: 9, total: 9 }/\" src/modules/executive/operations-dashboard.service.spec.ts)",
-      "Bash(perl -0pi -e 's/className=\"mt-4 border-t pt-3\" >/className={cn\\(\\\\x27mt-4 border-t pt-3\\\\x27, SIGNAL_ROW_DIVIDER\\)}>/g; s/className=\"\\(mt-4|mt-3\\\\.5\\) border-t pt-3\">/className={cn\\(\\\\x27$1 border-t pt-3\\\\x27, SIGNAL_ROW_DIVIDER\\)}>/g' \"app/\\(protected\\)/executive/operations/page.tsx\")"
+      "Bash(perl -0pi -e 's/className=\"mt-4 border-t pt-3\" >/className={cn\\(\\\\x27mt-4 border-t pt-3\\\\x27, SIGNAL_ROW_DIVIDER\\)}>/g; s/className=\"\\(mt-4|mt-3\\\\.5\\) border-t pt-3\">/className={cn\\(\\\\x27$1 border-t pt-3\\\\x27, SIGNAL_ROW_DIVIDER\\)}>/g' \"app/\\(protected\\)/executive/operations/page.tsx\")",
+      "Bash(kill -TERM 3189 85161)",
+      "Bash(kill -CONT 85161)",
+      "Bash(kill -9 3189)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/executive/scm)",
+      "Bash(curl -s -o /dev/null -w \"/executive/scm -> %{http_code}\\\\n\" http://localhost:3001/executive/scm)",
+      "Bash(curl -s -o /dev/null -w \"/executive/operations -> %{http_code}\\\\n\" http://localhost:3001/executive/operations)"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",
