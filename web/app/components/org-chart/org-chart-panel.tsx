@@ -4,12 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronRight,
   Crosshair,
+  Landmark,
   Maximize2,
   Minus,
   Plus,
   Search,
 } from 'lucide-react';
 import {
+  BOARD_LABEL,
   ORG_GAP_Y,
   ORG_NODE_HEIGHT,
   ORG_NODE_WIDTH,
@@ -121,9 +123,14 @@ export function OrgChartPanel({
     [roots],
   );
   const colours = useMemo(() => departmentColours([...byId.values()]), [byId]);
+  // The company top answers to the board. Only drawn when there is a single
+  // root: with more than one (someone's manager was deactivated) there is no
+  // way to tell which of them actually reports to the board, and inventing a
+  // governance line for a stranded employee would be worse than drawing none.
+  const showBoard = roots?.length === 1;
   const layout = useMemo(
-    () => layoutOrgTree(roots ?? [], collapsed),
-    [roots, collapsed],
+    () => layoutOrgTree(roots ?? [], collapsed, { board: showBoard }),
+    [roots, collapsed, showBoard],
   );
 
   const searching = query.trim().length > 0;
@@ -403,9 +410,15 @@ export function OrgChartPanel({
           Reporting line
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+          {showBoard && chain.length > 0 && (
+            <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-dashed px-2 py-0.5 text-[11.5px] font-medium text-muted-foreground">
+              <Landmark className="size-3.5" aria-hidden="true" />
+              {BOARD_LABEL}
+            </span>
+          )}
           {chain.map((node, index) => (
             <span key={node.id} className="flex shrink-0 items-center gap-1">
-              {index > 0 && (
+              {(index > 0 || showBoard) && (
                 <ChevronRight
                   className="size-3 shrink-0 text-muted-foreground"
                   aria-hidden="true"
@@ -439,7 +452,9 @@ export function OrgChartPanel({
         <span className="shrink-0 text-[11.5px] text-muted-foreground">
           {selected && selectedManager
             ? `Reports to ${selectedManager.fullName}`
-            : 'Top of the structure — no manager above.'}
+            : showBoard
+              ? `Top of the structure — reports to the ${BOARD_LABEL}.`
+              : 'Top of the structure — no manager above.'}
         </span>
       </div>
 
@@ -474,21 +489,57 @@ export function OrgChartPanel({
             aria-hidden="true"
           >
             {layout.edges.map((edge) => {
-              const active =
-                chainIds.has(edge.parentId) && chainIds.has(edge.childId);
+              const active = edge.governance
+                ? chainIds.has(edge.childId)
+                : chainIds.has(edge.parentId) && chainIds.has(edge.childId);
               const midY = edge.y1 + ORG_GAP_Y / 2;
+              // --border is near-invisible on the dark canvas, so connectors
+              // ride on muted-foreground instead: bright in both themes, still
+              // clearly quieter than the active reporting line.
               return (
                 <path
                   key={`${edge.parentId}-${edge.childId}`}
                   d={`M ${edge.x1} ${edge.y1} V ${midY} H ${edge.x2} V ${edge.y2}`}
                   fill="none"
-                  stroke={active ? 'hsl(var(--primary))' : 'hsl(var(--border))'}
-                  strokeWidth={active ? 2 : 1.5}
+                  stroke={
+                    active
+                      ? 'hsl(var(--primary))'
+                      : 'hsl(var(--muted-foreground) / 0.75)'
+                  }
+                  strokeWidth={active ? 2.25 : 1.75}
+                  strokeDasharray={edge.governance ? '5 4' : undefined}
                   strokeLinejoin="round"
                 />
               );
             })}
           </svg>
+
+          {/* Governance card above the company top — a label, not a person, so
+          it has no avatar, no selection and no detail drawer. */}
+          {layout.board && (
+            <div
+              className="absolute flex items-center gap-2.5 rounded-lg border border-dashed bg-muted/40 px-3.5"
+              style={{
+                left: layout.board.x,
+                top: layout.board.y,
+                width: ORG_NODE_WIDTH,
+                height: ORG_NODE_HEIGHT,
+              }}
+            >
+              <Landmark
+                className="size-[18px] shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <span className="min-w-0">
+                <span className="block truncate text-[13px] font-semibold leading-tight">
+                  {BOARD_LABEL}
+                </span>
+                <span className="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground">
+                  Governance
+                </span>
+              </span>
+            </div>
+          )}
 
           {layout.nodes.map((placed) => (
             <OrgChartNode
@@ -562,6 +613,7 @@ export function OrgChartPanel({
             manager={selectedManager}
             colour={colours.get(departmentOf(selected)) ?? 'hsl(var(--border))'}
             meId={meId}
+            boardAbove={Boolean(showBoard && !selectedManager)}
             onClose={() => setDrawerOpen(false)}
             onNavigate={(id) => select(id, { drawer: true, centre: true })}
           />

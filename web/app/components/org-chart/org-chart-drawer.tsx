@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { ExternalLink, X } from 'lucide-react';
 import {
+  BOARD_LABEL,
   OrgTreeNode,
   departmentOf,
   descendantCount,
@@ -24,6 +25,7 @@ export function OrgChartDrawer({
   manager,
   colour,
   meId,
+  boardAbove = false,
   onClose,
   onNavigate,
 }: {
@@ -31,6 +33,8 @@ export function OrgChartDrawer({
   manager: OrgTreeNode | null;
   colour: string;
   meId?: string | null;
+  /** The company top answers to the board rather than to nobody. */
+  boardAbove?: boolean;
   onClose: () => void;
   onNavigate: (id: string) => void;
 }) {
@@ -124,6 +128,8 @@ export function OrgChartDrawer({
                   >
                     {manager.fullName}
                   </button>
+                ) : boardAbove ? (
+                  BOARD_LABEL
                 ) : (
                   'Top of the structure'
                 )

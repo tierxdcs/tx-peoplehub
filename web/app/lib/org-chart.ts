@@ -215,6 +215,8 @@ export interface OrgLayoutEdge {
   /** Top-centre of the child card. */
   x2: number;
   y2: number;
+  /** True for the board → company-top link, which is drawn dashed. */
+  governance?: boolean;
 }
 
 export interface OrgLayout {
@@ -222,20 +224,34 @@ export interface OrgLayout {
   edges: OrgLayoutEdge[];
   width: number;
   height: number;
+  /** Where the board card goes, when one is drawn above the company top. */
+  board: { x: number; y: number } | null;
 }
+
+/** The governance body above the CEO. Not an employee, so it is a decoration on
+ *  the canvas rather than a node in the tree — nothing that counts people,
+ *  levels or reporting depth is allowed to see it. */
+export const BOARD_ID = '__board__';
+export const BOARD_LABEL = 'Board of Directors';
 
 /**
  * Tidy top-down layout of the visible tree: leaves take the next slot on the x
  * axis, a parent centres over the span of its visible children, and depth maps
  * straight to y. Folded nodes are laid out as leaves, so folding genuinely
  * reclaims horizontal space and no two cards can overlap for any tree shape.
+ *
+ * With `board`, everyone shifts down one row and the board card takes the top
+ * row, centred over the company top and linked to it.
  */
 export function layoutOrgTree(
   roots: OrgTreeNode[],
   collapsed: Set<string>,
+  options: { board?: boolean } = {},
 ): OrgLayout {
   const stepX = ORG_NODE_WIDTH + ORG_GAP_X;
   const stepY = ORG_NODE_HEIGHT + ORG_GAP_Y;
+  const drawBoard = Boolean(options.board) && roots.length > 0;
+  const yOffset = drawBoard ? stepY : 0;
   const nodes: OrgLayoutNode[] = [];
   const at = new Map<string, OrgLayoutNode>();
   let slot = 0;
@@ -256,7 +272,7 @@ export function layoutOrgTree(
     const placed: OrgLayoutNode = {
       node,
       x,
-      y: depth * stepY,
+      y: depth * stepY + yOffset,
       collapsed: isFolded,
       hiddenCount: isFolded ? descendantCount(node) : 0,
     };
@@ -284,11 +300,38 @@ export function layoutOrgTree(
     }
   }
 
+  let board: OrgLayout['board'] = null;
+  if (drawBoard) {
+    const rootXs = roots
+      .map((root) => at.get(root.id)?.x)
+      .filter((x): x is number => x !== undefined);
+    const x = (rootXs[0] + rootXs[rootXs.length - 1]) / 2;
+    board = { x, y: 0 };
+    for (const root of roots) {
+      const rootPos = at.get(root.id);
+      if (!rootPos) continue;
+      edges.push({
+        parentId: BOARD_ID,
+        childId: root.id,
+        x1: x + ORG_NODE_WIDTH / 2,
+        y1: ORG_NODE_HEIGHT,
+        x2: rootPos.x + ORG_NODE_WIDTH / 2,
+        y2: rootPos.y,
+        governance: true,
+      });
+    }
+  }
+
+  const boxes = [
+    ...nodes.map((n) => ({ x: n.x, y: n.y })),
+    ...(board ? [board] : []),
+  ];
   return {
     nodes,
     edges,
-    width: nodes.reduce((max, n) => Math.max(max, n.x + ORG_NODE_WIDTH), 0),
-    height: nodes.reduce((max, n) => Math.max(max, n.y + ORG_NODE_HEIGHT), 0),
+    board,
+    width: boxes.reduce((max, b) => Math.max(max, b.x + ORG_NODE_WIDTH), 0),
+    height: boxes.reduce((max, b) => Math.max(max, b.y + ORG_NODE_HEIGHT), 0),
   };
 }
 

@@ -163,8 +163,20 @@ describe('OrgChartPanel', () => {
     expect(screen.queryByLabelText('Asha Rao details')).toBeNull();
   });
 
-  it('says so when the selected person is at the top of the structure', async () => {
-    await renderPanel();
+  it('draws no board when the chart has several tops, and says nothing is above', async () => {
+    // A stranded employee (their manager was deactivated) is a root too, so
+    // there is no single company top to hang the board off.
+    apiFetch.mockResolvedValue({
+      nodes: [
+        ...CHART.nodes,
+        person('lost', 'Kiran Ram', 'Storekeeper', 'Operations', null),
+      ],
+      rootIds: ['ceo', 'lost'],
+    });
+    render(<OrgChartPanel meId="ppl" />);
+    await waitFor(() => card('Kiran Ram', 'Storekeeper'));
+
+    expect(screen.queryByText('Board of Directors')).toBeNull();
     fireEvent.click(card('Asha Rao', 'Chief Executive'));
     expect(
       screen.getByText('Top of the structure — no manager above.'),
@@ -199,6 +211,27 @@ describe('OrgChartPanel', () => {
     expect(
       screen.queryByRole('button', { name: 'Chetan Kaur, Analyst' }),
     ).toBeNull();
+  });
+
+  it('shows the board above the company top, on the canvas and in the strip', async () => {
+    await renderPanel();
+
+    // Asha is the single root, so the board sits above her.
+    expect(screen.getAllByText('Board of Directors').length).toBe(2);
+    fireEvent.click(card('Asha Rao', 'Chief Executive'));
+    expect(
+      screen.getByText(
+        'Top of the structure — reports to the Board of Directors.',
+      ),
+    ).toBeTruthy();
+    // The drawer names the board rather than claiming nobody is above.
+    const drawer = screen.getByLabelText('Asha Rao details');
+    expect(within(drawer).getByText('Board of Directors')).toBeTruthy();
+    // It is a label, not a person: no card button, no headcount effect.
+    expect(
+      screen.queryByRole('button', { name: /Board of Directors/ }),
+    ).toBeNull();
+    expect(screen.getByText(/9 people · 4 levels/)).toBeTruthy();
   });
 
   it('marks the viewer with a YOU chip on the card and in the strip', async () => {

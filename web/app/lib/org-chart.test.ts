@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   CompanyOrgChart,
   ORG_GAP_X,
+  ORG_GAP_Y,
+  ORG_NODE_HEIGHT,
   ORG_NODE_WIDTH,
   OrgChartNode,
   buildOrgTree,
@@ -223,9 +225,45 @@ describe('layoutOrgTree', () => {
     expect(edge.y1).toBeLessThan(edge.y2);
   });
 
+  it('drops the board card above the single top and shifts everyone down a row', () => {
+    const plain = layoutOrgTree(buildOrgTree(CHART), new Set());
+    const withBoard = layoutOrgTree(buildOrgTree(CHART), new Set(['cto']), {
+      board: true,
+    });
+    // Only reachable with one root, so use a single-root chart for the shift.
+    const single: CompanyOrgChart = {
+      nodes: [node('ceo'), node('cto', 'ceo')],
+      rootIds: ['ceo'],
+    };
+    const boarded = layoutOrgTree(buildOrgTree(single), new Set(), {
+      board: true,
+    });
+    const at = (l: typeof boarded, id: string) =>
+      l.nodes.find((n) => n.node.id === id)!;
+
+    expect(plain.board).toBeNull();
+    expect(boarded.board).toEqual({ x: at(boarded, 'ceo').x, y: 0 });
+    // The top row belongs to the board now.
+    expect(at(boarded, 'ceo').y).toBe(ORG_NODE_HEIGHT + ORG_GAP_Y);
+    expect(boarded.height).toBe(at(boarded, 'cto').y + ORG_NODE_HEIGHT);
+    // The governance link is flagged so it can be drawn dashed.
+    const link = boarded.edges.find((e) => e.governance)!;
+    expect(link.childId).toBe('ceo');
+    expect(link.y1).toBe(ORG_NODE_HEIGHT);
+    expect(link.y2).toBe(at(boarded, 'ceo').y);
+    // Multi-root charts keep working; the board just centres over their span.
+    expect(withBoard.board).not.toBeNull();
+  });
+
   it('handles an empty forest', () => {
     const layout = layoutOrgTree([], new Set());
-    expect(layout).toMatchObject({ nodes: [], edges: [], width: 0, height: 0 });
+    expect(layout).toMatchObject({
+      nodes: [],
+      edges: [],
+      width: 0,
+      height: 0,
+      board: null,
+    });
   });
 });
 
