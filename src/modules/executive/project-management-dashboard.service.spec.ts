@@ -70,7 +70,11 @@ interface RowOptions {
   milestones?: Array<Record<string, unknown>>;
   actionItems?: Array<Record<string, unknown>>;
   risks?: Array<Record<string, unknown>>;
-  cards?: Array<{ id: string; dueDate?: Date | null; assigneeId?: string | null }>;
+  cards?: Array<{
+    id: string;
+    dueDate?: Date | null;
+    assigneeId?: string | null;
+  }>;
   doneCards?: number;
 }
 
@@ -164,18 +168,19 @@ interface Fixture {
 
 function buildService(fixture: Fixture) {
   const rows = fixture.rows ?? [];
-  const kickoffFindMany = jest.fn((args: { select?: Record<string, unknown> }) =>
-    // Two different reads hit projectKickoff.findMany: the full row projection
-    // and the ping link index. Discriminate on the projection, not call order.
-    Promise.resolve(
-      args.select?.projectName
-        ? rows
-        : rows.map((row) => ({
-            id: row.id,
-            orderId: row.order.id,
-            kanbanBoardId: row.kanbanBoard.id,
-          })),
-    ),
+  const kickoffFindMany = jest.fn(
+    (args: { select?: Record<string, unknown> }) =>
+      // Two different reads hit projectKickoff.findMany: the full row projection
+      // and the ping link index. Discriminate on the projection, not call order.
+      Promise.resolve(
+        args.select?.projectName
+          ? rows
+          : rows.map((row) => ({
+              id: row.id,
+              orderId: row.order.id,
+              kanbanBoardId: row.kanbanBoard.id,
+            })),
+      ),
   );
   const prisma = {
     projectKickoff: { findMany: kickoffFindMany },
@@ -190,7 +195,9 @@ function buildService(fixture: Fixture) {
 
   const kickoffs = {
     progressCompanyWide: jest.fn(() =>
-      Promise.resolve(fixture.progress ?? rows.map((row) => project({ kickoffId: row.id }))),
+      Promise.resolve(
+        fixture.progress ?? rows.map((row) => project({ kickoffId: row.id })),
+      ),
     ),
   } as unknown as ProjectKickoffService;
 
@@ -428,8 +435,18 @@ describe('ProjectManagementDashboardService — workload', () => {
           ],
           doneCards: 4,
         }),
-        kickoffRow({ id: 'k-2', pmId: 'pm-1', pm: 'Asha', cards: [{ id: 'c-4' }] }),
-        kickoffRow({ id: 'k-3', pmId: 'pm-2', pm: 'Bala', cards: [{ id: 'c-5' }] }),
+        kickoffRow({
+          id: 'k-2',
+          pmId: 'pm-1',
+          pm: 'Asha',
+          cards: [{ id: 'c-4' }],
+        }),
+        kickoffRow({
+          id: 'k-3',
+          pmId: 'pm-2',
+          pm: 'Bala',
+          cards: [{ id: 'c-5' }],
+        }),
       ],
       progress: [
         project({ kickoffId: 'k-1', health: 'BLOCKED' }),
@@ -527,7 +544,11 @@ describe('ProjectManagementDashboardService — orders awaiting delivery', () =>
   it('counts orders whose lines have not all reached dispatch', async () => {
     const { service } = buildService({
       rows: [
-        kickoffRow({ id: 'k-1', fulfilmentStatus: 'NOT_DISPATCHED', lineCount: 3 }),
+        kickoffRow({
+          id: 'k-1',
+          fulfilmentStatus: 'NOT_DISPATCHED',
+          lineCount: 3,
+        }),
         kickoffRow({
           id: 'k-2',
           fulfilmentStatus: 'PARTIALLY_DISPATCHED',

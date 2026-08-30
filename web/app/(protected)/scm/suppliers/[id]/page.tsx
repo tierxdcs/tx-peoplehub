@@ -13,11 +13,13 @@ import {
   FILLED_BY_LABEL,
   getSupplier,
   revokeInvite,
+  sendInviteEmail,
   type FilledBy,
   type SupplierAudit,
   type SupplierDetail,
   type SupplierInvite,
 } from '../../../../lib/scm-supplier';
+import { inviteEmailMessage } from '../../../../lib/invite-email';
 import { PageContainer } from '../../../../components/ui/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
 import { Button } from '../../../../components/ui/button';
@@ -54,6 +56,7 @@ export default function SupplierDetailPage() {
   const [invite, setInvite] = useState<SupplierInvite | null>(null);
   const [invitePassword, setInvitePassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [emailing, setEmailing] = useState(false);
   const [auditing, setAuditing] = useState(false);
   const [fillingInternally, setFillingInternally] = useState(false);
   const [overriding, setOverriding] = useState<SupplierAudit | null>(null);
@@ -99,6 +102,32 @@ export default function SupplierDetailPage() {
       toast.error(err instanceof ApiError ? err.message : 'Failed to generate invite.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Email the existing link (see the vendor page — same shared action). */
+  async function emailInvite(inviteId: string) {
+    if (!supplier) return;
+    if (
+      !(await confirm({
+        title: `Email this link to ${supplier.contactEmail}?`,
+        description: supplier.contactEmail
+          ? 'Sends the questionnaire invite to the supplier’s contact email. Any password is shared separately, never in the email.'
+          : 'This supplier has no contact email on file — add one first.',
+        confirmLabel: 'Send email',
+      }))
+    )
+      return;
+    setEmailing(true);
+    try {
+      const result = await sendInviteEmail(inviteId);
+      const message = inviteEmailMessage(result, supplier.contactEmail);
+      if (message.tone === 'success') toast.success(message.text);
+      else toast.toast({ title: 'Email not sent', description: message.text });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to send the email.');
+    } finally {
+      setEmailing(false);
     }
   }
 
@@ -288,14 +317,26 @@ export default function SupplierDetailPage() {
                     >
                       Copy
                     </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => emailInvite(invite.id)}
+                      disabled={emailing || !supplier.contactEmail}
+                    >
+                      {emailing ? 'Sending…' : 'Email to supplier'}
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => revoke(invite.id)}>
                       Revoke
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Expires {new Date(invite.expiresAt).toLocaleDateString()} (14-day
-                    default){invite.hasPassword ? ' · password-protected' : ''}. Send
-                    this link to the supplier.
+                    default){invite.hasPassword ? ' · password-protected' : ''}.{' '}
+                    {supplier.contactEmail
+                      ? `Emails go to ${supplier.contactEmail}.`
+                      : 'Add a contact email to send it from here, or copy the link.'}
+                    {invite.hasPassword
+                      ? ' The password is never included — share it separately.'
+                      : ''}
                   </p>
                 </div>
               ) : (

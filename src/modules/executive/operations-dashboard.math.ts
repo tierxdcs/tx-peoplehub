@@ -19,10 +19,7 @@ import { Prisma } from '@prisma/client';
  * late shipment to a facility that only supplied part of it would be a guess.
  */
 export type DispatchFacilitySegment =
-  | 'IN_HOUSE'
-  | 'OTHER'
-  | 'MIXED'
-  | 'UNCLASSIFIED';
+  'IN_HOUSE' | 'OTHER' | 'MIXED' | 'UNCLASSIFIED';
 
 export function dispatchFacilitySegment(
   deliveryTypes: Array<string | null>,
@@ -50,10 +47,7 @@ export function averageNumber(values: number[]): number | null {
  * rollup agrees with the per-tracker figures it is built from. Null (not 0) when
  * there are no cards at all: no board is "0% done", it is unmeasured.
  */
-export function completionPercent(
-  done: number,
-  total: number,
-): number | null {
+export function completionPercent(done: number, total: number): number | null {
   return total === 0 ? null : Math.round((done / total) * 100);
 }
 

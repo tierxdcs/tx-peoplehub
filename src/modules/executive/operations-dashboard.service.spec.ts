@@ -153,9 +153,7 @@ function buildService(fixture: Fixture) {
     dashboardCompanyWide: jest.fn(() => Promise.resolve(fixture.lines ?? [])),
   } as unknown as PlmService;
   const kickoffs = {
-    progressCompanyWide: jest.fn(() =>
-      Promise.resolve(fixture.projects ?? []),
-    ),
+    progressCompanyWide: jest.fn(() => Promise.resolve(fixture.projects ?? [])),
   } as unknown as ProjectKickoffService;
   const otd = {
     report: jest.fn(() => Promise.resolve(otdReport)),
@@ -216,7 +214,11 @@ describe('OperationsDashboardService — company-wide scope', () => {
     const result = await service.build(USER, NOW);
     expect(result.portfolio.activeTotal).toBe(3);
     expect(result.portfolio.totalEverStarted).toBe(5);
-    expect(result.portfolio).toMatchObject({ onTrack: 1, atRisk: 1, blocked: 1 });
+    expect(result.portfolio).toMatchObject({
+      onTrack: 1,
+      atRisk: 1,
+      blocked: 1,
+    });
   });
 
   it('passes the PLM rows through untouched, so the page derives urgency, blockers and the funnel from one source', async () => {
@@ -323,7 +325,9 @@ describe('OperationsDashboardService — facility attribution and depth', () => 
     const { service } = buildService({ lines: [line()] });
     const result = await service.build(USER, NOW);
     expect(result.facilities.inHouse.production.percent).toBeNull();
-    expect(result.facilities.inHouse.production.note).toMatch(/no production card/i);
+    expect(result.facilities.inHouse.production.note).toMatch(
+      /no production card/i,
+    );
   });
 
   it('keeps external vendors on the shallow self-reported view, named and ranked by overdue updates', async () => {
@@ -362,7 +366,11 @@ describe('OperationsDashboardService — facility attribution and depth', () => 
     const [first, second] = result.facilities.externalVendors;
     // The vendor with an overdue update sorts first.
     expect(first.vendorName).toBe('Preciforge');
-    expect(first).toMatchObject({ overdue: 1, blockedLines: 1, activeLines: 1 });
+    expect(first).toMatchObject({
+      overdue: 1,
+      blockedLines: 1,
+      activeLines: 1,
+    });
     expect(first.latestSelfReport).toMatchObject({
       reporterDisplayName: 'Preciforge QA',
       fabricationPercent: 60,

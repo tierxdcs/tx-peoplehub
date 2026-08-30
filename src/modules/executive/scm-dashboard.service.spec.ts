@@ -150,7 +150,8 @@ function buildService(fixture: Fixture) {
   // rfq.findMany is called twice with different shapes; the where clause tells
   // them apart, mirroring how the service actually queries.
   const rfqFindMany = jest.fn((args: { where?: { status?: unknown } }) => {
-    const status = args?.where?.status as { in?: string[] } | string | undefined;
+    const status = args?.where?.status as
+      { in?: string[] } | string | undefined;
     if (typeof status === 'string' && status === 'AWARDED') {
       return Promise.resolve(fixture.awardedRfqs ?? []);
     }
@@ -482,9 +483,17 @@ describe('ScmDashboardService — purchase order health', () => {
   it('names overdue orders and counts undated ones separately instead of calling them on time', async () => {
     const { service } = buildService({
       openPos: [
-        po({ id: 'p1', poNumber: 'PO-1', expectedDeliveryDate: utc(2026, 8, 1) }),
+        po({
+          id: 'p1',
+          poNumber: 'PO-1',
+          expectedDeliveryDate: utc(2026, 8, 1),
+        }),
         po({ id: 'p2', poNumber: 'PO-2', expectedDeliveryDate: null }),
-        po({ id: 'p3', poNumber: 'PO-3', expectedDeliveryDate: utc(2026, 9, 9) }),
+        po({
+          id: 'p3',
+          poNumber: 'PO-3',
+          expectedDeliveryDate: utc(2026, 9, 9),
+        }),
       ],
     });
     const result = await service.build(USER, NOW);
@@ -520,9 +529,9 @@ describe('ScmDashboardService — purchase order health', () => {
         (args[0] as { where?: Record<string, unknown> }).where?.status ===
         'PENDING_CEO_APPROVAL',
     );
-    expect((call?.[0] as { where: Record<string, unknown> }).where).toMatchObject(
-      { vendorId: null, supplierId: null },
-    );
+    expect(
+      (call?.[0] as { where: Record<string, unknown> }).where,
+    ).toMatchObject({ vendorId: null, supplierId: null });
     expect(result.purchaseOrders.adHoc).toMatchObject({
       pendingCount: 1,
       pendingValue: '9000.00',
@@ -548,7 +557,11 @@ describe('ScmDashboardService — purchase order health', () => {
           issuedAt: utc(2026, 6, 17),
         }),
         // A human-written note must never be guessed at.
-        po({ id: 'p2', notes: 'Reorder of last month', issuedAt: utc(2026, 6, 20) }),
+        po({
+          id: 'p2',
+          notes: 'Reorder of last month',
+          issuedAt: utc(2026, 6, 20),
+        }),
       ],
     });
     const result = await service.build(USER, NOW);
@@ -1123,12 +1136,7 @@ describe('ScmDashboardService — lead time trend', () => {
 
   it('averages quoted lead time per month and reads the direction raw', async () => {
     const { service } = buildService({
-      leadTimeQuotes: [
-        quote(4, 20),
-        quote(4, 22),
-        quote(7, 40),
-        quote(8, 44),
-      ],
+      leadTimeQuotes: [quote(4, 20), quote(4, 22), quote(7, 40), quote(8, 44)],
     });
     const result = await service.build(USER, NOW);
     expect(result.leadTime).toMatchObject({

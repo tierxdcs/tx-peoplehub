@@ -12,6 +12,7 @@ import { envValidationSchema } from './core/config/env.validation';
 import { PrismaModule } from './core/database/prisma.module';
 import { PrismaService } from './core/database/prisma.service';
 import { EncryptionModule } from './core/crypto/encryption.module';
+import { EmailModule } from './core/email/email.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -72,6 +73,7 @@ import { NavShortcutsModule } from './modules/nav-shortcuts/nav-shortcuts.module
     ScheduleModule.forRoot(),
     PrismaModule,
     EncryptionModule,
+    EmailModule,
     AuthModule,
     EmployeesModule,
     VerticalsModule,

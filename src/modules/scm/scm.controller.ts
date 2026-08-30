@@ -25,6 +25,7 @@ import {
   OverrideClassificationDto,
   UpdateVendorCoreCompetencyDto,
 } from './dto/scm.dto';
+import { SendInviteEmailDto } from '../../core/email/send-invite-email.dto';
 
 /**
  * Vendor Qualification (SCM) — authenticated surface. Vendor list/detail is
@@ -120,6 +121,19 @@ export class ScmController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.createInvite(questionnaireId, dto, user);
+  }
+
+  @Post('invites/:inviteId/email')
+  @ApiOperation({
+    summary:
+      "Email an existing invite link to the vendor's contact (SCM Manager+/SA)",
+  })
+  sendInviteEmail(
+    @Param('inviteId') inviteId: string,
+    @Body() dto: SendInviteEmailDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.sendInviteEmail(inviteId, dto, user);
   }
 
   @Delete('invites/:inviteId')

@@ -41,16 +41,25 @@ function row(partial: Partial<Row> & { id: string }): Row {
   };
 }
 
-function build(rows: Row[], storageOverrides: Partial<VaultStorageService> = {}) {
+function build(
+  rows: Row[],
+  storageOverrides: Partial<VaultStorageService> = {},
+) {
   const findMany = jest.fn(
     (args: {
-      where: { id?: string; status?: EmployeeStatus; reportingManagerId?: string };
+      where: {
+        id?: string;
+        status?: EmployeeStatus;
+        reportingManagerId?: string;
+      };
     }) => {
       const { where } = args;
       return Promise.resolve(
         rows
           .filter((r) => (where.id === undefined ? true : r.id === where.id))
-          .filter((r) => (where.status === undefined ? true : r.status === where.status))
+          .filter((r) =>
+            where.status === undefined ? true : r.status === where.status,
+          )
           .filter((r) =>
             where.reportingManagerId === undefined
               ? true
@@ -77,7 +86,8 @@ function build(rows: Row[], storageOverrides: Partial<VaultStorageService> = {})
       const counts = new Map<string, number>();
       for (const r of rows) {
         if (r.status !== EmployeeStatus.ACTIVE) continue;
-        if (!r.reportingManagerId || !ids.includes(r.reportingManagerId)) continue;
+        if (!r.reportingManagerId || !ids.includes(r.reportingManagerId))
+          continue;
         counts.set(
           r.reportingManagerId,
           (counts.get(r.reportingManagerId) ?? 0) + 1,
@@ -95,7 +105,10 @@ function build(rows: Row[], storageOverrides: Partial<VaultStorageService> = {})
   const storage = {
     isConfigured: () => true,
     createDownloadUrl: (key: string) =>
-      Promise.resolve({ url: `https://r2.test/${key}?sig=x`, expiresInSeconds: 900 }),
+      Promise.resolve({
+        url: `https://r2.test/${key}?sig=x`,
+        expiresInSeconds: 900,
+      }),
     ...storageOverrides,
   } as unknown as VaultStorageService;
 
@@ -108,7 +121,11 @@ function build(rows: Row[], storageOverrides: Partial<VaultStorageService> = {})
 
 const COMPANY = [
   row({ id: 'ceo', designation: 'CEO', verticalName: 'Executive' }),
-  row({ id: 'cto', reportingManagerId: 'ceo', photoStorageKey: 'employees/photos/cto' }),
+  row({
+    id: 'cto',
+    reportingManagerId: 'ceo',
+    photoStorageKey: 'employees/photos/cto',
+  }),
   row({ id: 'dev1', reportingManagerId: 'cto' }),
   row({ id: 'dev2', reportingManagerId: 'cto' }),
   // Manager left the company: their report must surface as a root, not vanish.

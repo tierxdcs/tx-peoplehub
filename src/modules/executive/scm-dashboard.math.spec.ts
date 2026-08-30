@@ -121,7 +121,9 @@ describe('scm-dashboard.math', () => {
 
   describe('awardWasLowest', () => {
     it('is true when the awarded total is the lowest received', () => {
-      expect(awardWasLowest(d('100.00'), [d('100.00'), d('120.00')])).toBe(true);
+      expect(awardWasLowest(d('100.00'), [d('100.00'), d('120.00')])).toBe(
+        true,
+      );
     });
 
     it('is false when a cheaper quote was on the table', () => {
@@ -131,7 +133,9 @@ describe('scm-dashboard.math', () => {
     });
 
     it('is true for a tie — the award needed no justification either', () => {
-      expect(awardWasLowest(d('100.00'), [d('100.00'), d('100.00')])).toBe(true);
+      expect(awardWasLowest(d('100.00'), [d('100.00'), d('100.00')])).toBe(
+        true,
+      );
     });
 
     it('uses exact decimal equality, matching the award gate', () => {

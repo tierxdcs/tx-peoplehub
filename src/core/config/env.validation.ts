@@ -1,4 +1,5 @@
 import * as Joi from 'joi';
+import { isValidEmailAddress } from '../email/email-content';
 
 /**
  * Validation schema for process environment. Fails fast on boot if the
@@ -67,4 +68,37 @@ export const envValidationSchema = Joi.object({
   GOTENBERG_TIMEOUT_MS: Joi.number().default(60000),
   GST_GATEWAY_URL: Joi.string().uri().optional(),
   GST_GATEWAY_TOKEN: Joi.string().optional(),
+
+  // ── Transactional email (Resend) ────────────────────────────────────
+  // Optional so the app still boots without email configured: EmailService
+  // logs a warning at boot and throws a message naming these vars only when a
+  // send is actually attempted. RESEND_API_KEY comes from the Railway
+  // environment (same as DATABASE_URL / JWT secrets / R2 credentials) and is
+  // never hardcoded. RESEND_API_KEY + EMAIL_FROM are needed together.
+  RESEND_API_KEY: Joi.string().optional(),
+  // Must be on a domain verified in Resend (SPF + DKIM), otherwise every send
+  // is rejected by the provider. Accepts "Name <sender@domain>" or a bare
+  // address — Joi.email() would reject the friendly form, so validate with the
+  // same parser EmailService uses.
+  EMAIL_FROM: Joi.string()
+    .optional()
+    .custom(
+      (value: string, helpers) =>
+        isValidEmailAddress(value) ? value : helpers.error('any.invalid'),
+      'email address, optionally "Name <addr@domain>"',
+    ),
+  EMAIL_REPLY_TO: Joi.string()
+    .optional()
+    .custom(
+      (value: string, helpers) =>
+        isValidEmailAddress(value) ? value : helpers.error('any.invalid'),
+      'email address, optionally "Name <addr@domain>"',
+    ),
+  // Safety net for non-production deploys: a comma-separated list of allowed
+  // addresses ("ops@acme.com") and/or domains ("@acme.com"). Empty means no
+  // restriction — the production setting. Recipients outside the list are
+  // dropped with a warning instead of being mailed.
+  EMAIL_ALLOWED_RECIPIENTS: Joi.string().allow('').optional(),
+  // 'true' logs each email instead of delivering it (local dev / CI).
+  EMAIL_DRY_RUN: Joi.boolean().default(false),
 });

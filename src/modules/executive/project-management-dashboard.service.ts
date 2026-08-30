@@ -106,7 +106,8 @@ export class ProjectManagementDashboardService {
       const stage = (key: string) =>
         project.stages.find((entry) => entry.key === key)?.state;
       return (
-        stage(ACTIVE_KICKOFF_STAGE_EXCLUSIONS.dispatchComplete) !== 'COMPLETE' &&
+        stage(ACTIVE_KICKOFF_STAGE_EXCLUSIONS.dispatchComplete) !==
+          'COMPLETE' &&
         stage(ACTIVE_KICKOFF_STAGE_EXCLUSIONS.orderCancelled) !== 'ATTENTION'
       );
     });
@@ -441,7 +442,8 @@ export class ProjectManagementDashboardService {
         count: atStage.length,
         blocked: atStage.filter((project) => project.health === 'BLOCKED')
           .length,
-        atRisk: atStage.filter((project) => project.health === 'AT_RISK').length,
+        atRisk: atStage.filter((project) => project.health === 'AT_RISK')
+          .length,
         percentOfActive: ratePercent(atStage.length, projects.length),
       };
     });
@@ -561,11 +563,16 @@ export class ProjectManagementDashboardService {
     );
 
     // Who to call, ranked. The point of the section: one name, N blockers.
-    const byOwner = new Map<string, { owner: string; count: number; projects: Set<string> }>();
+    const byOwner = new Map<
+      string,
+      { owner: string; count: number; projects: Set<string> }
+    >();
     for (const entry of entries) {
-      const current =
-        byOwner.get(entry.owner) ??
-        { owner: entry.owner, count: 0, projects: new Set<string>() };
+      const current = byOwner.get(entry.owner) ?? {
+        owner: entry.owner,
+        count: 0,
+        projects: new Set<string>(),
+      };
       current.count += 1;
       current.projects.add(entry.project);
       byOwner.set(entry.owner, current);
@@ -573,7 +580,8 @@ export class ProjectManagementDashboardService {
     return {
       total: entries.length,
       projectsAffected: new Set(entries.map((entry) => entry.kickoffId)).size,
-      unassigned: entries.filter((entry) => entry.owner === 'Unassigned').length,
+      unassigned: entries.filter((entry) => entry.owner === 'Unassigned')
+        .length,
       byKind: (['HEALTH', 'MILESTONE', 'ACTION_ITEM', 'RISK'] as const).map(
         (kind) => ({
           kind,
@@ -658,28 +666,26 @@ export class ProjectManagementDashboardService {
       const project = projectById.get(row.id);
       if (!project) continue;
       const cards = boardCards(row);
-      const current: PmWorkloadRow =
-        byPm.get(row.createdById) ??
-        {
-          pmId: row.createdById,
-          pm: personName(row.createdBy),
-          activeProjects: 0,
-          openTasks: 0,
-          overdueTasks: 0,
-          unassignedTasks: 0,
-          openMilestones: 0,
-          overdueMilestones: 0,
-          openActionItems: 0,
-          overdueActionItems: 0,
-          openHighRisks: 0,
-          blockedProjects: 0,
-          atRiskProjects: 0,
-          onTrackProjects: 0,
-          overdueDeliveries: 0,
-          loadPercent: null,
-          tasksPerProject: null,
-          troubledPercent: null,
-        };
+      const current: PmWorkloadRow = byPm.get(row.createdById) ?? {
+        pmId: row.createdById,
+        pm: personName(row.createdBy),
+        activeProjects: 0,
+        openTasks: 0,
+        overdueTasks: 0,
+        unassignedTasks: 0,
+        openMilestones: 0,
+        overdueMilestones: 0,
+        openActionItems: 0,
+        overdueActionItems: 0,
+        openHighRisks: 0,
+        blockedProjects: 0,
+        atRiskProjects: 0,
+        onTrackProjects: 0,
+        overdueDeliveries: 0,
+        loadPercent: null,
+        tasksPerProject: null,
+        troubledPercent: null,
+      };
       current.activeProjects += 1;
       current.openTasks += cards.open.length;
       current.overdueTasks += cards.overdue(now).length;
@@ -861,7 +867,8 @@ export class ProjectManagementDashboardService {
         .length,
       open: open.length,
       overdue: overdue.length,
-      flaggedDelayed: all.filter((milestone) => milestone.flaggedDelayed).length,
+      flaggedDelayed: all.filter((milestone) => milestone.flaggedDelayed)
+        .length,
       completionPercent: ratePercent(
         all.filter((milestone) => milestone.status === 'COMPLETED').length,
         all.length,
@@ -870,7 +877,9 @@ export class ProjectManagementDashboardService {
       averageSlipDays: average(
         overdue.map((milestone) => milestone.overdueDays),
       ),
-      slipBuckets: bucketAges(overdue.map((milestone) => milestone.overdueDays)),
+      slipBuckets: bucketAges(
+        overdue.map((milestone) => milestone.overdueDays),
+      ),
       /** Nearest open milestones company-wide — the "what lands next" read. */
       upcoming: open
         .filter((milestone) => !milestone.overdue)
@@ -939,9 +948,7 @@ export class ProjectManagementDashboardService {
         all.length,
       ),
       overdueOfOpenPercent: ratePercent(overdue.length, open.length),
-      averageSlipDays: average(
-        overdue.map((item) => item.overdueDays ?? 0),
-      ),
+      averageSlipDays: average(overdue.map((item) => item.overdueDays ?? 0)),
       byStatus: (
         ['TODO', 'IN_PROGRESS', 'DONE', 'ARCHIVED', 'UNLINKED'] as const
       ).map((status) => ({
@@ -1024,7 +1031,11 @@ export class ProjectManagementDashboardService {
     const projectById = new Map(
       rows.map((row) => [
         row.id,
-        { name: row.projectName, pm: personName(row.createdBy), pmId: row.createdById },
+        {
+          name: row.projectName,
+          pm: personName(row.createdBy),
+          pmId: row.createdById,
+        },
       ]),
     );
     const entries = pings
@@ -1132,7 +1143,11 @@ function boardCards(row: {
   kanbanBoard: {
     lists: Array<{
       isDoneList: boolean;
-      cards: Array<{ id: string; dueDate: Date | null; assigneeId: string | null }>;
+      cards: Array<{
+        id: string;
+        dueDate: Date | null;
+        assigneeId: string | null;
+      }>;
     }>;
   };
 }) {
@@ -1142,6 +1157,8 @@ function boardCards(row: {
   return {
     open,
     overdue: (now: Date) =>
-      open.filter((card) => card.dueDate && card.dueDate.getTime() < now.getTime()),
+      open.filter(
+        (card) => card.dueDate && card.dueDate.getTime() < now.getTime(),
+      ),
   };
 }

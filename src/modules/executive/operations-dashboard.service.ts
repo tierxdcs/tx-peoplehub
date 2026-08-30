@@ -315,7 +315,8 @@ export class OperationsDashboardService {
     const overdue = (status: DesignProjectStatus) =>
       projects.filter(
         (project) =>
-          project.status === status && project.targetDate.getTime() < now.getTime(),
+          project.status === status &&
+          project.targetDate.getTime() < now.getTime(),
       );
     const stageOf = (status: DesignProjectStatus) => ({
       status,
@@ -365,8 +366,9 @@ export class OperationsDashboardService {
       overdue: overdueLines.length,
       dueSoon: measured.filter((line) => line.vendorCadenceStatus === 'AMBER')
         .length,
-      onSchedule: measured.filter((line) => line.vendorCadenceStatus === 'GREEN')
-        .length,
+      onSchedule: measured.filter(
+        (line) => line.vendorCadenceStatus === 'GREEN',
+      ).length,
       note: measured.length
         ? null
         : 'No vendor-flow line is in production, so no update cadence is running',
@@ -430,9 +432,7 @@ export class OperationsDashboardService {
       rfqCycle: {
         averageDays: averageNumber(cycleDays),
         rfqsMeasured: cycleDays.length,
-        status: (cycleDays.length
-          ? 'AVAILABLE'
-          : 'NO_DATA') as DataMaturity,
+        status: (cycleDays.length ? 'AVAILABLE' : 'NO_DATA') as DataMaturity,
         note: cycleDays.length
           ? `RFQ creation to award decision, for awards made in ${periodLabel}`
           : `No RFQ has been awarded in ${periodLabel} yet`,
@@ -483,8 +483,12 @@ export class OperationsDashboardService {
     periodLabel: string,
   ) {
     const costed = ncrs.filter(
-      (ncr): ncr is { costOfPoorQuality: Prisma.Decimal; costOfPoorQualitySource: string | null } =>
-        ncr.costOfPoorQuality !== null,
+      (
+        ncr,
+      ): ncr is {
+        costOfPoorQuality: Prisma.Decimal;
+        costOfPoorQualitySource: string | null;
+      } => ncr.costOfPoorQuality !== null,
     );
     return {
       /** Sum of the COPQ the QMS module already computed and stored per NCR. */

@@ -75,7 +75,8 @@ export function monthlyAverage(
       key,
       value: values.length
         ? Math.round(
-            (values.reduce((sum, value) => sum + value, 0) / values.length) * 10,
+            (values.reduce((sum, value) => sum + value, 0) / values.length) *
+              10,
           ) / 10
         : null,
     };

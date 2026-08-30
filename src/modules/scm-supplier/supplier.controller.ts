@@ -27,6 +27,7 @@ import {
   PublicCertUploadUrlDto,
   PublicQuestionnaireSaveDto,
 } from './dto/supplier.dto';
+import { SendInviteEmailDto } from '../../core/email/send-invite-email.dto';
 
 /**
  * Supplier Qualification (SCM raw materials) — authenticated surface. Distinct
@@ -95,6 +96,19 @@ export class SupplierController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.createInvite(questionnaireId, dto, user);
+  }
+
+  @Post('invites/:inviteId/email')
+  @ApiOperation({
+    summary:
+      "Email an existing invite link to the supplier's contact (SCM Manager+/SA)",
+  })
+  sendInviteEmail(
+    @Param('inviteId') inviteId: string,
+    @Body() dto: SendInviteEmailDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.sendInviteEmail(inviteId, dto, user);
   }
 
   @Delete('invites/:inviteId')

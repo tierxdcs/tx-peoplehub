@@ -1,6 +1,7 @@
 'use client';
 
 import { apiFetch } from './api';
+import type { EmailSendResult } from './invite-email';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -231,6 +232,17 @@ export function createInvite(
 
 export function revokeInvite(inviteId: string) {
   return apiFetch<void>(`/suppliers/invites/${inviteId}`, { method: 'DELETE' });
+}
+
+/** Email an existing invite link. Recipient defaults to the supplier's contactEmail. */
+export function sendInviteEmail(
+  inviteId: string,
+  input: { to?: string; note?: string } = {},
+) {
+  return apiFetch<EmailSendResult>(`/suppliers/invites/${inviteId}/email`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 // ── Internal fill (authenticated SCM staff — second path to SUBMITTED) ──

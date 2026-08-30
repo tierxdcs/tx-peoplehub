@@ -22,8 +22,9 @@ export function ratePercent(part: number, whole: number): string | null {
 export function average(values: number[]): number | null {
   if (values.length === 0) return null;
   return (
-    Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) *
-      10) / 10
+    Math.round(
+      (values.reduce((sum, value) => sum + value, 0) / values.length) * 10,
+    ) / 10
   );
 }
 
@@ -119,10 +120,7 @@ export function bucketAges(ages: number[]): AgeBucket[] {
  * the queue has already breached the 24h ping boundary" style readings, where
  * the count alone is meaningless without the denominator.
  */
-export function breachRate(
-  values: number[],
-  threshold: number,
-): string | null {
+export function breachRate(values: number[], threshold: number): string | null {
   if (values.length === 0) return null;
   return ratePercent(
     values.filter((value) => value >= threshold).length,

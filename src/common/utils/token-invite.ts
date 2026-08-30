@@ -36,6 +36,23 @@ export function hashInvitePassword(
   return password ? bcrypt.hash(password, 10) : Promise.resolve(null);
 }
 
+/**
+ * The public URL a recipient opens, built from the frontend origin and the
+ * module's public route. Lives here because it is now built in two places —
+ * the page that shows the link to copy, and the email that sends it — and they
+ * must never disagree. `publicPath` is the route WITHOUT the token,
+ * e.g. '/public/vendor-questionnaire'.
+ */
+export function inviteLinkUrl(
+  frontendOrigin: string,
+  publicPath: string,
+  token: string,
+): string {
+  const origin = frontendOrigin.replace(/\/+$/, '');
+  const path = publicPath.startsWith('/') ? publicPath : `/${publicPath}`;
+  return `${origin}${path.replace(/\/+$/, '')}/${token}`;
+}
+
 /** The minimal invite shape the validator needs. */
 export interface UsableInvite {
   revokedAt: Date | null;

@@ -10,6 +10,7 @@ import {
   SupplierQuestionnaireStatus,
   SupplierStatus,
 } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -18,7 +19,14 @@ import {
   computeExpiry,
   generateInviteToken,
   hashInvitePassword,
+  inviteLinkUrl,
 } from '../../common/utils/token-invite';
+import { EmailService } from '../../core/email/email.service';
+import { EmailSendResultEntity } from '../../core/email/email-send.entity';
+import { SendInviteEmailDto } from '../../core/email/send-invite-email.dto';
+import { isValidEmailAddress } from '../../core/email/email-content';
+import { resolveOrganisationName } from '../../core/email/organisation';
+import { qualificationInviteEmail } from '../../core/email/templates/qualification-invite';
 import { VaultStorageService } from '../vault/vault-storage.service';
 import {
   assertExtensionAllowed,
@@ -71,6 +79,12 @@ type SupplierCompanyInfo = {
 
 const DEFAULT_INVITE_EXPIRY_HOURS = 14 * 24;
 
+/**
+ * The public form's route, token excluded — matches the frontend page at
+ * web/app/public/supplier-questionnaire/[token].
+ */
+const PUBLIC_QUESTIONNAIRE_PATH = '/public/supplier-questionnaire';
+
 /** The 9 questionnaire section keys (copy-forward on revision, save/submit). */
 const SECTION_KEYS = [
   'materialRange',
@@ -98,6 +112,8 @@ export class SupplierService {
     private readonly access: SupplierAccessService,
     private readonly storage: VaultStorageService,
     private readonly notifications: KanbanNotificationsService,
+    private readonly email: EmailService,
+    private readonly config: ConfigService,
   ) {}
 
   // ── Suppliers ────────────────────────────────────────────────────────
@@ -250,6 +266,85 @@ export class SupplierService {
       where: { id: inviteId },
       data: { revokedAt: new Date() },
     });
+  }
+
+  /**
+   * Email an existing invite link to the supplier — the Vendor Qualification
+   * counterpart of this action, sharing the same template, the same DTO and the
+   * same rules (see ScmService.sendInviteEmail for why it's a separate action
+   * from create and why the send is strict).
+   */
+  async sendInviteEmail(
+    inviteId: string,
+    dto: SendInviteEmailDto,
+    user: AuthenticatedUser,
+    now: Date = new Date(),
+  ): Promise<EmailSendResultEntity> {
+    await this.access.assertCanManageSuppliers(user);
+    const invite = await this.prisma.supplierQuestionnaireInvite.findUnique({
+      where: { id: inviteId },
+      select: {
+        token: true,
+        expiresAt: true,
+        revokedAt: true,
+        passwordHash: true,
+        questionnaire: {
+          select: {
+            supplier: {
+              select: {
+                companyName: true,
+                contactEmail: true,
+                contactPersonName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!invite) throw new NotFoundException('Invite not found');
+    if (invite.revokedAt)
+      throw new BadRequestException(
+        'This invite has been revoked — generate a new one before emailing it',
+      );
+    if (invite.expiresAt <= now)
+      throw new BadRequestException(
+        'This invite has expired — generate a new one before emailing it',
+      );
+
+    const supplier = invite.questionnaire.supplier;
+    const to = (dto.to ?? supplier.contactEmail ?? '').trim();
+    if (!isValidEmailAddress(to))
+      throw new BadRequestException(
+        dto.to
+          ? 'The recipient address is not valid'
+          : 'This supplier has no valid contact email — supply a recipient',
+      );
+
+    const url = inviteLinkUrl(
+      this.config.get<string>('frontendOrigin') ?? '',
+      PUBLIC_QUESTIONNAIRE_PATH,
+      invite.token,
+    );
+    const rendered = qualificationInviteEmail({
+      kind: 'supplier',
+      companyName: supplier.companyName,
+      contactPersonName: supplier.contactPersonName,
+      url,
+      expiresAt: invite.expiresAt,
+      passwordProtected: !!invite.passwordHash,
+      organisationName: await resolveOrganisationName(this.prisma),
+      note: dto.note,
+      now,
+      timezone: this.config.get<string>('timezone'),
+    });
+    const result = await this.email.send({
+      to,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      tags: [{ name: 'kind', value: 'supplier-qualification-invite' }],
+    });
+    return EmailSendResultEntity.from(result);
   }
 
   // ── Public (token) resolution + save/submit ──────────────────────────

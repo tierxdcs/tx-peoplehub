@@ -17,11 +17,7 @@
 
 /** The action item's status is COMPUTED from its linked Kanban card, never stored. */
 export type ActionItemComputedStatus =
-  | 'TODO'
-  | 'IN_PROGRESS'
-  | 'DONE'
-  | 'ARCHIVED'
-  | 'UNLINKED';
+  'TODO' | 'IN_PROGRESS' | 'DONE' | 'ARCHIVED' | 'UNLINKED';
 
 /** The card an action item hangs off. Null once the card is deleted. */
 export interface ActionItemCardShape {

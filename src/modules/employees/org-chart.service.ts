@@ -73,7 +73,9 @@ export class OrgChartService {
    * status (a deactivated employee's profile still renders), while the manager
    * above and the reports below are ACTIVE-only, matching the full chart.
    */
-  async neighbourhood(employeeId: string): Promise<OrgChartNeighbourhoodEntity> {
+  async neighbourhood(
+    employeeId: string,
+  ): Promise<OrgChartNeighbourhoodEntity> {
     const [subject] = await this.loadRows({ id: employeeId });
     if (!subject) {
       throw new NotFoundException('Employee not found');
@@ -191,7 +193,9 @@ export class OrgChartService {
         }
       }),
     );
-    return new Map(signed.filter((entry): entry is [string, string] => !!entry));
+    return new Map(
+      signed.filter((entry): entry is [string, string] => !!entry),
+    );
   }
 
   private toNode(

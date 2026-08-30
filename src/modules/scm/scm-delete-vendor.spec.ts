@@ -37,6 +37,8 @@ describe('ScmService vendor deletion', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
     return { service, tx };
   }

@@ -145,7 +145,10 @@ describe('kickoff work item predicates', () => {
 
     it('is not overdue while still ahead of its target', () => {
       expect(
-        isMilestoneOverdue({ status: 'IN_PROGRESS', targetDate: TOMORROW }, NOW),
+        isMilestoneOverdue(
+          { status: 'IN_PROGRESS', targetDate: TOMORROW },
+          NOW,
+        ),
       ).toBe(false);
     });
   });

@@ -67,7 +67,10 @@ const CLASSIFICATION_LADDER = [
  * questionnaire is in and an audit is owed. There is deliberately no draft audit
  * state in either module (create == finalize), so this IS the audit queue.
  */
-const AUDIT_QUEUE_STATUSES = ['QUESTIONNAIRE_SUBMITTED', 'UNDER_AUDIT'] as const;
+const AUDIT_QUEUE_STATUSES = [
+  'QUESTIONNAIRE_SUBMITTED',
+  'UNDER_AUDIT',
+] as const;
 
 /** How many rows to name rather than only count. */
 const NAMED_ROW_LIMIT = 8;
@@ -547,7 +550,9 @@ export class ScmDashboardService {
       const entry = byPartner.get(key) ?? {
         key,
         partnerName: partner.companyName,
-        partnerType: invitee.vendor ? ('VENDOR' as const) : ('SUPPLIER' as const),
+        partnerType: invitee.vendor
+          ? ('VENDOR' as const)
+          : ('SUPPLIER' as const),
         invited: 0,
         submitted: 0,
         declined: 0,
@@ -586,14 +591,19 @@ export class ScmDashboardService {
       submitted: entry.submitted,
       declined: entry.declined,
       silent: entry.silent,
-      participationPercent: percent(ratePercent(entry.submitted, entry.invited)),
+      participationPercent: percent(
+        ratePercent(entry.submitted, entry.invited),
+      ),
       averageResponseDays: averageNumber(entry.responseDays),
       revisions: entry.revisions,
       revisionRequests: entry.revisionRequests,
     }));
 
     const invitedTotal = participants.reduce((sum, p) => sum + p.invited, 0);
-    const submittedTotal = participants.reduce((sum, p) => sum + p.submitted, 0);
+    const submittedTotal = participants.reduce(
+      (sum, p) => sum + p.submitted,
+      0,
+    );
 
     // ── Non-lowest awards, using the award gate's own equality rule.
     const awardCycleDays: number[] = [];
@@ -738,7 +748,9 @@ export class ScmDashboardService {
           : 'The post-close negotiation mechanism has not been used yet',
         /** Which partners are being renegotiated with, busiest first. */
         partners: participants
-          .filter((partner) => partner.revisions > 0 || partner.revisionRequests > 0)
+          .filter(
+            (partner) => partner.revisions > 0 || partner.revisionRequests > 0,
+          )
           .sort(
             (left, right) =>
               right.revisions - left.revisions ||
@@ -935,7 +947,9 @@ export class ScmDashboardService {
       const entry = byParty.get(key) ?? { name, value: ZERO };
       byParty.set(key, { name, value: entry.value.plus(value) });
     }
-    const total = sumDecimals([...byParty.values()].map((entry) => entry.value));
+    const total = sumDecimals(
+      [...byParty.values()].map((entry) => entry.value),
+    );
     const ranked = shares([...byParty.values()], total, CONCENTRATION_LIMIT);
 
     return {
@@ -976,7 +990,9 @@ export class ScmDashboardService {
           ? 'These classifications came from a SuperAdmin override rather than an audit score. An override should be revisited, not quietly permanent.'
           : 'No classification is currently running on a SuperAdmin override.',
         partners: overridden
-          .sort((left, right) => left.companyName.localeCompare(right.companyName))
+          .sort((left, right) =>
+            left.companyName.localeCompare(right.companyName),
+          )
           .slice(0, NAMED_ROW_LIMIT)
           .map((partner) => ({
             id: partner.id,
@@ -988,7 +1004,9 @@ export class ScmDashboardService {
       },
       concentration: {
         totalPoValue: money(total),
-        status: (total.greaterThan(0) ? 'AVAILABLE' : 'NO_DATA') as DataMaturity,
+        status: (total.greaterThan(0)
+          ? 'AVAILABLE'
+          : 'NO_DATA') as DataMaturity,
         note: total.greaterThan(0)
           ? 'Share of all purchase-order value per party — the supply-side mirror of customer concentration. Unapproved, rejected and cancelled orders are excluded.'
           : 'No purchase order carries a value yet',
@@ -1083,7 +1101,10 @@ export class ScmDashboardService {
         (sum, vendor) => sum + vendor.overdueUpdates,
         0,
       ),
-      blockedLines: vendors.reduce((sum, vendor) => sum + vendor.blockedLines, 0),
+      blockedLines: vendors.reduce(
+        (sum, vendor) => sum + vendor.blockedLines,
+        0,
+      ),
       unlinkedVendorCount: vendors.filter((vendor) => !vendor.vendorId).length,
       note: vendors.length
         ? 'Self-reported progress and the 24-hour cadence escalation, exactly as the PLM vendor portal records them. A vendor with no Vendor Master link is named from the kickoff’s free-text vendor name.'
@@ -1267,8 +1288,7 @@ export class ScmDashboardService {
 
     return {
       status: (rows.length ? 'AVAILABLE' : 'NO_DATA') as
-        | DataMaturity
-        | 'RESTRICTED',
+        DataMaturity | 'RESTRICTED',
       note: rows.length
         ? 'Negotiated cost against the benchmark snapshotted when each plan was generated, summed across every project with a plan. A plan with unpriced lines falls back to benchmark for those lines, so an incomplete plan reads as zero variance rather than a false saving — the cost-complete count below says how many are fully priced.'
         : 'No project has a resource plan yet.',
@@ -1325,7 +1345,9 @@ export class ScmDashboardService {
         name:
           po.vendor?.companyName ??
           po.supplier?.companyName ??
-          (po.adHocPartyName ? `${po.adHocPartyName} (ad-hoc)` : 'Unnamed party'),
+          (po.adHocPartyName
+            ? `${po.adHocPartyName} (ad-hoc)`
+            : 'Unnamed party'),
         type: po.vendorId
           ? ('VENDOR' as const)
           : po.supplierId
@@ -1359,7 +1381,9 @@ export class ScmDashboardService {
       };
       entry.ncrCount += 1;
       if (ncr.status === NonConformanceReportStatus.OPEN) entry.openCount += 1;
-      entry.rejectedQuantity = entry.rejectedQuantity.plus(ncr.rejectedQuantity);
+      entry.rejectedQuantity = entry.rejectedQuantity.plus(
+        ncr.rejectedQuantity,
+      );
       if (ncr.disposition === NcrDispositionType.RETURN_TO_SUPPLIER) {
         entry.returned += 1;
       }
@@ -1475,7 +1499,10 @@ export class ScmDashboardService {
         quote.invitee.supplier?.companyName ??
         'Unnamed partner',
     }));
-    const series = monthlyAverage(rows, months.map((month) => month.key));
+    const series = monthlyAverage(
+      rows,
+      months.map((month) => month.key),
+    );
 
     const byPartner = new Map<string, { name: string; values: number[] }>();
     for (const row of rows) {

@@ -11,6 +11,7 @@ import {
   VendorQuestionnaireStatus,
   VendorStatus,
 } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -19,7 +20,14 @@ import {
   computeExpiry,
   generateInviteToken,
   hashInvitePassword,
+  inviteLinkUrl,
 } from '../../common/utils/token-invite';
+import { EmailService } from '../../core/email/email.service';
+import { EmailSendResultEntity } from '../../core/email/email-send.entity';
+import { SendInviteEmailDto } from '../../core/email/send-invite-email.dto';
+import { isValidEmailAddress } from '../../core/email/email-content';
+import { resolveOrganisationName } from '../../core/email/organisation';
+import { qualificationInviteEmail } from '../../core/email/templates/qualification-invite';
 import { VaultStorageService } from '../vault/vault-storage.service';
 import {
   assertExtensionAllowed,
@@ -79,6 +87,13 @@ type VendorCompanyInfo = {
 /** Default invite lifetime — 14 days, generous given the form's length (§5). */
 const DEFAULT_INVITE_EXPIRY_HOURS = 14 * 24;
 
+/**
+ * The public form's route, token excluded. Must match the frontend page at
+ * web/app/public/vendor-questionnaire/[token] — the emailed link and the link
+ * the detail page shows for copying are now both built from this.
+ */
+const PUBLIC_QUESTIONNAIRE_PATH = '/public/vendor-questionnaire';
+
 /** NDA execution is an onboarding gate, not a recurring revision requirement. */
 export function requiresSignedNda(revisionNumber: number): boolean {
   return revisionNumber === 1;
@@ -123,6 +138,8 @@ export class ScmService {
     private readonly storage: VaultStorageService,
     private readonly vaultFiles: VaultFilesService,
     private readonly notifications: KanbanNotificationsService,
+    private readonly email: EmailService,
+    private readonly config: ConfigService,
   ) {}
 
   // ── Vendors ────────────────────────────────────────────────────────
@@ -378,6 +395,89 @@ export class ScmService {
       where: { id: inviteId },
       data: { revokedAt: new Date() },
     });
+  }
+
+  /**
+   * Email an existing invite link to the vendor. SCM Manager+/SA.
+   *
+   * A separate action rather than auto-send on create, so re-sending (bounced,
+   * wrong person, gentle nudge) doesn't mint a new token and invalidate the link
+   * the vendor may already have. Strict `send()` — the staff member pressed a
+   * "send" button, so a provider failure must surface, not be swallowed.
+   */
+  async sendInviteEmail(
+    inviteId: string,
+    dto: SendInviteEmailDto,
+    user: AuthenticatedUser,
+    now: Date = new Date(),
+  ): Promise<EmailSendResultEntity> {
+    await this.access.assertCanManageVendors(user);
+    const invite = await this.prisma.vendorQuestionnaireInvite.findUnique({
+      where: { id: inviteId },
+      select: {
+        token: true,
+        expiresAt: true,
+        revokedAt: true,
+        passwordHash: true,
+        questionnaire: {
+          select: {
+            vendor: {
+              select: {
+                companyName: true,
+                contactEmail: true,
+                contactPersonName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!invite) throw new NotFoundException('Invite not found');
+    if (invite.revokedAt)
+      throw new BadRequestException(
+        'This invite has been revoked — generate a new one before emailing it',
+      );
+    if (invite.expiresAt <= now)
+      throw new BadRequestException(
+        'This invite has expired — generate a new one before emailing it',
+      );
+
+    const vendor = invite.questionnaire.vendor;
+    const to = (dto.to ?? vendor.contactEmail ?? '').trim();
+    if (!isValidEmailAddress(to))
+      throw new BadRequestException(
+        dto.to
+          ? 'The recipient address is not valid'
+          : 'This vendor has no valid contact email — supply a recipient',
+      );
+
+    const url = inviteLinkUrl(
+      this.config.get<string>('frontendOrigin') ?? '',
+      PUBLIC_QUESTIONNAIRE_PATH,
+      invite.token,
+    );
+    const rendered = qualificationInviteEmail({
+      kind: 'vendor',
+      companyName: vendor.companyName,
+      contactPersonName: vendor.contactPersonName,
+      url,
+      expiresAt: invite.expiresAt,
+      passwordProtected: !!invite.passwordHash,
+      organisationName: await resolveOrganisationName(this.prisma),
+      note: dto.note,
+      now,
+      timezone: this.config.get<string>('timezone'),
+    });
+    // No idempotency key on purpose: a second press IS a deliberate re-send,
+    // and Resend would silently suppress it as a duplicate for 24h.
+    const result = await this.email.send({
+      to,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      tags: [{ name: 'kind', value: 'vendor-qualification-invite' }],
+    });
+    return EmailSendResultEntity.from(result);
   }
 
   // ── Public (token) resolution + save/submit ──────────────────────────

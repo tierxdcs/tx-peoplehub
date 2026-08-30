@@ -12,11 +12,13 @@ import {
   createQuestionnaireRevision,
   getVendor,
   revokeInvite,
+  sendInviteEmail,
   type VendorAudit,
   type VendorDetail,
   type VendorInvite,
   VENDOR_CORE_COMPETENCY_LABEL,
 } from '../../../../lib/scm';
+import { inviteEmailMessage } from '../../../../lib/invite-email';
 import { PageContainer } from '../../../../components/ui/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
 import { Button } from '../../../../components/ui/button';
@@ -53,6 +55,7 @@ export default function VendorDetailPage() {
   const [invite, setInvite] = useState<VendorInvite | null>(null);
   const [invitePassword, setInvitePassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [emailing, setEmailing] = useState(false);
   const [auditing, setAuditing] = useState(false);
   const [overriding, setOverriding] = useState<VendorAudit | null>(null);
   const [editingCoreCompetency, setEditingCoreCompetency] = useState(false);
@@ -98,6 +101,35 @@ export default function VendorDetailPage() {
       toast.error(err instanceof ApiError ? err.message : 'Failed to generate invite.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  /**
+   * Send the existing link by email — the same token the Copy button yields, so
+   * emailing never invalidates a link already given out, and it can be re-sent.
+   */
+  async function emailInvite(inviteId: string) {
+    if (!vendor) return;
+    if (
+      !(await confirm({
+        title: `Email this link to ${vendor.contactEmail}?`,
+        description: vendor.contactEmail
+          ? 'Sends the questionnaire invite to the vendor’s contact email. Any password is shared separately, never in the email.'
+          : 'This vendor has no contact email on file — add one first.',
+        confirmLabel: 'Send email',
+      }))
+    )
+      return;
+    setEmailing(true);
+    try {
+      const result = await sendInviteEmail(inviteId);
+      const message = inviteEmailMessage(result, vendor.contactEmail);
+      if (message.tone === 'success') toast.success(message.text);
+      else toast.toast({ title: 'Email not sent', description: message.text });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to send the email.');
+    } finally {
+      setEmailing(false);
     }
   }
 
@@ -305,14 +337,26 @@ export default function VendorDetailPage() {
                     >
                       Copy
                     </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => emailInvite(invite.id)}
+                      disabled={emailing || !vendor.contactEmail}
+                    >
+                      {emailing ? 'Sending…' : 'Email to vendor'}
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => revoke(invite.id)}>
                       Revoke
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Expires {new Date(invite.expiresAt).toLocaleDateString()} (14-day
-                    default){invite.hasPassword ? ' · password-protected' : ''}. Send
-                    this link to the vendor.
+                    default){invite.hasPassword ? ' · password-protected' : ''}.{' '}
+                    {vendor.contactEmail
+                      ? `Emails go to ${vendor.contactEmail}.`
+                      : 'Add a contact email to send it from here, or copy the link.'}
+                    {invite.hasPassword
+                      ? ' The password is never included — share it separately.'
+                      : ''}
                   </p>
                 </div>
               ) : (

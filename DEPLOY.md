@@ -49,6 +49,56 @@ Validated at boot by Joi (`src/core/config/env.validation.ts`) — the container
 > one-time setup. Deploy it, then set `GOTENBERG_URL` on the backend to its
 > URL. The API only POSTs documents to it over HTTP; it bundles no LibreOffice.
 
+### Transactional email (optional — the app boots and runs without it)
+| Variable | Notes |
+|---|---|
+| `RESEND_API_KEY` | Resend API key (`re_…`). **Environment variable only** — never in code, a config file, or a commit. Without it, `EmailService` logs a warning at boot and any send throws `Email sending is not configured (set RESEND_API_KEY, EMAIL_FROM)`. |
+| `EMAIL_FROM` | Sender, e.g. `tx-peoplehub <no-reply@phaze-dynamics.com>` or a bare address. **Must be on a domain verified in Resend** (SPF + DKIM below), otherwise every send is rejected. Validated at boot. |
+| `EMAIL_REPLY_TO` | Optional default `Reply-To` (a real monitored inbox — `no-reply` senders get replies anyway). Individual messages can override it. |
+| `EMAIL_ALLOWED_RECIPIENTS` | Staging safety net: comma-separated addresses and/or domains (`ops@acme.com, @acme.com`). Recipients outside the list are dropped with a warning instead of being mailed. **Leave empty in production.** |
+| `EMAIL_DRY_RUN` | `true` logs each email instead of delivering it (local dev / CI). |
+
+**Sending-domain DNS (one-time, needs access to the domain's DNS zone).**
+Same category of step as the `phazeone.phaze-dynamics.com` subdomain setup:
+
+1. Resend → **Domains → Add Domain**, enter the sending domain.
+2. Copy the records Resend shows — typically a `TXT` SPF record on `send`, a
+   `TXT` DKIM record on `resend._domainkey`, and an `MX` record on `send` — into
+   the DNS zone **exactly** as given.
+3. Press **Verify** in Resend. Propagation can take up to an hour.
+4. Confirm from your laptop — this is the check that proves the records are
+   verified, not merely added:
+   ```
+    RESEND_API_KEY="re_…" EMAIL_FROM="tx-peoplehub <no-reply@your-domain>" \
+      EMAIL_TEST_TO="you@your-company.com" node scripts/verify-email.js
+   ```
+   It fails loudly on any record still `pending`/`failed`, then sends one real
+   test email. Add `--no-send` for the key + DNS checks only.
+5. Confirm the **deployed** service has the same wiring (a laptop run can't
+   prove Railway's env): as a SUPER_ADMIN, `GET /health/email` returns the
+   sender, dry-run/allowlist state, and each domain record's status, and
+   `POST /health/email-test` with `{"to":"you@your-company.com"}` sends through
+   the shared `EmailService`. Neither route ever returns the API key.
+
+**What sends email today.** Nothing sends automatically — every email is a
+deliberate staff action, so an un-configured key can never silently break a
+business flow:
+
+| Feature | Trigger | Route |
+|---|---|---|
+| Vendor qualification invite | "Email to vendor" on the vendor detail page | `POST /vendors/invites/:inviteId/email` |
+| Supplier qualification invite | "Email to supplier" on the supplier detail page | `POST /suppliers/invites/:inviteId/email` |
+
+Both send the *existing* invite link (so re-sending never invalidates a link the
+company already has), refuse a revoked or expired invite, default the recipient
+to the company's contact email, and **never** include the invite password —
+share that separately. `FRONTEND_ORIGIN` must be correct: the emailed link is
+built from it.
+
+> Everything goes through `EmailService` (`src/core/email/`): `send()` throws so
+> a user-triggered send surfaces its failure, `trySend()` logs and returns
+> `null` so a background notification can never roll back a business action.
+
 > `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` are only read by the seed script,
 > which you run **from your laptop** (see below) — they are **not** needed as
 > Railway service vars.

@@ -1,3 +1,5 @@
+import { parseAllowlist } from '../email/email-content';
+
 /**
  * Typed configuration namespaces, loaded from validated env vars.
  * Access via ConfigService, e.g. `config.get('jwt.accessSecret')`.
@@ -33,5 +35,14 @@ export default () => ({
   gst: {
     gatewayUrl: process.env.GST_GATEWAY_URL,
     gatewayToken: process.env.GST_GATEWAY_TOKEN,
+  },
+  // Transactional email (Resend). The API key is read from the environment
+  // only — never committed, never a fallback literal.
+  email: {
+    apiKey: process.env.RESEND_API_KEY,
+    from: process.env.EMAIL_FROM,
+    replyTo: process.env.EMAIL_REPLY_TO,
+    allowedRecipients: parseAllowlist(process.env.EMAIL_ALLOWED_RECIPIENTS),
+    dryRun: (process.env.EMAIL_DRY_RUN ?? '').toLowerCase() === 'true',
   },
 });

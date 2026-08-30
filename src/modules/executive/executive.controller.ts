@@ -71,7 +71,10 @@ export class ExecutiveController {
   }
 
   @Get('dashboards/project-management')
-  @ApiOperation({ summary: 'Executive Project Management dashboard: PM-attributed project health, blockers, delivery, workload and kickoff readiness' })
+  @ApiOperation({
+    summary:
+      'Executive Project Management dashboard: PM-attributed project health, blockers, delivery, workload and kickoff readiness',
+  })
   async projectManagement(@CurrentUser() user: AuthenticatedUser) {
     await this.access.assertAccess(user);
     return this.projectManagementDashboard.build();

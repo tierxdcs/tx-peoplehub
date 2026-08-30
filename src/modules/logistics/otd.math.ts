@@ -17,9 +17,6 @@ export function delayDays(promised: Date, actual: Date): number {
  * when nothing has been delivered: a rate of nothing is undefined, and a 0%
  * on-time reading would be indistinguishable from total failure.
  */
-export function onTimePercentage(
-  onTime: number,
-  total: number,
-): number | null {
+export function onTimePercentage(onTime: number, total: number): number | null {
   return total ? Math.round((onTime / total) * 1000) / 10 : null;
 }
