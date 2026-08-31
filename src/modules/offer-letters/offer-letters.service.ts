@@ -18,6 +18,7 @@ import {
 import { PrismaService } from '../../core/database/prisma.service';
 import { PayrollComputationService } from '../payroll/payroll-computation.service';
 import { CtcBreakdownEntity } from '../payroll/entities/ctc-breakdown.entity';
+import { PushEventsService } from '../notifications/push-events.service';
 import { OfferLetterDecisionDto } from './dto/offer-letter-decision.dto';
 import { SaveOfferLetterDto } from './dto/save-offer-letter.dto';
 
@@ -105,6 +106,8 @@ export class OfferLettersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly payroll: PayrollComputationService,
+    // PushEventsModule is @Global, so this needs no import edge here.
+    private readonly pushEvents: PushEventsService,
   ) {}
 
   async list(user: AuthenticatedUser) {
@@ -379,6 +382,11 @@ export class OfferLettersService {
         ...this.clearedDecisionStamps,
       },
     });
+    this.pushPendingApproval(
+      offer,
+      OfferLetterStatus.PENDING_VERTICAL_APPROVAL,
+      user.id,
+    );
     return this.buildResponse(
       await this.findWithApprovalContext(undefined, employeeId),
     );
@@ -443,6 +451,14 @@ export class OfferLettersService {
             ...commentData,
           },
         });
+        // The letter has moved on to the CEO — tell them, not the owner who just
+        // signed. Only this branch pushes: the fallback branch above and the
+        // final CEO approval both end the workflow, and nothing is waiting.
+        this.pushPendingApproval(
+          offer,
+          OfferLetterStatus.PENDING_CEO_APPROVAL,
+          user.id,
+        );
       }
     } else if (offer.status === OfferLetterStatus.PENDING_CEO_APPROVAL) {
       this.assertSuperAdmin(user);
@@ -637,6 +653,45 @@ export class OfferLettersService {
    * stamps the vertical stage. Structural so it accepts both the full approval
    * context and the lighter pending-list row (each carries `vertical.ownerId`).
    */
+  /**
+   * Tell whoever the letter now waits on that it is theirs to decide.
+   *
+   * Routing mirrors `approve()` exactly — deliberately, by reusing the same
+   * `ceoMayFinaliseAtVerticalStage` predicate rather than restating it. A push
+   * that reaches someone the gate will then refuse ("the vertical owner must
+   * approve first") is worse than no push at all.
+   *
+   * `status` is passed rather than read off `offer`, because the caller has just
+   * written the new one and is holding the pre-update row.
+   */
+  private pushPendingApproval(
+    offer: OfferWithApprovalContext,
+    status: OfferLetterStatus,
+    actorId: string,
+  ): void {
+    const toCeo =
+      status === OfferLetterStatus.PENDING_CEO_APPROVAL ||
+      this.ceoMayFinaliseAtVerticalStage({ ...offer, status });
+    const candidate =
+      `${offer.employee.firstName} ${offer.employee.lastName}`.trim();
+    const position =
+      offer.candidateRequisition?.positionTitle ?? offer.employee.designation;
+    void this.pushEvents.approvalRequired({
+      kind: 'offer-letter',
+      audience: toCeo
+        ? { pool: 'SUPER_ADMIN' }
+        : { employeeIds: [offer.employee.vertical?.ownerId] },
+      reference: position ? `${candidate} — ${position}` : candidate,
+      requestedById: offer.createdById,
+      recordId: offer.id,
+      // The review-and-decide page itself, which renders the frozen snapshot and
+      // the approve/reject controls — the recipient of this push is exactly its
+      // audience, so the tap lands on the decision rather than on a queue.
+      url: `/hr/offer-letters/pending-approval/${offer.id}`,
+      actorId,
+    });
+  }
+
   private ceoMayFinaliseAtVerticalStage(offer: {
     status: OfferLetterStatus;
     employeeId: string;

@@ -57,6 +57,8 @@ describe('ExpenseClaimsService', () => {
     finance,
     financeAccess,
     storage,
+    // Best-effort and fire-and-forget; the approval gate is what these tests pin.
+    { approvalRequired: jest.fn() } as never,
   );
 
   const employee: any = { id: 'emp', role: Role.EMPLOYEE, verticalId: 'eng' };

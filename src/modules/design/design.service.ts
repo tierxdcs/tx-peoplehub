@@ -21,6 +21,7 @@ import {
 } from '../../common/types/pending-queue';
 import { PrismaService } from '../../core/database/prisma.service';
 import { VaultAccessService } from '../vault/vault-access.service';
+import { PushEventsService } from '../notifications/push-events.service';
 import { DesignAccessService } from './design-access.service';
 import {
   AcknowledgeDesignChangeDto,
@@ -127,6 +128,8 @@ export class DesignService {
     private readonly prisma: PrismaService,
     private readonly access: DesignAccessService,
     private readonly vaultAccess: VaultAccessService,
+    // PushEventsModule is @Global, so this needs no import edge here.
+    private readonly pushEvents: PushEventsService,
   ) {}
   async accessInfo(u: AuthenticatedUser) {
     return this.access.accessFor(u);
@@ -997,10 +1000,24 @@ export class DesignService {
       throw new BadRequestException(
         'Add at least one downstream acknowledgement owner',
       );
-    return this.prisma.designChange.update({
+    const submitted = await this.prisma.designChange.update({
       where: { id },
       data: { status: 'PENDING_APPROVAL' },
     });
+    // The Design Head decides, and never on their own ECR — the same scoping
+    // `approveChange` and `pendingChangeApprovalQueue` use. Passing the requester
+    // as the actor is what excludes a Design Head who raised it themselves, so
+    // they aren't buzzed to approve something they cannot.
+    void this.pushEvents.approvalRequired({
+      kind: 'design-change',
+      audience: { pool: 'DESIGN_HEAD' },
+      reference: `${submitted.changeNumber} — ${submitted.title}`,
+      requestedById: submitted.requestedById,
+      recordId: submitted.id,
+      url: `/design/changes/${submitted.id}`,
+      actorId: submitted.requestedById,
+    });
+    return submitted;
   }
   /**
    * Badge summary for ECRs awaiting the Design Head's decision — count plus
@@ -1221,7 +1238,7 @@ export class DesignService {
     const review = await this.requireReview(id);
     if (review.status !== 'IN_PROGRESS')
       throw new BadRequestException('The review is not in progress');
-    return this.prisma.$transaction(async (tx) => {
+    const recorded = await this.prisma.$transaction(async (tx) => {
       if (d.attendedIds)
         await tx.designReviewAttendee.updateMany({
           where: { reviewId: id },
@@ -1242,6 +1259,16 @@ export class DesignService {
         },
       });
     });
+    // Only a rejection pushes. APPROVED and APPROVED_WITH_CONDITIONS are the
+    // review doing its job; a REJECTED outcome is rework the lead designer has to
+    // pick up, and is the one outcome worth a lock-screen interrupt.
+    if (d.outcome === DesignReviewOutcome.REJECTED) {
+      void this.pushEvents.designReviewRejected({
+        reviewId: recorded.id,
+        actorId: u.id,
+      });
+    }
+    return recorded;
   }
   async addReviewAction(
     id: string,

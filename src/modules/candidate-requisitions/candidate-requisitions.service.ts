@@ -18,6 +18,7 @@ import {
 } from '../../common/types/pending-queue';
 import { PrismaService } from '../../core/database/prisma.service';
 import { SalesNumberingService } from '../sales/common/sales-numbering.service';
+import { PushEventsService } from '../notifications/push-events.service';
 import {
   CreateCandidateRequisitionDto,
   UpdateCandidateHiringLifecycleDto,
@@ -57,7 +58,46 @@ export class CandidateRequisitionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: SalesNumberingService,
+    // PushEventsModule is @Global, so this needs no import edge here.
+    private readonly pushEvents: PushEventsService,
   ) {}
+
+  /**
+   * Tell whoever the requisition now waits on. Routing reuses
+   * `ceoMayFinaliseAtVerticalStage`, the same predicate `approveVertical` and the
+   * CEO's queue use, so a push can never reach someone the gate would refuse.
+   */
+  private pushPendingApproval(
+    req: {
+      id: string;
+      status: CandidateRequisitionStatus;
+      requisitionNumber: string;
+      positionTitle: string;
+      requestedById: string;
+      vertical?: { ownerId: string | null } | null;
+    },
+    actorId: string,
+  ): void {
+    const toCeo =
+      req.status === CandidateRequisitionStatus.PENDING_SUPERADMIN_APPROVAL ||
+      this.ceoMayFinaliseAtVerticalStage(req);
+    void this.pushEvents.approvalRequired({
+      kind: 'candidate-requisition',
+      // Optional all the way down: assembling a push argument is the one part of
+      // this that runs before the best-effort boundary, so it must not be able to
+      // throw into the caller. No owner resolves to no recipient, which
+      // PushEventsService treats as a silent no-op.
+      audience: toCeo
+        ? { pool: 'SUPER_ADMIN' }
+        : { employeeIds: [req.vertical?.ownerId] },
+      reference: `${req.requisitionNumber} — ${req.positionTitle}`,
+      requestedById: req.requestedById,
+      recordId: req.id,
+      // Requisitions live in one list page, so the deep link focuses the row.
+      url: `/hr/candidate-requisitions?focus=${encodeURIComponent(req.id)}`,
+      actorId,
+    });
+  }
 
   async create(dto: CreateCandidateRequisitionDto, user: AuthenticatedUser) {
     if (
@@ -93,7 +133,7 @@ export class CandidateRequisitionsService {
     // onboarding), so ten openings for the same role are ten rows with
     // consecutive REQ numbers — all created or none.
     const count = dto.numberOfPositions ?? 1;
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const created = [];
       for (let i = 0; i < count; i++) {
         const requisitionNumber = await this.numbering.nextNumber(
@@ -124,6 +164,30 @@ export class CandidateRequisitionsService {
       }
       return created;
     });
+    this.pushCreated(created, user.id);
+    return created;
+  }
+
+  /**
+   * A bulk raise of N positions is N approvals, so each row pushes its own — the
+   * approver has to decide them one at a time, and a single "10 requisitions"
+   * notification would not tell them which.
+   *
+   * Fired after the transaction returns, never inside it: a push about a
+   * requisition whose transaction then rolled back points at nothing.
+   */
+  private pushCreated(
+    created: Array<{
+      id: string;
+      status: CandidateRequisitionStatus;
+      requisitionNumber: string;
+      positionTitle: string;
+      requestedById: string;
+      vertical: { ownerId: string | null };
+    }>,
+    actorId: string,
+  ): void {
+    for (const req of created) this.pushPendingApproval(req, actorId);
   }
 
   async cancel(id: string, user: AuthenticatedUser) {
@@ -453,7 +517,7 @@ export class CandidateRequisitionsService {
       throw new ForbiddenException(
         'Only the requisition vertical owner may perform the first approval',
       );
-    return this.prisma.candidateRequisition.update({
+    const updated = await this.prisma.candidateRequisition.update({
       where: { id },
       data: {
         status: CandidateRequisitionStatus.PENDING_SUPERADMIN_APPROVAL,
@@ -462,6 +526,10 @@ export class CandidateRequisitionsService {
       },
       include,
     });
+    // Now the CEO's to decide. `approveSuperAdmin` ends the workflow, so it is
+    // the only other stage and it has nobody left to notify.
+    this.pushPendingApproval(updated, user.id);
+    return updated;
   }
 
   async rejectVertical(id: string, comment: string, user: AuthenticatedUser) {
@@ -534,11 +602,11 @@ export class CandidateRequisitionsService {
   private ceoMayFinaliseAtVerticalStage(req: {
     status: CandidateRequisitionStatus;
     requestedById: string;
-    vertical: { ownerId: string | null };
+    vertical?: { ownerId: string | null } | null;
   }) {
     return (
       req.status === CandidateRequisitionStatus.PENDING_VERTICAL_APPROVAL &&
-      (!req.vertical.ownerId || req.vertical.ownerId === req.requestedById)
+      (!req.vertical?.ownerId || req.vertical.ownerId === req.requestedById)
     );
   }
 

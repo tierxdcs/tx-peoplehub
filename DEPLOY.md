@@ -126,12 +126,23 @@ business flow:
 | Vendor qualification invite | "Email to vendor" on the vendor detail page | `POST /vendors/invites/:inviteId/email` |
 | Supplier qualification invite | "Email to supplier" on the supplier detail page | `POST /suppliers/invites/:inviteId/email` |
 | RFQ quote link | "Email"/"Email all invitees" on the RFQ detail page (ISSUED/CLOSED) | `POST /rfqs/:id/invitees/email` |
+| PLM vendor update link | "Email" on a vendor update link, in the PLM block of the order detail page | `POST /plm/vendor-invites/:id/email` |
 
 All of them send the *existing* invite link (so re-sending never invalidates a
 link the partner already has), refuse a revoked or expired invite, default the
 recipient to the company's contact email, and **never** include the invite
 password — share that separately. `FRONTEND_ORIGIN` must be correct: the emailed
 link is built from it.
+
+The PLM one differs from the other invites in what it asks for: it is a *standing*
+channel, not a one-shot form. The email states the agreed update cadence ("we ask
+for an update every 7 days"), that the same link works for every update, and that
+confirmed production steps cannot be undone (the server refuses a step count below
+the furthest already confirmed, so a vendor who is not told hits an error instead
+of reading a rule). It names the product by **our** catalogue name — the customer's
+own PO wording is deliberately not even queried, so it cannot leak to a vendor.
+Emailing a link does **not** write a tracker timeline event, matching the vendor
+and supplier invite routes; the timeline records only created and revoked.
 
 The RFQ route mails a batch (an RFQ has three or more invitees) and reports per
 invitee — `{ sent, skipped, failed, results[] }` — so one partner without a
@@ -185,26 +196,80 @@ page, where the person holding the device presses it (`POST /push/test`).
 failure, and even a non-zero `delivered` only means a push service *accepted*
 the message. As with the email verification, the real check is the device.
 
-**What sends a push today.** Exactly two events, plus the user's own test
-button. Both reuse the trigger point that already existed for the equivalent
-in-app notification — there is no new event-detection logic, so the two channels
-cannot disagree about whether something happened:
+**What sends a push today.** Eight kinds of event, plus the user's own test
+button. Each hooks the trigger point that already existed for the equivalent
+in-app surface, so the two channels cannot disagree about whether something
+happened — with one documented exception, the PLM cadence sweep, below.
 
 | Event | Content | Tapping it opens |
 |---|---|---|
 | A Ping you received | Sender's name + a preview of the message | `/my-pings` |
 | A Kanban card assigned/reassigned to you | Assigner's name + the task title | `/kanban/cards/:id` (the existing resolver: board + card modal for a board member, standalone card view for a non-member assignee) |
+| A comment on a Kanban card **you created** | Commenter's name, the card title + a preview of the comment | `/kanban/cards/:id` |
+| An approval waiting on you — one of **seven** gates: offer letter, candidate requisition, BOM release, RFQ PM approval, ad-hoc PO, ECR (design change), expense claim | Which gate, the record's own reference, and who asked | That record's page (see *Deep links* below) |
+| A vendor submitted **or revised** a quote on your RFQ | Vendor name + RFQ number; a revision is called out as such | `/scm/rfqs/:id` |
+| A vendor has gone past your PLM tracker's agreed update cadence | Vendor name, order number, product, and the cadence they are missing | `/plm/trackers/:id` |
+| A design review on your project was recorded **REJECTED** | Project name + review type | `/design/projects?focus=:id` |
+| Your order cleared **final QC**, or a challan for it was **dispatched** | Order number + what is shipping (a product name, or "3 products"); dispatch also names the DC | `/sales/orders/:id` / `/logistics/dispatch/:id` |
 
-Deliberately **not** pushed: comments, card updates, status changes, approvals,
-escalations, staleness reminders. Pings was built around not over-notifying, and
-a channel that buzzes a phone has to be held to a higher bar than an in-app
-badge. The complete list lives in one file —
-`src/modules/notifications/push-triggers.ts` — so adding a third means editing
-it there.
+Only REJECTED design reviews push — APPROVED is good news and
+APPROVED_WITH_CONDITIONS is carried by the review's action items. Only final QC
+and dispatch push out of the whole PLM/order ladder: they are the points where
+something becomes *possible*, not one more stage advancing.
 
-Both are fire-and-forget: the push is dispatched without being awaited, so
-sending a Ping or assigning a card never waits on Apple's or Google's servers,
-and a recipient with no subscribed device is a silent no-op rather than an error.
+**Comments push to the card's creator only** — not to its assignee, and not to
+board members. The assignee is already working the card and will see the thread;
+the person who raised it has no other reason to look, which is what makes their
+case worth a phone buzz and the assignee's not. Both still get the in-app
+`CARD_COMMENTED` row (the creator's is new — before this, a comment notified the
+assignee and nobody else, so raising a card and handing it over meant hearing
+nothing about it). The tag is keyed to the **card**, so a ten-comment
+back-and-forth is one standing notification, not ten buzzes.
+
+Deliberately **not** pushed: Kanban card edits and moves, comments on a card you
+merely watch or are assigned, routine PLM/order status changes short of dispatch,
+on-time vendor production updates, GRN and inventory movement, Vault uploads,
+efficiency-score and analytics changes. Those stay in-app. Pings was built around
+not over-notifying, and a channel that buzzes a phone has to be held to a higher
+bar than an in-app badge. The complete list lives in one file —
+`src/modules/notifications/push-triggers.ts` — so adding a ninth means editing it
+there.
+
+**Nobody is ever notified about their own action.** That rule is enforced once,
+in `PushEventsService.resolve()`, which drops the actor from the recipient set —
+it matters most on the gates that can legitimately be self-approved (a SuperAdmin
+raising an ad-hoc PO, a Project Manager creating an RFQ).
+
+Every one is fire-and-forget: the push is dispatched without being awaited, so no
+business action ever waits on Apple's or Google's servers, and a recipient with no
+subscribed device is a silent no-op rather than an error. `PushEventsService`
+additionally wraps its *lookups* in the same guarantee, so a deleted row or a
+Prisma blip cannot fail the action that triggered the notification.
+
+**Deep links.** Five of the seven approval gates open the record's own detail
+route (`/hr/offer-letters/pending-approval/:id`, `/scm/bom/:id`, `/scm/rfqs/:id`,
+`/stores/purchase-orders/:id`, `/design/changes/:id`, `/expense-claims/:id`).
+Candidate requisitions and design projects have **no route of their own**, so
+they use `?focus=<id>` on their list page — the same convention as the existing
+`profile?tab=org-chart&focus=`. On `/hr/candidate-requisitions` that opens the
+requisition's details dialog; on `/design/projects` it scrolls to and highlights
+the row. Both fire once per id, so closing the dialog or scrolling away does not
+spring back on the next refresh.
+
+**One event is swept, not triggered — by necessity.** A PLM vendor cadence breach
+is not an action anyone takes: `deriveVendorCadence()` is a pure function of (last
+update, cadence days, now), evaluated when a screen is read, and the RED state
+arrives simply by the clock moving. There is no write, no request and no actor at
+the moment it happens, so there is nothing to hook.
+`PlmVendorCadenceSweepService` therefore runs `@Cron('0 9 * * *', { timeZone:
+'Asia/Kolkata' })` — 09:00 IST, when chasing a vendor is something the owner can
+actually do — reusing the *same* `deriveVendorCadence` and the same reference-date
+fallback chain as `PlmService.withDerived`, so a tracker that shows red on the PLM
+board is exactly the one that pushes. This mirrors
+`QmsService.notifyOverdueActions()`, which exists for the same reason. It re-sends
+each morning while the breach lasts; the `tag` is keyed to the tracker, so each
+morning **replaces** the standing notification rather than stacking another. AMBER
+("due soon") never pushes.
 
 | Route | Purpose |
 |---|---|
@@ -305,6 +370,7 @@ It inserts **no** employee/statutory data — testers create their own via the r
 - [ ] Bid/No-Bid gate: `POST /bids` blocked with no assessment → submit → reject w/ comment (as Sales Head) → still blocked → resubmit → approve → bid creation now succeeds.
 - [ ] The 8 seeded assessment questions actually appear in the submit form (verify the seed ran against staging, don't assume).
 - [ ] Sales-vertical-wide read visibility: a Sales `EMPLOYEE` can view a **peer's** bid/lead/opportunity/order (reads are vertical-wide; writes stay owner/hierarchy-scoped). Tell testers to expect this.
+- [ ] **PLM vendor update link email** (needs `EMAIL_DRY_RUN` unset and the recipient inside `EMAIL_ALLOWED_RECIPIENTS`, if that list is set): on a VENDOR tracker, create an update link → press **Email** → the mail **arrives in a real inbox**, its button opens the public update form, and the form accepts a step confirmation. A green toast is not the test; a toast reading "Email not sent" means the send was dry-run or allowlist-suppressed, not delivered.
 
 ### Installable app + push notifications (needs two real phones, not a desktop emulator)
 
@@ -316,8 +382,15 @@ It inserts **no** employee/statutory data — testers create their own via the r
 - [ ] **Send a test notification** and see it **arrive on the phone**. A green toast is not the test; the phone is. Confirm the device also appears under "Your devices".
 - [ ] From a second account, **send the phone's owner a Ping** — the push shows the sender's name and a preview, and tapping it opens `/my-pings`.
 - [ ] From a second account, **assign the phone's owner a Kanban card** — the push shows the assigner's name and the task title, and tapping it opens that card (board modal if they're a board member, standalone card view if not).
-- [ ] **Comment on** and **move** one of their cards: the in-app bell updates, and **no push arrives**. That silence is the scope holding.
-- [ ] Turn notifications **off** on the device, then have someone Ping them again: the Ping still sends normally with no error for the sender.
+- [ ] **An approval reaches the right phone.** Submit an **expense claim** as someone else and confirm the Accounts Head's (or SuperAdmin's) phone buzzes with the claim number and the claimant's name, and that tapping it opens `/expense-claims/:id`. Then spot-check one gate with no detail route — raise a **candidate requisition** and confirm the approver's tap opens `/hr/candidate-requisitions?focus=…` *with the details dialog already open*, and that closing it and pulling to refresh does **not** reopen it.
+- [ ] **Self-approval sends nothing.** As a SuperAdmin, raise an **ad-hoc PO** yourself: the queue badge updates and **no push arrives on your own phone**.
+- [ ] **A vendor quote reaches the RFQ owner.** Submit a quote through a vendor's token link and confirm the RFQ creator's phone shows the vendor's name + RFQ number, opening `/scm/rfqs/:id`. If the RFQ has a revision window open, submit a revision too — the copy must read "revised their quote", and it should **replace** the earlier notification rather than stack.
+- [ ] **Dispatch.** Clear **final QC** on an order and confirm the order owner gets "Ready to dispatch — ORD-…" naming the product (or "N products"); then **dispatch a challan** and confirm a second push opens `/logistics/dispatch/:id`. Retry the QC clearance from a stale tab: it succeeds idempotently and sends **no second push**.
+- [ ] **Design review rejection.** Record a review outcome as **REJECTED** and confirm the project's lead designer gets it, landing on `/design/projects?focus=…` with the row scrolled into view and highlighted. Record an **APPROVED** outcome: **no push**.
+- [ ] **Vendor cadence (needs the clock, or a manual call).** This one is swept at 09:00 IST rather than triggered, so either wait a morning with a vendor tracker past its cadence, or invoke `notifyVendorCadenceBreaches()` directly. Confirm the tracker **owner** gets the vendor + order + product, that an AMBER ("due soon") tracker sends nothing, and that a second sweep the next day **replaces** rather than stacks.
+- [ ] **A comment on a card they created.** From a second account, comment on a card the phone's owner **created but assigned to someone else** — their phone shows the commenter's name, the card title and a preview of the comment, and tapping it opens the card. Confirm the **assignee gets the in-app bell row but no push**. Then comment again: the notification **replaces** the first rather than stacking a second.
+- [ ] **The silence is the scope.** Move a card and edit its fields; comment on a card the phone's owner is merely *assigned* (didn't create); post an on-time vendor production update; advance a PLM stage short of dispatch; upload to Vault; receive a GRN. The in-app bell and badges update, and **no push arrives** for any of them.
+- [ ] Turn notifications **off** on the device, then have someone Ping them again, and submit an approval that routes to them: both still send normally with no error for the sender, and no error in the backend logs.
 - [ ] In a plain **iOS Safari tab** (not installed), the Notifications card explains that the app must be added to the home screen first — and no subscribe button is offered. This is expected iOS behaviour, not a bug.
 - [ ] `GET /health/push` (SUPER_ADMIN) shows `configured: true` and a device count that matches what you just subscribed — and never returns the private key.
 

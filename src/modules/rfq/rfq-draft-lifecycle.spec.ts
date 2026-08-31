@@ -62,6 +62,7 @@ describe('RfqService draft save / delete', () => {
       storage,
       {} as never,
       {} as never,
+      { approvalRequired: jest.fn() } as never,
     );
     jest
       .spyOn(service, 'get')

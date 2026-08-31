@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Check, ClipboardCopy, ExternalLink, FileImage, RefreshCw } from 'lucide-react';
+import { Check, ClipboardCopy, ExternalLink, FileImage, Mail, RefreshCw } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../../lib/api';
 import { Employee } from '../../../../../lib/types';
 import {
@@ -16,7 +16,9 @@ import {
   PlmTracker,
   PlmVendorInvite,
   plmAction,
+  sendPlmInviteEmail,
 } from '../../../../../lib/plm';
+import { inviteEmailMessage } from '../../../../../lib/invite-email';
 import { uploadToPresignedUrl } from '../../../../../lib/vault-api';
 import { useAuth } from '../../../../../lib/auth-context';
 import { prettyEnum } from '../../../../../lib/sales';
@@ -231,7 +233,39 @@ export function PlmSection({ orderId, trackerId }: PlmSectionProps) {
 
 function VendorInvites({ tracker, rows, onLoad, onCreated }: { tracker: PlmTracker; rows?: PlmVendorInvite[]; onLoad:(id:string)=>Promise<void>; onCreated:(id:string)=>Promise<void> }) {
   const toast = useToast();
-  return <section className="rounded-md border p-3"><div className="flex items-center justify-between"><h4 className="text-sm font-semibold">Vendor update links</h4><div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void onLoad(tracker.id)}>View links</Button><Button size="sm" onClick={async () => { try { const invite = await createPlmInvite(tracker.id); await navigator.clipboard.writeText(`${window.location.origin}/public/plm-vendor-update/${invite.token}`); toast.success('Link created and copied'); await onCreated(tracker.id); } catch(error) { toast.error(error instanceof ApiError ? error.message : 'Unable to create link'); } }}>Create link</Button></div></div>{rows && <div className="mt-3 space-y-2">{rows.map((invite) => { const url = `${window.location.origin}/public/plm-vendor-update/${invite.token}`; return <div key={invite.id} className="flex flex-wrap items-center justify-between gap-2 text-xs"><span>{invite.revokedAt ? 'Revoked' : new Date(invite.expiresAt) < new Date() ? 'Expired' : `Expires ${new Date(invite.expiresAt).toLocaleDateString()}`}</span><div className="flex gap-2"><Button size="sm" variant="ghost" onClick={() => void navigator.clipboard.writeText(url)}><ClipboardCopy className="size-3" /></Button><a href={url} target="_blank" rel="noreferrer"><Button size="sm" variant="ghost"><ExternalLink className="size-3" /></Button></a>{!invite.revokedAt && <Button size="sm" variant="destructive" onClick={async()=>{await apiFetch(`/plm/vendor-invites/${invite.id}/revoke`,{method:'POST'});await onLoad(tracker.id)}}>Revoke</Button>}</div></div>; })}</div>}</section>;
+  const confirm = useConfirm();
+  const [emailing, setEmailing] = useState<string | null>(null);
+  const contactEmail = tracker.vendor?.contactEmail ?? null;
+
+  /**
+   * Email an existing link rather than create-and-email: the vendor may already
+   * be using this URL, and minting a new token would break it.
+   *
+   * With no contact email on the Vendor Master we ask for one here instead of
+   * disabling the action — the address is often the shop-floor supervisor rather
+   * than the commercial contact the master record holds.
+   */
+  async function emailLink(invite: PlmVendorInvite) {
+    let to = contactEmail;
+    if (!to) {
+      to = window.prompt(`No contact email on file for ${tracker.vendor?.companyName ?? 'this vendor'}. Send this link to:`)?.trim() || null;
+      if (!to) return;
+    } else if (!(await confirm({ title: `Email this link to ${to}?`, description: 'Sends the production-update link with the agreed reporting cadence. Any link password is shared separately, never in the email.', confirmLabel: 'Send email' }))) {
+      return;
+    }
+    setEmailing(invite.id);
+    try {
+      const message = inviteEmailMessage(await sendPlmInviteEmail(invite.id, { to }), to);
+      if (message.tone === 'success') toast.success(message.text);
+      else toast.toast({ title: 'Email not sent', description: message.text });
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Unable to email the link');
+    } finally { setEmailing(null); }
+  }
+
+  return <section className="rounded-md border p-3"><div className="flex items-center justify-between"><h4 className="text-sm font-semibold">Vendor update links</h4><div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void onLoad(tracker.id)}>View links</Button><Button size="sm" onClick={async () => { try { const invite = await createPlmInvite(tracker.id); await navigator.clipboard.writeText(`${window.location.origin}/public/plm-vendor-update/${invite.token}`); toast.success('Link created and copied'); await onCreated(tracker.id); } catch(error) { toast.error(error instanceof ApiError ? error.message : 'Unable to create link'); } }}>Create link</Button></div></div>
+    <p className="mt-1 text-xs text-muted-foreground">{contactEmail ? <>Emails go to <strong>{contactEmail}</strong> — the vendor’s contact on file.</> : 'This vendor has no contact email on file; you will be asked for an address when you email a link.'}</p>
+    {rows && <div className="mt-3 space-y-2">{rows.map((invite) => { const url = `${window.location.origin}/public/plm-vendor-update/${invite.token}`; const dead = !!invite.revokedAt || new Date(invite.expiresAt) < new Date(); return <div key={invite.id} className="flex flex-wrap items-center justify-between gap-2 text-xs"><span>{invite.revokedAt ? 'Revoked' : new Date(invite.expiresAt) < new Date() ? 'Expired' : `Expires ${new Date(invite.expiresAt).toLocaleDateString()}`}</span><div className="flex gap-2"><Button size="sm" variant="ghost" onClick={() => void navigator.clipboard.writeText(url)}><ClipboardCopy className="size-3" /></Button><a href={url} target="_blank" rel="noreferrer"><Button size="sm" variant="ghost"><ExternalLink className="size-3" /></Button></a>{/* A revoked or expired link is a dead URL — emailing it would only confuse the vendor, and the server refuses it anyway. */}{!dead && <Button size="sm" variant="outline" disabled={emailing === invite.id} onClick={() => void emailLink(invite)}><Mail className="mr-1 size-3" />{emailing === invite.id ? 'Sending…' : 'Email'}</Button>}{!invite.revokedAt && <Button size="sm" variant="destructive" onClick={async()=>{await apiFetch(`/plm/vendor-invites/${invite.id}/revoke`,{method:'POST'});await onLoad(tracker.id)}}>Revoke</Button>}</div></div>; })}</div>}</section>;
 }
 
 function AuditorUpdate({ tracker, onSaved }: { tracker: PlmTracker; onSaved:()=>Promise<void> }) {

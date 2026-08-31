@@ -16,6 +16,7 @@ describe('RfqPublicService negotiated revision window', () => {
   let prisma: any;
   let tx: any;
   let quoteVault: any;
+  let pushEvents: any;
   let service: RfqPublicService;
 
   /** Revision 1, submitted three days ago in the sealed round. */
@@ -120,11 +121,13 @@ describe('RfqPublicService negotiated revision window', () => {
       $transaction: jest.fn((cb: any) => cb(tx)),
     };
     quoteVault = { tryFileSubmittedQuote: jest.fn() };
+    pushEvents = { rfqQuoteSubmitted: jest.fn() };
     service = new RfqPublicService(
       prisma,
       {} as never,
       { view: jest.fn().mockResolvedValue({ attachments: [] }) } as never,
       quoteVault,
+      pushEvents,
     );
   });
 
@@ -171,6 +174,13 @@ describe('RfqPublicService negotiated revision window', () => {
       quoteStatus: RfqQuoteStatus.SUBMITTED,
     });
     expect(quoteVault.tryFileSubmittedQuote).toHaveBeenCalledWith('invitee-1');
+    // The RFQ owner is told a revised number landed, not a first quote — the
+    // window state is read before submittedAt is stamped, which is the only
+    // point the two are still distinguishable.
+    expect(pushEvents.rfqQuoteSubmitted).toHaveBeenCalledWith({
+      inviteeId: 'invitee-1',
+      isRevision: true,
+    });
   });
 
   it('a save on a reopened link edits the draft revision without creating another', async () => {

@@ -1,4 +1,5 @@
 import { apiFetch } from './api';
+import type { EmailSendResult } from './invite-email';
 
 /**
  * Fixed sheet-metal fabrication routing reported during PRODUCTION — mirrors
@@ -78,7 +79,12 @@ export interface PlmTracker {
   status: 'ACTIVE' | 'COMPLETED';
   ownerId: string;
   owner: { id: string; firstName: string; lastName: string };
-  vendor: { id: string; companyName: string } | null;
+  /** contactEmail is where "Email link" sends by default; null = nobody on file. */
+  vendor: {
+    id: string;
+    companyName: string;
+    contactEmail: string | null;
+  } | null;
   kickoff: {
     supplyInScope: boolean;
     vendorUpdateCadenceDays: number;
@@ -214,4 +220,18 @@ export const createPlmInvite = (trackerId: string, password?: string) =>
   apiFetch<PlmVendorInvite>(`/plm/trackers/${trackerId}/vendor-invites`, {
     method: 'POST',
     body: JSON.stringify({ password: password || undefined }),
+  });
+
+/**
+ * Email an existing update link to the vendor. Recipient defaults to the Vendor
+ * Master's contactEmail. A separate action from creating the link on purpose —
+ * re-sending must not mint a new token and break the link the vendor is using.
+ */
+export const sendPlmInviteEmail = (
+  inviteId: string,
+  input: { to?: string; note?: string } = {},
+) =>
+  apiFetch<EmailSendResult>(`/plm/vendor-invites/${inviteId}/email`, {
+    method: 'POST',
+    body: JSON.stringify(input),
   });

@@ -18,6 +18,7 @@ import {
   PendingQueue,
 } from '../../common/types/pending-queue';
 import { SalesNumberingService } from '../sales/common/sales-numbering.service';
+import { PushEventsService } from '../notifications/push-events.service';
 import { PurchasingAccessService } from './purchasing-access.service';
 import {
   CreatePurchaseOrderDto,
@@ -69,6 +70,8 @@ export class PurchaseOrderService {
     private readonly prisma: PrismaService,
     private readonly access: PurchasingAccessService,
     private readonly numbering: SalesNumberingService,
+    // PushEventsModule is @Global, so this needs no import edge here.
+    private readonly pushEvents: PushEventsService,
   ) {}
 
   // ── Reads (company-wide) ─────────────────────────────────────────────
@@ -148,6 +151,20 @@ export class PurchaseOrderService {
         },
       });
     });
+    // An ad-hoc PO is born PENDING_CEO_APPROVAL (there is no separate submit),
+    // so creation is the moment it needs the CEO. A partner-backed PO is born
+    // DRAFT and never passes through this gate at all.
+    if (isAdHoc) {
+      void this.pushEvents.approvalRequired({
+        kind: 'ad-hoc-po',
+        audience: { pool: 'SUPER_ADMIN' },
+        reference: `${created.poNumber} — ${adHocPartyName}`,
+        requestedById: user.id,
+        recordId: created.id,
+        url: `/stores/purchase-orders/${created.id}`,
+        actorId: user.id,
+      });
+    }
     const entity = await this.get(created.id);
     entity.qualificationWarning = warning;
     return entity;

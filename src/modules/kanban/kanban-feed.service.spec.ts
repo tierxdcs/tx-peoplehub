@@ -8,6 +8,7 @@ describe('KanbanFeedService', () => {
           id: 'card-1',
           title: 'SCM support',
           assigneeId: 'assignee-1',
+          createdById: 'creator-1',
           list: { boardId: 'board-1' },
         }),
       },
@@ -48,6 +49,16 @@ describe('KanbanFeedService', () => {
     );
     expect(access.assertCanEditCard).not.toHaveBeenCalled();
     expect(prisma.kanbanCardComment.create).toHaveBeenCalled();
+    // The creator is carried through as well as the assignee — they are who the
+    // comment push is for, and the comment text is what it previews.
+    expect(notifications.notifyCommented).toHaveBeenCalledWith({
+      assigneeId: 'assignee-1',
+      creatorId: 'creator-1',
+      actorId: 'author-1',
+      cardId: 'card-1',
+      cardTitle: 'SCM support',
+      comment: 'Reply',
+    });
   });
 
   it('returns the combined feed newest-first, interleaving comments and activity', async () => {

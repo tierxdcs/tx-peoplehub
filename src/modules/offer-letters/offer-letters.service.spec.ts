@@ -29,7 +29,10 @@ describe('OfferLettersService', () => {
       $transaction: jest.fn(),
     };
     payroll = { computeCtcBreakdown: jest.fn() };
-    service = new OfferLettersService(prisma, payroll);
+    // Best-effort, fire-and-forget: a stub is enough for the approval-flow tests.
+    service = new OfferLettersService(prisma, payroll, {
+      approvalRequired: jest.fn(),
+    } as never);
   });
 
   it('generates the reference once and preserves it when authored content changes', async () => {

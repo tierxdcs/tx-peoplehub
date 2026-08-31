@@ -1,5 +1,5 @@
-import { wholeDaysUntil } from '../../../common/utils/date.util';
 import {
+  linkExpiryPhrase,
   plainTextFrom,
   renderEmailLayout,
   type RenderedEmail,
@@ -46,18 +46,6 @@ const NOUN: Record<QualificationInviteKind, string> = {
   supplier: 'Supplier',
 };
 
-function expiryPhrase(expiresAt: Date, now: Date, timezone: string): string {
-  const date = new Intl.DateTimeFormat('en-IN', {
-    timeZone: timezone,
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(expiresAt);
-  const days = wholeDaysUntil(expiresAt, now);
-  if (days <= 0) return `This link expires today (${date}).`;
-  return `This link expires on ${date}, ${days} day${days === 1 ? '' : 's'} from now.`;
-}
-
 export function qualificationInviteEmail(
   input: QualificationInviteInput,
 ): RenderedEmail {
@@ -82,7 +70,7 @@ export function qualificationInviteEmail(
     heading: `${noun} qualification questionnaire`,
     paragraphs,
     cta: { label: 'Open the questionnaire', url: input.url },
-    footnote: `${expiryPhrase(input.expiresAt, now, timezone)} If it stops working, reply to this email and we will issue a new one.`,
+    footnote: `${linkExpiryPhrase(input.expiresAt, now, timezone)} If it stops working, reply to this email and we will issue a new one.`,
     signature: input.organisationName,
   });
 

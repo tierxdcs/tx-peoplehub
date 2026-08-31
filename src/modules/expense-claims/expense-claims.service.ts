@@ -19,6 +19,7 @@ import { SalesNumberingService } from '../sales/common/sales-numbering.service';
 import { FinanceService } from '../finance/finance.service';
 import { FinanceAccessService } from '../finance/finance-access.service';
 import { VaultStorageService } from '../vault/vault-storage.service';
+import { PushEventsService } from '../notifications/push-events.service';
 import {
   assertExtensionAllowed,
   assertSizeWithinCap,
@@ -77,6 +78,8 @@ export class ExpenseClaimsService {
     private readonly finance: FinanceService,
     private readonly financeAccess: FinanceAccessService,
     private readonly storage: VaultStorageService,
+    // PushEventsModule is @Global, so this needs no import edge here.
+    private readonly pushEvents: PushEventsService,
   ) {}
 
   // ── Receipts (two-step presigned upload) ───────────────────────────────────
@@ -386,6 +389,19 @@ export class ExpenseClaimsService {
     await this.prisma.expenseClaim.update({
       where: { id: claim.id },
       data: { status: ExpenseClaimStatus.SUBMITTED, submittedAt: new Date() },
+    });
+    // Accounts Head or a Super Admin reviews — the same pool `isApprover`
+    // recognises. The claimant is the actor, which drops them from the pool if
+    // they happen to be in it: an Accounts Head's own claim falls to a Super
+    // Admin, exactly as `assertCanApprove` requires.
+    void this.pushEvents.approvalRequired({
+      kind: 'expense-claim',
+      audience: { pool: 'ACCOUNTS_HEAD_OR_SUPER_ADMIN' },
+      reference: `${claim.claimNumber} — ${claim.title}`,
+      requestedById: claim.employeeId,
+      recordId: claim.id,
+      url: `/expense-claims/${claim.id}`,
+      actorId: user.id,
     });
     return this.getClaim(id, user);
   }

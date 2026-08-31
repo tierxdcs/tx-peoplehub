@@ -4,7 +4,7 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { PushNotificationService } from '../../core/push/push.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { NotificationEntity } from './entities/notification.entity';
-import { cardAssignedPush } from './push-triggers';
+import { cardAssignedPush, cardCommentedPush } from './push-triggers';
 
 /**
  * The generic in-app Notification (things worth KNOWING — you were assigned a
@@ -199,20 +199,92 @@ export class KanbanNotificationsService {
     }
   }
 
-  /** A comment was added — notify the card's current assignee (if not author). */
+  /**
+   * A comment was added — notify the card's current assignee AND the person who
+   * created the card (each skipped if they wrote the comment themselves).
+   *
+   * Only the CREATOR is pushed. The assignee is working the card and will see the
+   * thread; the creator raised it and then has no reason to look again unless
+   * something happens on it, which is what makes their case worth a phone buzz and
+   * the assignee's not. Same shape as `notifyAssigned`: the push is gated on the
+   * in-app notification's own decision, so the two channels cannot drift apart.
+   */
   async notifyCommented(params: {
     assigneeId: string | null;
+    creatorId: string;
     actorId: string;
     cardId: string;
     cardTitle: string;
+    comment: string;
   }): Promise<void> {
-    await this.notify({
+    const message = `New comment on "${params.cardTitle}"`;
+    const notifiedAssignee = await this.notify({
       recipientId: params.assigneeId,
       actorId: params.actorId,
       type: NotificationType.CARD_COMMENTED,
       cardId: params.cardId,
-      message: `New comment on "${params.cardTitle}"`,
+      message,
     });
+    // Someone who created a card and kept it is one person, so they get one bell
+    // row — but they are still the creator, so the push decision reuses the row
+    // that was already written for them rather than skipping it.
+    const notifiedCreator =
+      params.creatorId === params.assigneeId
+        ? notifiedAssignee
+        : await this.notify({
+            recipientId: params.creatorId,
+            actorId: params.actorId,
+            type: NotificationType.CARD_COMMENTED,
+            cardId: params.cardId,
+            message,
+          });
+    if (!notifiedCreator) return;
+
+    // Not awaited, for the same reason as the assignment push: posting a comment
+    // must not wait on Apple's or Google's servers.
+    void this.pushCardCommented({
+      creatorId: params.creatorId,
+      actorId: params.actorId,
+      cardId: params.cardId,
+      cardTitle: params.cardTitle,
+      comment: params.comment,
+    });
+  }
+
+  /**
+   * The push half of notifyCommented. Best-effort throughout — a comment is
+   * already committed by the time this runs and nothing here may undo it.
+   */
+  private async pushCardCommented(params: {
+    creatorId: string;
+    actorId: string;
+    cardId: string;
+    cardTitle: string;
+    comment: string;
+  }): Promise<void> {
+    try {
+      const actor = await this.prisma.employee.findUnique({
+        where: { id: params.actorId },
+        select: { firstName: true, lastName: true },
+      });
+      const commenterName = actor
+        ? `${actor.firstName} ${actor.lastName}`.trim()
+        : 'Someone';
+
+      await this.push.trySendToEmployee(
+        params.creatorId,
+        cardCommentedPush({
+          cardId: params.cardId,
+          cardTitle: params.cardTitle,
+          commenterName,
+          comment: params.comment,
+        }),
+        'card commented',
+      );
+    } catch {
+      // As in pushCardAssigned: trySendToEmployee logs delivery problems, and this
+      // catch only stops a failed name lookup becoming an unhandled rejection.
+    }
   }
 
   /** A meaningful field changed — notify the assignee (if not the actor). */

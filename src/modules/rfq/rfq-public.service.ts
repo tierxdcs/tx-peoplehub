@@ -22,6 +22,7 @@ import {
   PublicSubmitQuoteDto,
   PublicTechnicalDownloadDto,
 } from './dto/rfq-public.dto';
+import { PushEventsService } from '../notifications/push-events.service';
 import { RfqTechnicalService } from './rfq-technical.service';
 import { RfqQuoteVaultService } from './rfq-quote-vault.service';
 
@@ -51,6 +52,8 @@ export class RfqPublicService {
     private readonly storage: VaultStorageService,
     private readonly technical: RfqTechnicalService,
     private readonly quoteVault: RfqQuoteVaultService,
+    // PushEventsModule is @Global, so this needs no import edge here.
+    private readonly pushEvents: PushEventsService,
   ) {}
 
   /** Resolve + validate a token; marks the invitee VIEWED. Returns the public RFQ shape. */
@@ -75,6 +78,11 @@ export class RfqPublicService {
   async submit(token: string, dto: PublicSubmitQuoteDto) {
     const invitee = await this.validate(token, dto.password);
     this.assertOpen(invitee);
+    // Read before anything is written: once the revision's `submittedAt` is
+    // stamped the window reads as closed, so this is the only point at which a
+    // negotiated revision is still distinguishable from a first submission. Every
+    // other path through assertOpen is a first submission by definition.
+    const isRevision = this.revisionWindowOpen(invitee);
     const submittedAt = new Date();
 
     // Every RFQ line must be priced on submit.
@@ -123,6 +131,13 @@ export class RfqPublicService {
     // File the PDF copy after the quote is committed, and never let it fail the
     // submission — the vendor's part is done, Vault filing is our bookkeeping.
     await this.quoteVault.tryFileSubmittedQuote(invitee.id);
+    // Tell the RFQ's owner a number has landed. Same reasoning as the Vault
+    // filing above: the vendor's part is done, and nothing we do afterwards may
+    // put their submission at risk.
+    void this.pushEvents.rfqQuoteSubmitted({
+      inviteeId: invitee.id,
+      isRevision,
+    });
     return this.publicView(invitee.id);
   }
 

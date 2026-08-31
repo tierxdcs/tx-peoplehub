@@ -14,6 +14,7 @@ import { PrismaService } from './core/database/prisma.service';
 import { EncryptionModule } from './core/crypto/encryption.module';
 import { EmailModule } from './core/email/email.module';
 import { PushModule } from './core/push/push.module';
+import { PushEventsModule } from './modules/notifications/push-events.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -77,6 +78,9 @@ import { PushSubscriptionsModule } from './modules/push/push.module';
     EncryptionModule,
     EmailModule,
     PushModule,
+    // Global, and registered beside PushModule rather than with the feature
+    // modules: everything downstream injects it, so it must be up here.
+    PushEventsModule,
     AuthModule,
     EmployeesModule,
     VerticalsModule,

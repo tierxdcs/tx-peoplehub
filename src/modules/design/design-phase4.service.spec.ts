@@ -8,7 +8,15 @@ describe('DesignService phase 4 controls', () => {
     designChangeReport: { findFirst: jest.fn() },
   };
   const access: any = { assertUser: jest.fn(), assertHead: jest.fn() };
-  const service = new DesignService(prisma, access, {} as any);
+  const service = new DesignService(
+    prisma,
+    access,
+    {} as any,
+    {
+      approvalRequired: jest.fn(),
+      designReviewRejected: jest.fn(),
+    } as never,
+  );
   const user: any = { id: 'employee-1', role: 'EMPLOYEE' };
 
   beforeEach(() => jest.clearAllMocks());

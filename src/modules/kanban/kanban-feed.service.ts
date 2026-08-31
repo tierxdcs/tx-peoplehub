@@ -44,12 +44,15 @@ export class KanbanFeedService {
       data: { cardId, authorId: user.id, text: dto.text },
       include: { author: { select: { firstName: true, lastName: true } } },
     });
-    // Notify the current assignee (skipped if they authored the comment).
+    // Notify the current assignee and the card's creator (each skipped if they
+    // authored the comment). Only the creator is pushed.
     await this.notifications.notifyCommented({
       assigneeId: card.assigneeId,
+      creatorId: card.createdById,
       actorId: user.id,
       cardId,
       cardTitle: card.title,
+      comment: dto.text,
     });
     return this.toCommentEntity(comment);
   }
@@ -150,6 +153,7 @@ export class KanbanFeedService {
     id: string;
     boardId: string;
     assigneeId: string | null;
+    createdById: string;
     title: string;
   }> {
     const card = await this.prisma.kanbanCard.findUnique({
@@ -159,6 +163,9 @@ export class KanbanFeedService {
         status: true,
         title: true,
         assigneeId: true,
+        // Who raised the card — a comment notification goes to them as well as to
+        // whoever currently holds it.
+        createdById: true,
         list: { select: { boardId: true } },
       },
     });
@@ -169,6 +176,7 @@ export class KanbanFeedService {
       id: card.id,
       boardId: card.list.boardId,
       assigneeId: card.assigneeId,
+      createdById: card.createdById,
       title: card.title,
     };
   }

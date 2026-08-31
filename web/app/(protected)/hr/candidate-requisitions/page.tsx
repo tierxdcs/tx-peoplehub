@@ -1,6 +1,14 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ClipboardCheck } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
@@ -119,6 +127,10 @@ function lifecycleLabel(requisition: Requisition) {
 export default function CandidateRequisitionsPage() {
   const { user } = useAuth();
   const { isHrStaff } = useIsHrStaff();
+  // ?focus= opens one requisition's details straight away — how an approval
+  // notification lands on the record it is about. A requisition has no route of
+  // its own; its detail surface is the dialog on this page.
+  const focusId = useSearchParams().get('focus');
   const toast = useToast();
   const { style: numberFormatStyle } = useNumberFormat();
   const [register, setRegister] = useState<Requisition[]>([]);
@@ -166,6 +178,20 @@ export default function CandidateRequisitionsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Opened once per focused id, never again: the ref is what lets the approver
+  // close the dialog and stay on the list, instead of having it spring back open
+  // on the next reload while ?focus= is still in the address bar.
+  const openedFocus = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusId || openedFocus.current === focusId) return;
+    // The queue as well as the register: an approver's own pending item is the
+    // likeliest thing to be focused, and it is the queue that holds it.
+    const target = [...queue, ...register].find((r) => r.id === focusId);
+    if (!target) return;
+    openedFocus.current = focusId;
+    setViewing(target);
+  }, [focusId, queue, register]);
 
   async function create(event: FormEvent) {
     event.preventDefault();

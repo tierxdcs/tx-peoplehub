@@ -20,6 +20,7 @@ import {
   inviteLinkUrl,
 } from '../../common/utils/token-invite';
 import { EmailService } from '../../core/email/email.service';
+import { PushEventsService } from '../notifications/push-events.service';
 import { isValidEmailAddress } from '../../core/email/email-content';
 import { resolveOrganisationName } from '../../core/email/organisation';
 import { rfqInviteEmail } from '../../core/email/templates/rfq-invite';
@@ -183,7 +184,35 @@ export class RfqService {
     private readonly storage: VaultStorageService,
     private readonly email: EmailService,
     private readonly config: ConfigService,
+    // PushEventsModule is @Global, so this needs no import edge here.
+    private readonly pushEvents: PushEventsService,
   ) {}
+
+  /**
+   * An RFQ is pending the Project Manager's approval from the moment it exists —
+   * it is created DRAFT with no `pmApprovedAt`, and cannot be issued until a PM
+   * signs off. So creation IS the "needs your approval" event; there is no
+   * separate submit step to hook.
+   *
+   * Also fired when an edit clears a prior approval (`scopeChanged`): the RFQ has
+   * genuinely re-entered the pending state, and the push `tag` is keyed to the
+   * RFQ id, so a re-approval collapses into the standing notification rather than
+   * stacking a second one.
+   */
+  private pushPendingPmApproval(
+    rfq: { id: string; rfqNumber: string; title: string },
+    actorId: string,
+  ): void {
+    void this.pushEvents.approvalRequired({
+      kind: 'rfq-pm-approval',
+      audience: { pool: 'PROJECT_MANAGER_OR_SUPER_ADMIN' },
+      reference: `${rfq.rfqNumber} — ${rfq.title}`,
+      requestedById: actorId,
+      recordId: rfq.id,
+      url: `/scm/rfqs/${rfq.id}`,
+      actorId,
+    });
+  }
 
   // ── Shortfall-to-RFQ (from the Kickoff stock report) ─────────────────
   /**
@@ -244,6 +273,7 @@ export class RfqService {
         },
       });
     });
+    this.pushPendingPmApproval(created, user.id);
     return this.get(created.id, user);
   }
 
@@ -744,6 +774,7 @@ export class RfqService {
         },
       });
     });
+    this.pushPendingPmApproval(created, user.id);
     return this.get(created.id, user);
   }
 
@@ -868,6 +899,15 @@ export class RfqService {
         }
       }
     });
+    // Only when an approval was actually revoked. A scope change on an RFQ that
+    // was never approved leaves it exactly where it already was — pending — and
+    // the create-time push already said so.
+    if (plan?.scopeChanged && rfq.pmApprovedAt) {
+      this.pushPendingPmApproval(
+        { id, rfqNumber: rfq.rfqNumber, title: dto.title ?? rfq.title },
+        user.id,
+      );
+    }
     return this.get(id, user);
   }
 

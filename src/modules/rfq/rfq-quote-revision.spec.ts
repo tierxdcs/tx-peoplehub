@@ -58,6 +58,7 @@ describe('RfqService negotiated quote revisions', () => {
       {} as never,
       {} as never,
       {} as never,
+      { approvalRequired: jest.fn() } as never,
     );
     jest
       .spyOn(service, 'get')

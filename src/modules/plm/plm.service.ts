@@ -772,7 +772,12 @@ export class PlmService {
   private detailInclude() {
     return {
       owner: { select: { id: true, firstName: true, lastName: true } },
-      vendor: { select: { id: true, companyName: true } },
+      // contactEmail so the vendor-update-link UI can say who the email will go
+      // to (and disable the button when there is nobody on file) without a
+      // second round-trip to the Vendor Master.
+      vendor: {
+        select: { id: true, companyName: true, contactEmail: true },
+      },
       // The portion of the order line this tracker covers, plus the vendor name
       // captured at classification — the fallback when no Vendor row is linked.
       split: { select: { quantity: true, vendorName: true } },

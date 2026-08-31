@@ -18,6 +18,7 @@ import { SalesNumberingService } from '../sales/common/sales-numbering.service';
 import { InventoryService } from '../bom/inventory.service';
 import { ArService } from '../finance-ar/ar.service';
 import { VaultStorageService } from '../vault/vault-storage.service';
+import { PushEventsService } from '../notifications/push-events.service';
 import {
   assertExtensionAllowed,
   assertSizeWithinCap,
@@ -110,6 +111,8 @@ export class DeliveryChallanService {
     private readonly inventory: InventoryService,
     private readonly ar: ArService,
     private readonly storage: VaultStorageService,
+    // PushEventsModule is @Global, so this needs no import edge here.
+    private readonly pushEvents: PushEventsService,
   ) {}
 
   // ── Reads (company-wide) ─────────────────────────────────────────────
@@ -226,6 +229,10 @@ export class DeliveryChallanService {
         finalQcClearedAt: new Date(),
       },
     });
+    // Below the idempotent early-return above, so a stale client retrying a
+    // clearance that already succeeded does not push a second time. Final QC is
+    // the last gate before shipping, so this is the order owner's cue to act.
+    void this.pushEvents.orderReadyToDispatch({ orderId, actorId: user.id });
     return { orderId, finalQcStatus: OrderFinalQcStatus.CLEARED };
   }
 
@@ -507,6 +514,9 @@ export class DeliveryChallanService {
       await this.deriveOrderFulfilment(tx, dc.orderId);
     });
 
+    // Only reachable once the DRAFT → DISPATCHED transition has committed, so a
+    // blocked or failed dispatch never notifies anyone that goods have left.
+    void this.pushEvents.orderDispatched({ challanId: id, actorId: user.id });
     const entity = await this.get(id);
     entity.overDispatchWarnings = await this.computeOverDispatchWarnings(
       dc.orderId,

@@ -25,6 +25,7 @@ describe('RfqService.sourcingLines', () => {
       {} as never,
       {} as never,
       {} as never,
+      { approvalRequired: jest.fn() } as never,
     );
   });
 

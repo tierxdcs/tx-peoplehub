@@ -12,9 +12,13 @@ describe('RfqPublicService technical access after award', () => {
       rfqInvitee: { findUnique: jest.fn() },
     };
     technical = { download: jest.fn() };
-    service = new RfqPublicService(prisma, {} as never, technical, {
-      tryFileSubmittedQuote: jest.fn(),
-    } as never);
+    service = new RfqPublicService(
+      prisma,
+      {} as never,
+      technical,
+      { tryFileSubmittedQuote: jest.fn() } as never,
+      { rfqQuoteSubmitted: jest.fn() } as never,
+    );
   });
 
   const invite = (id: string, winnerId: string) => ({

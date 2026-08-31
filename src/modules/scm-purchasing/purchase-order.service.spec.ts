@@ -66,6 +66,7 @@ describe('PurchaseOrderService ad-hoc approval', () => {
       prisma as never,
       { assertCanManagePurchaseOrders: jest.fn() } as never,
       {} as never,
+      { approvalRequired: jest.fn() } as never,
     );
     return { service, prisma };
   }

@@ -15,6 +15,7 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { SendInviteEmailDto } from '../../core/email/send-invite-email.dto';
 import {
   AssignPlmOwnerDto,
   CreatePlmVendorInviteDto,
@@ -133,6 +134,19 @@ export class PlmController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.vendorUpdates.photoDownloadUrl(id, user);
+  }
+
+  @Post('vendor-invites/:id/email')
+  @ApiOperation({
+    summary:
+      "Email an existing vendor update link to the vendor's contact (tracker owner / PM / Production Head / SA)",
+  })
+  sendVendorInviteEmail(
+    @Param('id') id: string,
+    @Body() dto: SendInviteEmailDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.vendorUpdates.sendInviteEmail(id, dto, user);
   }
 
   @Post('vendor-invites/:id/revoke')

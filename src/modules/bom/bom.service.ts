@@ -18,6 +18,7 @@ import {
   PendingQueue,
 } from '../../common/types/pending-queue';
 import { KanbanNotificationsService } from '../notifications/kanban-notifications.service';
+import { PushEventsService } from '../notifications/push-events.service';
 import { BomAccessService } from './bom-access.service';
 import {
   CreateBomDto,
@@ -101,6 +102,8 @@ export class BomService {
     private readonly access: BomAccessService,
     private readonly notifications: KanbanNotificationsService,
     private readonly costSnapshots: BomCostSnapshotService,
+    // PushEventsModule is @Global, so this needs no import edge here.
+    private readonly pushEvents: PushEventsService,
   ) {}
 
   // ── Reads ────────────────────────────────────────────────────────────
@@ -325,6 +328,18 @@ export class BomService {
         message: `BOM Rev ${bom.revisionNumber} for ${item?.name ?? 'an item'} was submitted for approval`,
       });
     }
+    // Push to the same heads, from the same list, so the two channels cannot
+    // disagree about who was asked. Additive: the in-app notifications above are
+    // written whether or not any device is subscribed.
+    void this.pushEvents.approvalRequired({
+      kind: 'bom-release',
+      audience: { employeeIds: heads.map((h) => h.id) },
+      reference: `Rev ${bom.revisionNumber} — ${item?.name ?? 'an item'}`,
+      requestedById: user.id,
+      recordId: id,
+      url: `/scm/bom/${id}`,
+      actorId: user.id,
+    });
     return this.get(id, user);
   }
 

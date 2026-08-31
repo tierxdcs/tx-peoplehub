@@ -18,7 +18,14 @@ describe('CandidateRequisitionsService', () => {
     $transaction: jest.fn(),
   };
   const numbering: any = { nextNumber: jest.fn() };
-  const service = new CandidateRequisitionsService(prisma, numbering);
+  // Push delivery is best-effort and fire-and-forget; these tests care that the
+  // approval gates behave, not that a phone buzzed.
+  const pushEvents: any = { approvalRequired: jest.fn() };
+  const service = new CandidateRequisitionsService(
+    prisma,
+    numbering,
+    pushEvents,
+  );
   const manager: any = {
     id: 'manager',
     role: Role.MANAGER,
@@ -91,6 +98,9 @@ describe('CandidateRequisitionsService', () => {
       'REQ-2026-0002',
       'REQ-2026-0003',
     ]);
+    // Three positions are three separate approvals, so three separate pushes —
+    // one "10 requisitions raised" notification would not say which to open.
+    expect(pushEvents.approvalRequired).toHaveBeenCalledTimes(3);
     // Every position is its own row with the same JD/budget.
     expect(results.every((r: any) => r.positionTitle === 'Engineer')).toBe(
       true,

@@ -66,6 +66,7 @@ describe('DeliveryChallanService final QC clearance', () => {
     const access = {
       assertCanClearFinalQc: jest.fn().mockResolvedValue(undefined),
     };
+    const pushEvents = { orderReadyToDispatch: jest.fn() };
     const service = new DeliveryChallanService(
       prisma as never,
       access as never,
@@ -73,6 +74,7 @@ describe('DeliveryChallanService final QC clearance', () => {
       {} as never,
       {} as never,
       {} as never,
+      pushEvents as never,
     );
 
     await expect(
@@ -87,6 +89,9 @@ describe('DeliveryChallanService final QC clearance', () => {
       finalQcStatus: OrderFinalQcStatus.CLEARED,
     });
     expect(prisma.order.update).not.toHaveBeenCalled();
+    // A stale client retrying a clearance that already succeeded must not push a
+    // second "ready to dispatch" at the order owner.
+    expect(pushEvents.orderReadyToDispatch).not.toHaveBeenCalled();
   });
 });
 
@@ -120,6 +125,7 @@ describe('DeliveryChallanService eligible dispatch orders', () => {
     const service = new DeliveryChallanService(
       prisma as never,
       access as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,

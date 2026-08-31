@@ -11,13 +11,21 @@ import {
   PlmVendorUpdateType,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { ConfigService } from '@nestjs/config';
 import {
   assertInviteUsable,
   computeExpiry,
   generateInviteToken,
   hashInvitePassword,
+  inviteLinkUrl,
 } from '../../common/utils/token-invite';
 import { PrismaService } from '../../core/database/prisma.service';
+import { isValidEmailAddress } from '../../core/email/email-content';
+import { EmailSendResultEntity } from '../../core/email/email-send.entity';
+import { EmailService } from '../../core/email/email.service';
+import { resolveOrganisationName } from '../../core/email/organisation';
+import { SendInviteEmailDto } from '../../core/email/send-invite-email.dto';
+import { plmVendorUpdateInviteEmail } from '../../core/email/templates/plm-vendor-update-invite';
 import {
   assertExtensionAllowed,
   assertSizeWithinCap,
@@ -37,6 +45,26 @@ import {
   stepsToPercent,
 } from './plm-production-steps';
 
+/** The frontend route the public update form lives on, without the token. */
+const PUBLIC_VENDOR_UPDATE_PATH = '/public/plm-vendor-update';
+
+/**
+ * How to name the product to the vendor building it.
+ *
+ * Deliberately NOT the same chain the in-app notifications use: those lead with
+ * `customerFacingProductName`, which is the customer's own PO wording and is
+ * theirs, not something to forward to a third party. A vendor works from our
+ * catalogue name, so that goes first here.
+ */
+function vendorFacingProductLabel(line: {
+  adHocProductName: string | null;
+  product: { name: string } | null;
+}): string {
+  return (
+    line.product?.name ?? line.adHocProductName ?? 'the item in production'
+  );
+}
+
 @Injectable()
 export class PlmVendorUpdateService {
   constructor(
@@ -44,6 +72,9 @@ export class PlmVendorUpdateService {
     private readonly access: PlmAccessService,
     private readonly storage: VaultStorageService,
     private readonly notifications: KanbanNotificationsService,
+    // EmailModule is @Global, so this needs no import edge in PlmModule.
+    private readonly email: EmailService,
+    private readonly config: ConfigService,
   ) {}
 
   async createInvite(
@@ -77,6 +108,112 @@ export class PlmVendorUpdateService {
       },
     });
     return invite;
+  }
+
+  /**
+   * Email an existing update link to the vendor's contact.
+   *
+   * A separate action rather than auto-sending on create — the same reasoning as
+   * ScmService.sendInviteEmail: re-sending (bounced, wrong person, a nudge after
+   * the vendor has gone quiet) must not mint a new token and silently kill the
+   * link the vendor may already be using. That matters more here than for a
+   * questionnaire, because this link is a standing channel used for weeks.
+   *
+   * Strict `send()`: a staff member pressed a send button, so a provider failure
+   * has to surface rather than be swallowed into the log.
+   */
+  async sendInviteEmail(
+    inviteId: string,
+    dto: SendInviteEmailDto,
+    user: AuthenticatedUser,
+    now: Date = new Date(),
+  ): Promise<EmailSendResultEntity> {
+    const invite = await this.prisma.plmVendorUpdateInvite.findUnique({
+      where: { id: inviteId },
+      select: {
+        token: true,
+        expiresAt: true,
+        revokedAt: true,
+        passwordHash: true,
+        tracker: {
+          select: {
+            ownerId: true,
+            order: { select: { orderNumber: true } },
+            kickoff: { select: { vendorUpdateCadenceDays: true } },
+            vendor: {
+              select: {
+                companyName: true,
+                contactEmail: true,
+                contactPersonName: true,
+              },
+            },
+            orderLine: {
+              select: {
+                adHocProductName: true,
+                product: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!invite) throw new NotFoundException('Vendor update invite not found');
+    await this.access.assertCanOperate(user, invite.tracker.ownerId);
+    if (invite.revokedAt) {
+      throw new BadRequestException(
+        'This link has been revoked — create a new one before emailing it',
+      );
+    }
+    if (invite.expiresAt <= now) {
+      throw new BadRequestException(
+        'This link has expired — create a new one before emailing it',
+      );
+    }
+    const vendor = invite.tracker.vendor;
+    if (!vendor) {
+      // createInvite already refuses a vendor-less tracker, so this is only
+      // reachable if the vendor link was cleared afterwards.
+      throw new BadRequestException(
+        'This tracker no longer has a linked vendor to email',
+      );
+    }
+    const to = (dto.to ?? vendor.contactEmail ?? '').trim();
+    if (!isValidEmailAddress(to)) {
+      throw new BadRequestException(
+        dto.to
+          ? 'The recipient address is not valid'
+          : 'This vendor has no valid contact email — supply a recipient',
+      );
+    }
+
+    const rendered = plmVendorUpdateInviteEmail({
+      vendorName: vendor.companyName,
+      contactPersonName: vendor.contactPersonName,
+      orderNumber: invite.tracker.order.orderNumber,
+      productName: vendorFacingProductLabel(invite.tracker.orderLine),
+      url: inviteLinkUrl(
+        this.config.get<string>('frontendOrigin') ?? '',
+        PUBLIC_VENDOR_UPDATE_PATH,
+        invite.token,
+      ),
+      expiresAt: invite.expiresAt,
+      cadenceDays: invite.tracker.kickoff.vendorUpdateCadenceDays,
+      passwordProtected: !!invite.passwordHash,
+      organisationName: await resolveOrganisationName(this.prisma),
+      note: dto.note,
+      now,
+      timezone: this.config.get<string>('timezone'),
+    });
+    // No idempotency key on purpose: a second press IS a deliberate re-send,
+    // and Resend would silently suppress it as a duplicate for 24h.
+    const result = await this.email.send({
+      to,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      tags: [{ name: 'kind', value: 'plm-vendor-update-invite' }],
+    });
+    return EmailSendResultEntity.from(result);
   }
 
   async revokeInvite(inviteId: string, user: AuthenticatedUser) {

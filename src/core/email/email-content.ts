@@ -7,6 +7,8 @@
  * their own version.
  */
 
+import { wholeDaysUntil } from '../../common/utils/date.util';
+
 /** A parsed `From`/`Reply-To` value: `Name <addr@example.com>` or `addr@example.com`. */
 export interface EmailAddress {
   name?: string;
@@ -147,6 +149,32 @@ export function plainTextFrom(html: string): string {
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/**
+ * How long a public invite link has left, in day granularity — the wording
+ * shared by every "here is your link" template (vendor and supplier
+ * qualification questionnaires, PLM vendor update links).
+ *
+ * Day-granular on purpose: these links live for days or weeks, so the useful
+ * thing to tell a recipient is "you have 14 days", not a timestamp. An RFQ
+ * submission deadline is the opposite case — a quote an hour late is late — so
+ * rfq-invite.ts states an exact instant with a zone offset and does not use this.
+ */
+export function linkExpiryPhrase(
+  expiresAt: Date,
+  now: Date,
+  timezone: string,
+): string {
+  const date = new Intl.DateTimeFormat('en-IN', {
+    timeZone: timezone,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(expiresAt);
+  const days = wholeDaysUntil(expiresAt, now);
+  if (days <= 0) return `This link expires today (${date}).`;
+  return `This link expires on ${date}, ${days} day${days === 1 ? '' : 's'} from now.`;
 }
 
 /** What a template produces: everything EmailService needs to send it. */

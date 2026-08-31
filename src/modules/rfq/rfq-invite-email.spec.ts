@@ -76,6 +76,7 @@ describe('RfqService.emailInvitees', () => {
       {} as never,
       email,
       config,
+      { approvalRequired: jest.fn() } as never,
     );
   });
 
