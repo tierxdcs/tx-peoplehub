@@ -95,4 +95,16 @@ export class CustomerBomIntakeRegisterController {
   ) {
     return this.service.revise(id, dto, user);
   }
+
+  @Post(':id/submit')
+  @ApiOperation({
+    summary:
+      'Sales submits the intake BOM for R&D Head release approval (owner-scoped, not the R&D-vertical rule)',
+  })
+  submitForApproval(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.submitForApproval(id, user);
+  }
 }

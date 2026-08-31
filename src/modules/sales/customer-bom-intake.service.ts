@@ -4,7 +4,9 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import {
   BomEventType,
   BomStatus,
@@ -23,6 +25,7 @@ import {
 import { SalesAccessService } from './common/sales-access.service';
 import { SalesNumberingService } from './common/sales-numbering.service';
 import { ExplodableBom, explodeProcurementBom } from '../bom/bom-explosion';
+import { BomService } from '../bom/bom.service';
 import { PingsService } from '../pings/pings.service';
 import {
   CreateCustomerBomIntakeDto,
@@ -90,7 +93,7 @@ export function customerBomFileInput(dto: {
 }
 
 @Injectable()
-export class CustomerBomIntakeService {
+export class CustomerBomIntakeService implements OnModuleInit {
   private readonly logger = new Logger(CustomerBomIntakeService.name);
 
   constructor(
@@ -99,7 +102,25 @@ export class CustomerBomIntakeService {
     private readonly numbering: SalesNumberingService,
     private readonly storage: VaultStorageService,
     private readonly pings: PingsService,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  /**
+   * BomService is resolved from the container rather than injected, because
+   * SalesModule cannot import BomModule: Sales → Bom → Notifications → Sales
+   * is a cycle, and that module edge makes CJS evaluate `SalesModule` while it
+   * is still initialising, so every module importing it eagerly sees
+   * `undefined` (forwardRef defers Nest's resolution, not that binding).
+   *
+   * Resolved here rather than lazily at the call site so a missing provider
+   * still fails at boot, exactly like a constructor injection would, instead
+   * of surfacing the first time a salesperson presses Submit.
+   */
+  private boms!: BomService;
+
+  onModuleInit() {
+    this.boms = this.moduleRef.get(BomService, { strict: false });
+  }
 
   async uploadUrl(dto: CustomerBomUploadUrlDto, user: AuthenticatedUser) {
     await this.access.assertSalesAccess(user);
@@ -517,6 +538,56 @@ export class CustomerBomIntakeService {
       newRevisionNumber,
       user,
     );
+    return this.detail(id, user);
+  }
+
+  /**
+   * Sales hands the finished transcription to R&D for release approval.
+   *
+   * Sales owns the only fact that decides when this is ready — "I have finished
+   * transcribing the customer's list" — so Sales pulls the trigger, even though
+   * the BOM itself is an R&D document from here on. Authorisation is the same
+   * ownership rule as `revise`, NOT the R&D-vertical rule that guards the
+   * generic `POST /bom/:id/submit`: this door is only ever opened for the
+   * quote-stage BOM behind an intake the caller already owns.
+   *
+   * The transition is delegated to `BomService.submitTransition`, so the R&D
+   * Head notifications, the approval push and the SUBMITTED event are the same
+   * ones an R&D author's submission produces. From R&D's side a Sales-submitted
+   * BOM is indistinguishable from any other item in the release queue, which is
+   * the point.
+   */
+  async submitForApproval(id: string, user: AuthenticatedUser) {
+    await this.access.assertSalesAccess(user);
+    const intake = await this.prisma.customerBomIntake.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        opportunity: { select: { ownerId: true } },
+        bom: { select: { id: true, status: true } },
+      },
+    });
+    if (!intake) throw new NotFoundException('Customer BOM intake not found');
+    await this.access.assertCanAccessOwned(user, intake.opportunity.ownerId);
+    if (!intake.bom)
+      throw new BadRequestException(
+        'This intake has no BOM to submit for approval',
+      );
+    if (intake.bom.status === BomStatus.PENDING_APPROVAL)
+      throw new BadRequestException(
+        'This BOM has already been submitted and is awaiting R&D approval.',
+      );
+    if (
+      intake.bom.status === BomStatus.RELEASED ||
+      intake.bom.status === BomStatus.OBSOLETE
+    )
+      throw new BadRequestException(
+        'This BOM has already been released by R&D — there is nothing to submit.',
+      );
+
+    // DRAFT and REJECTED are the submittable states; submitTransition re-checks
+    // that (and refuses an empty BOM) so the rule lives in exactly one place.
+    await this.boms.submitTransition(intake.bom.id, user);
     return this.detail(id, user);
   }
 

@@ -37,9 +37,12 @@ import {
 } from '../../lib/pings';
 import { usePendingApprovalCounts } from '../../lib/use-pending-approval-counts';
 import {
+  APPROVAL_QUEUES,
   oldestPendingApproval,
+  totalPendingApprovals,
   type OldestApproval,
 } from '../../lib/approval-queues';
+import { CheckinTimer } from './_components/checkin-timer';
 import { ageHours } from '../../lib/urgency';
 import {
   getMyEfficiencyScore,
@@ -330,6 +333,23 @@ export default function DashboardPage() {
   ).length;
   const projectsAtRisk = health.atRisk + health.blocked;
 
+  // Everything waiting on this user, across all 12 queues. The ribbon links to
+  // the longest-waiting queue — the one worth opening first — and names the full
+  // split on hover, since no single page lists every approval type.
+  const pendingApprovals = useMemo(
+    () => totalPendingApprovals(counts),
+    [counts],
+  );
+  const approvalsHref =
+    oldestPendingApproval(counts, now)?.queue.hrefs[0] ?? '/dashboard';
+  const approvalsBreakdown = useMemo(() => {
+    if (!counts) return '';
+    const parts = APPROVAL_QUEUES.filter(
+      (queue) => (counts[queue.key]?.count ?? 0) > 0,
+    ).map((queue) => `${queue.label}: ${counts[queue.key].count}`);
+    return parts.join('\n');
+  }, [counts]);
+
   const dateLabel = now
     .toLocaleDateString('en-GB', {
       weekday: 'short',
@@ -349,28 +369,29 @@ export default function DashboardPage() {
 
   return (
     <div className="-m-4 min-h-[calc(100dvh-3.5rem)] bg-[#F4F4F4] text-[#1B1B1B] dark:bg-[#1B1B1B] dark:text-[#EDEDED] md:-m-6">
-      {/* Filter / context bar — pills are visual-only this pass ("Mine only"
-          reflects the dashboard's actual scope; the others are future work). */}
+      {/* Context bar. The three filter pills that used to sit here were inert
+          placeholders; the slot now carries live signal instead — what's waiting
+          on this user, and how long they've been on the clock today. */}
       <div className="flex items-center gap-2.5 border-b border-black/10 dark:border-white/[.07] bg-[#ECECEC] dark:bg-[#1F1F1F] px-5 py-[11px] lg:px-7">
         <span className="hidden text-[11.5px] font-semibold text-black/45 dark:text-white/40 sm:inline">
           {dateLabel}
         </span>
         <span className="hidden h-3.5 w-px bg-black/15 dark:bg-white/[.12] sm:inline" />
-        <span className="rounded-full bg-[#E08A2C]/[.16] px-[11px] py-[5px] text-[11.5px] font-semibold text-[#C9761B] dark:text-[#E08A2C]">
-          Mine only
-        </span>
-        <span
-          className="cursor-not-allowed rounded-full px-[11px] py-[5px] text-[11.5px] font-medium text-black/50 dark:text-white/45"
-          title="Coming soon"
-        >
-          All visible
-        </span>
-        <span
-          className="cursor-not-allowed rounded-full px-[11px] py-[5px] text-[11.5px] font-medium text-black/50 dark:text-white/45"
-          title="Coming soon"
-        >
-          Overdue
-        </span>
+        {pendingApprovals > 0 ? (
+          <Link
+            href={approvalsHref}
+            title={approvalsBreakdown}
+            className="rounded-full bg-[#E08A2C]/[.16] px-[11px] py-[5px] text-[11.5px] font-semibold text-[#C9761B] transition-opacity hover:opacity-80 dark:text-[#E08A2C]"
+          >
+            {pendingApprovals} awaiting your approval
+          </Link>
+        ) : (
+          <span className="rounded-full px-[11px] py-[5px] text-[11.5px] font-medium text-black/50 dark:text-white/45">
+            No approvals pending
+          </span>
+        )}
+        <span className="h-3.5 w-px bg-black/15 dark:bg-white/[.12]" />
+        <CheckinTimer />
         {(stats.overdue > 0 || projectsAtRisk > 0) && (
           <span className="ml-auto text-[11.5px] font-semibold text-[#D9363E] dark:text-[#FF5257]">
             ⚠ {stats.overdue} overdue

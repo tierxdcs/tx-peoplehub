@@ -109,6 +109,8 @@ export interface BomIntakeDetail {
     id: string;
     status: string;
     revisionNumber: number;
+    /** Set when R&D rejected this revision — what Sales has to fix before resubmitting. */
+    rejectionComment: string | null;
     lines: Array<{
       id: string;
       quantityPerUnit: string;
@@ -158,6 +160,15 @@ export const reviseBomIntake = (
   apiFetch<BomIntakeDetail>(`/customer-bom-intakes/${id}/revise`, {
     method: 'POST',
     body: JSON.stringify(input),
+  });
+
+/**
+ * Hand the finished transcription to R&D for release approval. Sales-owner
+ * scoped — deliberately not the R&D-vertical `POST /bom/:id/submit`.
+ */
+export const submitBomIntakeForApproval = (id: string) =>
+  apiFetch<BomIntakeDetail>(`/customer-bom-intakes/${id}/submit`, {
+    method: 'POST',
   });
 
 export const INTAKE_STATUS_LABEL: Record<IntakeDerivedStatus, string> = {

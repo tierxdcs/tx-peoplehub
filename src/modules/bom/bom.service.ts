@@ -68,7 +68,9 @@ const BOM_INCLUDE = {
   },
   lines: {
     orderBy: { sequence: 'asc' as const },
-    include: { item: { select: { itemCode: true, name: true } } },
+    include: {
+      item: { select: { itemCode: true, name: true, itemType: true } },
+    },
   },
 } satisfies Prisma.BomInclude;
 
@@ -278,6 +280,27 @@ export class BomService {
   // ── Workflow transitions ─────────────────────────────────────────────
   async submit(id: string, user: AuthenticatedUser): Promise<BomEntity> {
     await this.access.assertCanAuthorBoms(user);
+    await this.submitTransition(id, user);
+    return this.get(id, user);
+  }
+
+  /**
+   * The DRAFT/REJECTED → PENDING_APPROVAL transition itself, deliberately
+   * WITHOUT any authorisation check — the caller owns that decision.
+   *
+   * Two callers authorise two different ways: `submit` above requires an
+   * R&D-vertical author, and Sales' quote-stage `CustomerBomIntakeService`
+   * requires ownership of the opportunity behind the intake. They share this
+   * body so the status change, the SUBMITTED event, the R&D Head notifications
+   * and the approval push can never drift apart between the two paths — and so
+   * `submittedById` is always whoever actually pressed the button, whichever
+   * door they came through.
+   *
+   * Returns void rather than a BomEntity: reading a BOM back needs
+   * `assertCanBrowseBoms`, which Sales does not hold. Each caller returns the
+   * shape its own audience is allowed to see.
+   */
+  async submitTransition(id: string, user: AuthenticatedUser): Promise<void> {
     const bom = await this.prisma.bom.findUnique({
       where: { id },
       include: { lines: { select: { id: true } } },
@@ -340,7 +363,6 @@ export class BomService {
       url: `/scm/bom/${id}`,
       actorId: user.id,
     });
-    return this.get(id, user);
   }
 
   async approve(id: string, user: AuthenticatedUser): Promise<BomEntity> {
@@ -765,6 +787,7 @@ export class BomService {
             itemId: l.itemId,
             itemCode: l.item.itemCode,
             itemName: l.item.name,
+            itemType: l.item.itemType,
             quantityPerUnit: l.quantityPerUnit.toString(),
             unitOfMeasure: l.unitOfMeasure,
             wastagePercent: l.wastagePercent.toString(),

@@ -129,6 +129,22 @@ export function approvalBadgesByHref(
   return badges;
 }
 
+/**
+ * How many approvals are waiting on this user across every queue.
+ *
+ * Walks the same registry the sidebar badges do, so the dashboard's single
+ * number always equals the sum of the badges the user can see. Each queue is
+ * already role-scoped server-side (a queue the caller can't approve reports 0),
+ * so this needs no permission logic of its own.
+ */
+export function totalPendingApprovals(counts: PendingCounts | null): number {
+  if (!counts) return 0;
+  return APPROVAL_QUEUES.reduce(
+    (total, queue) => total + (counts[queue.key]?.count ?? 0),
+    0,
+  );
+}
+
 export interface OldestApproval {
   queue: ApprovalQueueDef;
   count: number;

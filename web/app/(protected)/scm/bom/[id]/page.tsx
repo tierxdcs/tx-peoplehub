@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Pencil } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
 import { useIsRndHead } from '../../../../lib/use-is-rnd-head';
@@ -14,7 +14,13 @@ import {
   rejectBom,
   submitBom,
   type Bom,
+  type BomLine,
 } from '../../../../lib/scm-bom';
+import {
+  ITEM_TYPE_LABEL,
+  updateItem,
+  type ItemType,
+} from '../../../../lib/scm-item-master';
 import { PageContainer } from '../../../../components/ui/page-container';
 import {
   Card,
@@ -23,6 +29,9 @@ import {
   CardTitle,
 } from '../../../../components/ui/card';
 import { Button } from '../../../../components/ui/button';
+import { Field } from '../../../../components/ui/field';
+import { Input } from '../../../../components/ui/input';
+import { Select } from '../../../../components/ui/select';
 import { Textarea } from '../../../../components/ui/textarea';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
@@ -59,6 +68,10 @@ export default function BomDetailPage() {
   const [busy, setBusy] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [rejectComment, setRejectComment] = useState('');
+  // The component line whose Item the reviewer is correcting, plus the drafts.
+  const [editingLine, setEditingLine] = useState<BomLine | null>(null);
+  const [itemName, setItemName] = useState('');
+  const [itemType, setItemType] = useState<ItemType>('COMPONENT');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,6 +92,39 @@ export default function BomDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  function openItemEditor(line: BomLine) {
+    setEditingLine(line);
+    setItemName(line.itemName);
+    setItemType(line.itemType);
+  }
+
+  /**
+   * Correct a component's Item master record from inside the review — Sales
+   * transcribes intake lines and every new Item lands as a COMPONENT, so the
+   * reviewer is the first person who can actually classify it. Writes to the
+   * Item (PATCH /items/:id, R&D Head/SA), not to the BOM line, so the BOM's
+   * own approval state is untouched and the correction is visible everywhere
+   * the Item appears.
+   */
+  async function onSaveItem() {
+    if (!editingLine) return;
+    const name = itemName.trim();
+    if (!name) return;
+    setBusy(true);
+    try {
+      await updateItem(editingLine.itemId, { name, itemType });
+      toast.success(`${editingLine.itemCode} updated.`);
+      setEditingLine(null);
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to update the item.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function onSubmit() {
     if (
@@ -180,6 +226,13 @@ export default function BomDetailPage() {
 
   const isCreator = bom.createdById === user?.sub;
   const canReview = bom.status === 'PENDING_APPROVAL' && isRndHead;
+  // Mirrors the backend's assertCanManageItems (R&D Head or SUPER_ADMIN).
+  // Withheld once RELEASED: that BOM is frozen, so corrections belong to a new
+  // revision or to the Item Master directly, not to a released document.
+  const canEditItems =
+    (isRndHead || user?.role === 'SUPER_ADMIN') &&
+    bom.status !== 'RELEASED' &&
+    bom.status !== 'OBSOLETE';
 
   return (
     <PageContainer>
@@ -372,6 +425,13 @@ export default function BomDetailPage() {
       <Card className="mb-4">
         <CardHeader>
           <CardTitle>Components</CardTitle>
+          {canEditItems && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Correct a component&apos;s name or type before releasing — Sales
+              transcribes intake lines, and every Item it creates starts as a
+              Component.
+            </p>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -380,11 +440,13 @@ export default function BomDetailPage() {
                 <TableHead>#</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Item</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Qty / unit</TableHead>
                 <TableHead>UoM</TableHead>
                 <TableHead>Wastage %</TableHead>
                 <TableHead>Make / Buy</TableHead>
                 <TableHead>Notes</TableHead>
+                {canEditItems && <TableHead className="w-10" />}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -393,11 +455,28 @@ export default function BomDetailPage() {
                   <TableCell>{l.sequence}</TableCell>
                   <TableCell className="font-medium">{l.itemCode}</TableCell>
                   <TableCell>{l.itemName}</TableCell>
+                  <TableCell>
+                    {ITEM_TYPE_LABEL[l.itemType] ?? l.itemType}
+                  </TableCell>
                   <TableCell>{l.quantityPerUnit}</TableCell>
                   <TableCell>{l.unitOfMeasure}</TableCell>
                   <TableCell>{l.wastagePercent}</TableCell>
                   <TableCell>{l.makeBuy === 'MAKE' ? 'Make' : 'Buy'}</TableCell>
                   <TableCell>{l.notes ?? '—'}</TableCell>
+                  {canEditItems && (
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Edit item ${l.itemCode}`}
+                        title="Correct name or type"
+                        onClick={() => openItemEditor(l)}
+                        disabled={busy}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -437,6 +516,72 @@ export default function BomDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Correct a component Item (name / classification) */}
+      <Dialog
+        open={!!editingLine}
+        onOpenChange={(o) => !o && setEditingLine(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit {editingLine?.itemCode}</DialogTitle>
+            <DialogDescription>
+              Updates the Item master record, not this BOM line. Quantity, UoM
+              and Make/Buy stay part of the BOM.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Field label="Item name" htmlFor="item-name" required>
+              <Input
+                id="item-name"
+                value={itemName}
+                onChange={(e) => setItemName(e.target.value)}
+                placeholder="e.g. Copper busbar, 40×5 mm"
+              />
+            </Field>
+            <Field
+              label="Item type"
+              htmlFor="item-type"
+              hint="Classification only — Make/Buy is what drives BOM explosion."
+            >
+              <Select
+                id="item-type"
+                value={itemType}
+                onChange={(e) => setItemType(e.target.value as ItemType)}
+              >
+                {(
+                  Object.keys(ITEM_TYPE_LABEL) as Array<
+                    keyof typeof ITEM_TYPE_LABEL
+                  >
+                ).map((type) => (
+                  <option key={type} value={type}>
+                    {ITEM_TYPE_LABEL[type]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {editingLine && itemType !== editingLine.itemType && (
+              <p className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+                Item codes are permanent, so this stays{' '}
+                <strong>{editingLine.itemCode}</strong> — its prefix will no
+                longer match the new type.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditingLine(null)}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+            <Button onClick={onSaveItem} disabled={busy || !itemName.trim()}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reject dialog */}
       <Dialog open={rejecting} onOpenChange={(o) => !o && setRejecting(false)}>

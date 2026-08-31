@@ -3,6 +3,7 @@ import {
   APPROVAL_QUEUES,
   approvalBadgesByHref,
   oldestPendingApproval,
+  totalPendingApprovals,
   type PendingCounts,
 } from './approval-queues';
 
@@ -19,6 +20,36 @@ function counts(overrides: Partial<PendingCounts> = {}): PendingCounts {
   ) as PendingCounts;
   return { ...empty, ...overrides };
 }
+
+describe('totalPendingApprovals', () => {
+  it('reads as zero before the payload has loaded', () => {
+    expect(totalPendingApprovals(null)).toBe(0);
+  });
+
+  it('is zero when every queue is empty', () => {
+    expect(totalPendingApprovals(counts())).toBe(0);
+  });
+
+  it('sums across queues, so the ribbon equals the badges the user sees', () => {
+    expect(
+      totalPendingApprovals(
+        counts({
+          leaveApprovals: { count: 3, oldestPendingAt: hoursAgo(30) },
+          bomReleaseApprovals: { count: 2, oldestPendingAt: hoursAgo(4) },
+          expenseClaimApprovals: { count: 1, oldestPendingAt: hoursAgo(1) },
+        }),
+      ),
+    ).toBe(6);
+  });
+
+  it('tolerates a payload missing a queue the client knows about', () => {
+    // A backend deployed before a newly registered queue omits its key; the
+    // ribbon should under-report rather than render NaN.
+    const partial = counts({ leaveApprovals: { count: 2, oldestPendingAt: null } });
+    delete (partial as Record<string, unknown>).bomReleaseApprovals;
+    expect(totalPendingApprovals(partial)).toBe(2);
+  });
+});
 
 describe('approvalBadgesByHref', () => {
   it('returns nothing before the payload has loaded', () => {

@@ -11,6 +11,7 @@ import {
   INTAKE_STATUS_LABEL,
   INTAKE_STATUS_TONE,
   reviseBomIntake,
+  submitBomIntakeForApproval,
   type BomIntakeDetail,
   type CustomerBomCandidate,
 } from '../../../../lib/customer-bom-intake';
@@ -81,6 +82,7 @@ export default function BomIntakeDetailPage() {
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [revisionNotes, setRevisionNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(() => {
     return getBomIntake(id)
@@ -95,6 +97,24 @@ export default function BomIntakeDetailPage() {
 
   const bomStatus = detail?.bom?.status ?? null;
   const canSelfRevise = bomStatus === 'DRAFT' || bomStatus === 'REJECTED';
+  // Same states Sales may revise in are the states Sales may submit from — but
+  // an empty BOM is rejected server-side, so don't offer the action for one.
+  const canSubmit = canSelfRevise && (detail?.bom?.lines.length ?? 0) > 0;
+
+  async function submitForApproval() {
+    if (!detail) return;
+    setSubmitting(true);
+    try {
+      setDetail(await submitBomIntakeForApproval(detail.id));
+      toast.success('Sent to R&D for approval');
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to submit for approval',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   function startEditing() {
     if (!detail?.bom) return;
@@ -239,13 +259,27 @@ export default function BomIntakeDetailPage() {
         description={`${detail.opportunity.name}${detail.opportunity.customer ? ` · ${detail.opportunity.customer.name}` : ''} · ${detail.businessUnit.name}${detail.rawFileName ? ` · from ${detail.rawFileName}` : ' · manually entered'}`}
         actions={
           canSelfRevise && !editing ? (
-            <button
-              type="button"
-              onClick={startEditing}
-              className={SIGNAL_BTN_PRIMARY}
-            >
-              New revision
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" onClick={startEditing}>
+                New revision
+              </Button>
+              {/* Sales owns "the transcription is finished", so Sales hands it
+                  over — this is the forward motion, hence the primary slot. */}
+              {canSubmit && (
+                <button
+                  type="button"
+                  onClick={() => void submitForApproval()}
+                  disabled={submitting}
+                  className={SIGNAL_BTN_PRIMARY}
+                >
+                  {submitting
+                    ? 'Sending…'
+                    : bomStatus === 'REJECTED'
+                      ? 'Resubmit for approval'
+                      : 'Submit for approval'}
+                </button>
+              )}
+            </div>
           ) : undefined
         }
       />
@@ -274,6 +308,16 @@ export default function BomIntakeDetailPage() {
             <Callout className="mt-0">
               This BOM is awaiting R&D approval — revisions are paused until R&D
               approves or rejects it.
+            </Callout>
+          )}
+          {bomStatus === 'REJECTED' && (
+            <Callout className="mt-0">
+              R&D rejected this revision
+              {detail.bom?.rejectionComment
+                ? `: ${detail.bom.rejectionComment}`
+                : '.'}{' '}
+              Revise the lines and resubmit, or resubmit as-is if nothing needs
+              to change.
             </Callout>
           )}
 

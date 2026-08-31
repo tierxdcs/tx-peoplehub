@@ -44,6 +44,9 @@ export class BomLineEntity {
   @ApiProperty() itemId!: string;
   @ApiProperty() itemCode!: string;
   @ApiProperty() itemName!: string;
+  // Surfaced per line so an R&D Head reviewing a Sales-transcribed BOM can see
+  // (and correct) each component's classification without leaving the review.
+  @ApiProperty({ enum: ItemType }) itemType!: ItemType;
   @ApiProperty() quantityPerUnit!: string;
   @ApiProperty() unitOfMeasure!: string;
   @ApiProperty() wastagePercent!: string;

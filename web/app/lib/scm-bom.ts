@@ -14,6 +14,7 @@ export interface BomLine {
   itemId: string;
   itemCode: string;
   itemName: string;
+  itemType: ItemType;
   quantityPerUnit: string;
   unitOfMeasure: string;
   wastagePercent: string;

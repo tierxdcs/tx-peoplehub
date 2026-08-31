@@ -41,6 +41,15 @@ import { BidStrategyMeetingsService } from './bid-strategy-meetings.service';
  * SalesAccessService's manager scoping.
  */
 @Module({
+  // Deliberately NO BomModule import, even though CustomerBomIntakeService
+  // calls BomService to submit a quote-stage BOM: this module sits inside the
+  // cycle Sales → Bom → Notifications → Sales, and a module edge here makes
+  // CJS evaluate `SalesModule` while it is still initialising, leaving it
+  // `undefined` in every module that imports it eagerly (Notifications,
+  // CandidateRequisitions, ExpenseClaims, ScmPurchasing …). forwardRef fixes
+  // Nest's resolution but not that undefined binding. So the one provider we
+  // need is resolved from the container at init instead — see
+  // CustomerBomIntakeService.onModuleInit.
   imports: [EmployeesModule, VaultModule, FinanceModule, PingsModule],
   controllers: [
     CustomersController,
