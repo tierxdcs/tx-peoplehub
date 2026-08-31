@@ -11,6 +11,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { PrismaService } from '../../core/database/prisma.service';
 import { EmailService } from '../../core/email/email.service';
 import { renderEmailLayout } from '../../core/email/email-content';
+import { PushNotificationService } from '../../core/push/push.service';
 import { EmailTestDto } from './dto/email-test.dto';
 
 @ApiTags('health')
@@ -19,6 +20,7 @@ export class HealthController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
+    private readonly push: PushNotificationService,
   ) {}
 
   @Public()
@@ -100,5 +102,36 @@ export class HealthController {
       html,
       tags: [{ name: 'kind', value: 'email-test' }],
     });
+  }
+
+  /**
+   * Proves the *deployed* service's push wiring: that the VAPID vars reached
+   * this container, and how many devices are actually subscribed. Push shares no
+   * infrastructure with email, so a healthy /health/email says nothing about it.
+   *
+   * Returns the public key (which is handed to every browser anyway) and never
+   * the private one. There is no push-test route here on purpose: the person who
+   * can meaningfully verify delivery is the one holding the phone, so the test
+   * send is `POST /push/test`, scoped to the caller's own devices.
+   */
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPER_ADMIN)
+  @Get('push')
+  @ApiOperation({ summary: 'Web Push (VAPID) configuration status' })
+  async pushStatus() {
+    const [devices, employeesWithDevices] = await Promise.all([
+      this.prisma.pushSubscription.count(),
+      this.prisma.pushSubscription
+        .findMany({ distinct: ['employeeId'], select: { employeeId: true } })
+        .then((rows) => rows.length),
+    ]);
+    return {
+      configured: this.push.isConfigured(),
+      publicKey: this.push.publicKey,
+      subject: this.push.subject,
+      devices,
+      employeesWithDevices,
+    };
   }
 }

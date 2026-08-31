@@ -723,6 +723,10 @@ model Employee {
   /// local, so they follow the employee across devices and browsers.
   navShortcuts NavShortcut[] @relation("NavShortcutOwner")
 
+  /// Browsers/devices this employee has allowed push notifications on. One row
+  /// per device, not per employee — a phone and a laptop are separate consents.
+  pushSubscriptions PushSubscription[] @relation("PushSubscriptionOwner")
+
   auditLogs AuditLog[] @relation("AuditActor")
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -761,6 +765,48 @@ model NavShortcut {
   @@unique([employeeId, href])
   @@index([employeeId, sortOrder])
   @@map("nav_shortcuts")
+}
+
+/// One browser's Web Push subscription: where to deliver a notification for this
+/// employee, and the keys to encrypt it with.
+///
+/// The three values come straight from the browser's `PushManager.subscribe()`
+/// and mean nothing to us beyond being passed back to `web-push` — `endpoint` is
+/// the push service's URL for this device, `p256dh` is the device's public key
+/// and `auth` its shared secret. They are per-device consent tokens, not
+/// credentials of ours, and they are useless without our VAPID private key
+/// (which lives only in the environment, never in this table).
+///
+/// `endpoint` is globally unique, not unique per employee: the push service
+/// issues it, and a shared device that two people sign into must not end up with
+/// one person's notifications going to the other's row. An upsert on it moves the
+/// endpoint to whoever most recently allowed notifications there.
+///
+/// Nothing here is encrypted at rest (unlike PAN/bank columns): an endpoint is
+/// not personal data about the employee, and re-subscribing rotates it anyway.
+/// Rows are disposable — the sender deletes any endpoint the push service
+/// reports as gone (404/410), and the browser re-creates one on the next visit.
+model PushSubscription {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation("PushSubscriptionOwner", fields: [employeeId], references: [id], onDelete: Cascade)
+  /// Push service URL for this device, issued by the browser vendor.
+  endpoint   String   @unique
+  /// The device's public key (base64url), for payload encryption.
+  p256dh     String
+  /// The device's auth secret (base64url), for payload encryption.
+  auth       String
+  /// Raw user agent at subscribe time, so a person can tell their own devices
+  /// apart in the UI ("iPhone", "Chrome on Windows") before revoking one.
+  userAgent  String?
+  /// Last time a push to this endpoint was accepted by the push service. Null
+  /// until the first one — useful for spotting a device that never worked.
+  lastPushAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([employeeId])
+  @@map("push_subscriptions")
 }
 
 enum LearningCourseStatus {

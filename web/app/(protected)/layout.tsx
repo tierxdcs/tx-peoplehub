@@ -28,6 +28,8 @@ import { AppTopBar } from '../components/shell/app-top-bar';
 import { Sidebar } from '../components/shell/sidebar';
 import { ResetPasswordDialog } from '../components/shell/reset-password-dialog';
 import { PingWidget } from '../components/shell/ping-widget';
+import { InstallBanner } from '../components/pwa/install-banner';
+import { PushSubscriptionSync } from '../components/pwa/push-subscription-sync';
 
 export default function ProtectedLayout({
   children,
@@ -170,6 +172,11 @@ export default function ProtectedLayout({
         </main>
         <PingWidget />
       </div>
+      {/* Both render nothing until they have something to do: the banner only
+      when the app is installable and not already installed, the sync only when
+      this browser already holds a push subscription to re-register. */}
+      <InstallBanner />
+      <PushSubscriptionSync />
     </div>
   );
 }

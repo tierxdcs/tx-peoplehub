@@ -112,6 +112,71 @@ revision-request wording and their revision deadline instead.
 > which you run **from your laptop** (see below) — they are **not** needed as
 > Railway service vars.
 
+### Web Push notifications (optional — the app boots and runs without it)
+
+**This is not email.** Push uses the Web Push API with VAPID keys, delivered by
+Apple/Google/Mozilla's own push services. It shares no key, no library, no
+table and no code path with Resend — turning one on or off has no effect on the
+other. Both channels exist independently.
+
+| Variable | Notes |
+|---|---|
+| `VAPID_PUBLIC_KEY` | The public half of the keypair. Handed to browsers by `GET /push/config`, so it is not a secret — but it must match the private key exactly. |
+| `VAPID_PRIVATE_KEY` | **Environment variable only** — never in code, a config file, or a commit (same discipline as `RESEND_API_KEY`). Without the three vars, `PushNotificationService` warns at boot and any send throws `Push notifications are not configured (set VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT)`. |
+| `VAPID_SUBJECT` | Contact for this app's pushes, required by the push services. `mailto:info@phaze-dynamics.com` or an `https://` URL. Validated at boot. |
+
+**Generate the keypair once, then keep it forever:**
+
+```
+ node -e "console.log(require('web-push').generateVAPIDKeys())"
+```
+
+Paste the two values into Railway. **Rotating the keypair silently invalidates
+every device subscription already stored** — every user would have to tap "Turn
+on notifications" again — so treat it as permanent, not as a rotatable secret.
+Staging and production may safely use different keypairs; a subscription is
+per-origin anyway.
+
+**Confirm the deployed service.** As a SUPER_ADMIN, `GET /health/push` returns
+`{ configured, publicKey, subject, devices, employeesWithDevices }` — never the
+private key. There is deliberately **no** `POST /health/push-test`: a push can
+only be proven by the phone it lands on, so the test send lives on the profile
+page, where the person holding the device presses it (`POST /push/test`).
+
+**A 200 is not a delivered notification.** `POST /push/test` returns
+`{ delivered, expired, failed, skipped? }`; the UI treats `delivered === 0` as a
+failure, and even a non-zero `delivered` only means a push service *accepted*
+the message. As with the email verification, the real check is the device.
+
+**What sends a push today.** Nothing automatic — only the user's own test
+button. Which business events trigger a push is a later phase; this is the
+infrastructure.
+
+| Route | Purpose |
+|---|---|
+| `GET /push/config` | Whether push is configured + the public key |
+| `GET /push/devices` | The caller's subscribed devices (never endpoints or keys) |
+| `POST /push/subscriptions` | Register this browser's subscription |
+| `DELETE /push/subscriptions?endpoint=…` / `DELETE /push/subscriptions/:id` | Unsubscribe this browser / remove a listed device |
+| `POST /push/test` | Send the caller a test notification |
+
+Every one is self-scoped — a user can only ever see and change their own
+devices, so none of them carries a role restriction.
+
+> Everything goes through `PushNotificationService` (`src/core/push/`), mirroring
+> the email service's pairing: `sendToEmployee()` throws so a user-triggered send
+> surfaces its failure, `trySendToEmployee()` logs and returns `null` so a
+> background notification can never roll back a business action. A subscription
+> the push service reports as gone (404/410) is deleted on the spot.
+
+**iOS is stricter than Android, and not optionally so.** On iPhone/iPad, push
+works *only* after the app has been added to the home screen and opened from
+there — a regular Safari tab cannot receive one at all. That is why the manifest
+declares `display: "standalone"` and why the install banner tells iOS users to
+use **Share → Add to Home Screen** (there is no `beforeinstallprompt` on iOS to
+do it for them). The permission prompt also has to come from a real tap, which is
+why it lives behind the profile page's button and never fires on page load.
+
 ---
 
 ## Frontend environment variables (Vercel)
@@ -186,6 +251,17 @@ It inserts **no** employee/statutory data — testers create their own via the r
 - [ ] Bid/No-Bid gate: `POST /bids` blocked with no assessment → submit → reject w/ comment (as Sales Head) → still blocked → resubmit → approve → bid creation now succeeds.
 - [ ] The 8 seeded assessment questions actually appear in the submit form (verify the seed ran against staging, don't assume).
 - [ ] Sales-vertical-wide read visibility: a Sales `EMPLOYEE` can view a **peer's** bid/lead/opportunity/order (reads are vertical-wide; writes stay owner/hierarchy-scoped). Tell testers to expect this.
+
+### Installable app + push notifications (needs two real phones, not a desktop emulator)
+
+- [ ] **Android/Chrome:** the install banner offers a native **Install** button (`beforeinstallprompt`) and installing works.
+- [ ] **iOS/Safari:** no native button appears — the banner shows the **Share → Add to Home Screen** instructions instead.
+- [ ] Launching from the home-screen icon on both platforms opens **standalone**: app icon, no address bar, no browser tabs.
+- [ ] The install banner **never reappears** once the app is opened from the home screen (on either platform).
+- [ ] Profile → Notifications → **Turn on notifications** subscribes on both platforms, and the permission dialog only ever appears after that tap — never on page load.
+- [ ] **Send a test notification** and see it **arrive on the phone**. A green toast is not the test; the phone is. Confirm the device also appears under "Your devices".
+- [ ] In a plain **iOS Safari tab** (not installed), the Notifications card explains that the app must be added to the home screen first — and no subscribe button is offered. This is expected iOS behaviour, not a bug.
+- [ ] `GET /health/push` (SUPER_ADMIN) shows `configured: true` and a device count that matches what you just subscribed — and never returns the private key.
 
 ---
 

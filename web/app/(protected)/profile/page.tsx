@@ -25,6 +25,7 @@ import { SignatureEditorFields } from '../../components/ui/signature-setup-inlin
 import { useToast } from '../../components/ui/toaster';
 import { cn } from '../../lib/utils';
 import { OrgChartPanel } from '../../components/org-chart/org-chart-panel';
+import { NotificationsCard } from '../../components/pwa/notifications-card';
 import { TeamSection } from '../_sections/team-section';
 import { LeaveSection } from '../_sections/leave-section';
 import { AttendanceSection } from '../_sections/attendance-section';
@@ -306,6 +307,11 @@ export default function ProfilePage() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Push notifications for this device. Renders nothing at all when the
+          server has no VAPID keys configured, so an un-provisioned deployment
+          shows no dead controls. */}
+          <NotificationsCard />
         </>
       )}
     </PageContainer>

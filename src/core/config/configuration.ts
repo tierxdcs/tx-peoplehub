@@ -36,6 +36,15 @@ export default () => ({
     gatewayUrl: process.env.GST_GATEWAY_URL,
     gatewayToken: process.env.GST_GATEWAY_TOKEN,
   },
+  // Web Push (VAPID). A second, entirely independent notification channel:
+  // different protocol, different library (web-push), different keys, no Resend
+  // involvement anywhere in this path. The private key is read from the
+  // environment only — same discipline as RESEND_API_KEY and ENCRYPTION_KEY.
+  push: {
+    publicKey: process.env.VAPID_PUBLIC_KEY,
+    privateKey: process.env.VAPID_PRIVATE_KEY,
+    subject: process.env.VAPID_SUBJECT,
+  },
   // Transactional email (Resend). The API key is read from the environment
   // only — never committed, never a fallback literal.
   email: {

@@ -13,6 +13,7 @@ import { PrismaModule } from './core/database/prisma.module';
 import { PrismaService } from './core/database/prisma.service';
 import { EncryptionModule } from './core/crypto/encryption.module';
 import { EmailModule } from './core/email/email.module';
+import { PushModule } from './core/push/push.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -62,6 +63,7 @@ import { PingsModule } from './modules/pings/pings.module';
 import { EfficiencyModule } from './modules/efficiency/efficiency.module';
 import { ExecutiveModule } from './modules/executive/executive.module';
 import { NavShortcutsModule } from './modules/nav-shortcuts/nav-shortcuts.module';
+import { PushSubscriptionsModule } from './modules/push/push.module';
 
 @Module({
   imports: [
@@ -74,6 +76,7 @@ import { NavShortcutsModule } from './modules/nav-shortcuts/nav-shortcuts.module
     PrismaModule,
     EncryptionModule,
     EmailModule,
+    PushModule,
     AuthModule,
     EmployeesModule,
     VerticalsModule,
@@ -117,6 +120,7 @@ import { NavShortcutsModule } from './modules/nav-shortcuts/nav-shortcuts.module
     EfficiencyModule,
     ExecutiveModule,
     NavShortcutsModule,
+    PushSubscriptionsModule,
     HealthModule,
   ],
   providers: [

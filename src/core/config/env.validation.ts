@@ -101,4 +101,37 @@ export const envValidationSchema = Joi.object({
   EMAIL_ALLOWED_RECIPIENTS: Joi.string().allow('').optional(),
   // 'true' logs each email instead of delivering it (local dev / CI).
   EMAIL_DRY_RUN: Joi.boolean().default(false),
+
+  // ── Web Push notifications (VAPID) ──────────────────────────────────
+  // A separate channel from email in every respect: the Web Push protocol, the
+  // `web-push` library, its own keypair. Nothing here touches Resend.
+  //
+  // Optional for the same reason as the email vars: the app must boot without
+  // them. PushNotificationService warns once at boot and throws a message
+  // naming these vars only when a send is actually attempted; the frontend asks
+  // the API for the public key and hides the "enable notifications" control
+  // when there isn't one, so an unconfigured deploy degrades to "no push"
+  // rather than a broken button.
+  //
+  // Generate the pair ONCE per deployment (they identify this server to every
+  // push service, and rotating them invalidates every stored subscription):
+  //   node -e "console.log(require('web-push').generateVAPIDKeys())"
+  // VAPID_PRIVATE_KEY is a secret — Railway env var only, never committed,
+  // never pasted anywhere it can be logged. VAPID_PUBLIC_KEY is not secret; it
+  // is handed to every browser by design.
+  VAPID_PUBLIC_KEY: Joi.string().optional(),
+  VAPID_PRIVATE_KEY: Joi.string().optional(),
+  // Contact for the push service operator (Apple/Google/Mozilla) if our pushes
+  // misbehave. The spec allows only a mailto: or https: URL, and the push
+  // services reject anything else at send time — so it is checked at boot
+  // instead, where the error is cheap to read.
+  VAPID_SUBJECT: Joi.string()
+    .optional()
+    .custom(
+      (value: string, helpers) =>
+        /^(mailto:\S+@\S+|https:\/\/\S+)$/.test(value)
+          ? value
+          : helpers.error('any.invalid'),
+      'mailto:you@your-domain or https://your-domain',
+    ),
 });
