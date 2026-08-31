@@ -8,6 +8,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   MinLength,
   ValidateNested,
@@ -158,6 +159,31 @@ export class RequestQuoteRevisionDto {
   @IsString()
   @MinLength(1)
   password?: string;
+}
+
+/**
+ * Email the quote link to invitees. Omit `inviteeIds` to mail every invitee on
+ * the RFQ — the normal case right after issuing. Naming ids narrows it to those
+ * partners (a re-send, or the one partner a revision was just requested from)
+ * and also overrides the courtesy skips: an explicitly named invitee is mailed
+ * even if they already submitted or declined, because SCM chose them on purpose.
+ */
+export class EmailInviteesDto {
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Invitee ids to mail; omit for all invitees on this RFQ',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  inviteeIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Optional note included in every email' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
 }
 
 /** Optional weighting for the advisory comparison score (defaults 60/20/20). */

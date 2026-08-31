@@ -88,12 +88,21 @@ business flow:
 |---|---|---|
 | Vendor qualification invite | "Email to vendor" on the vendor detail page | `POST /vendors/invites/:inviteId/email` |
 | Supplier qualification invite | "Email to supplier" on the supplier detail page | `POST /suppliers/invites/:inviteId/email` |
+| RFQ quote link | "Email"/"Email all invitees" on the RFQ detail page (ISSUED/CLOSED) | `POST /rfqs/:id/invitees/email` |
 
-Both send the *existing* invite link (so re-sending never invalidates a link the
-company already has), refuse a revoked or expired invite, default the recipient
-to the company's contact email, and **never** include the invite password —
-share that separately. `FRONTEND_ORIGIN` must be correct: the emailed link is
-built from it.
+All of them send the *existing* invite link (so re-sending never invalidates a
+link the partner already has), refuse a revoked or expired invite, default the
+recipient to the company's contact email, and **never** include the invite
+password — share that separately. `FRONTEND_ORIGIN` must be correct: the emailed
+link is built from it.
+
+The RFQ route mails a batch (an RFQ has three or more invitees) and reports per
+invitee — `{ sent, skipped, failed, results[] }` — so one partner without a
+contact email or one provider rejection never stops the rest. It skips invitees
+whose link cannot work (revoked, not yet issued, RFQ closed, deadline passed) and,
+on a blanket send, those who already submitted or declined; naming
+`inviteeIds` mails them anyway. An invitee whose revision window is open gets the
+revision-request wording and their revision deadline instead.
 
 > Everything goes through `EmailService` (`src/core/email/`): `send()` throws so
 > a user-triggered send surfaces its failure, `trySend()` logs and returns

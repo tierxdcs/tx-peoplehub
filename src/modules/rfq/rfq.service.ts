@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { BomStatus, Prisma, RfqQuoteStatus, RfqStatus } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -16,7 +17,12 @@ import { VaultStorageService } from '../vault/vault-storage.service';
 import {
   generateInviteToken,
   hashInvitePassword,
+  inviteLinkUrl,
 } from '../../common/utils/token-invite';
+import { EmailService } from '../../core/email/email.service';
+import { isValidEmailAddress } from '../../core/email/email-content';
+import { resolveOrganisationName } from '../../core/email/organisation';
+import { rfqInviteEmail } from '../../core/email/templates/rfq-invite';
 import { RfqAccessService } from './rfq-access.service';
 import { autoDraftPoNote } from './rfq-po-provenance';
 import {
@@ -24,10 +30,15 @@ import {
   AwardRfqDto,
   ComparisonWeightsDto,
   CreateRfqDto,
+  EmailInviteesDto,
   RequestQuoteRevisionDto,
   RfqLineInputDto,
   UpdateRfqDto,
 } from './dto/rfq.dto';
+import {
+  RfqInviteeEmailResultEntity,
+  RfqInviteeEmailSummaryEntity,
+} from './entities/rfq-invitee-email.entity';
 import {
   RfqEntity,
   RfqInviteeEntity,
@@ -40,6 +51,9 @@ import {
 } from './entities/rfq-comparison.entity';
 
 const MIN_INVITEES = 3;
+
+/** The public route an invitee's quote token resolves to. */
+const PUBLIC_QUOTE_PATH = '/public/rfq-quote';
 
 /** Supplier/Vendor statuses that count as qualified (no inline warning). */
 const QUALIFIED = new Set(['APPROVED', 'APPROVED_PREFERRED']);
@@ -167,6 +181,8 @@ export class RfqService {
     private readonly stockReport: StockReportService,
     private readonly itemCosts: ItemCostService,
     private readonly storage: VaultStorageService,
+    private readonly email: EmailService,
+    private readonly config: ConfigService,
   ) {}
 
   // ── Shortfall-to-RFQ (from the Kickoff stock report) ─────────────────
@@ -1116,16 +1132,209 @@ export class RfqService {
    * passed and the invitee has not submitted since the request. Re-requesting
    * therefore needs no state reset — the newer request timestamp reopens it.
    */
-  private revisionPending(invitee: {
-    revisionRequestedAt: Date | null;
-    revisionDeadline: Date | null;
-    quotes: { submittedAt: Date | null }[];
-  }): boolean {
+  private revisionPending(
+    invitee: {
+      revisionRequestedAt: Date | null;
+      revisionDeadline: Date | null;
+      quotes: { submittedAt: Date | null }[];
+    },
+    now = new Date(),
+  ): boolean {
     if (!invitee.revisionRequestedAt || !invitee.revisionDeadline) return false;
-    if (invitee.revisionDeadline <= new Date()) return false;
+    if (invitee.revisionDeadline <= now) return false;
     const submittedAt = invitee.quotes[0]?.submittedAt;
     if (!submittedAt) return true;
     return submittedAt < invitee.revisionRequestedAt;
+  }
+
+  // ── Emailing the quote links ─────────────────────────────────────────
+  /**
+   * Email the public quote link to invitees. Sends the token each invitee
+   * ALREADY has — mailing a link never mints a new one, so a re-send cannot
+   * invalidate a link a partner is already working against.
+   *
+   * An RFQ goes to at least three partners at once, so this reports per
+   * invitee instead of failing the whole call: one partner with no contact
+   * email, or one provider rejection, must not stop the others. Nothing here
+   * mutates the RFQ, so a partial send leaves no half-written state.
+   */
+  async emailInvitees(
+    id: string,
+    dto: EmailInviteesDto,
+    user: AuthenticatedUser,
+    now = new Date(),
+  ): Promise<RfqInviteeEmailSummaryEntity> {
+    await this.access.assertCanManageRfqs(user);
+    const rfq = await this.prisma.rfq.findUnique({
+      where: { id },
+      select: {
+        rfqNumber: true,
+        title: true,
+        status: true,
+        submissionDeadline: true,
+        _count: { select: { lines: true } },
+        invitees: {
+          select: {
+            id: true,
+            inviteToken: true,
+            passwordHash: true,
+            revokedAt: true,
+            quoteStatus: true,
+            revisionRequestedAt: true,
+            revisionDeadline: true,
+            revisionNote: true,
+            supplier: { select: { companyName: true, contactEmail: true } },
+            vendor: { select: { companyName: true, contactEmail: true } },
+            quotes: {
+              select: { submittedAt: true },
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!rfq) throw new NotFoundException('RFQ not found');
+    if (rfq.status === RfqStatus.DRAFT)
+      throw new BadRequestException(
+        'Issue the RFQ first — invitee links are only generated at issue',
+      );
+    if (rfq.status === RfqStatus.CANCELLED)
+      throw new BadRequestException('This RFQ has been cancelled');
+    if (rfq.status === RfqStatus.AWARDED)
+      throw new BadRequestException(
+        'This RFQ has been awarded — the quote links are closed',
+      );
+
+    // Naming ids is a deliberate choice by the buyer, so it also lifts the
+    // courtesy skips applied to a blanket send.
+    const targeted = !!dto.inviteeIds?.length;
+    let invitees = rfq.invitees;
+    if (dto.inviteeIds?.length) {
+      const wanted = new Set(dto.inviteeIds);
+      invitees = rfq.invitees.filter((i) => wanted.has(i.id));
+      if (invitees.length !== wanted.size)
+        throw new NotFoundException(
+          'One or more of those invitees are not on this RFQ',
+        );
+    }
+    if (!invitees.length)
+      throw new BadRequestException('This RFQ has no invitees to email');
+
+    const origin = this.config.get<string>('frontendOrigin') ?? '';
+    const timezone = this.config.get<string>('timezone');
+    const organisationName = await resolveOrganisationName(this.prisma);
+    const results: RfqInviteeEmailResultEntity[] = [];
+
+    for (const invitee of invitees) {
+      const partner = invitee.supplier ?? invitee.vendor;
+      const partnerName = partner?.companyName ?? null;
+      const base = {
+        inviteeId: invitee.id,
+        partnerName,
+        revisionRequest: false,
+      };
+      const skip = (reason: string, to: string | null = null) =>
+        results.push(
+          new RfqInviteeEmailResultEntity({
+            ...base,
+            to,
+            status: 'skipped',
+            reason,
+            messageId: null,
+          }),
+        );
+
+      const revision = this.revisionPending(invitee, now);
+      if (invitee.revokedAt) {
+        skip('revoked');
+        continue;
+      }
+      if (invitee.inviteToken.startsWith('pending:')) {
+        skip('link-not-issued');
+        continue;
+      }
+      if (rfq.status === RfqStatus.CLOSED && !revision) {
+        skip('link-closed');
+        continue;
+      }
+      if (!revision && rfq.submissionDeadline <= now) {
+        skip('deadline-passed');
+        continue;
+      }
+      if (!targeted && !revision) {
+        if (invitee.quoteStatus === RfqQuoteStatus.SUBMITTED) {
+          skip('already-submitted');
+          continue;
+        }
+        if (invitee.quoteStatus === RfqQuoteStatus.DECLINED) {
+          skip('declined');
+          continue;
+        }
+      }
+      const to = (partner?.contactEmail ?? '').trim();
+      if (!isValidEmailAddress(to)) {
+        skip('no-contact-email');
+        continue;
+      }
+
+      const rendered = rfqInviteEmail({
+        kind: revision ? 'revision-request' : 'invitation',
+        rfqNumber: rfq.rfqNumber,
+        rfqTitle: rfq.title,
+        partnerName: partnerName ?? 'Sir/Madam',
+        url: inviteLinkUrl(origin, PUBLIC_QUOTE_PATH, invitee.inviteToken),
+        deadline:
+          revision && invitee.revisionDeadline
+            ? invitee.revisionDeadline
+            : rfq.submissionDeadline,
+        lineCount: rfq._count.lines,
+        passwordProtected: !!invitee.passwordHash,
+        organisationName,
+        revisionNote: revision ? invitee.revisionNote : null,
+        note: dto.note,
+        now,
+        timezone,
+      });
+      try {
+        // No idempotency key on purpose: a second press IS a deliberate
+        // re-send, and Resend would suppress it as a duplicate for 24h.
+        const sent = await this.email.send({
+          to,
+          subject: rendered.subject,
+          html: rendered.html,
+          text: rendered.text,
+          tags: [
+            {
+              name: 'kind',
+              value: revision ? 'rfq-revision-request' : 'rfq-invite',
+            },
+          ],
+        });
+        results.push(
+          new RfqInviteeEmailResultEntity({
+            ...base,
+            revisionRequest: revision,
+            to,
+            status: sent.skipped ? 'skipped' : 'sent',
+            reason: sent.skipped ?? null,
+            messageId: sent.id,
+          }),
+        );
+      } catch (err) {
+        results.push(
+          new RfqInviteeEmailResultEntity({
+            ...base,
+            revisionRequest: revision,
+            to,
+            status: 'failed',
+            reason: err instanceof Error ? err.message : 'Email send failed',
+            messageId: null,
+          }),
+        );
+      }
+    }
+    return new RfqInviteeEmailSummaryEntity(results);
   }
 
   // ── PM approval (gates issuing / invitee-link generation) ────────────

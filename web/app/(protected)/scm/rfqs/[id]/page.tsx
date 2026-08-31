@@ -10,6 +10,7 @@ import {
   Copy,
   Download,
   FileText,
+  Mail,
   Plus,
   RefreshCw,
   Save,
@@ -27,6 +28,7 @@ import {
   deleteRfq,
   addInvitee,
   removeInvitee,
+  emailInvitees,
   requestQuoteRevision,
   approveRfq,
   rejectRfq,
@@ -45,6 +47,10 @@ import {
   downloadRfqTechnicalAttachment,
   deleteRfqTechnicalAttachment,
 } from '../../../../lib/rfq';
+import {
+  rfqEmailToast,
+  type RfqInviteeEmailSummary,
+} from '../../../../lib/rfq-invite-email';
 import {
   blankLineDraft,
   lineSignature,
@@ -142,6 +148,8 @@ export default function RfqDetailPage() {
   const [invitePassword, setInvitePassword] = useState('');
   const [inlineWarning, setInlineWarning] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  // Which email send is in flight: an invitee id, or 'all' for the whole RFQ.
+  const [emailing, setEmailing] = useState<string | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
   // The invitee whose link SCM is reopening for a negotiated revision, if any.
   const [revisionTarget, setRevisionTarget] = useState<RfqInvitee | null>(null);
@@ -648,6 +656,51 @@ export default function RfqDetailPage() {
         err instanceof ApiError ? err.message : 'Failed to delete RFQ',
       );
       setDeletingRfq(false);
+    }
+  }
+
+  /**
+   * Email the quote link — to one invitee, or to every invitee at once right
+   * after issuing. Sends the token each invitee already has, so pressing this
+   * twice re-sends the same working link rather than replacing it.
+   */
+  async function handleEmailInvitees(invitee?: RfqInvitee) {
+    if (!rfq) return;
+    const one = !!invitee;
+    if (
+      !(await confirm({
+        title: one
+          ? `Email the quote link to ${invitee!.partnerName ?? 'this invitee'}?`
+          : `Email the quote link to all ${activeInvitees.length} invitees?`,
+        description: one
+          ? `${rfq.rfqNumber} goes to their registered contact email. The link is the one they already have — re-sending does not invalidate it.`
+          : `${rfq.rfqNumber} goes to each partner's registered contact email. Invitees who have already submitted or declined are skipped; you can email those individually.`,
+        confirmLabel: 'Send email',
+      }))
+    )
+      return;
+    setEmailing(one ? invitee!.id : 'all');
+    try {
+      const summary: RfqInviteeEmailSummary = await emailInvitees(rfq.id, {
+        ...(one ? { inviteeIds: [invitee!.id] } : {}),
+      });
+      const message = rfqEmailToast(summary);
+      toast.toast({
+        title: message.title,
+        description: message.description,
+        variant:
+          message.tone === 'success'
+            ? 'success'
+            : message.tone === 'error'
+              ? 'destructive'
+              : 'default',
+      });
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to email the quote link',
+      );
+    } finally {
+      setEmailing(null);
     }
   }
 
@@ -1379,13 +1432,25 @@ export default function RfqDetailPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
           <CardTitle className="text-base">
             Invitees{' '}
             <span className="text-sm font-normal text-muted-foreground">
               ({activeInvitees.length})
             </span>
           </CardTitle>
+          {canManage && showTokens && activeInvitees.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={emailing !== null}
+              onClick={() => handleEmailInvitees()}
+            >
+              <Mail className="size-4" />
+              {emailing === 'all' ? 'Sending…' : 'Email all invitees'}
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {activeInvitees.length === 0 ? (
@@ -1491,6 +1556,18 @@ export default function RfqDetailPage() {
                               )}
                               Copy link
                             </Button>
+                            {canManage && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={emailing !== null}
+                                onClick={() => handleEmailInvitees(inv)}
+                              >
+                                <Mail className="size-4" />
+                                {emailing === inv.id ? 'Sending…' : 'Email'}
+                              </Button>
+                            )}
                           </div>
                         ) : (
                           <span className="text-muted-foreground">—</span>
@@ -1535,6 +1612,15 @@ export default function RfqDetailPage() {
                 ))}
               </TableBody>
             </Table>
+          )}
+
+          {canManage && showTokens && activeInvitees.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Emails go to each partner&apos;s registered contact email and carry
+              the link shown above — re-sending never invalidates a link a
+              partner is already working on. Any link password is never
+              included; share it separately.
+            </p>
           )}
 
           {canManage && isDraft && (

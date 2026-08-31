@@ -1,6 +1,7 @@
 'use client';
 
 import { apiFetch } from './api';
+import type { RfqInviteeEmailSummary } from './rfq-invite-email';
 
 /**
  * RFQ Builder (SCM) client. Sealed-bid: the detail/list endpoints carry no quote
@@ -373,6 +374,21 @@ export function addInvitee(
 export function removeInvitee(id: string, inviteeId: string) {
   return apiFetch<Rfq>(`/rfqs/${id}/invitees/${inviteeId}`, {
     method: 'DELETE',
+  });
+}
+/**
+ * Email the public quote link to invitees. Omit `inviteeIds` to mail everyone on
+ * the RFQ; naming ids narrows it and also mails partners who already submitted
+ * or declined (a blanket send skips those as a courtesy). Sends the token each
+ * invitee already has, so a re-send never invalidates a live link.
+ */
+export function emailInvitees(
+  id: string,
+  input: { inviteeIds?: string[]; note?: string } = {},
+) {
+  return apiFetch<RfqInviteeEmailSummary>(`/rfqs/${id}/invitees/email`, {
+    method: 'POST',
+    body: JSON.stringify(input),
   });
 }
 /**

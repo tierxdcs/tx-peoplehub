@@ -60,6 +60,8 @@ describe('RfqService draft save / delete', () => {
       {} as never,
       {} as never,
       storage,
+      {} as never,
+      {} as never,
     );
     jest
       .spyOn(service, 'get')

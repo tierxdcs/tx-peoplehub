@@ -23,6 +23,7 @@ import {
   AwardRfqDto,
   ComparisonWeightsDto,
   CreateRfqDto,
+  EmailInviteesDto,
   RejectRfqDto,
   RequestQuoteRevisionDto,
   UpdateRfqDto,
@@ -219,6 +220,22 @@ export class RfqController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.removeInvitee(id, inviteeId, user);
+  }
+
+  @Post(':id/invitees/email')
+  @ApiOperation({
+    summary:
+      'Email the public quote link to invitees (SCM Manager+/SA). Omit ' +
+      'inviteeIds to mail everyone. Sends the token each invitee already has, ' +
+      'so a re-send never invalidates a link. Reports per invitee — one ' +
+      'partner without a contact email does not stop the rest.',
+  })
+  emailInvitees(
+    @Param('id') id: string,
+    @Body() dto: EmailInviteesDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.emailInvitees(id, dto, user);
   }
 
   @Post(':id/invitees/:inviteeId/request-revision')

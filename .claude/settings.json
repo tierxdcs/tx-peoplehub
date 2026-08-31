@@ -255,7 +255,21 @@
       "Bash(awk '/^model SupplierQuestionnaireInvite/,/^}/' prisma/schema.prisma)",
       "Bash(curl -s -X POST localhost:3099/vendors/invites/__TRACKED_VAR__/email -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json' -d '{}')",
       "Bash(curl -s -X POST localhost:3099/vendors/invites/__TRACKED_VAR__/email -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json' -d '{\"to\":\"not-an-email\"}')",
-      "Bash(curl -s -X POST localhost:3099/vendors/invites/00000000-0000-0000-0000-000000000000/email -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json' -d '{}')"
+      "Bash(curl -s -X POST localhost:3099/vendors/invites/00000000-0000-0000-0000-000000000000/email -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json' -d '{}')",
+      "Bash(awk '/^model Rfq/,/^}/' prisma/schema.prisma)",
+      "Bash(awk '/^model RfqInvitee/,/^}/' prisma/schema.prisma)",
+      "Bash(awk '/^enum RfqQuoteStatus/,/^}/' prisma/schema.prisma)",
+      "Bash(awk '/^enum RfqStatus/,/^}/' prisma/schema.prisma)",
+      "Bash(awk '/^model RfqInvitee /,/^}/' prisma/schema.prisma)",
+      "Bash(awk '/^model RfqQuote /,/^}/' prisma/schema.prisma)",
+      "Bash(node /Users/nithin/Documents/GitHub/tx-peoplehub/rfq-check.tmp.js)",
+      "Bash(curl -s -X POST http://localhost:3099/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"nithin.gangadhar@phaze-dynamics.com\",\"password\":\"ChangeMe123!\"}')",
+      "Bash(awk '/^model RfqLine /,/^}/' prisma/schema.prisma)",
+      "Bash(node rfq-smoke.tmp.js)",
+      "Bash(awk '/^model Item /,/^}/' prisma/schema.prisma)",
+      "Bash(node rfq-smoke2.tmp.js cleanup)",
+      "Bash(pkill -f \"node dist/main.js\")",
+      "Bash(node -e '1')"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",
