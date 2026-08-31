@@ -271,7 +271,8 @@
       "Bash(pkill -f \"node dist/main.js\")",
       "Bash(node -e '1')",
       "Bash(node -e \"const wp=require\\('web-push'\\); const k=wp.generateVAPIDKeys\\(\\); console.log\\('generated keypair OK, public len', k.publicKey.length, 'private len', k.privateKey.length\\);\")",
-      "Bash(node scripts/generate-pwa-icons.mjs)"
+      "Bash(node scripts/generate-pwa-icons.mjs)",
+      "Bash(timeout 60 node dist/main.js)"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",

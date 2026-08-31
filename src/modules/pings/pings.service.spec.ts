@@ -14,7 +14,8 @@ describe('PingsService', () => {
       update: jest.fn(),
     },
   } as any;
-  const service = new PingsService(prisma);
+  const push = { trySendToEmployees: jest.fn().mockResolvedValue({}) } as any;
+  const service = new PingsService(prisma, push);
   const user = {
     id: 'sender',
     email: 'sender@test.com',
@@ -48,6 +49,58 @@ describe('PingsService', () => {
         }),
       }),
     );
+  });
+
+  it('pushes to every recipient with the sender name and a message preview', async () => {
+    prisma.employee.count.mockResolvedValue(2);
+    prisma.ping.create.mockResolvedValue({
+      id: 'ping-9',
+      fromEmployee: {
+        id: 'sender',
+        firstName: 'Send',
+        lastName: 'Er',
+        email: 'sender@test.com',
+        employeeId: 'EMP-1',
+      },
+      recipients: [],
+    });
+    await service.create(user, {
+      message: '  Line down on bay 3  ',
+      recipientIds: ['a', 'b'],
+    });
+    expect(push.trySendToEmployees).toHaveBeenCalledWith(
+      ['a', 'b'],
+      expect.objectContaining({
+        title: 'Send Er pinged you',
+        body: 'Line down on bay 3',
+        url: '/my-pings',
+        tag: 'ping:ping-9',
+      }),
+      'ping received',
+    );
+  });
+
+  it('still sends the ping when the push channel is broken', async () => {
+    // The whole point of the best-effort pattern: a push that cannot be
+    // delivered must not turn a successful ping into a failed request.
+    push.trySendToEmployees.mockRejectedValueOnce(new Error('VAPID missing'));
+    prisma.employee.count.mockResolvedValue(1);
+    prisma.ping.create.mockResolvedValue({
+      id: 'ping-10',
+      fromEmployee: {
+        id: 'sender',
+        firstName: 'Send',
+        lastName: 'Er',
+        email: 'sender@test.com',
+        employeeId: 'EMP-1',
+      },
+      recipients: [],
+    });
+    const ping = await service.create(user, {
+      message: 'Still delivered',
+      recipientIds: ['a'],
+    });
+    expect(ping.id).toBe('ping-10');
   });
 
   it('does not allow a ping addressed only to its sender', async () => {

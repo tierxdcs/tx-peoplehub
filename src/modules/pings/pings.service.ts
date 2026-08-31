@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { EmployeeStatus, PingRecipientStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
+import { PushNotificationService } from '../../core/push/push.service';
+import { pingReceivedPush } from '../notifications/push-triggers';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { CreateContextualPingDto, CreatePingDto } from './dto/pings.dto';
 
@@ -37,7 +39,11 @@ function toPingEmployee(e: RawPingEmployee) {
 
 @Injectable()
 export class PingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // PushModule is @Global, so this needs no import edge in PingsModule.
+    private readonly push: PushNotificationService,
+  ) {}
 
   async create(user: AuthenticatedUser, dto: CreatePingDto) {
     const message = dto.message.trim();
@@ -67,14 +73,54 @@ export class PingsService {
         recipients: { include: { employee: { select: employeeSelect } } },
       },
     });
+    const fromEmployee = toPingEmployee(ping.fromEmployee);
+
+    // Push to every recipient — one notification per PingRecipient row that was
+    // just created. Deliberately NOT awaited: each device is its own HTTPS request
+    // to a push service, so awaiting would make the sender wait on Apple's and
+    // Google's servers before their ping is confirmed sent. The ping is already
+    // committed; the notification is a side effect of it.
+    void this.pushToRecipients(
+      recipientIds,
+      ping.id,
+      fromEmployee.fullName,
+      message,
+    );
+
     return {
       ...ping,
-      fromEmployee: toPingEmployee(ping.fromEmployee),
+      fromEmployee,
       recipients: ping.recipients.map((r) => ({
         ...r,
         employee: toPingEmployee(r.employee),
       })),
     };
+  }
+
+  /**
+   * The push half of create(), off the request's critical path.
+   *
+   * Best-effort throughout: a recipient with no subscribed device is a silent
+   * no-op, an unconfigured VAPID keypair is logged once by the push service, and
+   * neither can reach the caller. The catch is belt-and-braces — trySendToEmployees
+   * already swallows its own failures — so an unawaited call can never become an
+   * unhandled rejection.
+   */
+  private async pushToRecipients(
+    recipientIds: string[],
+    pingId: string,
+    senderName: string,
+    message: string,
+  ): Promise<void> {
+    try {
+      await this.push.trySendToEmployees(
+        recipientIds,
+        pingReceivedPush({ pingId, senderName, message }),
+        'ping received',
+      );
+    } catch {
+      // Already logged by the push service; a ping is never retracted for this.
+    }
   }
 
   async createContextual(

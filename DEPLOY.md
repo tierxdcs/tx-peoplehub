@@ -148,9 +148,26 @@ page, where the person holding the device presses it (`POST /push/test`).
 failure, and even a non-zero `delivered` only means a push service *accepted*
 the message. As with the email verification, the real check is the device.
 
-**What sends a push today.** Nothing automatic — only the user's own test
-button. Which business events trigger a push is a later phase; this is the
-infrastructure.
+**What sends a push today.** Exactly two events, plus the user's own test
+button. Both reuse the trigger point that already existed for the equivalent
+in-app notification — there is no new event-detection logic, so the two channels
+cannot disagree about whether something happened:
+
+| Event | Content | Tapping it opens |
+|---|---|---|
+| A Ping you received | Sender's name + a preview of the message | `/my-pings` |
+| A Kanban card assigned/reassigned to you | Assigner's name + the task title | `/kanban/cards/:id` (the existing resolver: board + card modal for a board member, standalone card view for a non-member assignee) |
+
+Deliberately **not** pushed: comments, card updates, status changes, approvals,
+escalations, staleness reminders. Pings was built around not over-notifying, and
+a channel that buzzes a phone has to be held to a higher bar than an in-app
+badge. The complete list lives in one file —
+`src/modules/notifications/push-triggers.ts` — so adding a third means editing
+it there.
+
+Both are fire-and-forget: the push is dispatched without being awaited, so
+sending a Ping or assigning a card never waits on Apple's or Google's servers,
+and a recipient with no subscribed device is a silent no-op rather than an error.
 
 | Route | Purpose |
 |---|---|
@@ -260,6 +277,10 @@ It inserts **no** employee/statutory data — testers create their own via the r
 - [ ] The install banner **never reappears** once the app is opened from the home screen (on either platform).
 - [ ] Profile → Notifications → **Turn on notifications** subscribes on both platforms, and the permission dialog only ever appears after that tap — never on page load.
 - [ ] **Send a test notification** and see it **arrive on the phone**. A green toast is not the test; the phone is. Confirm the device also appears under "Your devices".
+- [ ] From a second account, **send the phone's owner a Ping** — the push shows the sender's name and a preview, and tapping it opens `/my-pings`.
+- [ ] From a second account, **assign the phone's owner a Kanban card** — the push shows the assigner's name and the task title, and tapping it opens that card (board modal if they're a board member, standalone card view if not).
+- [ ] **Comment on** and **move** one of their cards: the in-app bell updates, and **no push arrives**. That silence is the scope holding.
+- [ ] Turn notifications **off** on the device, then have someone Ping them again: the Ping still sends normally with no error for the sender.
 - [ ] In a plain **iOS Safari tab** (not installed), the Notifications card explains that the app must be added to the home screen first — and no subscribe button is offered. This is expected iOS behaviour, not a bug.
 - [ ] `GET /health/push` (SUPER_ADMIN) shows `configured: true` and a device count that matches what you just subscribed — and never returns the private key.
 

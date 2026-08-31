@@ -12,7 +12,7 @@ export interface PushNotification {
   title: string;
   /** The second line. */
   body?: string;
-  /** In-app path opened when the notification is tapped, e.g. '/pings'. */
+  /** In-app path opened when the notification is tapped, e.g. '/my-pings'. */
   url?: string;
   /**
    * Collapses repeats about the same subject: a second push with the same tag

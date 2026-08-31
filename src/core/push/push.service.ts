@@ -80,8 +80,10 @@ const PUSH_TTL_SECONDS = 24 * 60 * 60;
  * explicitly tapped "allow" on this app, so there is no equivalent hazard to
  * guard against.
  *
- * Which events trigger a push is NOT decided here — this service is the
- * infrastructure. Nothing in the app calls it automatically yet.
+ * Which events trigger a push is NOT decided here — this service only delivers.
+ * The complete list of triggers lives in
+ * src/modules/notifications/push-triggers.ts (currently: a Ping you received, a
+ * Kanban card assigned to you).
  */
 @Injectable()
 export class PushNotificationService {
@@ -150,9 +152,10 @@ export class PushNotificationService {
   /**
    * Best-effort send: logs and returns null instead of throwing.
    *
-   * This is the method a future event trigger should use. A notification is a
-   * side effect of a business action, and a failed or unconfigured push must
-   * never roll back the approval, ping or voucher that prompted it — the same
+   * This is the method every event trigger uses (PingsService and
+   * KanbanNotificationsService both call it, unawaited). A notification is a side
+   * effect of a business action, and a failed or unconfigured push must never
+   * roll back the approval, ping or voucher that prompted it — the same
    * strict/best-effort pair as EmailService.send/trySend and
    * VaultStorageService.deleteObjectStrict/deleteObject.
    */

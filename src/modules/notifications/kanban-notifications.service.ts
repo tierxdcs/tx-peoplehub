@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { NotificationType } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
+import { PushNotificationService } from '../../core/push/push.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { NotificationEntity } from './entities/notification.entity';
+import { cardAssignedPush } from './push-triggers';
 
 /**
  * The generic in-app Notification (things worth KNOWING — you were assigned a
@@ -15,11 +17,19 @@ import { NotificationEntity } from './entities/notification.entity';
  */
 @Injectable()
 export class KanbanNotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // PushModule is @Global, so this needs no import edge in NotificationsModule.
+    private readonly push: PushNotificationService,
+  ) {}
 
   /**
    * Create a notification, skipping the self-notify case. `recipientId` may be
    * null (e.g. an unassigned card has no one to notify) — then it's a no-op.
+   *
+   * Returns whether a notification was actually created, so a caller that also
+   * pushes can key off the same decision instead of re-deriving the skip rules
+   * and drifting from them.
    */
   private async notify(params: {
     recipientId: string | null;
@@ -27,10 +37,10 @@ export class KanbanNotificationsService {
     type: NotificationType;
     cardId: string;
     message: string;
-  }): Promise<void> {
+  }): Promise<boolean> {
     const { recipientId, actorId, type, cardId, message } = params;
     if (!recipientId || recipientId === actorId) {
-      return; // no recipient, or would be self-notification — skip.
+      return false; // no recipient, or would be self-notification — skip.
     }
     await this.prisma.notification.create({
       data: {
@@ -40,6 +50,7 @@ export class KanbanNotificationsService {
         message,
       },
     });
+    return true;
   }
 
   /**
@@ -114,20 +125,78 @@ export class KanbanNotificationsService {
     });
   }
 
-  /** New assignee was set — notify them (unless they assigned themselves). */
+  /**
+   * New assignee was set — notify them (unless they assigned themselves).
+   *
+   * This is also the single trigger point for the task-assignment PUSH: the same
+   * call, gated on the same decision, so the two channels can never disagree
+   * about whether someone was assigned. CARD_ASSIGNED is the only notification
+   * type here that pushes.
+   */
   async notifyAssigned(params: {
     assigneeId: string | null;
     actorId: string;
     cardId: string;
     cardTitle: string;
   }): Promise<void> {
-    await this.notify({
+    const created = await this.notify({
       recipientId: params.assigneeId,
       actorId: params.actorId,
       type: NotificationType.CARD_ASSIGNED,
       cardId: params.cardId,
       message: `You were assigned to "${params.cardTitle}"`,
     });
+    if (!created || !params.assigneeId) return;
+
+    // Not awaited, by design: each device is its own HTTPS round-trip to a push
+    // service, and assigning a card must not wait on them. The helper swallows
+    // its own failures, so this promise never rejects.
+    void this.pushCardAssigned({
+      assigneeId: params.assigneeId,
+      actorId: params.actorId,
+      cardId: params.cardId,
+      cardTitle: params.cardTitle,
+    });
+  }
+
+  /**
+   * The push half of notifyAssigned, off the request's critical path.
+   *
+   * Everything here is best-effort: an unreachable device, an unconfigured VAPID
+   * keypair, an employee row that vanished — none of it may affect the assignment
+   * that has already been committed, so nothing propagates out of this method.
+   */
+  private async pushCardAssigned(params: {
+    assigneeId: string;
+    actorId: string;
+    cardId: string;
+    cardTitle: string;
+  }): Promise<void> {
+    try {
+      // Only worth a query once we know someone is actually being notified. The
+      // in-app message doesn't name the assigner, but a push does: "someone
+      // assigned you a task" is not actionable from a lock screen.
+      const actor = await this.prisma.employee.findUnique({
+        where: { id: params.actorId },
+        select: { firstName: true, lastName: true },
+      });
+      const assignerName = actor
+        ? `${actor.firstName} ${actor.lastName}`.trim()
+        : 'Someone';
+
+      await this.push.trySendToEmployee(
+        params.assigneeId,
+        cardAssignedPush({
+          cardId: params.cardId,
+          cardTitle: params.cardTitle,
+          assignerName,
+        }),
+        'card assigned',
+      );
+    } catch {
+      // trySendToEmployee already logs delivery problems; this catch only exists
+      // so a failed name lookup can't become an unhandled rejection.
+    }
   }
 
   /** A comment was added — notify the card's current assignee (if not author). */
