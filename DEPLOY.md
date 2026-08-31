@@ -28,9 +28,46 @@ Validated at boot by Joi (`src/core/config/env.validation.ts`) — the container
 ### Set explicitly for staging (defaults are dev-oriented and wrong when hosted)
 | Variable | Value |
 |---|---|
-| `NODE_ENV` | `production` — **load-bearing.** It flips the refresh cookie to `secure: true` + `sameSite: 'none'`, which cross-site Railway↔Vercel auth requires. Without it, login silently fails in the browser. |
-| `FRONTEND_ORIGIN` | The exact Vercel URL — protocol + domain, **no trailing slash** (e.g. `https://your-app.vercel.app`). CORS and the refresh cookie depend on an exact match. |
+| `NODE_ENV` | `production` — **load-bearing.** It flips the refresh cookie to `secure: true` + `sameSite: 'none'`, which cross-**origin** browser→API auth requires. Without it the cookie drops to `sameSite: 'lax'` with no `secure` flag and login silently fails in every browser. |
+| `FRONTEND_ORIGIN` | The exact frontend URL — protocol + domain, **no trailing slash**. CORS and the refresh cookie depend on an exact match. **Must be on the same registrable domain as the API** — see below; a `*.vercel.app` frontend talking to a `*.up.railway.app` API breaks sign-in persistence on every iPhone. |
 | `TIMEZONE` | `Asia/Kolkata` (IST) — calendar-day logic for leave/attendance. |
+
+> ### The API and the frontend must be on the same domain (not optional on iOS)
+>
+> Sign-in survives closing the app because of one httpOnly refresh cookie with a
+> 7-day lifetime; on launch the app calls `POST /auth/refresh` and silently gets a
+> new access token (the access token itself is in-memory only and is *meant* to
+> die with the process).
+>
+> If the API is on a different registrable domain than the frontend
+> (`app.vercel.app` → `api.up.railway.app`), that cookie is a **third-party
+> cookie**. WebKit blocks third-party cookie storage outright, and every browser
+> on iOS is WebKit — an installed PWA included. The result is subtle and easy to
+> misread as intended behaviour: login works, the session works, and then **every
+> cold start lands on the login screen**, while iOS sessions also silently cap out
+> at the 15-minute access-token TTL. Desktop Chrome still allows third-party
+> cookies, so it all looks fine there.
+>
+> **So give the Railway service a custom domain under the same apex as the
+> frontend** — e.g. app at `phazeone.phaze-dynamics.com`, API at
+> `api.phaze-dynamics.com`. Then the cookie is first-party and the 7-day
+> `maxAge` is honoured. One-time setup:
+>
+> 1. Railway → the backend service → **Settings → Networking → Custom Domain** →
+>    add `api.<your-apex>`; Railway shows a CNAME target.
+> 2. Add that `CNAME` in the apex domain's DNS zone. Wait for Railway to report
+>    the domain as active (it issues the certificate itself).
+> 3. Railway: set `FRONTEND_ORIGIN` to the frontend's custom domain.
+> 4. Vercel: set `NEXT_PUBLIC_API_URL` to `https://api.<your-apex>` — then
+>    **redeploy**. `NEXT_PUBLIC_*` values are inlined at build time, so editing
+>    the variable alone changes nothing until the app is rebuilt.
+> 5. Verify on a real iPhone: sign in to the installed PWA, force-close it,
+>    reopen — it should land on the dashboard, not the login screen.
+>
+> No application code changes for any of this. `sameSite: 'none'` + `secure`
+> stays correct once the domains match (a same-site subdomain request satisfies
+> it), and the cookie is deliberately host-only — do **not** add a `domain=`
+> attribute, which would share it with every subdomain of the apex.
 
 ### Safe to omit (defaults apply)
 `JWT_ACCESS_TTL` (`900s`), `JWT_REFRESH_TTL` (`7d`), `REFRESH_COOKIE_NAME`
@@ -257,13 +294,13 @@ It inserts **no** employee/statutory data — testers create their own via the r
 
 ## Smoke test (before announcing)
 
-- [ ] SuperAdmin login works end-to-end (exercises CORS + cross-site cookie).
+- [ ] SuperAdmin login works end-to-end (exercises CORS + the refresh cookie).
 - [ ] HR onboarding: create employee → grant access → new employee logs in.
 - [ ] Encrypted fields are actually ciphertext in the staging DB (don't assume `ENCRYPTION_KEY` was picked up just because the deploy succeeded — inspect a row).
 - [ ] Leave: request → approval → balance deduction.
 - [ ] Cross-vertical onboarding (HR onboards someone into Sales) works in staging, not just locally.
 - [ ] Payroll employee-facing payslip route stays gated (`NEXT_PUBLIC_PAYSLIPS_ENABLED=false`).
-- [ ] Refresh-token flow: log in, let the access token expire (or force it), confirm silent refresh rather than a forced re-login. (This is the real cross-site-cookie test.)
+- [ ] Refresh-token flow: log in, let the access token expire (or force it), confirm silent refresh rather than a forced re-login. (This is the real refresh-cookie test — run it in **desktop Chrome and on a real iPhone**. Chrome will pass even with a cross-domain API; Safari only passes once the API is on the same registrable domain as the frontend. See the same-domain section above.)
 - [ ] Sales pipeline: Lead → Opportunity → Bid → Order.
 - [ ] Bid/No-Bid gate: `POST /bids` blocked with no assessment → submit → reject w/ comment (as Sales Head) → still blocked → resubmit → approve → bid creation now succeeds.
 - [ ] The 8 seeded assessment questions actually appear in the submit form (verify the seed ran against staging, don't assume).
@@ -296,7 +333,10 @@ It inserts **no** employee/statutory data — testers create their own via the r
 
 - CI/CD auto-deploy on push (GitHub Actions → Railway/Vercel) — currently manual/on-demand.
 - Error tracking (Sentry) — worth it once real bug reports start.
-- Custom domain — default `*.railway.app` / `*.vercel.app` subdomains are fine for internal testing.
+
+Note that a **custom domain is no longer in this list**: the API and the frontend
+sharing one registrable domain is a requirement, not a polish item, because
+sign-in persistence on iOS depends on it. See the same-domain section above.
 
 ## Announce to testers
 
