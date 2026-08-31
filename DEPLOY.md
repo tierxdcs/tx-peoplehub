@@ -51,7 +51,16 @@ Validated at boot by Joi (`src/core/config/env.validation.ts`) — the container
 > **So give the Railway service a custom domain under the same apex as the
 > frontend** — e.g. app at `phazeone.phaze-dynamics.com`, API at
 > `api.phaze-dynamics.com`. Then the cookie is first-party and the 7-day
-> `maxAge` is honoured. One-time setup:
+> `maxAge` is honoured.
+>
+> **Prerequisite:** the *frontend* must be on that apex too. Two subdomains of
+> one registrable domain is what makes the cookie first-party — an API at
+> `api.phaze-dynamics.com` talking to an app still on `*.vercel.app` is no better
+> than before. If the app is still on its Vercel-assigned URL, add a Vercel
+> custom domain (`phazeone.<your-apex>`) first; that half is the same kind of
+> CNAME work as step 2.
+>
+> One-time setup:
 >
 > 1. Railway → the backend service → **Settings → Networking → Custom Domain** →
 >    add `api.<your-apex>`; Railway shows a CNAME target.
@@ -61,8 +70,24 @@ Validated at boot by Joi (`src/core/config/env.validation.ts`) — the container
 > 4. Vercel: set `NEXT_PUBLIC_API_URL` to `https://api.<your-apex>` — then
 >    **redeploy**. `NEXT_PUBLIC_*` values are inlined at build time, so editing
 >    the variable alone changes nothing until the app is rebuilt.
-> 5. Verify on a real iPhone: sign in to the installed PWA, force-close it,
+> 5. **On every phone that already has the app installed: delete the home-screen
+>    icon and re-install from the new domain**, then sign in and re-enable
+>    notifications from Profile → Notifications. A PWA's identity *is* its
+>    origin — the installed copy is pinned to the old one, so it keeps talking to
+>    the old API and keeps asking for credentials no matter what the DNS says.
+>    Its push subscription is origin-scoped for the same reason; the stale rows
+>    need no cleanup (they prune themselves on the first 404/410 — see
+>    `PushService`), but the new install does need permission granted again.
+> 6. Verify on a real iPhone: sign in to the installed PWA, force-close it,
 >    reopen — it should land on the dashboard, not the login screen.
+>
+> **`FRONTEND_ORIGIN` is one origin, not a list** (`main.ts`, `enableCors`), so
+> step 3 is a cutover rather than an addition: the moment it changes, the old
+> `*.vercel.app` URL starts failing CORS even though the page still loads. Two
+> things follow. Use the custom domain from then on and re-bookmark accordingly;
+> and note that **already-sent** vendor/supplier invite, PLM vendor-update and
+> RFQ quote emails carry links built from the old origin, so those recipients
+> need a re-sent link. Mail sent after the change is fine.
 >
 > No application code changes for any of this. `sameSite: 'none'` + `secure`
 > stays correct once the domains match (a same-site subdomain request satisfies

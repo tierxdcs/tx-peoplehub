@@ -275,7 +275,8 @@
       "Bash(timeout 60 node dist/main.js)",
       "Bash(perl -pi -e \"s/const service = new DesignService\\\\\\(prisma, access, \\\\{\\\\} as any\\\\\\);/const service = new DesignService\\(prisma, access, {} as any, {\\\\n    approvalRequired: jest.fn\\(\\),\\\\n    designReviewRejected: jest.fn\\(\\),\\\\n  } as never\\);/\" src/modules/design/design-stage-gate.service.spec.ts src/modules/design/design-phase4.service.spec.ts)",
       "Bash(awk '/^model KanbanCard /,/^}/' prisma/schema.prisma)",
-      "Bash(echo \"\\(exit $?\\)\")"
+      "Bash(echo \"\\(exit $?\\)\")",
+      "Bash(echo \"=== exit: $? \\(1 = no matches, good\\) ===\")"
     ],
     "additionalDirectories": [
       "/Users/nithin/Documents/GitHub/tx-peoplehub/src/modules/pings/dto",
