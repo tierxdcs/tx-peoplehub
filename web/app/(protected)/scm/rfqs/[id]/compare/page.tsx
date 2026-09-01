@@ -311,9 +311,21 @@ export default function RfqComparePage() {
               </SummaryRow>
               <SummaryRow label="Lead time (days)" cols={cols}>
                 {(c) =>
-                  c.quotedLeadTimeDays != null
-                    ? String(c.quotedLeadTimeDays)
-                    : '—'
+                  c.quotedLeadTimeDays == null ? (
+                    '—'
+                  ) : c.leadTimeFromLines ? (
+                    // Derived from the per-line figures: the slowest line, since
+                    // the order is not complete until it lands. Marked, because a
+                    // buyer should know the vendor never stated an overall one.
+                    <span
+                      title="Slowest per-line delivery lead time — the vendor left the overall lead time blank"
+                      className="underline decoration-dotted underline-offset-2"
+                    >
+                      {c.quotedLeadTimeDays}
+                    </span>
+                  ) : (
+                    String(c.quotedLeadTimeDays)
+                  )
                 }
               </SummaryRow>
               <SummaryRow

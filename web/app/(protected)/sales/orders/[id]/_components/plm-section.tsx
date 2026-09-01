@@ -10,10 +10,9 @@ import {
   getOrderPlm,
   getPlmTracker,
   getPlmInvites,
-  NPD_STAGES,
   PLM_PRODUCTION_STEPS,
   PLM_STAGE_LABEL,
-  STANDARD_STAGES,
+  stageStripProgress,
   PlmTracker,
   PlmVendorInvite,
   plmAction,
@@ -31,19 +30,20 @@ import { useToast } from '../../../../../components/ui/toaster';
 import { useConfirm } from '../../../../../components/ui/confirm';
 
 function StageStrip({ tracker }: { tracker: PlmTracker }) {
-  const stages = tracker.flowType === 'NPD' ? NPD_STAGES : STANDARD_STAGES;
-  const active = stages.indexOf(tracker.currentStage);
+  // doneThrough, not "everything before the current stage": on a COMPLETED
+  // tracker the final node is finished too, and nothing is current.
+  const { stages, doneThrough, activeIndex } = stageStripProgress(tracker);
   return (
     <ol className="flex min-w-max items-start py-2">
       {stages.map((stage, index) => (
         <li key={stage} className="flex items-start last:flex-none">
           <div className="flex w-20 flex-col items-center text-center">
-            <span className={`flex size-8 items-center justify-center rounded-full border-2 text-xs font-semibold ${index < active ? 'border-success bg-success text-success-foreground' : index === active ? 'border-primary bg-primary/10 text-primary' : 'border-muted-foreground/25 text-muted-foreground'}`}>
-              {index < active ? <Check className="size-4" /> : index + 1}
+            <span className={`flex size-8 items-center justify-center rounded-full border-2 text-xs font-semibold ${index < doneThrough ? 'border-success bg-success text-success-foreground' : index === activeIndex ? 'border-primary bg-primary/10 text-primary' : 'border-muted-foreground/25 text-muted-foreground'}`}>
+              {index < doneThrough ? <Check className="size-4" /> : index + 1}
             </span>
             <span className="mt-1 text-[11px] leading-tight text-muted-foreground">{PLM_STAGE_LABEL[stage]}</span>
           </div>
-          {index < stages.length - 1 && <span className={`mt-4 h-0.5 w-5 ${index < active ? 'bg-success' : 'bg-border'}`} />}
+          {index < stages.length - 1 && <span className={`mt-4 h-0.5 w-5 ${index < doneThrough ? 'bg-success' : 'bg-border'}`} />}
         </li>
       ))}
     </ol>

@@ -58,7 +58,15 @@ export class ComparisonColumnEntity {
   })
   isLowestTotal!: boolean;
 
+  /**
+   * The lead time compared and scored on: the quote's own summary figure, or the
+   * slowest of its per-line delivery lead times when the summary was left blank.
+   */
   @ApiProperty({ nullable: true }) quotedLeadTimeDays!: number | null;
+  @ApiProperty({
+    description: 'True when the lead time was derived from the quote lines',
+  })
+  leadTimeFromLines!: boolean;
   @ApiProperty({ nullable: true }) paymentTermsOffered!: string | null;
   @ApiProperty({ nullable: true }) validityDays!: number | null;
   @ApiProperty({ description: 'R2 attachment keys on the quote' })

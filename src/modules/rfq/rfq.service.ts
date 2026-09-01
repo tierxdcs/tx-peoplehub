@@ -60,6 +60,30 @@ const PUBLIC_QUOTE_PATH = '/public/rfq-quote';
 /** Supplier/Vendor statuses that count as qualified (no inline warning). */
 const QUALIFIED = new Set(['APPROVED', 'APPROVED_PREFERRED']);
 /** Qualification tier score (0-1) for the weighted comparison. */
+/**
+ * The lead time to compare and score a quote on.
+ *
+ * Vendors fill the per-line "delivery lead time" beside the price, where the work
+ * is, and routinely leave the Quote Terms summary field blank — so a comparison
+ * reading only the summary field shows nothing and, worse, scores every quote's
+ * lead time as best-in-class. Fall back to the lines, taken at their MAXIMUM: the
+ * RFQ is not delivered until its slowest line arrives.
+ */
+export function effectiveLeadTimeDays(quote: {
+  quotedLeadTimeDays: number | null;
+  lines: { deliveryLeadTimeDays: number | null }[];
+}): { days: number | null; fromLines: boolean } {
+  if (typeof quote.quotedLeadTimeDays === 'number') {
+    return { days: quote.quotedLeadTimeDays, fromLines: false };
+  }
+  const lineDays = quote.lines
+    .map((line) => line.deliveryLeadTimeDays)
+    .filter((days): days is number => typeof days === 'number');
+  return lineDays.length
+    ? { days: Math.max(...lineDays), fromLines: true }
+    : { days: null, fromLines: false };
+}
+
 const QUAL_TIER: Record<string, number> = {
   APPROVED_PREFERRED: 1,
   APPROVED: 0.85,
@@ -1560,7 +1584,7 @@ export class RfqService {
       : null;
     // For lead-time scoring, the best (lowest) lead time among responders.
     const leadTimes = submitted
-      .map((i) => i.quotes[0].quotedLeadTimeDays)
+      .map((i) => effectiveLeadTimeDays(i.quotes[0]).days)
       .filter((d): d is number => typeof d === 'number');
     const bestLead = leadTimes.length ? Math.min(...leadTimes) : null;
     const worstLead = leadTimes.length ? Math.max(...leadTimes) : null;
@@ -1568,6 +1592,9 @@ export class RfqService {
     const columns: ComparisonColumnEntity[] = invitees.map((inv) => {
       const q = inv.quotes[0] ?? null;
       const isResponder = inv.quoteStatus === RfqQuoteStatus.SUBMITTED && !!q;
+      const effectiveLead = q
+        ? effectiveLeadTimeDays(q)
+        : { days: null, fromLines: false };
       const total = isResponder ? q!.totalQuotedValue : null;
       const variance = total && lowestTotal ? total.minus(lowestTotal) : null;
       const variancePct =
@@ -1596,7 +1623,7 @@ export class RfqService {
           : 1;
         // Lead-time score: best lead = 1, worst = 0 (1 if no spread/data).
         let leadScore = 1;
-        const lead = q!.quotedLeadTimeDays;
+        const lead = effectiveLead.days;
         if (
           typeof lead === 'number' &&
           bestLead !== null &&
@@ -1628,7 +1655,8 @@ export class RfqService {
         varianceVsLowest: variance ? variance.toString() : null,
         variancePctVsLowest: variancePct ? variancePct.toFixed(2) : null,
         isLowestTotal: !!total && !!lowestTotal && total.equals(lowestTotal),
-        quotedLeadTimeDays: q?.quotedLeadTimeDays ?? null,
+        quotedLeadTimeDays: effectiveLead.days,
+        leadTimeFromLines: effectiveLead.fromLines,
         paymentTermsOffered: q?.paymentTermsOffered ?? null,
         validityDays: q?.validityDays ?? null,
         attachmentFileKeys: (q?.attachmentFileKeys as string[] | null) ?? [],
@@ -1639,7 +1667,7 @@ export class RfqService {
           revisionNumber: rev.revisionNumber,
           submittedAt: rev.submittedAt ? rev.submittedAt.toISOString() : null,
           totalQuotedValue: rev.totalQuotedValue.toString(),
-          quotedLeadTimeDays: rev.quotedLeadTimeDays,
+          quotedLeadTimeDays: effectiveLeadTimeDays(rev).days,
         })),
         lines,
       });

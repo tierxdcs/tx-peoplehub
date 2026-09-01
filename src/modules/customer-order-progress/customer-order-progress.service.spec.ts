@@ -284,4 +284,100 @@ describe('CustomerOrderProgressService', () => {
     expect(response.lines[0].currentStage.label).toBe('Release to SCM');
     expect(response.canSignoff).toBe(false);
   });
+
+  /**
+   * COMPLETED is terminal: nothing happens *in* it. The final node used to be
+   * capped at CURRENT, so a finished order showed every earlier stage ticked and
+   * left "Completed" sitting as an unticked, in-progress step forever.
+   */
+  describe('a finished line ticks its final stage', () => {
+    const finishedOrder = (overrides: {
+      currentStage: PlmStage;
+      deliveryChallanLines?: unknown[];
+    }) => ({
+      orderCustomerProgressInvite: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'invite-1',
+          orderId: 'order-1',
+          revokedAt: null,
+          expiresAt: new Date('2027-07-28T00:00:00.000Z'),
+          passwordHash: null,
+          order: { ownerId: 'owner-1', orderNumber: 'ORD-2026-0002' },
+        }),
+      },
+      order: {
+        findUnique: jest.fn().mockResolvedValue({
+          orderNumber: 'ORD-2026-0002',
+          customer: { name: 'Company ABC' },
+          customerSignoff: null,
+          confirmationSheets: [],
+          lineItems: [
+            {
+              id: 'line-1',
+              product: { name: 'Customer PO name' },
+              deliveryChallanLines: overrides.deliveryChallanLines ?? [],
+              plmTrackers: [
+                {
+                  currentStage: overrides.currentStage,
+                  flowType: 'VENDOR',
+                  createdAt: new Date('2026-09-01T10:17:31Z'),
+                  kickoff: {
+                    meetingDate: new Date('2026-09-01T10:17:31Z'),
+                    status: 'COMPLETED',
+                  },
+                  events: [],
+                  productionCards: [],
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    });
+
+    const resolve = async (prisma: unknown) => {
+      const response = await new CustomerOrderProgressService(
+        prisma as never,
+      ).resolvePublic('opaque-token');
+      if ('requiresPassword' in response) {
+        throw new Error('Unexpected password challenge');
+      }
+      return response;
+    };
+
+    it('marks every stage DONE — including Completed — and nothing CURRENT', async () => {
+      const response = await resolve(
+        finishedOrder({ currentStage: PlmStage.COMPLETED }),
+      );
+      const stages = response.lines[0].stages;
+      expect(stages.at(-1)?.label).toBe('Completed');
+      expect(stages.map((s) => s.state)).toEqual(stages.map(() => 'DONE'));
+      // The header chip still reads Completed, and sign-off still opens.
+      expect(response.lines[0].currentStage.label).toBe('Completed');
+      expect(response.canSignoff).toBe(true);
+    });
+
+    it('does the same for a shipped line whose tracker has not caught up', async () => {
+      const response = await resolve(
+        finishedOrder({
+          currentStage: PlmStage.DISPATCH,
+          deliveryChallanLines: [{ id: 'dcl-1' }],
+        }),
+      );
+      expect(response.lines[0].stages.map((s) => s.state)).not.toContain(
+        'CURRENT',
+      );
+      expect(response.lines[0].stages.at(-1)?.state).toBe('DONE');
+    });
+
+    it('still leaves Completed UPCOMING while the line is mid-flow', async () => {
+      const response = await resolve(
+        finishedOrder({ currentStage: PlmStage.DISPATCH }),
+      );
+      const stages = response.lines[0].stages;
+      expect(stages.at(-1)?.state).toBe('UPCOMING');
+      expect(stages.filter((s) => s.state === 'CURRENT')).toHaveLength(1);
+      expect(response.lines[0].currentStage.label).toBe('Dispatch');
+    });
+  });
 });

@@ -81,6 +81,28 @@ export const STANDARD_STAGES: PlmStage[] = [
   'COMPLETED',
 ];
 
+/**
+ * How a stage strip should paint a tracker: how many leading nodes are ticked,
+ * and which node (if any) is the live one.
+ *
+ * COMPLETED is terminal — no work happens *in* it — so a tracker that has
+ * reached it has finished every node, the last one included, and nothing is
+ * "current" any more. Painting COMPLETED like an ordinary stage left the final
+ * node sitting blue and unticked forever on a finished project.
+ */
+export function stageStripProgress(tracker: {
+  flowType: 'NPD' | 'IN_HOUSE' | 'VENDOR';
+  currentStage: PlmStage;
+}): { stages: PlmStage[]; doneThrough: number; activeIndex: number } {
+  const stages = tracker.flowType === 'NPD' ? NPD_STAGES : STANDARD_STAGES;
+  if (tracker.currentStage === 'COMPLETED') {
+    return { stages, doneThrough: stages.length, activeIndex: -1 };
+  }
+  // -1 (a stage outside this flow) ticks nothing and highlights nothing.
+  const activeIndex = stages.indexOf(tracker.currentStage);
+  return { stages, doneThrough: Math.max(0, activeIndex), activeIndex };
+}
+
 export interface PlmTracker {
   id: string;
   orderLineId: string;

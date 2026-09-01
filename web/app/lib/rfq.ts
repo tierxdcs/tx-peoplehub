@@ -229,7 +229,13 @@ export interface ComparisonColumn {
   varianceVsLowest: string | null;
   variancePctVsLowest: string | null;
   isLowestTotal: boolean;
+  /**
+   * What the comparison scores on: the quote's summary lead time, or the slowest
+   * of its per-line delivery lead times when the summary field was left blank.
+   */
   quotedLeadTimeDays: number | null;
+  /** True when the figure above came from the lines rather than the summary. */
+  leadTimeFromLines: boolean;
   paymentTermsOffered: string | null;
   validityDays: number | null;
   attachmentFileKeys: string[];

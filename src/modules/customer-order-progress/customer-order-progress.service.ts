@@ -353,7 +353,12 @@ export class CustomerOrderProgressService {
       const trackedIndex = tracker
         ? stageSeq.indexOf(tracker.currentStage)
         : -1;
-      const currentIndex = delivered
+      // COMPLETED is terminal — no work happens *in* it — so a line that has
+      // reached it (or that has already shipped) has finished every stage, the
+      // last one included. Without this the final node was capped at "current"
+      // and stayed unticked forever on a delivered order.
+      const finished = delivered || tracker?.currentStage === 'COMPLETED';
+      const currentIndex = finished
         ? stageSeq.length
         : kickoffCompleted
           ? Math.max(1, trackedIndex + 1)
@@ -388,6 +393,9 @@ export class CustomerOrderProgressService {
         },
         ...stageSeq.map(toStage),
       ];
+      // How many leading nodes are ticked. Everything once the line is finished,
+      // which also leaves nothing marked as the live stage.
+      const doneThrough = finished ? publicStages.length : currentIndex;
       return {
         lineId: line.id,
         // The portal is THE customer-facing surface — their wording first.
@@ -400,7 +408,7 @@ export class CustomerOrderProgressService {
         stages: publicStages.map((stage, index) => ({
           ...stage,
           state:
-            index < currentIndex
+            index < doneThrough
               ? ('DONE' as const)
               : index === currentIndex
                 ? ('CURRENT' as const)
