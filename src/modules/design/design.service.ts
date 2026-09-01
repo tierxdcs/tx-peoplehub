@@ -273,18 +273,25 @@ export class DesignService {
    * CustomerBomIntakeService.sendToDesign, has already applied the Sales
    * ownership rule for the intake. Kept on this side of the boundary so the
    * request numbering and the DesignRequest shape live in exactly one module.
+   *
+   * Pass `existingTx` to enrol in the caller's transaction — the intake-creation
+   * path does, so an intake raised for design and its request either both exist
+   * or neither does.
    */
-  async raiseRequestForBomIntake(input: {
-    customerBomIntakeId: string;
-    title: string;
-    description: string;
-    priority?: DesignPriority;
-    productId?: string | null;
-    customerId?: string | null;
-    targetDate: Date;
-    requestedById: string;
-  }) {
-    return this.prisma.$transaction(async (tx) =>
+  async raiseRequestForBomIntake(
+    input: {
+      customerBomIntakeId: string;
+      title: string;
+      description: string;
+      priority?: DesignPriority;
+      productId?: string | null;
+      customerId?: string | null;
+      targetDate: Date;
+      requestedById: string;
+    },
+    existingTx?: Prisma.TransactionClient,
+  ) {
+    const run = async (tx: Prisma.TransactionClient) =>
       tx.designRequest.create({
         data: {
           source: 'SALES_QUOTE',
@@ -305,8 +312,8 @@ export class DesignService {
           title: true,
           targetDate: true,
         },
-      }),
-    );
+      });
+    return existingTx ? run(existingTx) : this.prisma.$transaction(run);
   }
   async updateRequestStatus(
     id: string,

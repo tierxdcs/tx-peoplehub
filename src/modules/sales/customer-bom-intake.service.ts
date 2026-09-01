@@ -292,6 +292,17 @@ export class CustomerBomIntakeService implements OnModuleInit {
         'Transcribe at least one line, or mark the intake as requiring design',
       );
     }
+    // The design work is raised with the intake, so the deadline has to be
+    // resolvable now. `expectedBy` is the usual answer: the date the design sits
+    // inside is the date Sales promised the customer a price.
+    const designTargetDate = requiresDesign
+      ? (dto.design?.targetDate ?? dto.expectedBy)
+      : undefined;
+    if (requiresDesign && !designTargetDate) {
+      throw new BadRequestException(
+        'Set a target date for the design work, or the date the price was promised',
+      );
+    }
 
     let uploadedFile: {
       key: string;
@@ -327,7 +338,7 @@ export class CustomerBomIntakeService implements OnModuleInit {
 
     const prepared = await this.prepareLines(dto.lines ?? []);
 
-    const intake = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const fgCode = await this.numbering.nextContinuousNumber(
         'FG',
         'item_finished_good',
@@ -384,7 +395,7 @@ export class CustomerBomIntakeService implements OnModuleInit {
           ),
         },
       });
-      return tx.customerBomIntake.create({
+      const created = await tx.customerBomIntake.create({
         data: {
           opportunityId,
           businessUnitId: dto.businessUnitId,
@@ -418,7 +429,37 @@ export class CustomerBomIntakeService implements OnModuleInit {
           },
         },
       });
+      // Raise the design work here rather than making Sales come back for it: the
+      // brief is already in hand, and an intake nobody has briefed is invisible to
+      // the design team (their queue only lists intakes that have a request).
+      const request =
+        requiresDesign && dto.design
+          ? await this.design.raiseRequestForBomIntake(
+              {
+                customerBomIntakeId: created.id,
+                title:
+                  dto.design.title?.trim() ||
+                  `Design & BOM: ${dto.productName.trim()}`,
+                description: dto.design.description.trim(),
+                priority: dto.design.priority,
+                productId: product.id,
+                customerId: opportunity.customerId,
+                targetDate: new Date(designTargetDate as string),
+                requestedById: user.id,
+              },
+              tx,
+            )
+          : null;
+      return { intake: created, designRequest: request };
     });
+    const { intake, designRequest } = result;
+    if (designRequest) {
+      await this.notifyDesignHeads(
+        { ...intake, opportunity: { name: opportunity.name } },
+        designRequest,
+        user,
+      );
+    }
     return this.list(opportunityId, user).then((rows) =>
       rows.find((row) => row.id === intake.id),
     );
@@ -551,6 +592,26 @@ export class CustomerBomIntakeService implements OnModuleInit {
       approvedQuote: approvedQuote(row.rfqs),
       designRequest: designRequests[0] ?? null,
     };
+  }
+
+  /**
+   * A short-lived link to the customer's source document, for Sales. Minted per
+   * click rather than embedded in `detail()`: a URL carried in the detail payload
+   * would be handed out on every page load and outlive the view that asked for it.
+   */
+  async fileUrl(id: string, user: AuthenticatedUser) {
+    await this.access.assertSalesAccess(user);
+    const intake = await this.prisma.customerBomIntake.findUnique({
+      where: { id },
+      select: {
+        rawFileKey: true,
+        rawFileName: true,
+        opportunity: { select: { ownerId: true } },
+      },
+    });
+    if (!intake) throw new NotFoundException('Customer BOM intake not found');
+    await this.access.assertCanAccessOwned(user, intake.opportunity.ownerId);
+    return this.signedRawFile(intake);
   }
 
   /**
@@ -744,8 +805,14 @@ export class CustomerBomIntakeService implements OnModuleInit {
   }
 
   /**
-   * Sales hands a design-required intake to the design team: raise the design
-   * request that makes the work visible in the design module's queue.
+   * Re-brief a design-required intake: raise a fresh design request for it.
+   *
+   * The normal path no longer comes through here — `create` raises the first
+   * request in the same transaction as the intake, so the work is never sitting
+   * un-briefed and invisible. What is left for this door is the exception: the
+   * earlier request was rejected or closed and the brief has to be restated
+   * (hence the live-request guard below), plus any intake created before the
+   * brief moved onto the intake form.
    *
    * Kept on the Sales side because the ownership rule that decides who may ask
    * is a Sales rule; the DesignRequest shape and its numbering stay behind
@@ -897,6 +964,48 @@ export class CustomerBomIntakeService implements OnModuleInit {
     }
     const { designRequests, ...rest } = row;
     return { ...rest, designRequest: designRequests[0] };
+  }
+
+  /**
+   * The same document, behind the design gate. `designIntake` names the file the
+   * customer's requirement arrived in; without this the design team can see that
+   * a document exists and not open it — which is most of the requirement.
+   */
+  async designFileUrl(id: string, user: AuthenticatedUser) {
+    await this.designAccess.assertUser(user);
+    const intake = await this.prisma.customerBomIntake.findUnique({
+      where: { id },
+      select: {
+        rawFileKey: true,
+        rawFileName: true,
+        designRequests: { select: { id: true }, take: 1 },
+      },
+    });
+    if (!intake) throw new NotFoundException('Customer BOM intake not found');
+    if (!intake.designRequests.length) {
+      throw new NotFoundException(
+        'This intake has not been sent to the design team',
+      );
+    }
+    return this.signedRawFile(intake);
+  }
+
+  /** Presign whichever door already established the caller may read the intake. */
+  private async signedRawFile(intake: {
+    rawFileKey: string | null;
+    rawFileName: string | null;
+  }) {
+    if (!intake.rawFileKey) {
+      throw new NotFoundException(
+        'No customer document is attached to this intake',
+      );
+    }
+    const signed = await this.storage.createDownloadUrl(intake.rawFileKey);
+    return {
+      url: signed.url,
+      fileName: intake.rawFileName,
+      expiresInSeconds: signed.expiresInSeconds,
+    };
   }
 
   /** Item Master lookup for the design team's line entry — same fuzzy matcher
@@ -1189,20 +1298,20 @@ export class CustomerBomIntakeService implements OnModuleInit {
     await this.access.assertSalesAccess(user);
     const opportunity = await this.prisma.opportunity.findUnique({
       where: { id },
-      select: { id: true, name: true, ownerId: true },
+      select: { id: true, name: true, ownerId: true, customerId: true },
     });
     if (!opportunity) throw new NotFoundException('Opportunity not found');
     await this.access.assertCanAccessOwned(user, opportunity.ownerId);
     return opportunity;
   }
 
-  /** Working quote estimate only: never persisted and never changes Product.unitPrice. */
+  /** Derive a customer-facing price without exposing the underlying BOM cost
+   * through the Sales intake API. Never persisted; never changes Product.unitPrice. */
   private async quoteStagePricing(
     finishedGoodItemId: string | null,
     targetMarginPercent: Prisma.Decimal | null | undefined,
   ) {
-    if (!finishedGoodItemId)
-      return { liveBomCostEstimate: null, suggestedUnitPrice: null };
+    if (!finishedGoodItemId) return { suggestedUnitPrice: null };
     const boms = await this.prisma.bom.findMany({
       where: { status: { in: [BomStatus.DRAFT, BomStatus.RELEASED] } },
       orderBy: { revisionNumber: 'desc' },
@@ -1231,8 +1340,7 @@ export class CustomerBomIntakeService implements OnModuleInit {
       )
         byItem.set(bom.itemId, bom);
     }
-    if (!byItem.has(finishedGoodItemId))
-      return { liveBomCostEstimate: null, suggestedUnitPrice: null };
+    if (!byItem.has(finishedGoodItemId)) return { suggestedUnitPrice: null };
     const leaves = explodeProcurementBom(
       finishedGoodItemId,
       (itemId) => byItem.get(itemId) ?? null,
@@ -1273,7 +1381,7 @@ export class CustomerBomIntakeService implements OnModuleInit {
         accepted?.purchaseOrderLine.unitPrice ??
         awarded?.unitPrice ??
         manual?.manualStandardCost;
-      if (!cost) return { liveBomCostEstimate: null, suggestedUnitPrice: null };
+      if (!cost) return { suggestedUnitPrice: null };
       total = total.plus(cost.mul(leaf.quantityPerTopUnit));
     }
     const margin = targetMarginPercent ? targetMarginPercent.div(100) : null;
@@ -1282,7 +1390,6 @@ export class CustomerBomIntakeService implements OnModuleInit {
         ? total.div(new Prisma.Decimal(1).minus(margin))
         : null;
     return {
-      liveBomCostEstimate: total.toFixed(2),
       suggestedUnitPrice: suggested?.toFixed(2) ?? null,
     };
   }

@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { PencilRuler, Plus, Search, Trash2 } from 'lucide-react';
+import { Paperclip, PencilRuler, Plus, Search, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import {
   DESIGN_REQUEST_STATUS_LABEL,
   findCustomerBomMatches,
   getBomIntake,
+  getBomIntakeFileUrl,
   intakeStatusLabel,
   intakeStatusTone,
   reviseBomIntake,
@@ -99,6 +100,7 @@ export default function BomIntakeDetailPage() {
   const [designPriority, setDesignPriority] = useState('MEDIUM');
   const [designTargetDate, setDesignTargetDate] = useState('');
   const [sendingToDesign, setSendingToDesign] = useState(false);
+  const [openingFile, setOpeningFile] = useState(false);
 
   const load = useCallback(() => {
     return getBomIntake(id)
@@ -115,12 +117,36 @@ export default function BomIntakeDetailPage() {
     setExpectedBy(detail?.expectedBy ? dateOnlyStr(detail.expectedBy) : '');
   }, [detail?.expectedBy]);
 
+  /** The link is presigned and short-lived, so it is fetched on the click rather
+   * than rendered into an href that would sit on the page until it expired. */
+  async function openCustomerDocument() {
+    setOpeningFile(true);
+    try {
+      const link = await getBomIntakeFileUrl(id);
+      window.open(link.url, '_blank', 'noopener,noreferrer');
+    } catch (caught) {
+      toast.error(
+        caught instanceof ApiError
+          ? caught.message
+          : 'Could not open the customer document',
+      );
+    } finally {
+      setOpeningFile(false);
+    }
+  }
+
   /**
-   * Waiting on design and not yet handed to them: the brief is still owed. Once
-   * a request exists the card turns into its status instead.
+   * The brief is owed. Normally it never is — an intake raised for design carries
+   * its brief from the creation form, so the request exists from the start. What
+   * lands here is the exception: design rejected or closed the request and it has
+   * to be restated, or the intake predates the brief moving onto that form.
    */
+  const rebriefing =
+    detail?.designRequest?.status === 'REJECTED' ||
+    detail?.designRequest?.status === 'CLOSED';
   const awaitingDesignBrief =
-    detail?.status === 'DESIGN_PENDING' && !detail?.designRequest;
+    detail?.status === 'DESIGN_PENDING' &&
+    (!detail?.designRequest || rebriefing);
 
   async function sendToDesign() {
     if (!detail) return;
@@ -383,8 +409,16 @@ export default function BomIntakeDetailPage() {
           {awaitingDesignBrief && (
             <SCard className="px-5 py-[18px]">
               <SCardTitle
-                title="Send to the design team"
-                subtitle="The customer stated a requirement, not a parts list — the design team designs the product and authors the BOM."
+                title={
+                  rebriefing
+                    ? 'Re-brief the design team'
+                    : 'Send to the design team'
+                }
+                subtitle={
+                  rebriefing
+                    ? `${detail.designRequest?.requestNumber} was ${detail.designRequest?.status === 'REJECTED' ? 'rejected' : 'closed'} — restate what the customer asked for to raise a fresh request.`
+                    : 'The customer stated a requirement, not a parts list — the design team designs the product and authors the BOM.'
+                }
               />
               <div className="mt-3.5 space-y-3.5">
                 <Field
@@ -440,7 +474,11 @@ export default function BomIntakeDetailPage() {
                     disabled={sendingToDesign}
                     className={SIGNAL_BTN_PRIMARY}
                   >
-                    {sendingToDesign ? 'Raising\u2026' : 'Send to design team'}
+                    {sendingToDesign
+                      ? 'Raising\u2026'
+                      : rebriefing
+                        ? 'Raise a fresh request'
+                        : 'Send to design team'}
                   </button>
                 </div>
               </div>
@@ -805,6 +843,27 @@ export default function BomIntakeDetailPage() {
             </div>
           </SCard>
 
+          {detail.rawFileName && (
+            <SCard className="px-5 py-[18px]">
+              <SCardTitle
+                title="Customer document"
+                subtitle="What the requirement arrived in"
+              />
+              <button
+                type="button"
+                onClick={() => void openCustomerDocument()}
+                disabled={openingFile}
+                className={cn(
+                  SIGNAL_LINK,
+                  'mt-3 inline-flex items-center gap-1.5 break-all text-left text-[12.5px] disabled:opacity-60',
+                )}
+              >
+                <Paperclip className="size-3.5 shrink-0" />
+                {openingFile ? 'Opening…' : detail.rawFileName}
+              </button>
+            </SCard>
+          )}
+
           {detail.status !== 'DESIGN_PENDING' && detail.designRequest && (
             <SCard className="px-5 py-[18px]">
               <SCardTitle
@@ -917,24 +976,13 @@ export default function BomIntakeDetailPage() {
             )}
           </SCard>
 
-          {(detail.liveBomCostEstimate || detail.suggestedUnitPrice) && (
+          {detail.suggestedUnitPrice && (
             <SCard className="px-5 py-[18px]">
               <SCardTitle
                 title="Quote-stage pricing"
-                subtitle="Live estimate — never persisted"
+                subtitle="Suggested customer price — never persisted"
               />
               <div className="mt-3 space-y-1 text-[12.5px]">
-                {detail.liveBomCostEstimate && (
-                  <p>
-                    BOM cost estimate:{' '}
-                    <strong className="tabular-nums">
-                      {formatINR(
-                        Number(detail.liveBomCostEstimate),
-                        numberFormatStyle,
-                      )}
-                    </strong>
-                  </p>
-                )}
                 {detail.suggestedUnitPrice && (
                   <p>
                     Suggested unit price:{' '}

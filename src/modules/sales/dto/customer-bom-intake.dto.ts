@@ -5,6 +5,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsDefined,
   IsEnum,
   IsInt,
   IsNumber,
@@ -51,6 +52,25 @@ export class ReviseCustomerBomIntakeDto {
   lines!: CustomerBomIntakeLineDto[];
 }
 
+/**
+ * Sales hands a design-required intake to the design team. The brief is the only
+ * thing Sales can supply that the design team cannot derive — what the customer
+ * actually asked for — so it is mandatory and substantial.
+ *
+ * Supplied inline when the intake is created (the normal path), or on its own to
+ * re-brief an intake whose earlier request was rejected or closed.
+ */
+export class SendBomIntakeToDesignDto {
+  @IsOptional() @IsString() @MinLength(3) @MaxLength(200) title?: string;
+  @IsString() @MinLength(20) @MaxLength(4000) description!: string;
+  @IsOptional() @IsEnum(DesignPriority) priority?: DesignPriority;
+  /**
+   * When the design team has to be done. Defaults to the date Sales promised the
+   * customer a price, since that is the real deadline the design sits inside.
+   */
+  @IsOptional() @IsDateString() targetDate?: string;
+}
+
 export class CreateCustomerBomIntakeDto {
   @IsString() @MinLength(1) businessUnitId!: string;
   @IsString() @MinLength(1) productName!: string;
@@ -69,9 +89,20 @@ export class CreateCustomerBomIntakeDto {
    * design the product and author the BOM. The intake is still created (finished
    * good item, Product, promised date — everything the quote hangs off), it just
    * starts with no lines and no BOM, and parks in DESIGN_PENDING until the
-   * designed BOM is handed over.
+   * designed BOM is handed over. Requires `design` — the request goes out with
+   * the intake.
    */
   @IsOptional() @IsBoolean() requiresDesign?: boolean;
+  /**
+   * The brief the design team works from, raised with the intake so the work
+   * reaches them the moment it exists. Mandatory in design mode: a design request
+   * with no requirement in it is an empty ticket the design team has to chase.
+   */
+  @ValidateIf((dto: CreateCustomerBomIntakeDto) => dto.requiresDesign === true)
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => SendBomIntakeToDesignDto)
+  design?: SendBomIntakeToDesignDto;
   @IsArray()
   // A design-required intake has nothing to transcribe yet; every other one must
   // carry at least one line, or there is no BOM to source from.
@@ -80,22 +111,6 @@ export class CreateCustomerBomIntakeDto {
   @ValidateNested({ each: true })
   @Type(() => CustomerBomIntakeLineDto)
   lines!: CustomerBomIntakeLineDto[];
-}
-
-/**
- * Sales hands a design-required intake to the design team. The brief is the only
- * thing Sales can supply that the design team cannot derive — what the customer
- * actually asked for — so it is mandatory and substantial.
- */
-export class SendBomIntakeToDesignDto {
-  @IsOptional() @IsString() @MinLength(3) @MaxLength(200) title?: string;
-  @IsString() @MinLength(20) @MaxLength(4000) description!: string;
-  @IsOptional() @IsEnum(DesignPriority) priority?: DesignPriority;
-  /**
-   * When the design team has to be done. Defaults to the date Sales promised the
-   * customer a price, since that is the real deadline the design sits inside.
-   */
-  @IsOptional() @IsDateString() targetDate?: string;
 }
 
 /**

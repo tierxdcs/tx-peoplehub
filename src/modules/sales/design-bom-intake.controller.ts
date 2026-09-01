@@ -46,6 +46,15 @@ export class DesignBomIntakeController {
     return this.service.designIntake(id, user);
   }
 
+  @Get(':id/file')
+  @ApiOperation({
+    summary:
+      "Short-lived signed link to the customer's source document Sales attached",
+  })
+  fileUrl(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.designFileUrl(id, user);
+  }
+
   @Post(':id/matches')
   @ApiOperation({
     summary: 'Fuzzy Item Master candidates; excludes all cost fields',

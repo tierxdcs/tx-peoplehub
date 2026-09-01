@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Check, Plus, Search, Trash2 } from 'lucide-react';
+import { Check, Paperclip, Plus, Search, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import {
   DESIGN_REQUEST_STATUS_LABEL,
   findDesignBomMatches,
   getDesignBomIntake,
+  getDesignBomIntakeFileUrl,
   handoverDesignBom,
   intakeProgress,
   type CustomerBomCandidate,
@@ -80,6 +81,7 @@ export default function DesignBomIntakePage() {
   // Lazy: the initialiser runs on every render otherwise, burning line keys.
   const [lines, setLines] = useState<DraftLine[]>(() => [emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
+  const [openingFile, setOpeningFile] = useState(false);
 
   const load = useCallback(
     () =>
@@ -99,6 +101,24 @@ export default function DesignBomIntakePage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** The link is presigned and short-lived, so it is fetched on the click and
+   * never rendered into an href that could sit on the page until it expires. */
+  async function openCustomerDocument() {
+    setOpeningFile(true);
+    try {
+      const link = await getDesignBomIntakeFileUrl(id);
+      window.open(link.url, '_blank', 'noopener,noreferrer');
+    } catch (caught) {
+      toast.error(
+        caught instanceof ApiError
+          ? caught.message
+          : 'Could not open the customer document',
+      );
+    } finally {
+      setOpeningFile(false);
+    }
+  }
 
   const patchLine = (key: number, patch: Partial<DraftLine>) =>
     setLines((current) =>
@@ -283,7 +303,9 @@ export default function DesignBomIntakePage() {
                 {detail.createdBy.firstName} {detail.createdBy.lastName}
               </dd>
               <dd className="text-xs text-muted-foreground">
-                {detail.rawFileName ?? 'No customer document attached'}
+                {detail.rawFileName
+                  ? 'Attached the customer document below'
+                  : 'No customer document attached'}
               </dd>
             </div>
           </dl>
@@ -292,6 +314,20 @@ export default function DesignBomIntakePage() {
               Brief from Sales
             </p>
             <p className="whitespace-pre-wrap">{request.description}</p>
+            {detail.rawFileName && (
+              <button
+                type="button"
+                onClick={() => void openCustomerDocument()}
+                disabled={openingFile}
+                className={cn(
+                  SIGNAL_LINK,
+                  'mt-3 inline-flex items-center gap-1.5 text-sm disabled:opacity-60',
+                )}
+              >
+                <Paperclip className="size-3.5" />
+                {openingFile ? 'Opening…' : detail.rawFileName}
+              </button>
+            )}
           </div>
           {request.project && (
             <p className="mt-3 text-sm text-muted-foreground">

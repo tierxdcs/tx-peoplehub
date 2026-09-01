@@ -24,6 +24,7 @@ import {
 import { Button } from '../../../../../components/ui/button';
 import { Input } from '../../../../../components/ui/input';
 import { Select } from '../../../../../components/ui/select';
+import { Textarea } from '../../../../../components/ui/textarea';
 import { Field } from '../../../../../components/ui/field';
 import { useToast } from '../../../../../components/ui/toaster';
 import { cn } from '../../../../../lib/utils';
@@ -78,6 +79,14 @@ export default function CustomerBomIntakePage() {
    * authors the BOM, and only then does SCM have anything to source.
    */
   const [requiresDesign, setRequiresDesign] = useState(false);
+  /**
+   * The brief, raised with the intake. Asked for here rather than one screen
+   * later because it is the whole content of the design request — an intake with
+   * no brief is invisible to the design team and nothing announces it.
+   */
+  const [designBrief, setDesignBrief] = useState('');
+  const [designPriority, setDesignPriority] = useState('MEDIUM');
+  const [designTargetDate, setDesignTargetDate] = useState('');
   // Lazy: the initialiser runs on every render otherwise, burning line keys.
   const [lines, setLines] = useState<DraftLine[]>(() => [emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
@@ -130,10 +139,12 @@ export default function CustomerBomIntakePage() {
   const ready =
     !!productName.trim() &&
     !!businessUnitId &&
-    // Nothing to validate in design mode: the lines are the design team's to
-    // author, and the server refuses any that are sent with the flag.
-    (requiresDesign ||
-      (lines.length > 0 &&
+    // In design mode the lines are the design team's to author (the server
+    // refuses any sent with the flag), but the brief and a deadline are not
+    // optional: they are what the design request is made of.
+    (requiresDesign
+      ? designBrief.trim().length >= 20 && !!(designTargetDate || expectedBy)
+      : (lines.length > 0 &&
         lines.every(
           (line) =>
             line.description.trim() &&
@@ -169,7 +180,20 @@ export default function CustomerBomIntakePage() {
           ? { expectedBy: `${expectedBy}T00:00:00.000Z` }
           : {}),
         ...uploadedFile,
-        ...(requiresDesign ? { requiresDesign: true } : {}),
+        ...(requiresDesign
+          ? {
+              requiresDesign: true,
+              design: {
+                description: designBrief.trim(),
+                priority: designPriority,
+                // Omitted falls back to expectedBy server-side; `ready` has
+                // already established that one of the two exists.
+                ...(designTargetDate
+                  ? { targetDate: `${designTargetDate}T00:00:00.000Z` }
+                  : {}),
+              },
+            }
+          : {}),
         lines: requiresDesign
           ? []
           : lines.map((line) => ({
@@ -187,7 +211,7 @@ export default function CustomerBomIntakePage() {
       });
       toast.success(
         requiresDesign
-          ? 'Product created — send it to the design team from the Open BOM Intake register'
+          ? 'Raised with the design team — they will hand the BOM back for SCM to source'
           : 'Customer BOM created as real Product, Items, and Draft BOM',
       );
       setCreatedIntakes(await listCustomerBomIntakes(id));
@@ -195,6 +219,8 @@ export default function CustomerBomIntakePage() {
       setProductName('');
       setTargetMarginPercent('');
       setExpectedBy('');
+      setDesignBrief('');
+      setDesignTargetDate('');
       setLines([emptyLine()]);
       setSubmitting(false);
     } catch (error) {
@@ -328,23 +354,63 @@ export default function CustomerBomIntakePage() {
         {requiresDesign ? (
           <SCard className="px-5 py-[18px]">
             <SCardTitle
-              title="Design and BOM required"
-              subtitle="There is nothing to transcribe yet, so no BOM is created here."
+              title="Design brief"
+              subtitle="There is nothing to transcribe yet, so no BOM is created here. This brief is what the design team works from — it goes to them the moment you save."
             />
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <Field
+                label="What the customer asked for"
+                required
+                hint={`At least 20 characters — the design team has nothing else to go on. ${designBrief.trim().length}/20`}
+                className="md:col-span-2"
+              >
+                <Textarea
+                  rows={4}
+                  value={designBrief}
+                  onChange={(event) => setDesignBrief(event.target.value)}
+                  placeholder="Duty, dimensions, standards to meet, interfaces, anything the customer specified or ruled out."
+                />
+              </Field>
+              <Field label="Priority" required>
+                <Select
+                  value={designPriority}
+                  onChange={(event) => setDesignPriority(event.target.value)}
+                >
+                  {['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field
+                label="Design needed by"
+                required={!expectedBy}
+                hint={
+                  expectedBy
+                    ? 'Leave blank to use the promised price date above.'
+                    : 'Set this, or the promised price date above.'
+                }
+              >
+                <Input
+                  type="date"
+                  value={designTargetDate}
+                  onChange={(event) => setDesignTargetDate(event.target.value)}
+                />
+              </Field>
+            </div>
             <div className="mt-4 flex gap-2.5 rounded-lg border border-primary/40 bg-primary/[.06] p-3.5 text-sm">
               <PencilRuler className="mt-0.5 size-4 shrink-0 text-primary" />
               <div className="space-y-1.5">
                 <p>
-                  Creating this intake registers the finished good and the
-                  catalog product, and parks the intake as{' '}
-                  <strong>waiting on design</strong>.
+                  Saving registers the finished good and the catalog product, and
+                  raises the design request — the design heads are notified and
+                  the work appears in their{' '}
+                  <strong>Quote BOM Requests</strong> queue.
                 </p>
                 <p className="text-muted-foreground">
-                  Open it from the Open BOM Intake register and press{' '}
-                  <strong>Send to design team</strong> to raise the design
-                  request with your brief. When the design team hands the BOM
-                  back, the intake becomes available to SCM for RFQ exactly like
-                  a transcribed one.
+                  When the design team hands the BOM back, the intake becomes
+                  available to SCM for RFQ exactly like a transcribed one.
                 </p>
               </div>
             </div>
@@ -354,8 +420,8 @@ export default function CustomerBomIntakePage() {
                 onClick={() => void submit()}
               >
                 {submitting
-                  ? 'Creating records\u2026'
-                  : 'Create Product & raise for design'}
+                  ? 'Raising with design\u2026'
+                  : 'Create Product & send to design team'}
               </Button>
             </div>
           </SCard>
@@ -614,18 +680,12 @@ export default function CustomerBomIntakePage() {
                   </div>
                   <div className="text-right">
                     <p>
-                      Live BOM estimate:{' '}
-                      <strong>
-                        {intake.liveBomCostEstimate
-                          ? `₹${intake.liveBomCostEstimate}`
-                          : 'Awaiting item costs'}
-                      </strong>
-                    </p>
-                    <p className="text-muted-foreground">
                       Suggested unit price:{' '}
-                      {intake.suggestedUnitPrice
-                        ? `₹${intake.suggestedUnitPrice}`
-                        : 'Set margin / award RFQ'}
+                      <strong>
+                        {intake.suggestedUnitPrice
+                          ? `₹${intake.suggestedUnitPrice}`
+                          : 'Set margin / award RFQ'}
+                      </strong>
                     </p>
                   </div>
                 </div>

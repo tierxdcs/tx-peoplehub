@@ -17,7 +17,6 @@ export interface CustomerBomIntake {
   status: string;
   product: { id: string; sku: string; name: string } | null;
   bom: { id: string; status: string; revisionNumber: number } | null;
-  liveBomCostEstimate: string | null;
   suggestedUnitPrice: string | null;
   lines: Array<{
     id: string;
@@ -69,6 +68,17 @@ export const createCustomerBomIntake = (
      * parks in DESIGN_PENDING until the designed BOM is handed over.
      */
     requiresDesign?: boolean;
+    /**
+     * Required with `requiresDesign` — the design request goes out with the
+     * intake, so the brief has to be in hand now. `targetDate` falls back to
+     * `expectedBy` server-side.
+     */
+    design?: {
+      title?: string;
+      description: string;
+      priority?: string;
+      targetDate?: string;
+    };
     lines: Array<{
       description: string;
       customerPartReference?: string;
@@ -203,13 +213,26 @@ export interface BomIntakeDetail {
     createdAt: string;
     createdBy: { firstName: string; lastName: string };
   }>;
-  liveBomCostEstimate: string | null;
   suggestedUnitPrice: string | null;
   createdBy: { firstName: string; lastName: string };
 }
 
 export const getBomIntake = (id: string) =>
   apiFetch<BomIntakeDetail>(`/customer-bom-intakes/${id}`);
+
+export interface IntakeFileLink {
+  url: string;
+  fileName: string | null;
+  expiresInSeconds: number;
+}
+
+/**
+ * The customer's uploaded source document. Presigned per click and short-lived,
+ * so fetch it on the click and open the returned URL — never render it into an
+ * href on page load.
+ */
+export const getBomIntakeFileUrl = (id: string) =>
+  apiFetch<IntakeFileLink>(`/customer-bom-intakes/${id}/file`);
 
 /** Set (or clear, with null) the date Sales promised the customer a price. */
 export const setBomIntakeExpectedBy = (id: string, expectedBy: string | null) =>
@@ -411,6 +434,10 @@ export const listDesignBomIntakes = () =>
 
 export const getDesignBomIntake = (id: string) =>
   apiFetch<DesignBomIntakeDetail>(`/design/bom-intakes/${id}`);
+
+/** Same document as `getBomIntakeFileUrl`, behind the design gate. */
+export const getDesignBomIntakeFileUrl = (id: string) =>
+  apiFetch<IntakeFileLink>(`/design/bom-intakes/${id}/file`);
 
 export const findDesignBomMatches = (id: string, description: string) =>
   apiFetch<CustomerBomCandidate[]>(`/design/bom-intakes/${id}/matches`, {

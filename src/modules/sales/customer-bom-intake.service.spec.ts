@@ -454,7 +454,14 @@ describe('CustomerBomIntakeService.create — catalog pricing defaults', () => {
       },
       bom: { create: jest.fn().mockResolvedValue({ id: 'bom-1' }) },
       product: { create: jest.fn().mockResolvedValue({ id: 'prod-1' }) },
-      customerBomIntake: { create: jest.fn().mockResolvedValue({ id: 'intake-1' }) },
+      customerBomIntake: {
+        create: jest
+          .fn()
+          .mockResolvedValue({ id: 'intake-1', productName: 'Liquid Cooling' }),
+      },
+      // Design-head recipients for the "raised for design" ping; none, so the
+      // notification short-circuits instead of reaching the Pings service.
+      employee: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn((cb: any) => cb(prisma)),
     };
     const access: any = {
@@ -464,6 +471,11 @@ describe('CustomerBomIntakeService.create — catalog pricing defaults', () => {
     const numbering: any = {
       nextContinuousNumber: jest.fn().mockResolvedValue('FG-00005'),
     };
+    const design: any = {
+      raiseRequestForBomIntake: jest
+        .fn()
+        .mockResolvedValue({ id: 'dr-1', requestNumber: 'DR-2026-00001' }),
+    };
     const service = new CustomerBomIntakeService(
       prisma,
       access,
@@ -471,13 +483,13 @@ describe('CustomerBomIntakeService.create — catalog pricing defaults', () => {
       {} as any,
       { create: jest.fn() } as any,
       { get: jest.fn().mockReturnValue({ submitTransition: jest.fn() }) } as any,
-      {} as any,
+      design,
       {} as any,
     );
     service.onModuleInit();
     // list() re-reads with heavy includes and live pricing — not under test.
     jest.spyOn(service, 'list').mockResolvedValue([{ id: 'intake-1' }] as any);
-    return { service, prisma };
+    return { service, prisma, design };
   }
 
   const user: any = { id: 'sales-1', role: 'EMPLOYEE' };
@@ -523,13 +535,22 @@ describe('CustomerBomIntakeService.create — catalog pricing defaults', () => {
    * exist — that is what the quote hangs off — but there is nothing to build a
    * BOM from yet, and the intake must stay invisible to SCM until there is.
    */
+  const designDto = (overrides: Record<string, unknown> = {}) =>
+    dto({
+      requiresDesign: true,
+      lines: [],
+      design: {
+        description:
+          'Platform-mounted emergency kiosk, outdoor, IP65, 24 V supply.',
+        priority: 'HIGH',
+        targetDate: '2026-10-01T00:00:00.000Z',
+      },
+      ...overrides,
+    });
+
   it('creates the finished good and Product but no BOM when design is required', async () => {
     const { service, prisma } = setup();
-    await service.create(
-      'opp-1',
-      dto({ requiresDesign: true, lines: [] }),
-      user,
-    );
+    await service.create('opp-1', designDto(), user);
 
     expect(prisma.item.create).toHaveBeenCalled();
     expect(prisma.product.create).toHaveBeenCalled();
@@ -541,6 +562,67 @@ describe('CustomerBomIntakeService.create — catalog pricing defaults', () => {
     expect(data.status).toBe('DESIGN_PENDING');
     expect(data.bomId).toBeNull();
     expect(data.lines.create).toEqual([]);
+  });
+
+  /**
+   * The design request goes out with the intake, in the same transaction: an
+   * intake that is waiting on design but carries no request is invisible to the
+   * design team (their queue lists only intakes a request exists for), and
+   * nothing announces the gap.
+   */
+  it('raises the design request in the same transaction as the intake', async () => {
+    const { service, prisma, design } = setup();
+    await service.create('opp-1', designDto(), user);
+
+    expect(design.raiseRequestForBomIntake).toHaveBeenCalledTimes(1);
+    const [input, tx] = design.raiseRequestForBomIntake.mock.calls[0];
+    expect(input).toMatchObject({
+      customerBomIntakeId: 'intake-1',
+      description:
+        'Platform-mounted emergency kiosk, outdoor, IP65, 24 V supply.',
+      priority: 'HIGH',
+      productId: 'prod-1',
+      requestedById: 'sales-1',
+      targetDate: new Date('2026-10-01T00:00:00.000Z'),
+    });
+    // Title is derived so Sales does not have to invent one.
+    expect(input.title).toBe('Design & BOM: Liquid Cooling Complete Unit');
+    // Enrolled in the caller's transaction, not opening its own.
+    expect(tx).toBe(prisma);
+  });
+
+  it('falls back to the promised price date when no design date is given', async () => {
+    const { service, design } = setup();
+    await service.create(
+      'opp-1',
+      designDto({
+        expectedBy: '2026-11-20T00:00:00.000Z',
+        design: { description: 'A'.repeat(30) },
+      }),
+      user,
+    );
+
+    expect(
+      design.raiseRequestForBomIntake.mock.calls[0][0].targetDate,
+    ).toEqual(new Date('2026-11-20T00:00:00.000Z'));
+  });
+
+  it('refuses design work with no deadline at all', async () => {
+    const { service, prisma } = setup();
+    await expect(
+      service.create(
+        'opp-1',
+        designDto({ design: { description: 'A'.repeat(30) } }),
+        user,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.item.create).not.toHaveBeenCalled();
+  });
+
+  it('raises no design request for a transcribed intake', async () => {
+    const { service, design } = setup();
+    await service.create('opp-1', dto(), user);
+    expect(design.raiseRequestForBomIntake).not.toHaveBeenCalled();
   });
 
   it('refuses the two contradictory halves of the design flag', async () => {
@@ -938,5 +1020,124 @@ describe('CustomerBomIntakeService.handoverDesignBom', () => {
       service.handoverDesignBom('intake-1', dto, designer),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.bom.create).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The customer's source document, read through either door. The key is that each
+ * door applies its own gate — Sales ownership, or design membership — and only
+ * then presigns; the presign itself carries no authorisation of its own.
+ */
+describe('CustomerBomIntakeService raw file access', () => {
+  function setup(intake: Record<string, unknown> | null) {
+    const prisma: any = {
+      customerBomIntake: { findUnique: jest.fn().mockResolvedValue(intake) },
+    };
+    const access: any = {
+      assertSalesAccess: jest.fn(),
+      assertCanAccessOwned: jest.fn(),
+    };
+    const designAccess: any = { assertUser: jest.fn() };
+    const storage: any = {
+      createDownloadUrl: jest
+        .fn()
+        .mockResolvedValue({ url: 'https://s3/signed', expiresInSeconds: 900 }),
+    };
+    const service = new CustomerBomIntakeService(
+      prisma,
+      access,
+      {} as any,
+      storage,
+      {} as any,
+      { get: jest.fn() } as any,
+      {} as any,
+      designAccess,
+    );
+    return { service, prisma, access, designAccess, storage };
+  }
+
+  const salesUser: any = { id: 'sales-1', role: 'EMPLOYEE' };
+  const designer: any = { id: 'des-1', role: 'EMPLOYEE' };
+
+  it('presigns the stored key for the opportunity owner', async () => {
+    const { service, access, storage } = setup({
+      rawFileKey: 'customer-bom-intake/sales-1/abc',
+      rawFileName: 'Rack requirement.pdf',
+      opportunity: { ownerId: 'sales-2' },
+    });
+
+    await expect(service.fileUrl('intake-1', salesUser)).resolves.toEqual({
+      url: 'https://s3/signed',
+      fileName: 'Rack requirement.pdf',
+      expiresInSeconds: 900,
+    });
+    expect(access.assertCanAccessOwned).toHaveBeenCalledWith(
+      salesUser,
+      'sales-2',
+    );
+    expect(storage.createDownloadUrl).toHaveBeenCalledWith(
+      'customer-bom-intake/sales-1/abc',
+    );
+  });
+
+  it('presigns the same key for a designer, on design membership', async () => {
+    const { service, designAccess, storage } = setup({
+      rawFileKey: 'customer-bom-intake/sales-1/abc',
+      rawFileName: 'Rack requirement.pdf',
+      designRequests: [{ id: 'dr-1' }],
+    });
+
+    await expect(service.designFileUrl('intake-1', designer)).resolves.toEqual({
+      url: 'https://s3/signed',
+      fileName: 'Rack requirement.pdf',
+      expiresInSeconds: 900,
+    });
+    expect(designAccess.assertUser).toHaveBeenCalledWith(designer);
+    expect(storage.createDownloadUrl).toHaveBeenCalledWith(
+      'customer-bom-intake/sales-1/abc',
+    );
+  });
+
+  it('404s for the design team on an intake it was never asked about', async () => {
+    const { service, storage } = setup({
+      rawFileKey: 'customer-bom-intake/sales-1/abc',
+      rawFileName: 'Rack requirement.pdf',
+      designRequests: [],
+    });
+    await expect(
+      service.designFileUrl('intake-1', designer),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(storage.createDownloadUrl).not.toHaveBeenCalled();
+  });
+
+  it('404s on a manually entered intake, through either door', async () => {
+    const sales = setup({
+      rawFileKey: null,
+      rawFileName: null,
+      opportunity: { ownerId: 'sales-1' },
+    });
+    await expect(
+      sales.service.fileUrl('intake-1', salesUser),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    const design = setup({
+      rawFileKey: null,
+      rawFileName: null,
+      designRequests: [{ id: 'dr-1' }],
+    });
+    await expect(
+      design.service.designFileUrl('intake-1', designer),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('404s on an unknown intake before touching storage', async () => {
+    const { service, storage } = setup(null);
+    await expect(
+      service.fileUrl('nope', salesUser),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.designFileUrl('nope', designer),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(storage.createDownloadUrl).not.toHaveBeenCalled();
   });
 });

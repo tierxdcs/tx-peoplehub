@@ -93,6 +93,15 @@ export class CustomerBomIntakeRegisterController {
     return this.service.detail(id, user);
   }
 
+  @Get(':id/file')
+  @ApiOperation({
+    summary:
+      "Short-lived signed link to the customer's uploaded source document (404 when none is attached)",
+  })
+  fileUrl(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.fileUrl(id, user);
+  }
+
   @Patch(':id')
   @ApiOperation({
     summary:
