@@ -34,6 +34,8 @@ export class CreateDesignRequestDto {
   @IsOptional() @IsString() customerId?: string;
   @IsOptional() @IsString() orderId?: string;
   @IsOptional() @IsString() projectKickoffId?: string;
+  /** Quote-stage BOM intake the design team has to author the BOM for. */
+  @IsOptional() @IsString() customerBomIntakeId?: string;
   @IsOptional() @IsString() ownerId?: string;
   @IsString() targetDate!: string;
 }

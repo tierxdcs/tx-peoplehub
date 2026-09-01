@@ -6,6 +6,7 @@ import { apiFetch, ApiError } from '../../../../../lib/api';
 import { Employee } from '../../../../../lib/types';
 import {
   createPlmInvite,
+  confirmedProductionSteps,
   getOrderPlm,
   getPlmTracker,
   getPlmInvites,
@@ -272,9 +273,15 @@ function AuditorUpdate({ tracker, onSaved }: { tracker: PlmTracker; onSaved:()=>
   const toast = useToast();
   const confirm = useConfirm();
   const totalSteps = PLM_PRODUCTION_STEPS.length;
-  const [completedSteps, setCompletedSteps] = useState(0);
+  const savedCompletedSteps = confirmedProductionSteps(tracker.productionUpdates);
+  const [completedSteps, setCompletedSteps] = useState(savedCompletedSteps);
   const [notes, setNotes] = useState('');
   const [files,setFiles]=useState<File[]>([]);
+  // Refreshes can reveal a newer vendor report while this form remains mounted.
+  // Preserve any auditor selections, but never display less than persisted truth.
+  useEffect(() => {
+    setCompletedSteps((current) => Math.max(current, savedCompletedSteps));
+  }, [savedCompletedSteps]);
   return <section className="rounded-md border p-3"><h4 className="mb-1 text-sm font-semibold">Record internal auditor site visit</h4><p className="mb-3 text-xs text-muted-foreground">The update will be attributed to you and marked “site visit”.</p>
     <div className="mb-2 flex items-center justify-between text-xs"><span className="font-medium">Production progress</span><span className="font-semibold text-primary">{completedSteps}/{totalSteps} · {Math.round((completedSteps/totalSteps)*100)}%</span></div>
     <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-success transition-all" style={{width:`${(completedSteps/totalSteps)*100}%`}} /></div>

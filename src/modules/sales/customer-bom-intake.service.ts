@@ -10,6 +10,7 @@ import { ModuleRef } from '@nestjs/core';
 import {
   BomEventType,
   BomStatus,
+  CustomerBomIntakeStatus,
   GoodsReceiptNoteStatus,
   ItemType,
   Prisma,
@@ -26,25 +27,41 @@ import { SalesAccessService } from './common/sales-access.service';
 import { SalesNumberingService } from './common/sales-numbering.service';
 import { ExplodableBom, explodeProcurementBom } from '../bom/bom-explosion';
 import { BomService } from '../bom/bom.service';
+import { DesignAccessService } from '../design/design-access.service';
+import { DesignService } from '../design/design.service';
 import { PingsService } from '../pings/pings.service';
+import { DEFAULT_TARGET_MARGIN_PERCENT } from './product-margin';
 import {
   CreateCustomerBomIntakeDto,
   CustomerBomIntakeLineDto,
   CustomerBomUploadUrlDto,
+  HandoverDesignBomDto,
   ReviseCustomerBomIntakeDto,
+  SendBomIntakeToDesignDto,
+  UpdateCustomerBomIntakeDto,
 } from './dto/customer-bom-intake.dto';
 
 type Candidate = { id: string; itemCode: string; name: string; score: number };
 
 export type IntakeDerivedStatus =
-  'DRAFT' | 'PENDING_APPROVAL' | 'RFQ_FLOATED' | 'PRICED' | 'RELEASED';
+  | 'DESIGN_IN_PROGRESS'
+  | 'DRAFT'
+  | 'PENDING_APPROVAL'
+  | 'RFQ_FLOATED'
+  | 'PRICED'
+  | 'RELEASED';
 
 /**
  * Register-page lifecycle label, derived — no stored status to drift. Priced
  * (an awarded RFQ quote exists) outranks merely-floated; a RELEASED BOM
  * outranks everything (the intake has graduated to a real engineering doc).
+ *
+ * Waiting on design sits below both, not above: a DESIGN_PENDING intake has no
+ * BOM and no RFQs, so those signals cannot fire for one anyway — and if a stored
+ * status ever went stale, the real downstream evidence should still win.
  */
 export function deriveIntakeStatus(
+  intakeStatus: CustomerBomIntakeStatus | null,
   bomStatus: BomStatus | null,
   rfqStatuses: RfqStatus[],
 ): IntakeDerivedStatus {
@@ -52,8 +69,65 @@ export function deriveIntakeStatus(
   if (rfqStatuses.includes(RfqStatus.AWARDED)) return 'PRICED';
   if (rfqStatuses.some((s) => s === RfqStatus.ISSUED || s === RfqStatus.CLOSED))
     return 'RFQ_FLOATED';
+  if (intakeStatus === CustomerBomIntakeStatus.DESIGN_PENDING)
+    return 'DESIGN_IN_PROGRESS';
   if (bomStatus === BomStatus.PENDING_APPROVAL) return 'PENDING_APPROVAL';
   return 'DRAFT';
+}
+
+/**
+ * The design work behind a design-required intake, newest first. Only the newest
+ * one is ever surfaced: a second row exists only because a rejected or closed
+ * request was re-raised, and the live one is always the latest.
+ */
+const DESIGN_REQUEST_SELECT = {
+  select: {
+    id: true,
+    requestNumber: true,
+    status: true,
+    title: true,
+    priority: true,
+    targetDate: true,
+    project: {
+      select: { id: true, projectNumber: true, name: true, status: true },
+    },
+  },
+  orderBy: { createdAt: 'desc' },
+} as const;
+
+/**
+ * Same, plus Sales' brief. Only the design-side detail selects it: the brief runs
+ * to 4000 characters, which has no business being fetched once per register row.
+ */
+const DESIGN_REQUEST_BRIEF_SELECT = {
+  select: { ...DESIGN_REQUEST_SELECT.select, description: true },
+  orderBy: DESIGN_REQUEST_SELECT.orderBy,
+} as const;
+
+/** Shape of the RFQ rows both register and detail select for the award check. */
+type AwardableRfq = {
+  id: string;
+  rfqNumber: string;
+  status: RfqStatus;
+  awardDecisionAt: Date | null;
+};
+
+/**
+ * The RFQ whose quote has been accepted, if any. This is the "approved quote
+ * has been received" signal Sales watches for: at award the supplier's price
+ * becomes the BOM's cost, which is what the product gets priced from. Surfaced
+ * separately from the lifecycle badge because a released BOM shows RELEASED and
+ * would otherwise hide the fact that the quote ever landed.
+ */
+export function approvedQuote(rfqs: AwardableRfq[]) {
+  const awarded = rfqs.find((rfq) => rfq.status === RfqStatus.AWARDED);
+  return awarded
+    ? {
+        rfqId: awarded.id,
+        rfqNumber: awarded.rfqNumber,
+        receivedAt: awarded.awardDecisionAt,
+      }
+    : null;
 }
 
 function tokens(value: string): Set<string> {
@@ -103,6 +177,8 @@ export class CustomerBomIntakeService implements OnModuleInit {
     private readonly storage: VaultStorageService,
     private readonly pings: PingsService,
     private readonly moduleRef: ModuleRef,
+    private readonly design: DesignService,
+    private readonly designAccess: DesignAccessService,
   ) {}
 
   /**
@@ -140,6 +216,16 @@ export class CustomerBomIntakeService implements OnModuleInit {
     user: AuthenticatedUser,
   ): Promise<Candidate[]> {
     await this.access.assertSalesAccess(user);
+    return this.candidatesFor(description);
+  }
+
+  /**
+   * The fuzzy Item Master lookup itself, with no access rule of its own. Split
+   * out from `matches` because the design team resolves lines too when it hands
+   * over a designed BOM, and a design user is not a Sales user — each door
+   * applies its own gate and then shares this.
+   */
+  private async candidatesFor(description: string): Promise<Candidate[]> {
     const rows = await this.prisma.item.findMany({
       where: { isActive: true },
       select: { id: true, itemCode: true, name: true },
@@ -193,6 +279,19 @@ export class CustomerBomIntakeService implements OnModuleInit {
   ) {
     const opportunity = await this.ownedOpportunity(opportunityId, user);
     const fileInput = customerBomFileInput(dto);
+    // The two modes are mutually exclusive by definition: either the customer
+    // handed over a parts list (transcribe it) or they did not (design it).
+    const requiresDesign = dto.requiresDesign === true;
+    if (requiresDesign && dto.lines?.length) {
+      throw new BadRequestException(
+        'A design-required intake starts with no lines — the design team authors them',
+      );
+    }
+    if (!requiresDesign && !dto.lines?.length) {
+      throw new BadRequestException(
+        'Transcribe at least one line, or mark the intake as requiring design',
+      );
+    }
 
     let uploadedFile: {
       key: string;
@@ -226,7 +325,7 @@ export class CustomerBomIntakeService implements OnModuleInit {
     if (!businessUnit)
       throw new BadRequestException('Business unit is inactive or unknown');
 
-    const prepared = await this.prepareLines(dto.lines, user);
+    const prepared = await this.prepareLines(dto.lines ?? []);
 
     const intake = await this.prisma.$transaction(async (tx) => {
       const fgCode = await this.numbering.nextContinuousNumber(
@@ -243,39 +342,46 @@ export class CustomerBomIntakeService implements OnModuleInit {
         },
       });
       const resolved = await this.resolveItems(tx, prepared);
-      const bom = await tx.bom.create({
-        data: {
-          itemId: finishedGood.id,
-          revisionNumber: 1,
-          status: BomStatus.DRAFT,
-          revisionNotes: `Quote-stage customer BOM from opportunity ${opportunity.name}`,
-          createdById: user.id,
-          lines: {
-            create: resolved.map((entry, sequence) => ({
-              itemId: entry.itemId,
-              quantityPerUnit: new Prisma.Decimal(entry.row.input.quantity),
-              unitOfMeasure: entry.row.input.unitOfMeasure,
-              wastagePercent: new Prisma.Decimal(0),
-              makeBuy: 'BUY',
-              notes: entry.row.input.customerPartReference?.trim() || null,
-              sequence,
-            })),
-          },
-        },
-      });
+      // No parts list yet means no BOM to create; the design team's handover
+      // authors revision 1 later, against this same finished-good item.
+      const bom = requiresDesign
+        ? null
+        : await tx.bom.create({
+            data: {
+              itemId: finishedGood.id,
+              revisionNumber: 1,
+              status: BomStatus.DRAFT,
+              revisionNotes: `Quote-stage customer BOM from opportunity ${opportunity.name}`,
+              createdById: user.id,
+              lines: {
+                create: resolved.map((entry, sequence) => ({
+                  itemId: entry.itemId,
+                  quantityPerUnit: new Prisma.Decimal(entry.row.input.quantity),
+                  unitOfMeasure: entry.row.input.unitOfMeasure,
+                  wastagePercent: new Prisma.Decimal(0),
+                  makeBuy: 'BUY',
+                  notes: entry.row.input.customerPartReference?.trim() || null,
+                  sequence,
+                })),
+              },
+            },
+          });
       const product = await tx.product.create({
         data: {
           sku: fgCode,
           name: dto.productName.trim(),
           description: `Created from customer BOM intake for ${opportunity.name}`,
+          // Nobody can price this yet: the cost arrives later from the awarded
+          // RFQ quotes. autoPricedFromBomCost hands the price to the BOM
+          // release, which will set it from that cost at the target margin.
           unitPrice: new Prisma.Decimal(0),
+          autoPricedFromBomCost: true,
           unitOfMeasure: dto.unitOfMeasure,
           itemId: finishedGood.id,
           businessUnitId: dto.businessUnitId,
-          targetMarginPercent:
-            dto.targetMarginPercent == null
-              ? null
-              : new Prisma.Decimal(dto.targetMarginPercent),
+          targetMarginPercent: new Prisma.Decimal(
+            dto.targetMarginPercent ?? DEFAULT_TARGET_MARGIN_PERCENT,
+          ),
         },
       });
       return tx.customerBomIntake.create({
@@ -284,14 +390,17 @@ export class CustomerBomIntakeService implements OnModuleInit {
           businessUnitId: dto.businessUnitId,
           productName: dto.productName.trim(),
           unitOfMeasure: dto.unitOfMeasure,
+          expectedBy: dto.expectedBy ? new Date(dto.expectedBy) : null,
           rawFileKey: uploadedFile?.key ?? null,
           rawFileName: uploadedFile?.name ?? null,
           rawFileSize: uploadedFile?.sizeBytes ?? null,
           rawMimeType: uploadedFile?.contentType ?? null,
-          status: 'CREATED',
+          status: requiresDesign
+            ? CustomerBomIntakeStatus.DESIGN_PENDING
+            : CustomerBomIntakeStatus.CREATED,
           finishedGoodItemId: finishedGood.id,
           productId: product.id,
-          bomId: bom.id,
+          bomId: bom?.id ?? null,
           createdById: user.id,
           lines: {
             create: resolved.map((entry, sequence) => ({
@@ -333,17 +442,28 @@ export class CustomerBomIntakeService implements OnModuleInit {
         businessUnit: { select: { name: true } },
         product: { select: { sku: true, name: true } },
         bom: { select: { id: true, status: true, revisionNumber: true } },
-        rfqs: { select: { status: true } },
+        rfqs: {
+          select: {
+            id: true,
+            rfqNumber: true,
+            status: true,
+            awardDecisionAt: true,
+          },
+        },
+        designRequests: DESIGN_REQUEST_SELECT,
         createdBy: { select: { firstName: true, lastName: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map((row) => ({
+    return rows.map(({ designRequests, ...row }) => ({
       ...row,
       derivedStatus: deriveIntakeStatus(
+        row.status,
         row.bom?.status ?? null,
         row.rfqs.map((rfq) => rfq.status),
       ),
+      approvedQuote: approvedQuote(row.rfqs),
+      designRequest: designRequests[0] ?? null,
     }));
   }
 
@@ -388,11 +508,13 @@ export class CustomerBomIntakeService implements OnModuleInit {
             rfqNumber: true,
             title: true,
             status: true,
+            awardDecisionAt: true,
             createdAt: true,
             createdBy: { select: { firstName: true, lastName: true } },
           },
           orderBy: { createdAt: 'desc' },
         },
+        designRequests: DESIGN_REQUEST_SELECT,
         createdBy: { select: { firstName: true, lastName: true } },
       },
     });
@@ -416,15 +538,45 @@ export class CustomerBomIntakeService implements OnModuleInit {
       row.finishedGoodItemId,
       row.product?.targetMarginPercent,
     );
+    const { designRequests, ...rest } = row;
     return {
-      ...row,
+      ...rest,
       revisions,
       ...pricing,
       derivedStatus: deriveIntakeStatus(
+        row.status,
         row.bom?.status ?? null,
         row.rfqs.map((rfq) => rfq.status),
       ),
+      approvedQuote: approvedQuote(row.rfqs),
+      designRequest: designRequests[0] ?? null,
     };
+  }
+
+  /**
+   * Set or clear the date Sales promised the customer a price. Owner-scoped like
+   * every other intake write, and allowed in any lifecycle state: the promise
+   * can be renegotiated long after R&D has released the BOM.
+   */
+  async setExpectedBy(
+    id: string,
+    dto: UpdateCustomerBomIntakeDto,
+    user: AuthenticatedUser,
+  ) {
+    await this.access.assertSalesAccess(user);
+    const intake = await this.prisma.customerBomIntake.findUnique({
+      where: { id },
+      select: { id: true, opportunity: { select: { ownerId: true } } },
+    });
+    if (!intake) throw new NotFoundException('Customer BOM intake not found');
+    await this.access.assertCanAccessOwned(user, intake.opportunity.ownerId);
+    await this.prisma.customerBomIntake.update({
+      where: { id },
+      data: {
+        expectedBy: dto.expectedBy ? new Date(dto.expectedBy) : null,
+      },
+    });
+    return this.detail(id, user);
   }
 
   /**
@@ -468,7 +620,7 @@ export class CustomerBomIntakeService implements OnModuleInit {
         'This BOM is awaiting R&D approval — it cannot be revised until R&D approves or rejects it.',
       );
 
-    const prepared = await this.prepareLines(dto.lines, user);
+    const prepared = await this.prepareLines(dto.lines);
     const previousRevision = intake.bom.revisionNumber;
     const newRevisionNumber = await this.prisma.$transaction(async (tx) => {
       const resolved = await this.resolveItems(tx, prepared);
@@ -592,6 +744,345 @@ export class CustomerBomIntakeService implements OnModuleInit {
   }
 
   /**
+   * Sales hands a design-required intake to the design team: raise the design
+   * request that makes the work visible in the design module's queue.
+   *
+   * Kept on the Sales side because the ownership rule that decides who may ask
+   * is a Sales rule; the DesignRequest shape and its numbering stay behind
+   * `DesignService.raiseRequestForBomIntake`.
+   */
+  async sendToDesign(
+    id: string,
+    dto: SendBomIntakeToDesignDto,
+    user: AuthenticatedUser,
+  ) {
+    await this.access.assertSalesAccess(user);
+    const intake = await this.prisma.customerBomIntake.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        productName: true,
+        productId: true,
+        expectedBy: true,
+        opportunity: {
+          select: { name: true, ownerId: true, customerId: true },
+        },
+        designRequests: { select: { id: true, requestNumber: true, status: true } },
+      },
+    });
+    if (!intake) throw new NotFoundException('Customer BOM intake not found');
+    await this.access.assertCanAccessOwned(user, intake.opportunity.ownerId);
+    if (intake.status !== CustomerBomIntakeStatus.DESIGN_PENDING) {
+      throw new BadRequestException(
+        'Only an intake raised for design can be sent to the design team',
+      );
+    }
+    // A rejected or closed request may be re-raised (the brief usually changes);
+    // an open or accepted one means the design team is already on it.
+    const live = intake.designRequests.find(
+      (request) => request.status === 'OPEN' || request.status === 'ACCEPTED',
+    );
+    if (live) {
+      throw new BadRequestException(
+        `${live.requestNumber} is already with the design team for this intake`,
+      );
+    }
+    const targetDate = dto.targetDate
+      ? new Date(dto.targetDate)
+      : intake.expectedBy;
+    if (!targetDate) {
+      throw new BadRequestException(
+        'Set a target date for the design work, or a promised date on the intake',
+      );
+    }
+
+    const request = await this.design.raiseRequestForBomIntake({
+      customerBomIntakeId: intake.id,
+      title: dto.title?.trim() || `Design & BOM: ${intake.productName}`,
+      description: dto.description.trim(),
+      priority: dto.priority,
+      productId: intake.productId,
+      customerId: intake.opportunity.customerId,
+      targetDate,
+      requestedById: user.id,
+    });
+    await this.notifyDesignHeads(intake, request, user);
+    return this.detail(id, user);
+  }
+
+  /**
+   * The design team's own view of the quote-stage work waiting on it: every
+   * intake a design request has been raised for, newest first. Gated by design
+   * membership rather than the Sales owner rule — a designer is not the
+   * opportunity owner and never will be.
+   */
+  async designQueue(user: AuthenticatedUser) {
+    await this.designAccess.assertUser(user);
+    const rows = await this.prisma.customerBomIntake.findMany({
+      where: { designRequests: { some: {} } },
+      select: {
+        id: true,
+        productName: true,
+        unitOfMeasure: true,
+        status: true,
+        expectedBy: true,
+        createdAt: true,
+        opportunity: {
+          select: { id: true, name: true, customer: { select: { name: true } } },
+        },
+        businessUnit: { select: { name: true } },
+        bom: { select: { id: true, status: true, revisionNumber: true } },
+        designRequests: DESIGN_REQUEST_SELECT,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map(({ designRequests, ...row }) => ({
+      ...row,
+      designRequest: designRequests[0] ?? null,
+    }));
+  }
+
+  /**
+   * One queued intake, read as the design team. Deliberately NOT `detail()`:
+   * that door enforces Sales ownership and would refuse a designer outright.
+   * What is exposed here is only what the design work needs — the requirement,
+   * the customer's source document and the resulting BOM — never the quote-stage
+   * pricing estimate, which is Sales' commercial information.
+   */
+  async designIntake(id: string, user: AuthenticatedUser) {
+    await this.designAccess.assertUser(user);
+    const row = await this.prisma.customerBomIntake.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        productName: true,
+        unitOfMeasure: true,
+        status: true,
+        expectedBy: true,
+        createdAt: true,
+        rawFileName: true,
+        finishedGoodItemId: true,
+        opportunity: {
+          select: { id: true, name: true, customer: { select: { name: true } } },
+        },
+        businessUnit: { select: { name: true } },
+        createdBy: { select: { firstName: true, lastName: true } },
+        bom: {
+          select: {
+            id: true,
+            status: true,
+            revisionNumber: true,
+            revisionNotes: true,
+            lines: {
+              orderBy: { sequence: 'asc' },
+              select: {
+                id: true,
+                quantityPerUnit: true,
+                unitOfMeasure: true,
+                notes: true,
+                item: { select: { id: true, itemCode: true, name: true } },
+              },
+            },
+          },
+        },
+        designRequests: DESIGN_REQUEST_BRIEF_SELECT,
+      },
+    });
+    if (!row) throw new NotFoundException('Customer BOM intake not found');
+    if (!row.designRequests.length) {
+      throw new NotFoundException(
+        'This intake has not been sent to the design team',
+      );
+    }
+    const { designRequests, ...rest } = row;
+    return { ...rest, designRequest: designRequests[0] };
+  }
+
+  /** Item Master lookup for the design team's line entry — same fuzzy matcher
+   * Sales gets, behind the design gate instead of the Sales one. */
+  async designMatches(description: string, user: AuthenticatedUser) {
+    await this.designAccess.assertUser(user);
+    return this.candidatesFor(description);
+  }
+
+  /**
+   * The design team hands over the parts list it designed: revision 1 of the
+   * intake's BOM, and the intake flips to CREATED — from which moment SCM's
+   * quote-stage RFQ picker sees it exactly like a Sales-transcribed one.
+   *
+   * The flip happens here, at handover, and NOT at BOM approval or release.
+   * Release prices the product from the BOM's cost, and that cost only exists
+   * once SCM has awarded the RFQ — gating sourcing on release would deadlock.
+   * A DRAFT BOM being RFQ-able is the existing model, not a concession.
+   */
+  async handoverDesignBom(
+    id: string,
+    dto: HandoverDesignBomDto,
+    user: AuthenticatedUser,
+  ) {
+    await this.designAccess.assertUser(user);
+    const intake = await this.prisma.customerBomIntake.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        productName: true,
+        finishedGoodItemId: true,
+        createdById: true,
+        opportunity: { select: { id: true, name: true, ownerId: true } },
+        designRequests: { select: { id: true, requestNumber: true, status: true } },
+      },
+    });
+    if (!intake) throw new NotFoundException('Customer BOM intake not found');
+    if (!intake.designRequests.length) {
+      throw new NotFoundException(
+        'This intake has not been sent to the design team',
+      );
+    }
+    if (intake.status !== CustomerBomIntakeStatus.DESIGN_PENDING) {
+      throw new BadRequestException(
+        'This intake already has a BOM — further changes go through the BOM revision flow',
+      );
+    }
+    if (!intake.finishedGoodItemId) {
+      throw new BadRequestException(
+        'This intake has no finished-good item to build a BOM against',
+      );
+    }
+    const finishedGoodItemId = intake.finishedGoodItemId;
+
+    const prepared = await this.prepareLines(dto.lines);
+    await this.prisma.$transaction(async (tx) => {
+      const resolved = await this.resolveItems(tx, prepared);
+      const latest = await tx.bom.findFirst({
+        where: { itemId: finishedGoodItemId },
+        orderBy: { revisionNumber: 'desc' },
+        select: { revisionNumber: true },
+      });
+      const bom = await tx.bom.create({
+        data: {
+          itemId: finishedGoodItemId,
+          revisionNumber: (latest?.revisionNumber ?? 0) + 1,
+          status: BomStatus.DRAFT,
+          revisionNotes:
+            dto.notes?.trim() ||
+            `Designed by the design team for ${intake.designRequests[0].requestNumber}`,
+          createdById: user.id,
+          lines: {
+            create: resolved.map((entry, sequence) => ({
+              itemId: entry.itemId,
+              quantityPerUnit: new Prisma.Decimal(entry.row.input.quantity),
+              unitOfMeasure: entry.row.input.unitOfMeasure,
+              wastagePercent: new Prisma.Decimal(0),
+              makeBuy: 'BUY' as const,
+              notes: entry.row.input.customerPartReference?.trim() || null,
+              sequence,
+            })),
+          },
+        },
+      });
+      await tx.bomEvent.create({
+        data: {
+          bomId: bom.id,
+          type: BomEventType.CREATED,
+          actorId: user.id,
+          comment: `Designed for quote-stage intake ${intake.productName} (${intake.designRequests[0].requestNumber})`,
+        },
+      });
+      // The intake's own lines mirror the current revision; there are none to
+      // clear, because a design-required intake was created without any.
+      await tx.customerBomIntakeLine.deleteMany({ where: { intakeId: id } });
+      await tx.customerBomIntake.update({
+        where: { id },
+        data: {
+          bomId: bom.id,
+          status: CustomerBomIntakeStatus.CREATED,
+          lines: {
+            create: resolved.map((entry, sequence) => ({
+              description: entry.row.input.description.trim(),
+              customerPartReference:
+                entry.row.input.customerPartReference?.trim() || null,
+              quantity: new Prisma.Decimal(entry.row.input.quantity),
+              unitOfMeasure: entry.row.input.unitOfMeasure,
+              resolvedItemId: entry.itemId,
+              createdNewItem: entry.created,
+              fuzzyCandidates: entry.row
+                .candidates as unknown as Prisma.InputJsonValue,
+              sequence,
+            })),
+          },
+        },
+      });
+    });
+
+    await this.notifyBomHandover(intake, user);
+    return this.designIntake(id, user);
+  }
+
+  /**
+   * Tell the design heads there is quote-stage design work waiting. Best effort:
+   * a notification failure never undoes the request that was just raised.
+   */
+  private async notifyDesignHeads(
+    intake: { id: string; productName: string; opportunity: { name: string } },
+    request: { id: string; requestNumber: string },
+    user: AuthenticatedUser,
+  ) {
+    try {
+      const heads = await this.prisma.employee.findMany({
+        where: { isDesignHead: true, status: 'ACTIVE' },
+        select: { id: true },
+      });
+      const recipientIds = heads
+        .map((head) => head.id)
+        .filter((headId) => headId !== user.id);
+      if (!recipientIds.length) return;
+      await this.pings.create(user, {
+        message: `${request.requestNumber}: ${intake.productName} (${intake.opportunity.name}) needs to be designed and its BOM authored before Sales can be quoted.`,
+        recipientIds,
+        linkedRecordType: 'DESIGN_BOM_INTAKE',
+        linkedRecordId: intake.id,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Design-request ping for ${request.requestNumber} failed: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+  }
+
+  /**
+   * Tell Sales the designed BOM has landed, so the intake can go to SCM for
+   * RFQ. Best effort, for the same reason as every other ping here.
+   */
+  private async notifyBomHandover(
+    intake: {
+      id: string;
+      productName: string;
+      createdById: string;
+      opportunity: { ownerId: string };
+    },
+    user: AuthenticatedUser,
+  ) {
+    try {
+      const recipientIds = [
+        ...new Set([intake.opportunity.ownerId, intake.createdById]),
+      ].filter((id) => id !== user.id);
+      if (!recipientIds.length) return;
+      await this.pings.create(user, {
+        message: `${intake.productName}: the design team has handed over the BOM — the intake is ready for SCM to float an RFQ.`,
+        recipientIds,
+        linkedRecordType: 'CUSTOMER_BOM_INTAKE',
+        linkedRecordId: intake.id,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Design BOM handover ping for intake ${intake.id} failed: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+  }
+
+  /**
    * Stale-RFQ gap: SCM may have floated an RFQ from an earlier revision; a
    * later revision silently invalidates it. Ping each live RFQ's owner via
    * the normal Pings mechanism (sender = the revising Sales user). Best
@@ -628,11 +1119,8 @@ export class CustomerBomIntakeService implements OnModuleInit {
   }
 
   /** Validates each line's resolution choice and re-runs fuzzy matching
-   * server-side — shared by create() and revise(). */
-  private async prepareLines(
-    lines: CustomerBomIntakeLineDto[],
-    user: AuthenticatedUser,
-  ) {
+   * server-side — shared by create(), revise() and the design handover. */
+  private async prepareLines(lines: CustomerBomIntakeLineDto[]) {
     const prepared: Array<{
       input: CustomerBomIntakeLineDto;
       candidates: Candidate[];
@@ -645,7 +1133,7 @@ export class CustomerBomIntakeService implements OnModuleInit {
       }
       prepared.push({
         input,
-        candidates: await this.matches(input.description, user),
+        candidates: await this.candidatesFor(input.description),
       });
     }
     return prepared;

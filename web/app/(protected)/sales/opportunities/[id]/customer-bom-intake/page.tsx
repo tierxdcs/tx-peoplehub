@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Check, Plus, Search, Trash2, Upload } from 'lucide-react';
+import { Check, PencilRuler, Plus, Search, Trash2, Upload } from 'lucide-react';
 import { ApiError } from '../../../../../lib/api';
 import {
   createCustomerBomIntake,
@@ -70,7 +70,14 @@ export default function CustomerBomIntakePage() {
   const [productName, setProductName] = useState('');
   const [unitOfMeasure, setUnitOfMeasure] = useState('each');
   const [targetMarginPercent, setTargetMarginPercent] = useState('');
+  const [expectedBy, setExpectedBy] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  /**
+   * The customer stated a requirement rather than handing over a parts list, so
+   * there is nothing to transcribe: the design team designs the product and
+   * authors the BOM, and only then does SCM have anything to source.
+   */
+  const [requiresDesign, setRequiresDesign] = useState(false);
   // Lazy: the initialiser runs on every render otherwise, burning line keys.
   const [lines, setLines] = useState<DraftLine[]>(() => [emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
@@ -123,14 +130,17 @@ export default function CustomerBomIntakePage() {
   const ready =
     !!productName.trim() &&
     !!businessUnitId &&
-    lines.length > 0 &&
-    lines.every(
-      (line) =>
-        line.description.trim() &&
-        Number(line.quantity) > 0 &&
-        line.searchedDescription === line.description.trim() &&
-        !!line.existingItemId !== line.confirmCreateNew,
-    );
+    // Nothing to validate in design mode: the lines are the design team's to
+    // author, and the server refuses any that are sent with the flag.
+    (requiresDesign ||
+      (lines.length > 0 &&
+        lines.every(
+          (line) =>
+            line.description.trim() &&
+            Number(line.quantity) > 0 &&
+            line.searchedDescription === line.description.trim() &&
+            !!line.existingItemId !== line.confirmCreateNew,
+        )));
 
   async function submit() {
     if (!ready) return;
@@ -153,27 +163,38 @@ export default function CustomerBomIntakePage() {
         ...(targetMarginPercent !== ''
           ? { targetMarginPercent: Number(targetMarginPercent) }
           : {}),
+        // Date-only promise, stored at UTC midnight so it reads back as the same
+        // calendar day everywhere (the repo's dateOnlyStr convention).
+        ...(expectedBy !== ''
+          ? { expectedBy: `${expectedBy}T00:00:00.000Z` }
+          : {}),
         ...uploadedFile,
-        lines: lines.map((line) => ({
-          description: line.description.trim(),
-          ...(line.customerPartReference.trim()
-            ? { customerPartReference: line.customerPartReference.trim() }
-            : {}),
-          quantity: Number(line.quantity),
-          unitOfMeasure: line.unitOfMeasure,
-          ...(line.existingItemId
-            ? { existingItemId: line.existingItemId }
-            : {}),
-          confirmCreateNew: line.confirmCreateNew,
-        })),
+        ...(requiresDesign ? { requiresDesign: true } : {}),
+        lines: requiresDesign
+          ? []
+          : lines.map((line) => ({
+              description: line.description.trim(),
+              ...(line.customerPartReference.trim()
+                ? { customerPartReference: line.customerPartReference.trim() }
+                : {}),
+              quantity: Number(line.quantity),
+              unitOfMeasure: line.unitOfMeasure,
+              ...(line.existingItemId
+                ? { existingItemId: line.existingItemId }
+                : {}),
+              confirmCreateNew: line.confirmCreateNew,
+            })),
       });
       toast.success(
-        'Customer BOM created as real Product, Items, and Draft BOM',
+        requiresDesign
+          ? 'Product created — send it to the design team from the Open BOM Intake register'
+          : 'Customer BOM created as real Product, Items, and Draft BOM',
       );
       setCreatedIntakes(await listCustomerBomIntakes(id));
       setFile(null);
       setProductName('');
       setTargetMarginPercent('');
+      setExpectedBy('');
       setLines([emptyLine()]);
       setSubmitting(false);
     } catch (error) {
@@ -193,6 +214,54 @@ export default function CustomerBomIntakePage() {
         description="Transcribe the customer's parts list without entering engineering classifications or internal costs."
       />
       <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
+        <SCard className="px-5 py-[18px]">
+          <SCardTitle
+            title="What did the customer give you?"
+            subtitle="A parts list is transcribed here and goes straight to SCM. A requirement has to be designed first — the design team authors the BOM and hands it back."
+          />
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {(
+              [
+                {
+                  value: false,
+                  title: 'A parts list',
+                  detail:
+                    'Transcribe the customer\u2019s lines against Item Master. Creates a Draft BOM SCM can float an RFQ from immediately.',
+                },
+                {
+                  value: true,
+                  title: 'A requirement to design',
+                  detail:
+                    'Raises the work for the design team. The product is created now so the quote has something to hang off; SCM sees it only once the designed BOM is handed over.',
+                },
+              ] as const
+            ).map((mode) => (
+              <label
+                key={String(mode.value)}
+                className={cn(
+                  'flex cursor-pointer gap-2.5 rounded-lg border p-3.5 text-sm',
+                  requiresDesign === mode.value &&
+                    'border-primary bg-primary/[.06]',
+                )}
+              >
+                <input
+                  type="radio"
+                  name="intake-mode"
+                  className="mt-1"
+                  checked={requiresDesign === mode.value}
+                  onChange={() => setRequiresDesign(mode.value)}
+                />
+                <span>
+                  <strong>{mode.title}</strong>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {mode.detail}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </SCard>
+
         <SCard className="px-5 py-[18px]">
           <SCardTitle title="Customer document and product" />
           <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -243,237 +312,289 @@ export default function CustomerBomIntakePage() {
                 onChange={(event) => setTargetMarginPercent(event.target.value)}
               />
             </Field>
+            <Field
+              label="Price promised to customer by (optional)"
+              hint="Drives the turnaround progress bar on the Open BOM Intake register. Editable later."
+            >
+              <Input
+                type="date"
+                value={expectedBy}
+                onChange={(event) => setExpectedBy(event.target.value)}
+              />
+            </Field>
           </div>
         </SCard>
 
-        <SCard className="px-5 py-[18px]">
-          <SCardTitle
-            title="Customer BOM lines"
-            subtitle="Search Item Master for every line before choosing an existing match or explicitly creating new."
-            right={
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setLines((current) => [...current, emptyLine()])}
-              >
-                <Plus className="size-4" /> Add line
-              </Button>
-            }
-          />
-          <div className="mt-4 space-y-4">
-            {lines.map((line, index) => {
-              const pickedCandidate =
-                line.candidates.find(
-                  (candidate) => candidate.id === line.existingItemId,
-                ) ?? null;
-              const resolved = !!pickedCandidate || line.confirmCreateNew;
-              // Searched but unresolved, or explicitly reopened via "Change".
-              const showCandidates =
-                !!line.searchedDescription && (!resolved || line.changing);
-              return (
-                <div key={line.key} className="rounded-lg border p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <strong className="text-sm">Line {index + 1}</strong>
-                    {lines.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() =>
-                          setLines((current) =>
-                            current.filter((item) => item.key !== line.key),
-                          )
-                        }
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    )}
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-[2fr_1fr_0.7fr_0.8fr_auto]">
-                    <Field label="Description" required>
-                      <Input
-                        value={line.description}
-                        onChange={(event) =>
-                          patchLine(line.key, {
-                            description: event.target.value,
-                            searchedDescription: null,
-                            candidates: [],
-                            existingItemId: '',
-                            confirmCreateNew: false,
-                            changing: false,
-                          })
-                        }
-                      />
-                    </Field>
-                    <Field label="Customer part ref">
-                      <Input
-                        value={line.customerPartReference}
-                        onChange={(event) =>
-                          patchLine(line.key, {
-                            customerPartReference: event.target.value,
-                          })
-                        }
-                      />
-                    </Field>
-                    <Field label="Quantity" required>
-                      <Input
-                        type="number"
-                        min="0.0001"
-                        step="any"
-                        value={line.quantity}
-                        onChange={(event) =>
-                          patchLine(line.key, { quantity: event.target.value })
-                        }
-                      />
-                    </Field>
-                    <Field label="Unit" required>
-                      <Input
-                        value={line.unitOfMeasure}
-                        onChange={(event) =>
-                          patchLine(line.key, {
-                            unitOfMeasure: event.target.value,
-                          })
-                        }
-                      />
-                    </Field>
-                    <div className="pt-6">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={line.searching}
-                        onClick={() => void searchLine(line)}
-                      >
-                        <Search className="size-4" />{' '}
-                        {line.searching ? 'Searching' : 'Search'}
-                      </Button>
-                    </div>
-                  </div>
-                  {showCandidates && (
-                    <div className="mt-3 rounded-md bg-black/[.03] p-3 text-sm dark:bg-white/[.03]">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <p className="font-medium">
-                          Candidate Item Master matches
-                        </p>
-                        {line.changing && (
-                          // Re-clicking the already-selected radio fires no change
-                          // event, so reopening needs its own way back out.
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              patchLine(line.key, { changing: false })
-                            }
-                          >
-                            Cancel
-                          </Button>
-                        )}
-                      </div>
-                      {line.candidates.length ? (
-                        line.candidates.map((candidate) => (
-                          <label
-                            key={candidate.id}
-                            className={cn(
-                              'mb-2 flex cursor-pointer items-center gap-2 rounded border p-2',
-                              line.existingItemId === candidate.id &&
-                                'border-primary bg-primary/[.08]',
-                            )}
-                          >
-                            <input
-                              type="radio"
-                              name={`resolution-${line.key}`}
-                              checked={line.existingItemId === candidate.id}
-                              onChange={() =>
-                                patchLine(line.key, {
-                                  existingItemId: candidate.id,
-                                  confirmCreateNew: false,
-                                  changing: false,
-                                })
-                              }
-                            />
-                            <span>
-                              <strong>{candidate.itemCode}</strong> —{' '}
-                              {candidate.name}{' '}
-                              <span className="text-xs text-muted-foreground">
-                                ({Math.round(candidate.score * 100)}% match)
-                              </span>
-                            </span>
-                          </label>
-                        ))
-                      ) : (
-                        <p className="mb-2 text-muted-foreground">
-                          No likely matches found.
-                        </p>
-                      )}
-                      <label
-                        className={cn(
-                          'flex cursor-pointer items-center gap-2 rounded border border-dashed p-2',
-                          line.confirmCreateNew &&
-                            'border-primary bg-primary/[.08]',
-                        )}
-                      >
-                        <input
-                          type="radio"
-                          name={`resolution-${line.key}`}
-                          checked={line.confirmCreateNew}
-                          onChange={() =>
-                            patchLine(line.key, {
-                              existingItemId: '',
-                              confirmCreateNew: true,
-                              changing: false,
-                            })
-                          }
-                        />
-                        None of these match — create a new Component item
-                      </label>
-                    </div>
-                  )}
-                  {resolved && !line.changing && (
-                    // Collapsed confirmation: the candidate list closing, and this
-                    // line naming what the pick resolved to, is the only signal
-                    // that the choice registered — a radio dot in a list of eight
-                    // near-identical fuzzy matches reads as nothing happening.
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/[.06] p-3 text-sm">
-                      <span className="flex items-center gap-2">
-                        <Check className="size-4 shrink-0 text-primary" />
-                        {pickedCandidate ? (
-                          <span>
-                            Matched to{' '}
-                            <strong>{pickedCandidate.itemCode}</strong> —{' '}
-                            {pickedCandidate.name}
-                          </span>
-                        ) : (
-                          <span>
-                            New Component item will be created for{' '}
-                            <strong>{line.searchedDescription}</strong>
-                          </span>
-                        )}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => patchLine(line.key, { changing: true })}
-                      >
-                        Change
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            <div className="flex justify-end">
+        {requiresDesign ? (
+          <SCard className="px-5 py-[18px]">
+            <SCardTitle
+              title="Design and BOM required"
+              subtitle="There is nothing to transcribe yet, so no BOM is created here."
+            />
+            <div className="mt-4 flex gap-2.5 rounded-lg border border-primary/40 bg-primary/[.06] p-3.5 text-sm">
+              <PencilRuler className="mt-0.5 size-4 shrink-0 text-primary" />
+              <div className="space-y-1.5">
+                <p>
+                  Creating this intake registers the finished good and the
+                  catalog product, and parks the intake as{' '}
+                  <strong>waiting on design</strong>.
+                </p>
+                <p className="text-muted-foreground">
+                  Open it from the Open BOM Intake register and press{' '}
+                  <strong>Send to design team</strong> to raise the design
+                  request with your brief. When the design team hands the BOM
+                  back, the intake becomes available to SCM for RFQ exactly like
+                  a transcribed one.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
               <Button
                 disabled={!ready || submitting}
                 onClick={() => void submit()}
               >
                 {submitting
-                  ? 'Creating records…'
-                  : 'Create Product & Draft BOM'}
+                  ? 'Creating records\u2026'
+                  : 'Create Product & raise for design'}
               </Button>
             </div>
-          </div>
-        </SCard>
+          </SCard>
+        ) : (
+          <SCard className="px-5 py-[18px]">
+            <SCardTitle
+              title="Customer BOM lines"
+              subtitle="Search Item Master for every line before choosing an existing match or explicitly creating new."
+              right={
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setLines((current) => [...current, emptyLine()])
+                  }
+                >
+                  <Plus className="size-4" /> Add line
+                </Button>
+              }
+            />
+            <div className="mt-4 space-y-4">
+              {lines.map((line, index) => {
+                const pickedCandidate =
+                  line.candidates.find(
+                    (candidate) => candidate.id === line.existingItemId,
+                  ) ?? null;
+                const resolved = !!pickedCandidate || line.confirmCreateNew;
+                // Searched but unresolved, or explicitly reopened via "Change".
+                const showCandidates =
+                  !!line.searchedDescription && (!resolved || line.changing);
+                return (
+                  <div key={line.key} className="rounded-lg border p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <strong className="text-sm">Line {index + 1}</strong>
+                      {lines.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() =>
+                            setLines((current) =>
+                              current.filter((item) => item.key !== line.key),
+                            )
+                          }
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-[2fr_1fr_0.7fr_0.8fr_auto]">
+                      <Field label="Description" required>
+                        <Input
+                          value={line.description}
+                          onChange={(event) =>
+                            patchLine(line.key, {
+                              description: event.target.value,
+                              searchedDescription: null,
+                              candidates: [],
+                              existingItemId: '',
+                              confirmCreateNew: false,
+                              changing: false,
+                            })
+                          }
+                        />
+                      </Field>
+                      <Field label="Customer part ref">
+                        <Input
+                          value={line.customerPartReference}
+                          onChange={(event) =>
+                            patchLine(line.key, {
+                              customerPartReference: event.target.value,
+                            })
+                          }
+                        />
+                      </Field>
+                      <Field label="Quantity" required>
+                        <Input
+                          type="number"
+                          min="0.0001"
+                          step="any"
+                          value={line.quantity}
+                          onChange={(event) =>
+                            patchLine(line.key, {
+                              quantity: event.target.value,
+                            })
+                          }
+                        />
+                      </Field>
+                      <Field label="Unit" required>
+                        <Input
+                          value={line.unitOfMeasure}
+                          onChange={(event) =>
+                            patchLine(line.key, {
+                              unitOfMeasure: event.target.value,
+                            })
+                          }
+                        />
+                      </Field>
+                      <div className="pt-6">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={line.searching}
+                          onClick={() => void searchLine(line)}
+                        >
+                          <Search className="size-4" />{' '}
+                          {line.searching ? 'Searching' : 'Search'}
+                        </Button>
+                      </div>
+                    </div>
+                    {showCandidates && (
+                      <div className="mt-3 rounded-md bg-black/[.03] p-3 text-sm dark:bg-white/[.03]">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="font-medium">
+                            Candidate Item Master matches
+                          </p>
+                          {line.changing && (
+                            // Re-clicking the already-selected radio fires no change
+                            // event, so reopening needs its own way back out.
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                patchLine(line.key, { changing: false })
+                              }
+                            >
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
+                        {line.candidates.length ? (
+                          line.candidates.map((candidate) => (
+                            <label
+                              key={candidate.id}
+                              className={cn(
+                                'mb-2 flex cursor-pointer items-center gap-2 rounded border p-2',
+                                line.existingItemId === candidate.id &&
+                                  'border-primary bg-primary/[.08]',
+                              )}
+                            >
+                              <input
+                                type="radio"
+                                name={`resolution-${line.key}`}
+                                checked={line.existingItemId === candidate.id}
+                                onChange={() =>
+                                  patchLine(line.key, {
+                                    existingItemId: candidate.id,
+                                    confirmCreateNew: false,
+                                    changing: false,
+                                  })
+                                }
+                              />
+                              <span>
+                                <strong>{candidate.itemCode}</strong> —{' '}
+                                {candidate.name}{' '}
+                                <span className="text-xs text-muted-foreground">
+                                  ({Math.round(candidate.score * 100)}% match)
+                                </span>
+                              </span>
+                            </label>
+                          ))
+                        ) : (
+                          <p className="mb-2 text-muted-foreground">
+                            No likely matches found.
+                          </p>
+                        )}
+                        <label
+                          className={cn(
+                            'flex cursor-pointer items-center gap-2 rounded border border-dashed p-2',
+                            line.confirmCreateNew &&
+                              'border-primary bg-primary/[.08]',
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name={`resolution-${line.key}`}
+                            checked={line.confirmCreateNew}
+                            onChange={() =>
+                              patchLine(line.key, {
+                                existingItemId: '',
+                                confirmCreateNew: true,
+                                changing: false,
+                              })
+                            }
+                          />
+                          None of these match — create a new Component item
+                        </label>
+                      </div>
+                    )}
+                    {resolved && !line.changing && (
+                      // Collapsed confirmation: the candidate list closing, and this
+                      // line naming what the pick resolved to, is the only signal
+                      // that the choice registered — a radio dot in a list of eight
+                      // near-identical fuzzy matches reads as nothing happening.
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/[.06] p-3 text-sm">
+                        <span className="flex items-center gap-2">
+                          <Check className="size-4 shrink-0 text-primary" />
+                          {pickedCandidate ? (
+                            <span>
+                              Matched to{' '}
+                              <strong>{pickedCandidate.itemCode}</strong> —{' '}
+                              {pickedCandidate.name}
+                            </span>
+                          ) : (
+                            <span>
+                              New Component item will be created for{' '}
+                              <strong>{line.searchedDescription}</strong>
+                            </span>
+                          )}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            patchLine(line.key, { changing: true })
+                          }
+                        >
+                          Change
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <div className="flex justify-end">
+                <Button
+                  disabled={!ready || submitting}
+                  onClick={() => void submit()}
+                >
+                  {submitting
+                    ? 'Creating records…'
+                    : 'Create Product & Draft BOM'}
+                </Button>
+              </div>
+            </div>
+          </SCard>
+        )}
 
         {createdIntakes.length > 0 && (
           <SCard className="px-5 py-[18px]">

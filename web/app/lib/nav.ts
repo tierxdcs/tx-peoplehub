@@ -400,6 +400,7 @@ export function sharedNav(access: Access): NavGroup[] {
       items: [
         { label: 'Design Dashboard', href: '/design' },
         { label: 'Design Requests', href: '/design/requests' },
+        { label: 'Quote BOM Requests', href: '/design/bom-intake' },
         { label: 'Design Projects', href: '/design/projects' },
         { label: 'Design Controls', href: '/design/controls' },
         { label: 'Document Register', href: '/design/documents' },

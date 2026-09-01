@@ -3,14 +3,17 @@ import { cn } from '../../lib/utils';
 
 /**
  * Minimal determinate progress bar (no Radix dependency needed). `value` is
- * 0–100. Used for the direct-to-R2 upload progress on large files (spec §3).
+ * 0–100. Used for the direct-to-R2 upload progress on large files (spec §3) and
+ * for elapsed-time bars, which colour the fill via `barClassName`.
  */
 export function Progress({
   value,
   className,
+  barClassName,
 }: {
   value: number;
   className?: string;
+  barClassName?: string;
 }) {
   const clamped = Math.min(100, Math.max(0, value));
   return (
@@ -25,7 +28,7 @@ export function Progress({
       )}
     >
       <div
-        className="h-full bg-primary transition-all"
+        className={cn('h-full bg-primary transition-all', barClassName)}
         style={{ width: `${clamped}%` }}
       />
     </div>

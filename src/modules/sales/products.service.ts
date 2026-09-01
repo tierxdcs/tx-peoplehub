@@ -77,6 +77,9 @@ export class ProductsService {
         name: dto.name,
         description: dto.description ?? null,
         unitPrice: new Prisma.Decimal(dto.unitPrice),
+        // Priced at 0 on a manufactured product = "cost not known yet", so let
+        // the released BOM cost fill it in. A real price entered here stands.
+        autoPricedFromBomCost: Number(dto.unitPrice) === 0,
         unitOfMeasure: dto.unitOfMeasure,
         hsnCode: dto.hsnCode ?? null,
         isActive: dto.isActive ?? true,
@@ -181,10 +184,15 @@ export class ProductsService {
         sku: dto.sku,
         name: dto.name,
         description: dto.description,
-        unitPrice:
-          dto.unitPrice !== undefined
-            ? new Prisma.Decimal(dto.unitPrice)
-            : undefined,
+        // A price in the payload is a human pricing decision and takes the
+        // product off automatic pricing — unless they entered 0, which is not a
+        // price but a product still waiting for its cost.
+        ...(dto.unitPrice !== undefined
+          ? {
+              unitPrice: new Prisma.Decimal(dto.unitPrice),
+              autoPricedFromBomCost: Number(dto.unitPrice) === 0,
+            }
+          : {}),
         unitOfMeasure: dto.unitOfMeasure,
         hsnCode: dto.hsnCode,
         isActive: dto.isActive,
@@ -348,6 +356,9 @@ export class ProductsService {
       businessUnitName: product.businessUnit?.name ?? null,
       businessUnitColorHex: product.businessUnit?.colorHex ?? null,
       autoAssignedBusinessUnit: product.autoAssignedBusinessUnit,
+      // Not cost-gated: whoever can see the price needs to know whether it is
+      // theirs to own or one the system maintains.
+      autoPricedFromBomCost: product.autoPricedFromBomCost,
       ...(includeCost
         ? {
             targetMarginPercent: target?.toString() ?? null,

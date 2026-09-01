@@ -548,6 +548,11 @@ export interface Product {
   businessUnitColorHex: string | null;
   /** True while the BU was auto-selected by inference and not yet confirmed. */
   autoAssignedBusinessUnit: boolean;
+  /**
+   * True while the unit price is derived from the released BOM cost at the
+   * target margin. Entering a price of your own turns it off for good.
+   */
+  autoPricedFromBomCost: boolean;
   targetMarginPercent?: string | null;
   rolledUpCostSnapshot?: string | null;
   costSnapshotAt?: string | null;

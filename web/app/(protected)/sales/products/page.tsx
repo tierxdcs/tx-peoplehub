@@ -214,6 +214,14 @@ export default function ProductsPage() {
                       </TableCell>
                       <TableCell>
                         {formatINR(p.unitPrice, numberFormatStyle)}
+                        {p.autoPricedFromBomCost && (
+                          <span
+                            title="Derived from the released BOM cost at the target margin. Edit the price to take it over."
+                            className="ml-1.5 text-xs text-muted-foreground"
+                          >
+                            auto
+                          </span>
+                        )}
                       </TableCell>
                       {canSeeCost && (
                         <TableCell>

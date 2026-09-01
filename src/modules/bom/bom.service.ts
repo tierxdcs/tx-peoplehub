@@ -39,6 +39,7 @@ import {
   explodeBom,
 } from './bom-explosion';
 import { BomCostSnapshotService } from './bom-cost-snapshot.service';
+import { ProductCatalogPriceService } from './product-catalog-price.service';
 
 /** Supplier statuses that qualify a supplier link for the release hard-gate. */
 const QUALIFIED_SUPPLIER_STATUSES: SupplierStatus[] = [
@@ -104,6 +105,7 @@ export class BomService {
     private readonly access: BomAccessService,
     private readonly notifications: KanbanNotificationsService,
     private readonly costSnapshots: BomCostSnapshotService,
+    private readonly catalogPrice: ProductCatalogPriceService,
     // PushEventsModule is @Global, so this needs no import edge here.
     private readonly pushEvents: PushEventsService,
   ) {}
@@ -427,6 +429,9 @@ export class BomService {
           costSnapshotAt: new Date(),
         },
       });
+      // The cost this release just settled is what the catalog sells against,
+      // so the sellable price moves with it in the same transaction.
+      await this.catalogPrice.syncFromReleasedCost(tx, bom.itemId, costSnapshot);
       await tx.bomEvent.create({
         data: { bomId: id, type: BomEventType.APPROVED, actorId: user.id },
       });

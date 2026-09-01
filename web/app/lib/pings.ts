@@ -82,6 +82,10 @@ export function linkedPingHref(type: string | null, id: string | null): string |
     PLM_TRACKER: `/plm/trackers/${id}`,
     RFQ: `/scm/rfqs/${id}`,
     KANBAN_BOARD: `/kanban/boards/${id}`,
+    // Same intake, from the two sides of the design handover: Sales reads it in
+    // its own register, the design team in the quote BOM queue.
+    CUSTOMER_BOM_INTAKE: `/sales/bom-intake/${id}`,
+    DESIGN_BOM_INTAKE: `/design/bom-intake/${id}`,
     PAGE: id.startsWith('/') && !id.startsWith('//') ? id : '',
   };
   return routes[type] || null;

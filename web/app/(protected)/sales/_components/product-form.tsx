@@ -58,7 +58,12 @@ export function ProductForm({
   const [targetMarginPercent, setTargetMarginPercent] = useState(
     product?.targetMarginPercent ?? '',
   );
-  const priceManuallyEdited = useRef(isEdit);
+  // An existing price is the user's, so the suggestion must not overwrite it —
+  // unless the price is the one the system maintains from the BOM cost, in which
+  // case keeping the field on the live suggestion is what they expect to see.
+  const priceManuallyEdited = useRef(
+    isEdit && !product?.autoPricedFromBomCost,
+  );
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -170,7 +175,12 @@ export function ProductForm({
             sku: sku.trim(),
             name,
             description: description || undefined,
-            unitPrice: Number(unitPrice),
+            // Only send the price when it actually changed: sending it takes the
+            // product off automatic pricing server-side, and editing the HSN code
+            // is not a decision to own the price.
+            ...(Number(unitPrice) !== Number(product!.unitPrice)
+              ? { unitPrice: Number(unitPrice) }
+              : {}),
             unitOfMeasure,
             hsnCode: hsnCode || undefined,
             isActive,
@@ -348,6 +358,13 @@ export function ProductForm({
               required
               style={fieldStyle}
             />
+            {product?.autoPricedFromBomCost && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                This price is maintained from the released BOM cost at the target
+                margin. Saving a price of your own stops that — it will no longer
+                follow the cost.
+              </p>
+            )}
           </div>
           <div style={{ marginBottom: 10 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>

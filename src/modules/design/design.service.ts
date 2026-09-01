@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   DesignChangeImpactArea,
+  DesignPriority,
   DesignProjectStatus,
   DesignRequestStatus,
   DesignReview,
@@ -257,6 +258,52 @@ export class DesignService {
           requestNumber: await this.number(tx, 'DESIGN_REQUEST', 'DR'),
           requestedById: u.id,
           targetDate: new Date(d.targetDate),
+        },
+      }),
+    );
+  }
+  /**
+   * Raise a design request for a quote-stage BOM intake whose parts list does
+   * not exist yet — the customer stated a requirement, so the product has to be
+   * designed before there is anything for SCM to source.
+   *
+   * Deliberately NOT access-checked here: the person pressing "Send to design"
+   * is a salesperson, who would fail `assertUser` (Design/Engineering
+   * membership) on the normal `createRequest` door. The one caller,
+   * CustomerBomIntakeService.sendToDesign, has already applied the Sales
+   * ownership rule for the intake. Kept on this side of the boundary so the
+   * request numbering and the DesignRequest shape live in exactly one module.
+   */
+  async raiseRequestForBomIntake(input: {
+    customerBomIntakeId: string;
+    title: string;
+    description: string;
+    priority?: DesignPriority;
+    productId?: string | null;
+    customerId?: string | null;
+    targetDate: Date;
+    requestedById: string;
+  }) {
+    return this.prisma.$transaction(async (tx) =>
+      tx.designRequest.create({
+        data: {
+          source: 'SALES_QUOTE',
+          requestNumber: await this.number(tx, 'DESIGN_REQUEST', 'DR'),
+          title: input.title,
+          description: input.description,
+          priority: input.priority ?? 'MEDIUM',
+          customerBomIntakeId: input.customerBomIntakeId,
+          productId: input.productId ?? null,
+          customerId: input.customerId ?? null,
+          requestedById: input.requestedById,
+          targetDate: input.targetDate,
+        },
+        select: {
+          id: true,
+          requestNumber: true,
+          status: true,
+          title: true,
+          targetDate: true,
         },
       }),
     );
@@ -1763,8 +1810,9 @@ export class DesignService {
     customerId?: string;
     orderId?: string;
     projectKickoffId?: string;
+    customerBomIntakeId?: string;
   }) {
-    const [product, customer, order, kickoff] = await Promise.all([
+    const [product, customer, order, kickoff, intake] = await Promise.all([
       d.productId
         ? this.prisma.product.findUnique({
             where: { id: d.productId },
@@ -1789,12 +1837,20 @@ export class DesignService {
             select: { id: true },
           })
         : true,
+      d.customerBomIntakeId
+        ? this.prisma.customerBomIntake.findUnique({
+            where: { id: d.customerBomIntakeId },
+            select: { id: true },
+          })
+        : true,
     ]);
     if (!product) throw new BadRequestException('Linked product not found');
     if (!customer) throw new BadRequestException('Linked customer not found');
     if (!order) throw new BadRequestException('Linked order not found');
     if (!kickoff)
       throw new BadRequestException('Linked project kickoff not found');
+    if (!intake)
+      throw new BadRequestException('Linked customer BOM intake not found');
   }
   private async requireRevision(id: string) {
     const x = await this.prisma.designDocumentRevision.findUnique({

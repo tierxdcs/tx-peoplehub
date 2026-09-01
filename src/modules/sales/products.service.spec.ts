@@ -206,3 +206,138 @@ describe('ProductsService deletion', () => {
     expect(tx.product.delete).not.toHaveBeenCalled();
   });
 });
+
+describe('ProductsService automatic pricing hand-off', () => {
+  const user = {
+    id: 'admin-1',
+    email: 'admin@example.com',
+    role: Role.SUPER_ADMIN,
+    verticalId: null,
+  };
+
+  const existingProduct = {
+    id: 'product-1',
+    sku: 'FG-00004',
+    name: 'Liquid Cooling Complete Unit',
+    description: null,
+    unitPrice: new Prisma.Decimal(0),
+    unitOfMeasure: 'NOS',
+    hsnCode: null,
+    isActive: true,
+    itemId: 'item-1',
+    businessUnitId: 'bu-1',
+    autoAssignedBusinessUnit: false,
+    autoPricedFromBomCost: true,
+    targetMarginPercent: new Prisma.Decimal(20),
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
+    businessUnit: { name: 'Infrastructure', colorHex: '#123456' },
+    item: null,
+  };
+
+  function setup() {
+    const prisma = {
+      product: {
+        findUnique: jest.fn().mockResolvedValue(existingProduct),
+        update: jest.fn().mockResolvedValue(existingProduct),
+        create: jest.fn().mockResolvedValue(existingProduct),
+      },
+      item: { findUnique: jest.fn().mockResolvedValue({ id: 'item-1' }) },
+      businessUnit: { findUnique: jest.fn().mockResolvedValue({ isActive: true }) },
+    };
+    const access = { assertSalesAccess: jest.fn(), isSalesStaff: jest.fn() };
+    const service = new ProductsService(
+      prisma as never,
+      access as never,
+      {} as never,
+    );
+    return { prisma, service };
+  }
+
+  /** The data payload of the single write the call made. */
+  const written = (fn: jest.Mock) => fn.mock.calls[0][0].data;
+
+  it('takes a product off automatic pricing once someone enters a price', async () => {
+    // The point of the flag: this price may already have been quoted, so no
+    // later BOM release is allowed to move it.
+    const { prisma, service } = setup();
+    await service.update('product-1', { unitPrice: 231621.43 } as never, user);
+    expect(written(prisma.product.update)).toMatchObject({
+      autoPricedFromBomCost: false,
+    });
+    expect(written(prisma.product.update).unitPrice.toString()).toBe(
+      '231621.43',
+    );
+  });
+
+  it('reads a price of zero as "not priced yet", not as a decision', async () => {
+    const { prisma, service } = setup();
+    await service.update('product-1', { unitPrice: 0 } as never, user);
+    expect(written(prisma.product.update)).toMatchObject({
+      autoPricedFromBomCost: true,
+    });
+  });
+
+  it('leaves the pricing mode untouched when the payload has no price', async () => {
+    const { prisma, service } = setup();
+    await service.update('product-1', { name: 'Renamed' } as never, user);
+    expect(written(prisma.product.update)).not.toHaveProperty(
+      'autoPricedFromBomCost',
+    );
+    expect(written(prisma.product.update)).not.toHaveProperty('unitPrice');
+  });
+
+  it('lets a manually created product start on automatic pricing only if unpriced', async () => {
+    const { prisma, service } = setup();
+    prisma.product.findUnique.mockResolvedValue(null);
+    await service.create(
+      {
+        sku: 'FG-00009',
+        name: 'New product',
+        unitPrice: 0,
+        unitOfMeasure: 'NOS',
+        businessUnitId: 'bu-1',
+      } as never,
+      user,
+    );
+    expect(written(prisma.product.create)).toMatchObject({
+      autoPricedFromBomCost: true,
+    });
+
+    prisma.product.create.mockClear();
+    await service.create(
+      {
+        sku: 'FG-00010',
+        name: 'Priced product',
+        unitPrice: 4500,
+        unitOfMeasure: 'NOS',
+        businessUnitId: 'bu-1',
+      } as never,
+      user,
+    );
+    expect(written(prisma.product.create)).toMatchObject({
+      autoPricedFromBomCost: false,
+    });
+  });
+
+  it('reports the pricing mode to anyone who can see the price, not just Finance', async () => {
+    // A Sales user sees no cost fields but must still know whether the price is
+    // theirs to own — so this one is deliberately outside the cost gate.
+    const salesUser = { ...user, role: Role.MANAGER };
+    const access = { assertSalesAccess: jest.fn(), isSalesStaff: jest.fn() };
+    const financeAccess = {
+      accessFor: jest.fn().mockResolvedValue({ isFinanceUser: false }),
+    };
+    const prisma = {
+      product: { findUnique: jest.fn().mockResolvedValue(existingProduct) },
+    };
+    const salesService = new ProductsService(
+      prisma as never,
+      access as never,
+      financeAccess as never,
+    );
+    const entity = await salesService.findOne('product-1', salesUser as never);
+    expect(entity.autoPricedFromBomCost).toBe(true);
+    expect(entity.targetMarginPercent).toBeUndefined();
+  });
+});

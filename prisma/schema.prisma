@@ -1398,8 +1398,15 @@ model Product {
   /// not yet confirmed by a human — drives the "Auto-selected" indicator and
   /// the still-auto-assigned review filter. Cleared once a user sets/saves it.
   autoAssignedBusinessUnit Boolean            @default(false)
-  /// Optional true-margin target. Informational pricing guidance only.
+  /// True margin target (margin on selling price, not markup on cost). Defaults
+  /// to DEFAULT_TARGET_MARGIN_PERCENT for products created by the RFQ/customer
+  /// BOM intake flow, which is what autoPricedFromBomCost prices against.
   targetMarginPercent      Decimal?           @db.Decimal(5, 2)
+  /// True while unitPrice is machine-derived from the linked item's released
+  /// BOM cost at targetMarginPercent — so the catalog price follows the cost as
+  /// awarded RFQ quotes move it. Cleared the moment a human enters a non-zero
+  /// price of their own, which then stands until they change it again.
+  autoPricedFromBomCost    Boolean            @default(false)
   customerBomIntake        CustomerBomIntake? @relation("CustomerBomIntakeProduct")
   bidLineItems             BidLineItem[]
   orderLineItems           OrderLineItem[]
@@ -2192,6 +2199,9 @@ enum DesignRequestStatus {
 
 enum DesignRequestSource {
   SALES_ORDER
+  /// Quote stage, before any order exists: a customer BOM intake the design team
+  /// has to design and author the BOM for.
+  SALES_QUOTE
   PROJECT_KICKOFF
   CUSTOMER_CHANGE
   INTERNAL_DEVELOPMENT
@@ -2414,32 +2424,38 @@ enum DesignChangeReportStatus {
 }
 
 model DesignRequest {
-  id               String              @id @default(uuid())
-  requestNumber    String              @unique
-  source           DesignRequestSource
-  title            String
-  description      String              @db.Text
-  priority         DesignPriority      @default(MEDIUM)
-  status           DesignRequestStatus @default(OPEN)
+  id                  String              @id @default(uuid())
+  requestNumber       String              @unique
+  source              DesignRequestSource
+  title               String
+  description         String              @db.Text
+  priority            DesignPriority      @default(MEDIUM)
+  status              DesignRequestStatus @default(OPEN)
   /// Optional cross-module links. SetNull so deleting the commercial record
   /// never destroys design history.
-  productId        String?
-  product          Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
-  customerId       String?
-  customer         Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  orderId          String?
-  order            Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  projectKickoffId String?
-  projectKickoff   ProjectKickoff?     @relation(fields: [projectKickoffId], references: [id], onDelete: SetNull)
-  requestedById    String
-  ownerId          String?
-  targetDate       DateTime
-  project          DesignProject?
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+  productId           String?
+  product             Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
+  customerId          String?
+  customer            Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  orderId             String?
+  order               Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  projectKickoffId    String?
+  projectKickoff      ProjectKickoff?     @relation(fields: [projectKickoffId], references: [id], onDelete: SetNull)
+  /// Set when the request came out of a quote-stage BOM intake whose parts list
+  /// does not exist yet (source SALES_QUOTE). The designed BOM lands back on
+  /// this intake, which is what makes it visible to SCM for RFQ.
+  customerBomIntakeId String?
+  customerBomIntake   CustomerBomIntake?  @relation("DesignRequestBomIntake", fields: [customerBomIntakeId], references: [id], onDelete: SetNull)
+  requestedById       String
+  ownerId             String?
+  targetDate          DateTime
+  project             DesignProject?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
   @@index([status, targetDate])
   @@index([ownerId, status])
+  @@index([customerBomIntakeId])
   @@map("design_requests")
 }
 
@@ -3972,6 +3988,12 @@ enum BomLineSource {
 enum CustomerBomIntakeStatus {
   DRAFT
   CREATED
+  /// Raised for design: the customer stated a requirement, not a parts list, so
+  /// the design team has to design the product and author the BOM first. SCM's
+  /// quote-stage RFQ picker only ever looks at CREATED intakes, which is exactly
+  /// what keeps a design-pending one invisible to sourcing until the designed
+  /// BOM is handed over.
+  DESIGN_PENDING
 }
 
 /// Sales-facing transcription of a customer's quote-stage BOM. Submission
@@ -3985,6 +4007,10 @@ model CustomerBomIntake {
   businessUnit       BusinessUnit            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
   productName        String
   unitOfMeasure      String                  @default("each")
+  /// When Sales has promised the customer a price for this BOM. Optional — a
+  /// transcription often lands before a date is agreed — and drives the Intake
+  /// Register's progress bar, which runs createdAt → expectedBy.
+  expectedBy         DateTime?
   rawFileKey         String?
   rawFileName        String?
   rawFileSize        Int?
@@ -4000,6 +4026,10 @@ model CustomerBomIntake {
   createdBy          Employee                @relation("CustomerBomIntakeCreator", fields: [createdById], references: [id], onDelete: Restrict)
   lines              CustomerBomIntakeLine[]
   rfqs               Rfq[]
+  /// The design work Sales asked for when the requirement arrived without a
+  /// parts list. Many rows only because a rejected/closed request can be
+  /// re-raised; at most one is ever open.
+  designRequests     DesignRequest[]         @relation("DesignRequestBomIntake")
   createdAt          DateTime                @default(now())
   updatedAt          DateTime                @updatedAt
 

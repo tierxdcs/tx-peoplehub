@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import {
@@ -13,6 +21,8 @@ import {
   CustomerBomMatchDto,
   CustomerBomUploadUrlDto,
   ReviseCustomerBomIntakeDto,
+  SendBomIntakeToDesignDto,
+  UpdateCustomerBomIntakeDto,
 } from './dto/customer-bom-intake.dto';
 
 @ApiTags('customer-bom-intake')
@@ -83,6 +93,19 @@ export class CustomerBomIntakeRegisterController {
     return this.service.detail(id, user);
   }
 
+  @Patch(':id')
+  @ApiOperation({
+    summary:
+      'Set or clear the date Sales promised the customer a price (drives the register progress bar)',
+  })
+  setExpectedBy(
+    @Param('id') id: string,
+    @Body() dto: UpdateCustomerBomIntakeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.setExpectedBy(id, dto, user);
+  }
+
   @Post(':id/revise')
   @ApiOperation({
     summary:
@@ -94,6 +117,19 @@ export class CustomerBomIntakeRegisterController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.revise(id, dto, user);
+  }
+
+  @Post(':id/send-to-design')
+  @ApiOperation({
+    summary:
+      'Raise a design request for an intake whose parts list has to be designed first (DESIGN_PENDING only)',
+  })
+  sendToDesign(
+    @Param('id') id: string,
+    @Body() dto: SendBomIntakeToDesignDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.sendToDesign(id, dto, user);
   }
 
   @Post(':id/submit')

@@ -55,6 +55,7 @@ describe('RfqService negotiated quote revisions', () => {
       {} as never,
       {} as never,
       {} as never,
+      { refreshReleasedSnapshots: jest.fn() } as never,
       {} as never,
       {} as never,
       {} as never,

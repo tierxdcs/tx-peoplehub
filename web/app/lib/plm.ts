@@ -18,6 +18,17 @@ export const PLM_PRODUCTION_STEPS = [
   'Pack',
 ] as const;
 
+/** Furthest routing step confirmed across vendor and auditor progress updates. */
+export function confirmedProductionSteps(
+  updates: Array<{ completedSteps: number | null }>,
+): number {
+  const furthest = updates.reduce(
+    (highest, update) => Math.max(highest, update.completedSteps ?? 0),
+    0,
+  );
+  return Math.min(PLM_PRODUCTION_STEPS.length, Math.max(0, furthest));
+}
+
 export type PlmStage =
   | 'DESIGN'
   | 'DESIGN_REVIEW'

@@ -3,18 +3,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Plus, Search, Trash2 } from 'lucide-react';
+import { PencilRuler, Plus, Search, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import {
+  DESIGN_REQUEST_STATUS_LABEL,
   findCustomerBomMatches,
   getBomIntake,
-  INTAKE_STATUS_LABEL,
-  INTAKE_STATUS_TONE,
+  intakeStatusLabel,
+  intakeStatusTone,
   reviseBomIntake,
+  sendBomIntakeToDesign,
+  setBomIntakeExpectedBy,
   submitBomIntakeForApproval,
   type BomIntakeDetail,
   type CustomerBomCandidate,
 } from '../../../../lib/customer-bom-intake';
+import { dateOnlyStr } from '../../../../lib/date';
+import {
+  ApprovedQuoteIndicator,
+  IntakeProgressBar,
+} from '../../_components/intake-progress';
 import { formatINR } from '../../../../lib/sales';
 import { useNumberFormat } from '../../../../lib/number-format-context';
 import {
@@ -34,6 +42,7 @@ import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Field } from '../../../../components/ui/field';
 import { Textarea } from '../../../../components/ui/textarea';
+import { Select } from '../../../../components/ui/select';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { useToast } from '../../../../components/ui/toaster';
 import { cn } from '../../../../lib/utils';
@@ -83,6 +92,13 @@ export default function BomIntakeDetailPage() {
   const [revisionNotes, setRevisionNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [expectedBy, setExpectedBy] = useState('');
+  const [savingExpectedBy, setSavingExpectedBy] = useState(false);
+  // The design brief, for an intake raised without a parts list.
+  const [designDescription, setDesignDescription] = useState('');
+  const [designPriority, setDesignPriority] = useState('MEDIUM');
+  const [designTargetDate, setDesignTargetDate] = useState('');
+  const [sendingToDesign, setSendingToDesign] = useState(false);
 
   const load = useCallback(() => {
     return getBomIntake(id)
@@ -94,6 +110,54 @@ export default function BomIntakeDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setExpectedBy(detail?.expectedBy ? dateOnlyStr(detail.expectedBy) : '');
+  }, [detail?.expectedBy]);
+
+  /**
+   * Waiting on design and not yet handed to them: the brief is still owed. Once
+   * a request exists the card turns into its status instead.
+   */
+  const awaitingDesignBrief =
+    detail?.status === 'DESIGN_PENDING' && !detail?.designRequest;
+
+  async function sendToDesign() {
+    if (!detail) return;
+    if (designDescription.trim().length < 20) {
+      toast.error(
+        'Describe what the customer asked for — the design team works from this brief (at least 20 characters)',
+      );
+      return;
+    }
+    if (!designTargetDate && !detail.expectedBy) {
+      toast.error(
+        'Set a target date for the design work, or a promised date on this intake',
+      );
+      return;
+    }
+    setSendingToDesign(true);
+    try {
+      setDetail(
+        await sendBomIntakeToDesign(detail.id, {
+          description: designDescription.trim(),
+          priority: designPriority,
+          ...(designTargetDate
+            ? { targetDate: `${designTargetDate}T00:00:00.000Z` }
+            : {}),
+        }),
+      );
+      toast.success('Design request raised');
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to raise the design request',
+      );
+    } finally {
+      setSendingToDesign(false);
+    }
+  }
 
   const bomStatus = detail?.bom?.status ?? null;
   const canSelfRevise = bomStatus === 'DRAFT' || bomStatus === 'REJECTED';
@@ -113,6 +177,34 @@ export default function BomIntakeDetailPage() {
       );
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  /**
+   * The promised date is usually agreed after the transcription is already in,
+   * so it saves on its own the moment it's picked — no form to submit.
+   */
+  async function saveExpectedBy(value: string) {
+    setExpectedBy(value);
+    setSavingExpectedBy(true);
+    try {
+      setDetail(
+        // Date-only, stored at UTC midnight so it reads back as the same day.
+        await setBomIntakeExpectedBy(
+          id,
+          value ? `${value}T00:00:00.000Z` : null,
+        ),
+      );
+      toast.success(value ? 'Promised date saved' : 'Promised date cleared');
+    } catch (err) {
+      setExpectedBy(detail?.expectedBy ? dateOnlyStr(detail.expectedBy) : '');
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to save the promised date',
+      );
+    } finally {
+      setSavingExpectedBy(false);
     }
   }
 
@@ -248,8 +340,8 @@ export default function BomIntakeDetailPage() {
         title={detail.productName}
         chip={
           <>
-            <ToneChip tone={INTAKE_STATUS_TONE[detail.derivedStatus]}>
-              {INTAKE_STATUS_LABEL[detail.derivedStatus]}
+            <ToneChip tone={intakeStatusTone(detail)}>
+              {intakeStatusLabel(detail)}
             </ToneChip>
             {detail.bom && (
               <SignalChip>Rev {detail.bom.revisionNumber}</SignalChip>
@@ -286,6 +378,115 @@ export default function BomIntakeDetailPage() {
 
       <div className="grid items-start gap-4 px-5 pb-7 pt-[18px] lg:px-7 xl:grid-cols-[1fr_316px]">
         <div className="flex min-w-0 flex-col gap-3.5">
+          {/* The design route: no parts list arrived, so no BOM exists yet and
+              SCM cannot see this intake until the design team hands one over. */}
+          {awaitingDesignBrief && (
+            <SCard className="px-5 py-[18px]">
+              <SCardTitle
+                title="Send to the design team"
+                subtitle="The customer stated a requirement, not a parts list — the design team designs the product and authors the BOM."
+              />
+              <div className="mt-3.5 space-y-3.5">
+                <Field
+                  label="What the customer asked for"
+                  required
+                  hint="The only thing the design team cannot work out for itself. Application, environment, ratings, quantities, constraints, anything the customer specified."
+                >
+                  <Textarea
+                    rows={5}
+                    value={designDescription}
+                    onChange={(event) =>
+                      setDesignDescription(event.target.value)
+                    }
+                    placeholder="Customer needs a platform-mounted emergency kiosk for outdoor use, IP65, 24 V supply, with…"
+                  />
+                </Field>
+                <div className="grid gap-3.5 md:grid-cols-2">
+                  <Field label="Priority">
+                    <Select
+                      value={designPriority}
+                      onChange={(event) =>
+                        setDesignPriority(event.target.value)
+                      }
+                    >
+                      {['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((priority) => (
+                        <option key={priority} value={priority}>
+                          {priority.charAt(0) + priority.slice(1).toLowerCase()}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field
+                    label="Design needed by"
+                    hint={
+                      detail.expectedBy
+                        ? `Defaults to the promised date, ${dateOnlyStr(detail.expectedBy)}`
+                        : 'No promised date is set on this intake, so a date is required here'
+                    }
+                  >
+                    <Input
+                      type="date"
+                      value={designTargetDate}
+                      onChange={(event) =>
+                        setDesignTargetDate(event.target.value)
+                      }
+                    />
+                  </Field>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => void sendToDesign()}
+                    disabled={sendingToDesign}
+                    className={SIGNAL_BTN_PRIMARY}
+                  >
+                    {sendingToDesign ? 'Raising\u2026' : 'Send to design team'}
+                  </button>
+                </div>
+              </div>
+            </SCard>
+          )}
+
+          {detail.status === 'DESIGN_PENDING' && detail.designRequest && (
+            <SCard className="px-5 py-[18px]">
+              <SCardTitle
+                title="With the design team"
+                subtitle="This intake becomes available to SCM for RFQ the moment the designed BOM is handed over."
+                right={
+                  <ToneChip
+                    tone={
+                      detail.designRequest.status === 'REJECTED'
+                        ? 'danger'
+                        : detail.designRequest.status === 'OPEN'
+                          ? 'warning'
+                          : 'info'
+                    }
+                  >
+                    {DESIGN_REQUEST_STATUS_LABEL[detail.designRequest.status]}
+                  </ToneChip>
+                }
+              />
+              <div className="mt-3.5 flex gap-2.5 rounded-lg border border-primary/40 bg-primary/[.06] p-3.5 text-[12.5px]">
+                <PencilRuler className="mt-0.5 size-4 shrink-0 text-primary" />
+                <div className="space-y-1">
+                  <p>
+                    <strong>{detail.designRequest.requestNumber}</strong> \u00b7{' '}
+                    {detail.designRequest.title}
+                  </p>
+                  <p className="text-black/55 dark:text-white/50">
+                    Needed by{' '}
+                    {new Date(
+                      detail.designRequest.targetDate,
+                    ).toLocaleDateString('en-IN')}
+                    {detail.designRequest.project
+                      ? ` \u00b7 project ${detail.designRequest.project.projectNumber} (${detail.designRequest.project.status.replaceAll('_', ' ').toLowerCase()})`
+                      : ''}
+                  </p>
+                </div>
+              </div>
+            </SCard>
+          )}
+
           {bomStatus === 'RELEASED' && (
             <Callout className="mt-0">
               This BOM has been released by R&D — it is now a formal engineering
@@ -574,6 +775,58 @@ export default function BomIntakeDetailPage() {
 
         {/* ── Rail ── */}
         <div className="flex flex-col gap-3.5 xl:sticky xl:top-[4.5rem]">
+          <SCard className="px-5 py-[18px]">
+            <SCardTitle
+              title="Promised turnaround"
+              subtitle="Raised → the date the customer expects a price"
+            />
+            <div className="mt-3 space-y-3.5">
+              <IntakeProgressBar
+                createdAt={detail.createdAt}
+                expectedBy={detail.expectedBy}
+              />
+              <Field label="Price promised by">
+                <Input
+                  type="date"
+                  value={expectedBy}
+                  disabled={savingExpectedBy}
+                  onChange={(event) => void saveExpectedBy(event.target.value)}
+                />
+              </Field>
+              <div>
+                <p className="mb-1 text-[11px] uppercase tracking-wide text-black/40 dark:text-white/[.32]">
+                  Approved quote
+                </p>
+                <ApprovedQuoteIndicator
+                  approvedQuote={detail.approvedQuote}
+                  awaiting={detail.derivedStatus === 'RFQ_FLOATED'}
+                />
+              </div>
+            </div>
+          </SCard>
+
+          {detail.status !== 'DESIGN_PENDING' && detail.designRequest && (
+            <SCard className="px-5 py-[18px]">
+              <SCardTitle
+                title="Designed in-house"
+                subtitle="This BOM was authored by the design team, not transcribed"
+              />
+              <div className="mt-3 space-y-1 text-[12.5px]">
+                <p>
+                  <strong>{detail.designRequest.requestNumber}</strong>
+                </p>
+                <p className="text-black/55 dark:text-white/50">
+                  {detail.designRequest.title}
+                </p>
+                {detail.designRequest.project && (
+                  <p className="text-[11px] text-black/45 dark:text-white/40">
+                    Design project {detail.designRequest.project.projectNumber}
+                  </p>
+                )}
+              </div>
+            </SCard>
+          )}
+
           <SCard className="px-5 py-[18px]">
             <SCardTitle title="Revision history" />
             <div className="mt-3 flex flex-col">

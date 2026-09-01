@@ -13,6 +13,7 @@ import { StockReportService } from '../bom/stock-report.service';
 import { ExplodableBom, explodeProcurementBom } from '../bom/bom-explosion';
 import { round } from '../bom/stock-calc';
 import { ItemCostService } from '../bom/item-cost.service';
+import { BomCostSnapshotService } from '../bom/bom-cost-snapshot.service';
 import { VaultStorageService } from '../vault/vault-storage.service';
 import {
   generateInviteToken,
@@ -181,6 +182,7 @@ export class RfqService {
     private readonly purchaseOrders: PurchaseOrderService,
     private readonly stockReport: StockReportService,
     private readonly itemCosts: ItemCostService,
+    private readonly costSnapshots: BomCostSnapshotService,
     private readonly storage: VaultStorageService,
     private readonly email: EmailService,
     private readonly config: ConfigService,
@@ -1766,6 +1768,12 @@ export class RfqService {
         skipDuplicates: true,
       });
     });
+    // The awarded quote is the cost of these items from now on, so re-roll the
+    // released BOMs that consume them. This is what carries the awarded price
+    // through to the product catalog: without it the cost (and the price derived
+    // from it) would sit stale until the next item edit or GRN.
+    await this.costSnapshots.refreshReleasedSnapshots();
+
     // Do not mutate or hide invite history here. Public token validation uses
     // the persisted award winner to revoke non-winners' technical access while
     // retaining every invite and quote for the internal audit trail.

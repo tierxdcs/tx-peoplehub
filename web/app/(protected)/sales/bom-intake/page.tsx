@@ -7,12 +7,17 @@ import { apiFetch } from '../../../lib/api';
 import type { Customer, Opportunity, PaginatedResult } from '../../../lib/types';
 import {
   INTAKE_STATUS_LABEL,
-  INTAKE_STATUS_TONE,
+  intakeStatusLabel,
+  intakeStatusTone,
   listBomIntakeRegister,
   type BomIntakeRegisterRow,
   type IntakeDerivedStatus,
 } from '../../../lib/customer-bom-intake';
 import { useRegisterList } from '../../../lib/use-register-list';
+import {
+  ApprovedQuoteIndicator,
+  IntakeProgressBar,
+} from '../_components/intake-progress';
 import {
   SCard,
   SIGNAL_BTN_GHOST,
@@ -103,7 +108,7 @@ export default function BomIntakeRegisterPage() {
   const register = useRegisterList(
     filtered,
     (row) =>
-      `${row.productName} ${row.product?.sku ?? ''} ${row.opportunity.name} ${row.opportunity.customer?.name ?? ''} ${INTAKE_STATUS_LABEL[row.derivedStatus]} ${row.businessUnit.name}`,
+      `${row.productName} ${row.product?.sku ?? ''} ${row.opportunity.name} ${row.opportunity.customer?.name ?? ''} ${INTAKE_STATUS_LABEL[row.derivedStatus]} ${row.businessUnit.name} ${row.approvedQuote?.rfqNumber ?? ''}`,
   );
 
   return (
@@ -167,6 +172,8 @@ export default function BomIntakeRegisterPage() {
                 <TableHead>Product</TableHead>
                 <TableHead>Opportunity</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Quote</TableHead>
+                <TableHead>Promised turnaround</TableHead>
                 <TableHead>Rev</TableHead>
                 <TableHead>Raised by</TableHead>
                 <TableHead>Created</TableHead>
@@ -176,7 +183,7 @@ export default function BomIntakeRegisterPage() {
               {loading ? (
                 Array.from({ length: 5 }).map((_, row) => (
                   <TableRow key={row}>
-                    {Array.from({ length: 6 }).map((__, column) => (
+                    {Array.from({ length: 8 }).map((__, column) => (
                       <TableCell key={column}>
                         <Skeleton className="h-4 w-24" />
                       </TableCell>
@@ -185,7 +192,7 @@ export default function BomIntakeRegisterPage() {
                 ))
               ) : register.visibleItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="p-0">
+                  <TableCell colSpan={8} className="p-0">
                     <EmptyState
                       icon={PackageSearch}
                       title="No BOM intake requests match your filters"
@@ -211,12 +218,28 @@ export default function BomIntakeRegisterPage() {
                         : ''}
                     </TableCell>
                     <TableCell>
-                      <ToneChip tone={INTAKE_STATUS_TONE[row.derivedStatus]}>
-                        {INTAKE_STATUS_LABEL[row.derivedStatus]}
+                      <ToneChip tone={intakeStatusTone(row)}>
+                        {intakeStatusLabel(row)}
                       </ToneChip>
                     </TableCell>
+                    <TableCell>
+                      <ApprovedQuoteIndicator
+                        approvedQuote={row.approvedQuote}
+                        awaiting={row.derivedStatus === 'RFQ_FLOATED'}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <IntakeProgressBar
+                        createdAt={row.createdAt}
+                        expectedBy={row.expectedBy}
+                      />
+                    </TableCell>
                     <TableCell className="tabular-nums">
-                      {row.bom ? `Rev ${row.bom.revisionNumber}` : '—'}
+                      {/* No BOM yet on the design route — name the design
+                          request instead, so the row is never just a dash. */}
+                      {row.bom
+                        ? `Rev ${row.bom.revisionNumber}`
+                        : (row.designRequest?.requestNumber ?? '—')}
                     </TableCell>
                     <TableCell>
                       {row.createdBy.firstName} {row.createdBy.lastName}

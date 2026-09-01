@@ -53,6 +53,13 @@ export class ProductEntity {
   })
   autoAssignedBusinessUnit!: boolean;
 
+  @ApiProperty({
+    description:
+      'True while the unit price is derived from the released BOM cost at the ' +
+      'target margin. Entering a price of your own turns this off.',
+  })
+  autoPricedFromBomCost!: boolean;
+
   @ApiProperty({ nullable: true, required: false })
   targetMarginPercent?: string | null;
   @ApiProperty({ nullable: true, required: false })

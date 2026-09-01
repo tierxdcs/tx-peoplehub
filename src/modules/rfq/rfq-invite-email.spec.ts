@@ -73,6 +73,7 @@ describe('RfqService.emailInvitees', () => {
       {} as never,
       {} as never,
       {} as never,
+      { refreshReleasedSnapshots: jest.fn() } as never,
       {} as never,
       email,
       config,

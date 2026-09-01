@@ -3,6 +3,7 @@ import { BomStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { ExplodableBom, explodeProcurementBom } from './bom-explosion';
 import { ItemCostService } from './item-cost.service';
+import { ProductCatalogPriceService } from './product-catalog-price.service';
 
 export interface BomCostSnapshot {
   amount: Prisma.Decimal | null;
@@ -14,6 +15,7 @@ export class BomCostSnapshotService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly itemCosts: ItemCostService,
+    private readonly catalogPrice: ProductCatalogPriceService,
   ) {}
 
   async calculate(
@@ -83,6 +85,13 @@ export class BomCostSnapshotService {
           costSnapshotAt: new Date(),
         },
       });
+      // A cost that moved after release (a late GRN, a re-awarded RFQ) moves the
+      // auto-priced catalog price with it.
+      await this.catalogPrice.syncFromReleasedCost(
+        this.prisma,
+        bom.itemId,
+        snapshot,
+      );
     }
 
     // Resource-plan benchmarks are also cost snapshots, not design state.

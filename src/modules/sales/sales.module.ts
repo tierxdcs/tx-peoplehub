@@ -31,6 +31,8 @@ import {
   CustomerBomIntakeRegisterController,
 } from './customer-bom-intake.controller';
 import { CustomerBomIntakeService } from './customer-bom-intake.service';
+import { DesignBomIntakeController } from './design-bom-intake.controller';
+import { DesignModule } from '../design/design.module';
 import { BidStrategyMeetingsController } from './bid-strategy-meetings.controller';
 import { BidStrategyMeetingsService } from './bid-strategy-meetings.service';
 
@@ -50,7 +52,16 @@ import { BidStrategyMeetingsService } from './bid-strategy-meetings.service';
   // Nest's resolution but not that undefined binding. So the one provider we
   // need is resolved from the container at init instead — see
   // CustomerBomIntakeService.onModuleInit.
-  imports: [EmployeesModule, VaultModule, FinanceModule, PingsModule],
+  //
+  // DesignModule, by contrast, IS imported: it depends only on VaultModule, so
+  // Sales → Design closes no cycle, and plain constructor injection works.
+  imports: [
+    EmployeesModule,
+    VaultModule,
+    FinanceModule,
+    PingsModule,
+    DesignModule,
+  ],
   controllers: [
     CustomersController,
     ProductsController,
@@ -64,6 +75,7 @@ import { BidStrategyMeetingsService } from './bid-strategy-meetings.service';
     ConfirmationSheetsController,
     CustomerBomIntakeController,
     CustomerBomIntakeRegisterController,
+    DesignBomIntakeController,
     BidStrategyMeetingsController,
   ],
   providers: [
