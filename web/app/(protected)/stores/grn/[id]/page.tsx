@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, ClipboardCheck, FileWarning } from 'lucide-react';
+import {
+  ArrowLeft,
+  ClipboardCheck,
+  ClipboardList,
+  FileWarning,
+} from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import { useIsQcInspector } from '../../../../lib/use-is-qc-inspector';
 import {
@@ -20,6 +25,7 @@ import {
   CardHeader,
   CardTitle,
 } from '../../../../components/ui/card';
+import { Badge } from '../../../../components/ui/badge';
 import { Button } from '../../../../components/ui/button';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
@@ -199,6 +205,7 @@ export default function GrnDetailPage() {
                 <TableHead className="text-right">Received</TableHead>
                 <TableHead className="text-right">Accepted</TableHead>
                 <TableHead className="text-right">Rejected</TableHead>
+                <TableHead>Inspection</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -218,12 +225,109 @@ export default function GrnDetailPage() {
                       line.rejectedQuantity ?? '—'
                     )}
                   </TableCell>
+                  <TableCell>
+                    {line.inspection ? (
+                      <Link
+                        href={`/qms/inspections/${line.inspection.id}`}
+                        className="inline-flex items-center gap-2 text-sm hover:underline"
+                      >
+                        {line.inspection.inspectionNumber}
+                        <Badge
+                          variant={
+                            line.inspection.overallResult === 'PASS'
+                              ? 'success'
+                              : line.inspection.overallResult === 'FAIL'
+                                ? 'destructive'
+                                : 'warning'
+                          }
+                        >
+                          {(line.inspection.overallResult ?? '—').replace(/_/g, ' ')}
+                        </Badge>
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {/* The checklist each line's decision was based on — the audit answer to
+          "why was this accepted?". */}
+      {grn.lines.some((l) => l.inspection) && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ClipboardList className="size-4 text-primary" />
+              Incoming Inspection
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {grn.lines
+              .filter((l) => l.inspection)
+              .map((line) => {
+                const insp = line.inspection!;
+                return (
+                  <details key={line.id} className="rounded-lg border">
+                    <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 p-3 text-sm">
+                      <span className="font-medium">{line.itemName}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {insp.inspectionNumber}
+                        {insp.templateCode
+                          ? ` · ${insp.templateCode} v${insp.templateVersion ?? 1}`
+                          : ''}
+                        {insp.inspectedAt ? ` · ${dateOnlyStr(insp.inspectedAt)}` : ''}
+                      </span>
+                      <Badge
+                        variant={
+                          insp.overallResult === 'PASS'
+                            ? 'success'
+                            : insp.overallResult === 'FAIL'
+                              ? 'destructive'
+                              : 'warning'
+                        }
+                      >
+                        {(insp.overallResult ?? '—').replace(/_/g, ' ')}
+                      </Badge>
+                    </summary>
+                    <div className="divide-y border-t">
+                      {insp.responses.map((r) => (
+                        <div
+                          key={r.questionKey}
+                          className="flex flex-wrap items-start justify-between gap-2 px-3 py-2 text-sm"
+                        >
+                          <div>
+                            <div>{r.prompt}</div>
+                            {r.comments && (
+                              <div className="text-xs text-muted-foreground">
+                                {r.comments}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">
+                              {r.answer || '—'}
+                            </span>
+                            {r.result && r.result !== 'NOT_APPLICABLE' && (
+                              <Badge
+                                variant={r.result === 'PASS' ? 'success' : 'destructive'}
+                              >
+                                {r.result}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                );
+              })}
+          </CardContent>
+        </Card>
+      )}
 
       {grn.ncrs.length > 0 && (
         <Card className="mt-6 border-destructive/30">

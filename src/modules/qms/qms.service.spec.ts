@@ -12,6 +12,8 @@ describe('QmsService — order-line linking', () => {
     prisma = {
       qmsInspection: {
         findUnique: jest.fn(),
+        // The GRN-gate inspection a synced Stores NCR points back to.
+        findFirst: jest.fn().mockResolvedValue(null),
         update: jest.fn().mockResolvedValue({ id: 'insp-1' }),
         create: jest.fn(),
       },
@@ -285,6 +287,40 @@ describe('QmsService — order-line linking', () => {
       expect(
         prisma.qmsNonConformance.upsert.mock.calls[0][0].update,
       ).not.toHaveProperty('costOfPoorQuality');
+    });
+
+    it('links the mirrored NCR back to the GRN-line inspection that rejected it', async () => {
+      prisma.nonConformanceReport.findMany.mockResolvedValue([
+        {
+          id: 'store-ncr',
+          ncrNumber: 'NCR-1',
+          status: 'OPEN',
+          itemId: 'item-1',
+          item: { name: 'Steel' },
+          grnId: 'grn-1',
+          grnLineId: 'grn-line-1',
+          rejectedQuantity: 2,
+          raisedById: 'qc-1',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          disposition: null,
+          dispositionNotes: null,
+          rejectionReason: 'Damaged',
+        },
+      ]);
+      prisma.qmsNonConformance.findUnique.mockResolvedValue(null);
+      prisma.qmsInspection.findFirst.mockResolvedValue({ id: 'insp-9' });
+      await service.ncrs(user);
+      expect(prisma.qmsInspection.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { grnId: 'grn-1', grnLineId: 'grn-line-1' },
+        }),
+      );
+      expect(prisma.qmsNonConformance.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ inspectionId: 'insp-9' }),
+        }),
+      );
     });
   });
 });

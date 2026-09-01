@@ -24,10 +24,17 @@ import {
 import {
   GoodsReceiptNoteEntity,
   GoodsReceiptNoteLineEntity,
+  GrnInspectionResponseEntity,
+  GrnLineInspectionEntity,
   OverReceiptWarningEntity,
 } from './entities/goods-receipt-note.entity';
 import { NonConformanceReportEntity } from './entities/non-conformance-report.entity';
 import { BomCostSnapshotService } from '../bom/bom-cost-snapshot.service';
+import {
+  ChecklistEvaluation,
+  IncomingInspectionService,
+  IncomingTemplate,
+} from './incoming-inspection.service';
 
 /** GRN statuses that count as "finalized" — their accepted qty is real stock. */
 const FINALIZED: GoodsReceiptNoteStatus[] = [
@@ -88,10 +95,22 @@ export class GoodsReceiptNoteService {
     private readonly prisma: PrismaService,
     private readonly access: GrnAccessService,
     private readonly numbering: SalesNumberingService,
+    private readonly inspections: IncomingInspectionService,
     private readonly costSnapshots?: BomCostSnapshotService,
   ) {}
 
   // ── Reads (company-wide) ─────────────────────────────────────────────
+  /**
+   * The approved incoming-inspection templates a QC inspector chooses from,
+   * per line. Restricted to inspectors: this is the QC screen's reference data.
+   */
+  async inspectionTemplates(
+    user: AuthenticatedUser,
+  ): Promise<IncomingTemplate[]> {
+    await this.access.assertCanInspect(user);
+    return this.inspections.templates();
+  }
+
   async list(
     user: AuthenticatedUser,
     opts: { status?: GoodsReceiptNoteStatus; purchaseOrderId?: string } = {},
@@ -286,10 +305,15 @@ export class GoodsReceiptNoteService {
 
   // ── QC finalization (QC Inspector / SA) ──────────────────────────────
   /**
-   * Finalize the QC gate. This is the ONLY path that moves stock. For each
+   * Finalize the QC gate. This is the ONLY path that moves stock.
+   *
+   * Every line is inspected against an APPROVED incoming question template, and
+   * the checklist result DRIVES the quantities: a failed checklist cannot accept
+   * the whole lot, and a passed checklist cannot reject any of it. Then, per
    * line: accepted qty → STOCK_IN (ON_HAND +accepted), rejected qty → an OPEN
-   * NonConformanceReport. Then the GRN status settles to QC_PASSED /
-   * QC_PARTIAL / QC_FAILED, and the parent PO's receipt status is re-derived.
+   * NonConformanceReport, and the answers → a terminal QmsInspection. The GRN
+   * status settles to QC_PASSED / QC_PARTIAL / QC_FAILED, and the parent PO's
+   * receipt status is re-derived.
    */
   async finalizeQc(
     id: string,
@@ -323,9 +347,18 @@ export class GoodsReceiptNoteService {
       );
     }
 
-    // Validate each decision: accepted + rejected == received; reason on reject.
+    // Every line is inspected against an approved INCOMING template. Loaded up
+    // front so a bad template id fails before any quantity is validated.
+    const templates = await this.inspections.loadTemplates(
+      dto.lines.map((l) => l.templateId),
+    );
+
+    // Validate each decision: the checklist first, then that the quantities it
+    // implies are the quantities being claimed.
+    const evaluations = new Map<string, ChecklistEvaluation>();
     for (const line of grn.lines) {
       const d = decisionByLine.get(line.id)!;
+      const label = `${line.item.itemCode}`;
       const accepted = new Prisma.Decimal(d.acceptedQuantity);
       const rejected = new Prisma.Decimal(d.rejectedQuantity);
       if (!accepted.plus(rejected).equals(line.receivedQuantity)) {
@@ -336,6 +369,27 @@ export class GoodsReceiptNoteService {
       if (rejected.greaterThan(0) && !d.rejectionReason?.trim()) {
         throw new BadRequestException(
           `Line ${line.id}: a rejection reason is required when any quantity is rejected`,
+        );
+      }
+
+      const evaluation = this.inspections.evaluate(
+        templates.get(d.templateId)!,
+        d.responses,
+        label,
+      );
+      evaluations.set(line.id, evaluation);
+
+      // The checklist is the basis of the decision, so the two cannot disagree.
+      // Accepting a lot whose inspection failed, or rejecting one whose
+      // inspection passed, would leave the record contradicting the outcome.
+      if (evaluation.result === 'FAIL' && rejected.equals(0)) {
+        throw new BadRequestException(
+          `${label}: the inspection failed (${evaluation.failedPrompts.join('; ')}) — the whole quantity cannot be accepted. Reject the non-conforming quantity, or correct the checklist.`,
+        );
+      }
+      if (evaluation.result === 'PASS' && rejected.greaterThan(0)) {
+        throw new BadRequestException(
+          `${label}: the inspection passed, so no quantity can be rejected. Record the failing observation on the checklist first.`,
         );
       }
     }
@@ -372,6 +426,23 @@ export class GoodsReceiptNoteService {
             rejectedQuantity: rejected,
             rejectionReason: d.rejectionReason?.trim() || null,
           },
+        });
+
+        // The inspection record — created in the same transaction as the stock
+        // movement it authorised, so stock can never exist without the
+        // inspection that let it in.
+        await this.inspections.createForGrnLine(tx, {
+          template: templates.get(d.templateId)!,
+          evaluation: evaluations.get(line.id)!,
+          grnId: grn.id,
+          grnLineId: line.id,
+          grnNumber: grn.grnNumber,
+          receivedQuantity: line.receivedQuantity,
+          acceptedQuantity: accepted,
+          rejectedQuantity: rejected,
+          remarks: d.remarks,
+          inspectorId: user.id,
+          inspectedAt: now,
         });
 
         // Accepted quantity → STOCK_IN (mirror InventoryService.adjust inline).
@@ -664,6 +735,8 @@ export class GoodsReceiptNoteService {
       );
     }
 
+    const inspectionByLine = await this.inspectionsByLine(grn.id);
+
     return new GoodsReceiptNoteEntity({
       id: grn.id,
       grnNumber: grn.grnNumber,
@@ -719,12 +792,71 @@ export class GoodsReceiptNoteService {
             ).toString(),
             unitOfMeasure: l.purchaseOrderLine.unitOfMeasure,
             sequence: l.sequence,
+            inspection: inspectionByLine.get(l.id) ?? null,
           }),
       ),
       ncrs: grn.ncrs.map((n) => this.ncrToEntity(n)),
       createdAt: grn.createdAt.toISOString(),
       updatedAt: grn.updatedAt.toISOString(),
     });
+  }
+
+  /**
+   * The incoming inspection recorded against each line of one GRN, keyed by
+   * grnLineId. One query per GRN (qms_inspections is indexed on grnId) — the
+   * QMS tables carry no FK into Stores, so this cannot be a Prisma include.
+   */
+  private async inspectionsByLine(
+    grnId: string,
+  ): Promise<Map<string, GrnLineInspectionEntity>> {
+    const rows = await this.prisma.qmsInspection.findMany({
+      where: { grnId, grnLineId: { not: null } },
+      include: { responses: { orderBy: { sequence: 'asc' } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    const byLine = new Map<string, GrnLineInspectionEntity>();
+    for (const r of rows) {
+      const snapshot = (r.templateSnapshot ?? {}) as {
+        templateCode?: string;
+        name?: string;
+        version?: number;
+      };
+      // A line inspected more than once (a re-inspection) shows the latest.
+      byLine.set(
+        r.grnLineId!,
+        new GrnLineInspectionEntity({
+          id: r.id,
+          inspectionNumber: r.inspectionNumber,
+          status: r.status,
+          overallResult: r.overallResult,
+          templateCode: snapshot.templateCode ?? null,
+          templateName: snapshot.name ?? null,
+          templateVersion: snapshot.version ?? null,
+          inspectedAt: r.inspectedAt ? r.inspectedAt.toISOString() : null,
+          remarks: r.remarks,
+          responses: r.responses.map(
+            (q) =>
+              new GrnInspectionResponseEntity({
+                questionKey: q.questionKey,
+                section: q.section,
+                sequence: q.sequence,
+                prompt: q.promptSnapshot,
+                responseType: q.responseType,
+                required: q.required,
+                answer:
+                  q.answer &&
+                  typeof q.answer === 'object' &&
+                  'value' in q.answer
+                    ? String((q.answer as { value: unknown }).value ?? '')
+                    : null,
+                result: q.result,
+                comments: q.comments,
+              }),
+          ),
+        }),
+      );
+    }
+    return byLine;
   }
 
   private ncrToEntity(n: NcrWithRelations): NonConformanceReportEntity {

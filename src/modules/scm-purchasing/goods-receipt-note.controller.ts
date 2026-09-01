@@ -58,6 +58,16 @@ export class GoodsReceiptNoteController {
     return this.service.create(dto, user);
   }
 
+  // Declared before ':id' so the literal path is not swallowed by the param route.
+  @Get('inspection-templates')
+  @ApiOperation({
+    summary:
+      'Approved INCOMING question templates for the QC checklist (QC Inspector/SA)',
+  })
+  inspectionTemplates(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.inspectionTemplates(user);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a goods receipt note (company-wide read)' })
   get(@Param('id') id: string) {

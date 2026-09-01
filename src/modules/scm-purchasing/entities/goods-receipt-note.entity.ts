@@ -1,6 +1,55 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { GoodsReceiptNoteStatus, PackingCondition } from '@prisma/client';
+import {
+  GoodsReceiptNoteStatus,
+  PackingCondition,
+  QmsInspectionResult,
+  QmsInspectionStatus,
+  QmsResponseType,
+} from '@prisma/client';
 import { NonConformanceReportEntity } from './non-conformance-report.entity';
+
+/** One answered question of a finalized line's incoming-inspection checklist. */
+export class GrnInspectionResponseEntity {
+  @ApiProperty() questionKey!: string;
+  @ApiProperty() section!: string;
+  @ApiProperty() sequence!: number;
+  @ApiProperty() prompt!: string;
+  @ApiProperty({ enum: QmsResponseType }) responseType!: QmsResponseType;
+  @ApiProperty() required!: boolean;
+  @ApiProperty({ nullable: true }) answer!: string | null;
+  @ApiProperty({ enum: QmsInspectionResult, nullable: true })
+  result!: QmsInspectionResult | null;
+  @ApiProperty({ nullable: true }) comments!: string | null;
+
+  constructor(p: Partial<GrnInspectionResponseEntity>) {
+    Object.assign(this, p);
+  }
+}
+
+/**
+ * The QmsInspection recorded for a GRN line at the QC gate — the audit answer to
+ * "on what basis was this accepted?". Null until the GRN is finalized (and on
+ * lines finalized before incoming inspection became mandatory).
+ */
+export class GrnLineInspectionEntity {
+  @ApiProperty() id!: string;
+  @ApiProperty() inspectionNumber!: string;
+  @ApiProperty({ enum: QmsInspectionStatus }) status!: QmsInspectionStatus;
+  @ApiProperty({ enum: QmsInspectionResult, nullable: true })
+  overallResult!: QmsInspectionResult | null;
+  @ApiProperty({ nullable: true }) templateCode!: string | null;
+  @ApiProperty({ nullable: true }) templateName!: string | null;
+  @ApiProperty({ nullable: true }) templateVersion!: number | null;
+  @ApiProperty({ nullable: true }) inspectedAt!: string | null;
+  @ApiProperty({ nullable: true }) remarks!: string | null;
+
+  @ApiProperty({ type: [GrnInspectionResponseEntity] })
+  responses!: GrnInspectionResponseEntity[];
+
+  constructor(p: Partial<GrnLineInspectionEntity>) {
+    Object.assign(this, p);
+  }
+}
 
 export class GoodsReceiptNoteLineEntity {
   @ApiProperty() id!: string;
@@ -28,6 +77,10 @@ export class GoodsReceiptNoteLineEntity {
 
   @ApiProperty() unitOfMeasure!: string;
   @ApiProperty() sequence!: number;
+
+  /** The incoming inspection this line's decision was based on. */
+  @ApiProperty({ type: GrnLineInspectionEntity, nullable: true })
+  inspection!: GrnLineInspectionEntity | null;
 
   constructor(p: Partial<GoodsReceiptNoteLineEntity>) {
     Object.assign(this, p);

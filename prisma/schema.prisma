@@ -5340,6 +5340,11 @@ model QmsInspection {
   orderLineId       String?
   orderLine         OrderLineItem?          @relation(fields: [orderLineId], references: [id], onDelete: SetNull)
   grnId             String?
+  // The GRN line this inspection covers. Incoming inspection is per received
+  // item, not per consignment — three different items on one GRN are three
+  // inspections against (possibly) three different templates. Loose reference,
+  // matching grnId: the QMS tables never FK into Stores.
+  grnLineId         String?
   batchOrSerial     String?
   quantityOffered   Decimal?                @db.Decimal(14, 4)
   quantityInspected Decimal?                @db.Decimal(14, 4)
@@ -5360,6 +5365,7 @@ model QmsInspection {
 
   @@index([status, inspectionType])
   @@index([grnId])
+  @@index([grnLineId])
   @@index([orderId])
   @@index([orderLineId])
   @@map("qms_inspections")

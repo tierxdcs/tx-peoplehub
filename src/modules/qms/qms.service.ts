@@ -1640,6 +1640,13 @@ export class QmsService {
               x.rejectedQuantity,
               undefined,
             );
+      // The GRN gate records an inspection per received line, so a store
+      // rejection can be traced back to the checklist that caused it.
+      const inspection = await this.prisma.qmsInspection.findFirst({
+        where: { grnId: x.grnId, grnLineId: x.grnLineId },
+        select: { id: true },
+        orderBy: { createdAt: 'desc' },
+      });
       await this.prisma.qmsNonConformance.upsert({
         where: { legacyStoreNcrId: x.id },
         create: {
@@ -1647,6 +1654,7 @@ export class QmsService {
           source: 'GRN',
           sourceId: x.id,
           legacyStoreNcrId: x.id,
+          inspectionId: inspection?.id,
           severity: 'MAJOR',
           status: x.status === 'CLOSED' ? 'CLOSED' : 'OPEN',
           title: `Incoming rejection: ${x.item?.name ?? x.itemId}`,

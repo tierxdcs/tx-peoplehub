@@ -104,9 +104,58 @@ export class UpdateGoodsReceiptNoteDto extends GrnLogisticsFieldsDto {
   lines?: GoodsReceiptNoteLineInputDto[];
 }
 
-/** One line's QC decision. accepted + rejected must equal the received qty. */
+/**
+ * One answer to one question of the line's inspection template. `questionKey` is
+ * the QmsTemplateQuestion id. The answer is sent as a string and graded on the
+ * server (choice vocabulary, or the question's numeric limits) — the client never
+ * decides pass/fail.
+ */
+export class QcChecklistResponseDto {
+  @ApiProperty({ description: 'QmsTemplateQuestion id' })
+  @IsString()
+  @MinLength(1)
+  questionKey!: string;
+
+  @ApiPropertyOptional({
+    description: 'The answer, as typed/selected. Omit for an unanswered optional question.',
+  })
+  @IsOptional()
+  @IsString()
+  answer?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Observation for this question. Required when the answer fails a check whose template demands evidence on failure.',
+  })
+  @IsOptional()
+  @IsString()
+  comments?: string;
+}
+
+/**
+ * One line's QC decision. accepted + rejected must equal the received qty, and
+ * the quantities must agree with the inspection checklist: a failed checklist
+ * cannot accept the whole lot, and a passed checklist cannot reject any of it.
+ */
 export class QcInspectionLineDto {
   @ApiProperty() @IsString() @MinLength(1) grnLineId!: string;
+
+  @ApiProperty({
+    description:
+      'APPROVED QmsQuestionTemplate of type INCOMING this line was inspected against',
+  })
+  @IsString()
+  @MinLength(1)
+  templateId!: string;
+
+  @ApiProperty({
+    type: [QcChecklistResponseDto],
+    description: 'Answers to the template questions. Every required question must be answered.',
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QcChecklistResponseDto)
+  responses!: QcChecklistResponseDto[];
 
   @ApiProperty({ description: 'Quantity that passed QC and enters stock' })
   @IsNumber({ maxDecimalPlaces: 4 })
@@ -122,11 +171,20 @@ export class QcInspectionLineDto {
   @IsOptional()
   @IsString()
   rejectionReason?: string;
+
+  @ApiPropertyOptional({
+    description: 'Free-text inspector remarks recorded on the inspection record',
+  })
+  @IsOptional()
+  @IsString()
+  remarks?: string;
 }
 
 /**
- * Finalize the QC gate on a PENDING_QC GRN. Every line must be decided.
- * Accepted quantity generates a STOCK_IN; rejected quantity spawns an NCR.
+ * Finalize the QC gate on a PENDING_QC GRN. Every line must be decided AND
+ * inspected against an approved incoming template. Accepted quantity generates a
+ * STOCK_IN; rejected quantity spawns an NCR; each line's checklist is preserved
+ * as a QmsInspection.
  */
 export class FinalizeQcDto {
   @ApiProperty({ type: [QcInspectionLineDto] })

@@ -10,6 +10,7 @@ import { GoodsReceiptNoteService } from './goods-receipt-note.service';
 import { NonConformanceReportController } from './non-conformance-report.controller';
 import { NonConformanceReportService } from './non-conformance-report.service';
 import { GrnAccessService } from './grn-access.service';
+import { IncomingInspectionService } from './incoming-inspection.service';
 import { MaterialIndentController } from './material-indent.controller';
 import { MaterialIssueController } from './material-issue.controller';
 import { MaterialService } from './material.service';
@@ -20,6 +21,10 @@ import { MaterialService } from './material.service';
  * + Issue. Imports SalesModule for the shared year-prefixed PO-/GRN-/NCR-/IND-/
  * MIN-#### sequences, and BomModule to reuse InventoryService's single
  * reservation-aware STOCK_OUT implementation for material issuing.
+ *
+ * IncomingInspectionService reads the QMS question templates directly rather
+ * than importing QmsModule, which would close a module cycle (Stores -> QMS ->
+ * Notifications -> Stores).
  */
 @Module({
   // BomModule is forwardRef'd because this module sits inside the
@@ -40,6 +45,7 @@ import { MaterialService } from './material.service';
     GoodsReceiptNoteService,
     NonConformanceReportService,
     GrnAccessService,
+    IncomingInspectionService,
     MaterialService,
   ],
   // Exported so the RFQ module can pre-fill a DRAFT PurchaseOrder from an

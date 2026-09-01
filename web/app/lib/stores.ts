@@ -2,6 +2,10 @@
 
 import { apiFetch } from './api';
 import type { EmailSendResult } from './invite-email';
+import type {
+  InspectionQuestion,
+  QmsResponseType,
+} from './incoming-inspection';
 
 /**
  * Stores (Purchasing) client — Purchase Orders, Goods Receipt Notes + the QC
@@ -199,6 +203,44 @@ export function emailPurchaseOrder(
 }
 
 // ── Goods Receipt Notes + QC ─────────────────────────────────────────
+/** One answered question of a finalized line's incoming-inspection checklist. */
+export interface GrnInspectionResponse {
+  questionKey: string;
+  section: string;
+  sequence: number;
+  prompt: string;
+  responseType: QmsResponseType;
+  required: boolean;
+  answer: string | null;
+  result: 'PASS' | 'FAIL' | 'NOT_APPLICABLE' | null;
+  comments: string | null;
+}
+
+/**
+ * The QmsInspection recorded for a GRN line at the QC gate — the audit answer
+ * to "on what basis was this accepted?". Null on lines that were finalized
+ * before incoming inspection became mandatory.
+ */
+export interface GrnLineInspection {
+  id: string;
+  inspectionNumber: string;
+  status:
+    | 'DRAFT'
+    | 'IN_PROGRESS'
+    | 'PENDING_REVIEW'
+    | 'PASSED'
+    | 'CONDITIONAL_PASS'
+    | 'FAILED'
+    | 'CANCELLED';
+  overallResult: 'PASS' | 'FAIL' | 'CONDITIONAL_PASS' | 'NOT_APPLICABLE' | null;
+  templateCode: string | null;
+  templateName: string | null;
+  templateVersion: number | null;
+  inspectedAt: string | null;
+  remarks: string | null;
+  responses: GrnInspectionResponse[];
+}
+
 export interface GoodsReceiptNoteLine {
   id: string;
   purchaseOrderLineId: string;
@@ -215,6 +257,7 @@ export interface GoodsReceiptNoteLine {
   previouslyReceived: string;
   unitOfMeasure: string;
   sequence: number;
+  inspection: GrnLineInspection | null;
 }
 
 export interface OverReceiptWarning {
@@ -278,11 +321,42 @@ export interface CreateGoodsReceiptNoteInput extends GrnLogisticsInput {
   lines: GoodsReceiptNoteLineInput[];
 }
 
+/** One answer submitted with the QC decision. The server grades it. */
+export interface QcChecklistResponseInput {
+  questionKey: string;
+  answer?: string;
+  comments?: string;
+}
+
 export interface QcInspectionLineInput {
   grnLineId: string;
+  /** Approved INCOMING template this line was inspected against. Required. */
+  templateId: string;
+  responses: QcChecklistResponseInput[];
   acceptedQuantity: number;
   rejectedQuantity: number;
   rejectionReason?: string;
+  remarks?: string;
+}
+
+/**
+ * An approved incoming-inspection template, with its questions. Every GRN line
+ * is inspected against one of these before its quantities can be finalized.
+ */
+export interface GrnInspectionTemplate {
+  id: string;
+  templateCode: string;
+  name: string;
+  version: number;
+  description: string | null;
+  questions: InspectionQuestion[];
+}
+
+/** Approved INCOMING templates for the QC checklist (QC inspectors only). */
+export function listGrnInspectionTemplates() {
+  return apiFetch<GrnInspectionTemplate[]>(
+    '/goods-receipt-notes/inspection-templates',
+  );
 }
 
 /** Lean employee result for the GRN supervisor sign-off picker. */
