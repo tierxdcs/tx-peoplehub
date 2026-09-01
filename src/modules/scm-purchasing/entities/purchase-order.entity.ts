@@ -67,6 +67,15 @@ export class PurchaseOrderEntity {
   @ApiProperty({ nullable: true }) issuedAt!: string | null;
   @ApiProperty({ nullable: true }) cancelledAt!: string | null;
 
+  /** When the order PDF was last emailed to the party, and to which address. */
+  @ApiProperty({ nullable: true }) lastEmailedAt!: string | null;
+  @ApiProperty({ nullable: true }) lastEmailedTo!: string | null;
+  /**
+   * The address a send would default to (the registered partner's contactEmail).
+   * Null for an ad-hoc party, which has none — the UI then has to ask for one.
+   */
+  @ApiProperty({ nullable: true }) partyEmail!: string | null;
+
   @ApiProperty({ description: 'Sum of the line totals' })
   totalAmount!: string;
 

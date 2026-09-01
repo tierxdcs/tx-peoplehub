@@ -43,8 +43,10 @@ const QUALIFIED_VENDOR: VendorStatus[] = [
 ];
 
 const PO_INCLUDE = {
-  supplier: { select: { companyName: true, status: true } },
-  vendor: { select: { companyName: true, status: true } },
+  // contactEmail is here for the entity's `partyEmail` — the address the
+  // "Email to Supplier" action would send to, shown before the user commits.
+  supplier: { select: { companyName: true, status: true, contactEmail: true } },
+  vendor: { select: { companyName: true, status: true, contactEmail: true } },
   createdBy: { select: { firstName: true, lastName: true } },
   lines: {
     orderBy: { sequence: 'asc' as const },
@@ -549,6 +551,10 @@ export class PurchaseOrderService {
         : null,
       issuedAt: po.issuedAt ? po.issuedAt.toISOString() : null,
       cancelledAt: po.cancelledAt ? po.cancelledAt.toISOString() : null,
+      lastEmailedAt: po.lastEmailedAt ? po.lastEmailedAt.toISOString() : null,
+      lastEmailedTo: po.lastEmailedTo,
+      partyEmail:
+        po.supplier?.contactEmail ?? po.vendor?.contactEmail ?? null,
       totalAmount: total.toFixed(2),
       lines: po.lines.map(
         (l) =>

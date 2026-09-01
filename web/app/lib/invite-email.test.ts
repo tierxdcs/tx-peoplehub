@@ -49,6 +49,21 @@ describe('inviteEmailMessage', () => {
     ).toContain('to contact@acme.test');
   });
 
+  it('names what was sent when the action is not an invite', () => {
+    // The purchase-order send reuses this copy; only the success line changes.
+    expect(inviteEmailMessage(base, undefined, 'Purchase order').text).toBe(
+      'Purchase order emailed to contact@acme.test.',
+    );
+    // A held mail reads the same whatever it was carrying.
+    expect(
+      inviteEmailMessage(
+        { ...base, recipients: [], messageId: null, skipped: 'dry-run' },
+        'contact@acme.test',
+        'Purchase order',
+      ).text,
+    ).toContain('Email not sent');
+  });
+
   it('reads sensibly when no address is known at all', () => {
     expect(
       inviteEmailMessage({

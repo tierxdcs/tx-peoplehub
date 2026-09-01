@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Plus, Search, Trash2, Upload } from 'lucide-react';
+import { Check, Plus, Search, Trash2, Upload } from 'lucide-react';
 import { ApiError } from '../../../../../lib/api';
 import {
   createCustomerBomIntake,
@@ -26,6 +26,7 @@ import { Input } from '../../../../../components/ui/input';
 import { Select } from '../../../../../components/ui/select';
 import { Field } from '../../../../../components/ui/field';
 import { useToast } from '../../../../../components/ui/toaster';
+import { cn } from '../../../../../lib/utils';
 
 interface DraftLine {
   key: number;
@@ -38,6 +39,12 @@ interface DraftLine {
   existingItemId: string;
   confirmCreateNew: boolean;
   searching: boolean;
+  /**
+   * Keeps the candidate list open on a line that is already resolved, so
+   * "Change" can reopen it. Resolving closes it again — the collapsed summary
+   * is what tells the user their pick registered.
+   */
+  changing: boolean;
 }
 
 let lineKey = 1;
@@ -52,6 +59,7 @@ const emptyLine = (): DraftLine => ({
   existingItemId: '',
   confirmCreateNew: false,
   searching: false,
+  changing: false,
 });
 
 export default function CustomerBomIntakePage() {
@@ -63,7 +71,8 @@ export default function CustomerBomIntakePage() {
   const [unitOfMeasure, setUnitOfMeasure] = useState('each');
   const [targetMarginPercent, setTargetMarginPercent] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
+  // Lazy: the initialiser runs on every render otherwise, burning line keys.
+  const [lines, setLines] = useState<DraftLine[]>(() => [emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
   const [createdIntakes, setCreatedIntakes] = useState<CustomerBomIntake[]>([]);
 
@@ -93,6 +102,7 @@ export default function CustomerBomIntakePage() {
       searching: true,
       existingItemId: '',
       confirmCreateNew: false,
+      changing: false,
     });
     try {
       const candidates = await findCustomerBomMatches(
@@ -251,137 +261,207 @@ export default function CustomerBomIntakePage() {
             }
           />
           <div className="mt-4 space-y-4">
-            {lines.map((line, index) => (
-              <div key={line.key} className="rounded-lg border p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <strong className="text-sm">Line {index + 1}</strong>
-                  {lines.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() =>
-                        setLines((current) =>
-                          current.filter((item) => item.key !== line.key),
-                        )
-                      }
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  )}
-                </div>
-                <div className="grid gap-3 md:grid-cols-[2fr_1fr_0.7fr_0.8fr_auto]">
-                  <Field label="Description" required>
-                    <Input
-                      value={line.description}
-                      onChange={(event) =>
-                        patchLine(line.key, {
-                          description: event.target.value,
-                          searchedDescription: null,
-                          candidates: [],
-                          existingItemId: '',
-                          confirmCreateNew: false,
-                        })
-                      }
-                    />
-                  </Field>
-                  <Field label="Customer part ref">
-                    <Input
-                      value={line.customerPartReference}
-                      onChange={(event) =>
-                        patchLine(line.key, {
-                          customerPartReference: event.target.value,
-                        })
-                      }
-                    />
-                  </Field>
-                  <Field label="Quantity" required>
-                    <Input
-                      type="number"
-                      min="0.0001"
-                      step="any"
-                      value={line.quantity}
-                      onChange={(event) =>
-                        patchLine(line.key, { quantity: event.target.value })
-                      }
-                    />
-                  </Field>
-                  <Field label="Unit" required>
-                    <Input
-                      value={line.unitOfMeasure}
-                      onChange={(event) =>
-                        patchLine(line.key, {
-                          unitOfMeasure: event.target.value,
-                        })
-                      }
-                    />
-                  </Field>
-                  <div className="pt-6">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={line.searching}
-                      onClick={() => void searchLine(line)}
-                    >
-                      <Search className="size-4" />{' '}
-                      {line.searching ? 'Searching' : 'Search'}
-                    </Button>
-                  </div>
-                </div>
-                {line.searchedDescription && (
-                  <div className="mt-3 rounded-md bg-black/[.03] p-3 text-sm dark:bg-white/[.03]">
-                    <p className="mb-2 font-medium">
-                      Candidate Item Master matches
-                    </p>
-                    {line.candidates.length ? (
-                      line.candidates.map((candidate) => (
-                        <label
-                          key={candidate.id}
-                          className="mb-2 flex cursor-pointer items-center gap-2 rounded border p-2"
-                        >
-                          <input
-                            type="radio"
-                            name={`resolution-${line.key}`}
-                            checked={line.existingItemId === candidate.id}
-                            onChange={() =>
-                              patchLine(line.key, {
-                                existingItemId: candidate.id,
-                                confirmCreateNew: false,
-                              })
-                            }
-                          />
-                          <span>
-                            <strong>{candidate.itemCode}</strong> —{' '}
-                            {candidate.name}{' '}
-                            <span className="text-xs text-muted-foreground">
-                              ({Math.round(candidate.score * 100)}% match)
-                            </span>
-                          </span>
-                        </label>
-                      ))
-                    ) : (
-                      <p className="mb-2 text-muted-foreground">
-                        No likely matches found.
-                      </p>
+            {lines.map((line, index) => {
+              const pickedCandidate =
+                line.candidates.find(
+                  (candidate) => candidate.id === line.existingItemId,
+                ) ?? null;
+              const resolved = !!pickedCandidate || line.confirmCreateNew;
+              // Searched but unresolved, or explicitly reopened via "Change".
+              const showCandidates =
+                !!line.searchedDescription && (!resolved || line.changing);
+              return (
+                <div key={line.key} className="rounded-lg border p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <strong className="text-sm">Line {index + 1}</strong>
+                    {lines.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() =>
+                          setLines((current) =>
+                            current.filter((item) => item.key !== line.key),
+                          )
+                        }
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
                     )}
-                    <label className="flex cursor-pointer items-center gap-2 rounded border border-dashed p-2">
-                      <input
-                        type="radio"
-                        name={`resolution-${line.key}`}
-                        checked={line.confirmCreateNew}
-                        onChange={() =>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-[2fr_1fr_0.7fr_0.8fr_auto]">
+                    <Field label="Description" required>
+                      <Input
+                        value={line.description}
+                        onChange={(event) =>
                           patchLine(line.key, {
+                            description: event.target.value,
+                            searchedDescription: null,
+                            candidates: [],
                             existingItemId: '',
-                            confirmCreateNew: true,
+                            confirmCreateNew: false,
+                            changing: false,
                           })
                         }
                       />
-                      None of these match — create a new Component item
-                    </label>
+                    </Field>
+                    <Field label="Customer part ref">
+                      <Input
+                        value={line.customerPartReference}
+                        onChange={(event) =>
+                          patchLine(line.key, {
+                            customerPartReference: event.target.value,
+                          })
+                        }
+                      />
+                    </Field>
+                    <Field label="Quantity" required>
+                      <Input
+                        type="number"
+                        min="0.0001"
+                        step="any"
+                        value={line.quantity}
+                        onChange={(event) =>
+                          patchLine(line.key, { quantity: event.target.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="Unit" required>
+                      <Input
+                        value={line.unitOfMeasure}
+                        onChange={(event) =>
+                          patchLine(line.key, {
+                            unitOfMeasure: event.target.value,
+                          })
+                        }
+                      />
+                    </Field>
+                    <div className="pt-6">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={line.searching}
+                        onClick={() => void searchLine(line)}
+                      >
+                        <Search className="size-4" />{' '}
+                        {line.searching ? 'Searching' : 'Search'}
+                      </Button>
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+                  {showCandidates && (
+                    <div className="mt-3 rounded-md bg-black/[.03] p-3 text-sm dark:bg-white/[.03]">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="font-medium">
+                          Candidate Item Master matches
+                        </p>
+                        {line.changing && (
+                          // Re-clicking the already-selected radio fires no change
+                          // event, so reopening needs its own way back out.
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              patchLine(line.key, { changing: false })
+                            }
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
+                      {line.candidates.length ? (
+                        line.candidates.map((candidate) => (
+                          <label
+                            key={candidate.id}
+                            className={cn(
+                              'mb-2 flex cursor-pointer items-center gap-2 rounded border p-2',
+                              line.existingItemId === candidate.id &&
+                                'border-primary bg-primary/[.08]',
+                            )}
+                          >
+                            <input
+                              type="radio"
+                              name={`resolution-${line.key}`}
+                              checked={line.existingItemId === candidate.id}
+                              onChange={() =>
+                                patchLine(line.key, {
+                                  existingItemId: candidate.id,
+                                  confirmCreateNew: false,
+                                  changing: false,
+                                })
+                              }
+                            />
+                            <span>
+                              <strong>{candidate.itemCode}</strong> —{' '}
+                              {candidate.name}{' '}
+                              <span className="text-xs text-muted-foreground">
+                                ({Math.round(candidate.score * 100)}% match)
+                              </span>
+                            </span>
+                          </label>
+                        ))
+                      ) : (
+                        <p className="mb-2 text-muted-foreground">
+                          No likely matches found.
+                        </p>
+                      )}
+                      <label
+                        className={cn(
+                          'flex cursor-pointer items-center gap-2 rounded border border-dashed p-2',
+                          line.confirmCreateNew &&
+                            'border-primary bg-primary/[.08]',
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name={`resolution-${line.key}`}
+                          checked={line.confirmCreateNew}
+                          onChange={() =>
+                            patchLine(line.key, {
+                              existingItemId: '',
+                              confirmCreateNew: true,
+                              changing: false,
+                            })
+                          }
+                        />
+                        None of these match — create a new Component item
+                      </label>
+                    </div>
+                  )}
+                  {resolved && !line.changing && (
+                    // Collapsed confirmation: the candidate list closing, and this
+                    // line naming what the pick resolved to, is the only signal
+                    // that the choice registered — a radio dot in a list of eight
+                    // near-identical fuzzy matches reads as nothing happening.
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/[.06] p-3 text-sm">
+                      <span className="flex items-center gap-2">
+                        <Check className="size-4 shrink-0 text-primary" />
+                        {pickedCandidate ? (
+                          <span>
+                            Matched to{' '}
+                            <strong>{pickedCandidate.itemCode}</strong> —{' '}
+                            {pickedCandidate.name}
+                          </span>
+                        ) : (
+                          <span>
+                            New Component item will be created for{' '}
+                            <strong>{line.searchedDescription}</strong>
+                          </span>
+                        )}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => patchLine(line.key, { changing: true })}
+                      >
+                        Change
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             <div className="flex justify-end">
               <Button
                 disabled={!ready || submitting}

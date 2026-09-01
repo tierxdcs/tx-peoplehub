@@ -4819,6 +4819,12 @@ model PurchaseOrder {
   /// Set when the PO is CANCELLED.
   cancelledAt DateTime?
 
+  /// When the PO PDF was last emailed to the party, and the address it went to.
+  /// A resend overwrites both: the useful question on the detail page is "has
+  /// this reached them, and where", not the full send history.
+  lastEmailedAt DateTime?
+  lastEmailedTo String?
+
   lines             PurchaseOrderLine[]
   goodsReceiptNotes GoodsReceiptNote[]
   apInvoices        AccountsPayableInvoice[]

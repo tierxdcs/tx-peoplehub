@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Download, PackagePlus, X } from 'lucide-react';
+import { ArrowLeft, Check, Download, Mail, PackagePlus, X } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
 import {
@@ -13,10 +13,12 @@ import {
   cancelPurchaseOrder,
   approveAdHocPurchaseOrder,
   rejectAdHocPurchaseOrder,
+  emailPurchaseOrder,
   isGrnFinalized,
   type PurchaseOrder,
   type GoodsReceiptNote,
 } from '../../../../lib/stores';
+import { inviteEmailMessage } from '../../../../lib/invite-email';
 import { formatINR } from '../../../../lib/sales';
 import { useNumberFormat } from '../../../../lib/number-format-context';
 import { dateOnlyStr, todayDateStr } from '../../../../lib/date';
@@ -28,7 +30,16 @@ import {
   CardTitle,
 } from '../../../../components/ui/card';
 import { Button } from '../../../../components/ui/button';
+import { Input } from '../../../../components/ui/input';
 import { Textarea } from '../../../../components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../../components/ui/dialog';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { StatusBadge } from '../../../../components/ui/status-badge';
 import { ProcessFlow } from '../../../../components/ui/process-flow';
@@ -59,6 +70,10 @@ export default function PurchaseOrderDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
   const [rejectionComment, setRejectionComment] = useState('');
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState('');
+  const [emailNote, setEmailNote] = useState('');
+  const [emailing, setEmailing] = useState(false);
 
   const canManage = user?.role === 'SUPER_ADMIN' || user?.role === 'MANAGER';
 
@@ -176,6 +191,51 @@ export default function PurchaseOrderDetailPage() {
   }
 
   /**
+   * Emailing the order to the party. Deliberately a dialog rather than a
+   * one-click send: the address is worth showing before an order leaves the
+   * company, an ad-hoc party has none on file, and the covering note is often
+   * where the real instruction lives ("freight to our account").
+   */
+  function openEmailDialog() {
+    if (!po) return;
+    setEmailTo(po.partyEmail ?? '');
+    setEmailNote('');
+    setEmailOpen(true);
+  }
+
+  async function handleEmail() {
+    if (!po) return;
+    const to = emailTo.trim();
+    if (!to) {
+      toast.error('Enter the address to send this purchase order to');
+      return;
+    }
+    setEmailing(true);
+    try {
+      const result = await emailPurchaseOrder(po.id, {
+        // Only send an override when it differs from the registered address, so
+        // the server keeps owning the default.
+        ...(to === po.partyEmail ? {} : { to }),
+        ...(emailNote.trim() ? { note: emailNote.trim() } : {}),
+      });
+      // A dry-run or allowlist-suppressed send is reported as held, never as
+      // sent — a buyer who believes the supplier has the order and waits is
+      // worse off than one who is told the mail was not delivered.
+      const message = inviteEmailMessage(result, to, 'Purchase order');
+      if (message.tone === 'success') toast.success(message.text);
+      else toast.toast({ title: 'Email not sent', description: message.text });
+      setEmailOpen(false);
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to email the purchase order',
+      );
+    } finally {
+      setEmailing(false);
+    }
+  }
+
+  /**
    * Print/Save-as-PDF. Chrome prints the browser tab title (document.title) in
    * its own page header — swap it to a clean line for the duration of the
    * print, then restore it so the app tab title is unaffected. Mirrors the Bid
@@ -214,6 +274,15 @@ export default function PurchaseOrderDetailPage() {
   }
 
   const canReceive = po.status === 'ISSUED' || po.status === 'PARTIALLY_RECEIVED';
+  const partyLabel = po.supplierId ? 'Supplier' : po.vendorId ? 'Vendor' : 'Party';
+  // A DRAFT is not yet an order and an unapproved ad-hoc PO is not yet a
+  // commitment — neither may be put in front of a supplier. The server enforces
+  // the same list; this only keeps the button off the page.
+  const canEmail =
+    canManage &&
+    (po.status === 'ISSUED' ||
+      po.status === 'PARTIALLY_RECEIVED' ||
+      po.status === 'FULLY_RECEIVED');
 
   return (
     <>
@@ -240,11 +309,25 @@ export default function PurchaseOrderDetailPage() {
             {po.supplierName ?? po.vendorName ?? po.adHocPartyName} ·{' '}
             {po.supplierId ? 'Supplier' : po.vendorId ? 'Vendor' : 'Ad-hoc / Unlisted Party'}
           </p>
+          {/* Whether the order has actually reached them, and where — the
+              question a buyer asks before chasing a supplier. */}
+          {po.lastEmailedAt && (
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Mail className="size-3" />
+              Emailed to {po.lastEmailedTo} on {dateOnlyStr(po.lastEmailedAt)}
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="outline" onClick={printPurchaseOrder}>
             <Download className="size-4" /> Download PDF
           </Button>
+          {canEmail && (
+            <Button variant="outline" onClick={openEmailDialog} disabled={emailing}>
+              <Mail className="size-4" />
+              {po.lastEmailedAt ? `Resend to ${partyLabel}` : `Email to ${partyLabel}`}
+            </Button>
+          )}
           {canReceive && (
             <Button onClick={() => router.push(`/stores/grn/new?poId=${po.id}`)}>
               <PackagePlus className="size-4" /> Receive Goods (GRN)
@@ -407,6 +490,70 @@ export default function PurchaseOrderDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={emailOpen} onOpenChange={(open) => !emailing && setEmailOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {po.lastEmailedAt ? 'Resend' : 'Email'} {po.poNumber}
+            </DialogTitle>
+            <DialogDescription>
+              Sends the order as a PDF attachment to{' '}
+              {po.supplierName ?? po.vendorName ?? po.adHocPartyName}
+              {po.lastEmailedAt
+                ? '. The email will say it is a repeat, not a new order.'
+                : '.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="po-email-to" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Send to
+              </label>
+              <Input
+                id="po-email-to"
+                type="email"
+                value={emailTo}
+                onChange={(e) => setEmailTo(e.target.value)}
+                placeholder="supplier@example.com"
+                className="mt-1"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {po.partyEmail
+                  ? `Contact on record: ${po.partyEmail}. Change it to send elsewhere this time only — the ${partyLabel.toLowerCase()} master is not updated.`
+                  : 'This party has no email on record, so an address is required here.'}
+              </p>
+            </div>
+            <div>
+              <label htmlFor="po-email-note" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Note (optional)
+              </label>
+              <Textarea
+                id="po-email-note"
+                value={emailNote}
+                onChange={(e) => setEmailNote(e.target.value)}
+                placeholder="e.g. Freight is to our account. Please confirm the dispatch date."
+                className="mt-1"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Added to the covering email. The attached order is unchanged — use
+                the PO notes for anything that must appear on the document itself.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailOpen(false)} disabled={emailing}>
+              Cancel
+            </Button>
+            <Button onClick={handleEmail} disabled={emailing || !emailTo.trim()}>
+              <Mail className="size-4" />
+              {emailing ? 'Sending…' : po.lastEmailedAt ? 'Resend order' : 'Send order'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </PageContainer>
     </>
   );

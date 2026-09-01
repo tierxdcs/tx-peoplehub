@@ -1,6 +1,7 @@
 'use client';
 
 import { apiFetch } from './api';
+import type { EmailSendResult } from './invite-email';
 
 /**
  * Stores (Purchasing) client — Purchase Orders, Goods Receipt Notes + the QC
@@ -103,6 +104,14 @@ export interface PurchaseOrder {
   createdByName: string | null;
   issuedAt: string | null;
   cancelledAt: string | null;
+  /** When the order PDF was last emailed to the party, and to which address. */
+  lastEmailedAt: string | null;
+  lastEmailedTo: string | null;
+  /**
+   * The address a send would default to. Null for an ad-hoc party, which has no
+   * registered email — the dialog then has to ask for one.
+   */
+  partyEmail: string | null;
   totalAmount: string;
   lines: PurchaseOrderLine[];
   qualificationWarning?: QualificationWarning | null;
@@ -167,6 +176,25 @@ export function rejectAdHocPurchaseOrder(id: string, comment: string) {
   return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/reject-ad-hoc`, {
     method: 'POST',
     body: JSON.stringify({ comment }),
+  });
+}
+
+/**
+ * Emails an issued PO to the supplier/vendor with the order PDF attached.
+ * `to` overrides the partner's registered address (and is required for an ad-hoc
+ * party, which has none); `note` is added to the covering email.
+ *
+ * Returns the send result rather than the PO, because the two ways a send can
+ * succeed without being delivered — dry-run and the recipient allowlist — have to
+ * reach the user. Re-read the PO afterwards for the refreshed lastEmailedAt.
+ */
+export function emailPurchaseOrder(
+  id: string,
+  body: { to?: string; note?: string } = {},
+) {
+  return apiFetch<EmailSendResult>(`/purchase-orders/${id}/email`, {
+    method: 'POST',
+    body: JSON.stringify(body),
   });
 }
 

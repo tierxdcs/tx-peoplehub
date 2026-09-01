@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsEmail,
   IsInt,
   IsNumber,
   IsOptional,
@@ -91,4 +92,22 @@ export class UpdatePurchaseOrderDto {
 
 export class RejectAdHocPurchaseOrderDto {
   @ApiProperty() @IsString() @MinLength(1) comment!: string;
+}
+
+/** Email an issued PO (with the order PDF attached) to the supplier/vendor. */
+export class EmailPurchaseOrderDto {
+  @ApiPropertyOptional({
+    description:
+      "Recipient override. Defaults to the registered partner's contactEmail; required for an ad-hoc party, which has none.",
+  })
+  @IsOptional()
+  @IsEmail()
+  to?: string;
+
+  @ApiPropertyOptional({
+    description: 'Free-text note added to the covering email.',
+  })
+  @IsOptional()
+  @IsString()
+  note?: string;
 }

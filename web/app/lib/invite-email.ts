@@ -24,10 +24,15 @@ export interface InviteEmailMessage {
  * What to tell the user after a send. The two skip reasons are deliberately NOT
  * reported as success: a staff member who thinks the vendor was emailed and
  * then waits is worse off than one who is told the mail was held.
+ *
+ * `subject` names what was sent, for actions that are not invites (e.g. the
+ * purchase order sent to a supplier). Only the success line varies — a held mail
+ * reads the same whatever it was carrying.
  */
 export function inviteEmailMessage(
   result: EmailSendResult,
   fallbackRecipient?: string,
+  subject = 'Invite',
 ): InviteEmailMessage {
   const attempted =
     result.recipients[0] ?? result.blocked[0] ?? fallbackRecipient ?? '';
@@ -45,5 +50,5 @@ export function inviteEmailMessage(
       text: `Email not sent${who}: the address is outside this environment's allowed recipients.`,
     };
   }
-  return { tone: 'success', text: `Invite emailed${who}.` };
+  return { tone: 'success', text: `${subject} emailed${who}.` };
 }

@@ -3,6 +3,7 @@ import { SalesModule } from '../sales/sales.module';
 import { BomModule } from '../bom/bom.module';
 import { PurchaseOrderController } from './purchase-order.controller';
 import { PurchaseOrderService } from './purchase-order.service';
+import { PurchaseOrderEmailService } from './purchase-order-email.service';
 import { PurchasingAccessService } from './purchasing-access.service';
 import { GoodsReceiptNoteController } from './goods-receipt-note.controller';
 import { GoodsReceiptNoteService } from './goods-receipt-note.service';
@@ -34,6 +35,7 @@ import { MaterialService } from './material.service';
   ],
   providers: [
     PurchaseOrderService,
+    PurchaseOrderEmailService,
     PurchasingAccessService,
     GoodsReceiptNoteService,
     NonConformanceReportService,

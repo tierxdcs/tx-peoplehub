@@ -3,6 +3,13 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
-    "deleteOutDir": true
+    "deleteOutDir": true,
+    "assets": [
+      {
+        "//": "Letterhead logo for server-rendered documents (src/core/documents/letterhead.ts). Copied because the runtime image ships only dist/ + prisma/.",
+        "include": "assets/*.png",
+        "outDir": "dist"
+      }
+    ]
   }
 }

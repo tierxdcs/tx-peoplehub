@@ -17,8 +17,10 @@ import {
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { PurchaseOrderService } from './purchase-order.service';
+import { PurchaseOrderEmailService } from './purchase-order-email.service';
 import {
   CreatePurchaseOrderDto,
+  EmailPurchaseOrderDto,
   RejectAdHocPurchaseOrderDto,
   UpdatePurchaseOrderDto,
 } from './dto/purchase-order.dto';
@@ -34,7 +36,10 @@ import {
 @Roles(Role.MANAGER, Role.EMPLOYEE, Role.ADMIN, Role.SUPER_ADMIN)
 @Controller('purchase-orders')
 export class PurchaseOrderController {
-  constructor(private readonly service: PurchaseOrderService) {}
+  constructor(
+    private readonly service: PurchaseOrderService,
+    private readonly poEmail: PurchaseOrderEmailService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List purchase orders (company-wide read)' })
@@ -79,6 +84,19 @@ export class PurchaseOrderController {
   @ApiOperation({ summary: 'Issue a DRAFT purchase order (SCM Manager+/SA)' })
   issue(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.issue(id, user);
+  }
+
+  @Post(':id/email')
+  @ApiOperation({
+    summary:
+      'Email an issued purchase order to the supplier/vendor, with the order PDF attached (SCM Manager+/SA)',
+  })
+  email(
+    @Param('id') id: string,
+    @Body() dto: EmailPurchaseOrderDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.poEmail.emailToParty(id, dto, user);
   }
 
   @Post(':id/approve-ad-hoc')

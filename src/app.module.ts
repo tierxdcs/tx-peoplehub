@@ -13,6 +13,7 @@ import { PrismaModule } from './core/database/prisma.module';
 import { PrismaService } from './core/database/prisma.service';
 import { EncryptionModule } from './core/crypto/encryption.module';
 import { EmailModule } from './core/email/email.module';
+import { PdfModule } from './core/pdf/pdf.module';
 import { PushModule } from './core/push/push.module';
 import { PushEventsModule } from './modules/notifications/push-events.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -77,6 +78,7 @@ import { PushSubscriptionsModule } from './modules/push/push.module';
     PrismaModule,
     EncryptionModule,
     EmailModule,
+    PdfModule,
     PushModule,
     // Global, and registered beside PushModule rather than with the feature
     // modules: everything downstream injects it, so it must be up here.
