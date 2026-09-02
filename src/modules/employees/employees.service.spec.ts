@@ -717,7 +717,7 @@ describe('EmployeesService', () => {
       expect(prisma.$transaction).toHaveBeenCalled();
     });
 
-    it('atomically links a valid Approved and Fulfilled requisition without requiring an Offer Letter', async () => {
+    it('links a requisition whose candidate accepted an offer, fulfils it, and re-anchors the letter to the new employee', async () => {
       prisma.vertical.findUnique.mockResolvedValueOnce(hrVertical);
       prisma.vertical.findUnique.mockResolvedValueOnce(salesVertical);
       const created = {
@@ -727,6 +727,7 @@ describe('EmployeesService', () => {
         lastName: 'Doe',
       };
       const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      const offerUpdate = jest.fn().mockResolvedValue({});
       prisma.$transaction.mockImplementation(async (cb: any) =>
         cb({
           $queryRaw: jest.fn().mockResolvedValue([{ lastValue: 9 }]),
@@ -738,11 +739,13 @@ describe('EmployeesService', () => {
           candidateRequisition: {
             findUnique: jest.fn().mockResolvedValue({
               status: 'APPROVED',
-              hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
+              verticalId: onboardDto.verticalId,
               onboardedEmployeeId: null,
+              offerLetters: [{ id: 'offer-1' }],
             }),
             updateMany,
           },
+          offerLetter: { update: offerUpdate },
           salaryStructure: { create: jest.fn().mockResolvedValue({}) },
           employeeStatutoryInfo: { create: jest.fn().mockResolvedValue({}) },
           employeeBankDetails: { create: jest.fn().mockResolvedValue({}) },
@@ -758,14 +761,15 @@ describe('EmployeesService', () => {
         hrStaffUser,
       );
 
+      // The claim no longer requires the requisition to already be Fulfilled —
+      // this onboarding is what fulfils it.
       expect(updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({
+          where: {
             id: '11111111-1111-4111-8111-111111111111',
             status: 'APPROVED',
-            hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
             onboardedEmployeeId: null,
-          }),
+          },
           data: {
             onboardedEmployeeId: 'new-emp-linked',
             selectedCandidateName: 'John Doe',
@@ -773,9 +777,14 @@ describe('EmployeesService', () => {
           },
         }),
       );
+      // The signed letter stays reachable from the employee record it produced.
+      expect(offerUpdate).toHaveBeenCalledWith({
+        where: { id: 'offer-1' },
+        data: { employeeId: 'new-emp-linked' },
+      });
     });
 
-    it('rejects a linked onboarding while the requisition is only at Offer Extended', async () => {
+    it('refuses to onboard a candidate who has not accepted an approved offer letter', async () => {
       prisma.vertical.findUnique.mockResolvedValueOnce(hrVertical);
       prisma.vertical.findUnique.mockResolvedValueOnce(salesVertical);
       prisma.$transaction.mockImplementation(async (cb: any) =>
@@ -783,8 +792,38 @@ describe('EmployeesService', () => {
           candidateRequisition: {
             findUnique: jest.fn().mockResolvedValue({
               status: 'APPROVED',
-              hiringStage: CandidateHiringStage.OFFER_EXTENDED,
+              verticalId: onboardDto.verticalId,
               onboardedEmployeeId: null,
+              // Approved and sent, but nobody has said yes — filtered out by the
+              // query, so this is the empty case.
+              offerLetters: [],
+            }),
+          },
+        }),
+      );
+
+      await expect(
+        service.onboard(
+          {
+            ...onboardDto,
+            candidateRequisitionId: '11111111-1111-4111-8111-111111111111',
+          },
+          hrStaffUser,
+        ),
+      ).rejects.toThrow('has not accepted an approved offer letter yet');
+    });
+
+    it('refuses to place a requisition-backed candidate in another vertical', async () => {
+      prisma.vertical.findUnique.mockResolvedValueOnce(hrVertical);
+      prisma.vertical.findUnique.mockResolvedValueOnce(salesVertical);
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          candidateRequisition: {
+            findUnique: jest.fn().mockResolvedValue({
+              status: 'APPROVED',
+              verticalId: 'different-vertical',
+              onboardedEmployeeId: null,
+              offerLetters: [{ id: 'offer-1' }],
             }),
           },
         }),
@@ -799,7 +838,7 @@ describe('EmployeesService', () => {
           hrStaffUser,
         ),
       ).rejects.toThrow(
-        'The selected requisition must be Approved and Fulfilled',
+        'employee vertical must match the candidate requisition vertical',
       );
     });
 

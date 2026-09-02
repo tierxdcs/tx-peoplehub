@@ -35,12 +35,11 @@ export class RejectCandidateRequisitionDto {
   @IsString() @MaxLength(2000) comment!: string;
 }
 
+/** HR's manual hiring-progress update. Only the pre-offer stages are settable
+ *  here: Offer Extended follows from sending an approved offer letter, and
+ *  Candidate Selected from onboarding the candidate who accepted it. The selected
+ *  candidate's name is likewise taken from the accepted offer, never typed. */
 export class UpdateCandidateHiringLifecycleDto {
   @IsEnum(CandidateHiringStage)
   hiringStage!: CandidateHiringStage;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(300)
-  selectedCandidateName?: string;
 }

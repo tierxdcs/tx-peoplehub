@@ -488,14 +488,22 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
         key: 'recruitment',
         label: 'Recruitment progress',
         detail:
-          'After approval, HR owns the hiring lifecycle and updates it through Job Posted, Interviewing and Offer Extended. The requester, vertical owner and CEO can follow progress read-only in the Requisition Register. When a person is confirmed, HR records the selected candidate’s name and the requisition becomes Candidate Selected, shown as Fulfilled.',
+          'After approval, HR publishes the application link and moves the position through Job Posted and Interviewing, marking one applicant Selected. Selection authorises an offer — it is not the hire. The later stages are not set by hand: sending the approved offer moves the position to Offer Extended, and onboarding the candidate who accepted it makes it Candidate Selected, shown as Fulfilled. The requester, vertical owner and CEO follow progress read-only in the Requisition Register.',
         href: '/hr/candidate-requisitions',
       },
       {
         key: 'offer',
         label: 'Offer Letter',
         detail:
-          'HR creates the Offer Letter from an approved, unconsumed requisition that matches the employee’s vertical and designation. Key Responsibilities and KPIs are pre-filled from the approved request and remain editable; compensation and employee data come from their current records. Submitting freezes the exact document for the vertical owner’s approval, with the CEO as fallback when no owner is assigned.',
+          'HR drafts the Offer Letter for the Selected applicant — before any employee record exists — quoting the position, joining date, place of posting and monthly CTC. Key Responsibilities and KPIs are pre-filled from the approved request and remain editable; Annexure A is computed from the offered CTC by the same calculator payroll uses. Submitting freezes the exact document for the vertical owner’s approval, with the CEO as fallback when no owner is assigned. One requisition carries one live offer at a time.',
+        href: '/hr/offer-letters',
+        gate: true,
+      },
+      {
+        key: 'answer',
+        label: 'Candidate’s answer',
+        detail:
+          'The approved letter goes to the candidate and HR records it as sent, which extends the offer. Their answer is recorded against the letter: an acceptance is what authorizes onboarding and closes the position’s application links, while a decline (with its reason) returns the position to Interviewing so another applicant can be selected — no re-raising or re-approving the requisition.',
         href: '/hr/offer-letters',
         gate: true,
       },
@@ -503,7 +511,7 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
         key: 'onboard',
         label: 'Employee onboarding',
         detail:
-          'HR creates the employee master record with personal, employment, compensation, statutory and bank details. A linked requisition is optional and appears when it is Approved and Candidate Selected; selecting it always fills the confirmed name and adds approved Offer Letter terms when available. HR reviews every value before completion, and the same requisition cannot be linked to a second onboarding.',
+          'HR creates the employee master record with personal, employment, compensation, statutory and bank details. Only a requisition whose candidate accepted an approved Offer Letter can be linked, and every term — name, designation, employment type, joining date, place of posting and compensation — is filled from the letter they accepted, so the record and their first salary structure cannot disagree with what was signed. HR reviews every value before completion, and the same requisition cannot be linked to a second onboarding.',
         href: '/hr/onboard',
       },
       {
@@ -836,37 +844,37 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
         key: 'recruit',
         label: 'HR runs recruitment',
         detail:
-          'After final approval, only HR edits the hiring stage: Job Posted, Interviewing and Offer Extended. The requester, vertical owner and CEO can see the current stage but cannot change it. Creating an Offer Letter automatically moves the stage to at least Offer Extended so HR does not maintain two disconnected trackers.',
+          'After final approval, only HR sets the hiring stage, and only the two stages that are actually decisions: Job Posted and Interviewing. The requester, vertical owner and CEO can see the current stage but cannot change it. The later stages are consequences, not choices — sending the approved Offer Letter moves the position to Offer Extended — so HR never maintains two disconnected trackers.',
         href: '/hr/candidate-requisitions',
       },
       {
         key: 'selected',
-        label: 'Confirm the candidate',
+        label: 'Select an applicant',
         detail:
-          'When the person is confirmed, HR enters the selected candidate’s name. This sets Candidate Selected and displays the requisition as Fulfilled in the shared register. A fulfilled requisition can then be linked during onboarding, while the audit trail continues to show who requested and approved the hire.',
+          'HR marks one applicant Selected on their application. That authorises an Offer Letter for them and reserves the position for one live offer, but it is not the hire: the requisition only becomes Candidate Selected — shown as Fulfilled — when that candidate accepts and is onboarded. If they decline, the position returns to Interviewing and another applicant can be selected against the same approval.',
         href: '/hr/candidate-requisitions',
       },
     ],
   },
   {
     codes: ['OFFER_LETTER'],
-    title: 'Offer Letters — Draft to Issue',
+    title: 'Offer Letters — Draft to Accepted',
     summary:
-      'Author a candidate’s offer with a computed CTC, freeze it for approval and issue the approved letter.',
+      'Author a selected candidate’s offer with a computed CTC, freeze it for approval, send it and record their answer.',
     participants: 'HR employees, vertical owners and the candidate',
     steps: [
       {
         key: 'draft',
         label: 'Draft offer',
         detail:
-          'HR selects the employee and an approved, unconsumed requisition whose vertical and position exactly match that employee. The requisition’s approved Key Responsibilities and KPIs pre-fill the editor, but HR can refine them before saving. One requisition authorises one Offer Letter and is consumed when that letter is created.',
+          'HR picks an applicant marked Selected after their interview — there is no employee record yet, and there should not be: the offer comes first. The requisition’s approved Key Responsibilities and KPIs pre-fill the editor and remain editable. One requisition carries one live offer at a time, and drafting the letter claims it.',
         href: '/hr/offer-letters',
       },
       {
         key: 'ctc',
         label: 'CTC & terms',
         detail:
-          'The cost-to-company is computed from the salary structure so the numbers are consistent and correct. HR previews the exact document the candidate will see. Getting the terms right here avoids re-issuing later.',
+          'HR enters what is actually being offered: position, employment type, joining date, place of posting and monthly CTC. Annexure A is computed from that CTC by the same calculator onboarding uses, so the letter and the employee’s first salary structure cannot disagree. HR previews the exact document the candidate will see.',
       },
       {
         key: 'submit',
@@ -878,14 +886,21 @@ export const VERTICAL_FLOWS: VerticalFlow[] = [
         key: 'approve',
         label: 'Vertical owner approves',
         detail:
-          'The employee’s vertical owner reviews and approves the frozen offer, or rejects it back to HR with feedback. If that vertical has no owner, the CEO is the fallback approver. This gate ensures an accountable sign-off before anything reaches the candidate and records who signed and when.',
+          'The owner of the position’s vertical reviews and approves the frozen offer, then the CEO signs off; a rejection returns it to HR with feedback. If that vertical has no owner, the CEO is the fallback approver. This gate ensures an accountable sign-off before anything reaches the candidate and records who signed and when.',
         gate: true,
       },
       {
         key: 'issued',
-        label: 'Issued to candidate',
+        label: 'Sent to the candidate',
         detail:
-          'The approved, frozen letter is the official offer extended to the candidate. Because it is a snapshot, the served document can never silently drift from what was approved. Acceptance leads into onboarding.',
+          'HR downloads the approved letter, sends it, and records it as sent — which moves the position to Offer Extended. Because the document is a frozen snapshot, what the candidate holds can never silently drift from what was approved; editing the letter after it has gone out withdraws it and requires a fresh approval.',
+      },
+      {
+        key: 'answer',
+        label: 'Accepted or declined',
+        detail:
+          'The candidate’s answer is recorded against the letter, separately from our own approval. An acceptance locks the terms, closes the position’s application links and is the single thing that authorises onboarding. A decline is recorded with its reason and returns the position to Interviewing, so another applicant can be selected without re-raising the requisition.',
+        gate: true,
       },
     ],
   },

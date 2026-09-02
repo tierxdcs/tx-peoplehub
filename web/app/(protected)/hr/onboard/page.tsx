@@ -53,11 +53,20 @@ const WORK_LOCATIONS = ['Unit 1 - Peenya', 'Unit 2 - Dabaspet', 'Hybrid'];
 
 const OFFICIAL_EMAIL_DOMAIN = 'phaze-dynamics.com';
 
+/**
+ * A requisition that is ready to onboard against: approved, nobody onboarded on
+ * it yet, and carrying an approved offer letter the candidate has ACCEPTED. The
+ * acceptance is the gate — the server refuses an onboarding without one — so
+ * every option here has offer terms behind it.
+ */
 type OnboardingRequisitionOption = {
   id: string;
   requisitionNumber: string;
+  offerLetterId: string | null;
   offerReferenceNumber: string | null;
   hasApprovedOffer: boolean;
+  offerAcceptedAt: string | null;
+  candidateApplicationId: string | null;
   selectedCandidateName: string;
   designation: string | null;
   employmentType: EmploymentType | null;
@@ -266,11 +275,10 @@ export default function OnboardEmployeePage() {
     setFirstName(candidateFirstName);
     setLastName(candidateLastNameParts.join(' '));
 
-    // Role facts (designation, employment type, vertical) come from the
-    // approved requisition itself, so prefill them whether or not an Offer
-    // Letter exists. Compensation and joining details are only prefilled from
-    // an approved Offer Letter — those are never safe to guess. Never carry
-    // terms from a previously selected requisition, so reset the rest.
+    // Every term comes from the offer letter the candidate accepted, so the
+    // employee record and their first salary structure say exactly what they
+    // agreed to. Reset first, so terms from a previously selected requisition
+    // can never be carried over.
     setDesignation(option.designation ?? '');
     setEmploymentType(option.employmentType ?? 'FULL_TIME_PERMANENT');
     setVerticalId(option.vertical?.id ?? '');
@@ -280,10 +288,6 @@ export default function OnboardEmployeePage() {
     setAnnualCtc('');
     setEffectiveDate('');
 
-    if (!option.hasApprovedOffer) {
-      setError(null);
-      return;
-    }
     if (option.dateOfJoining)
       setDateOfJoining(option.dateOfJoining.slice(0, 10));
     if (option.workLocation) setWorkLocation(option.workLocation);
@@ -503,16 +507,18 @@ export default function OnboardEmployeePage() {
                 <option key={option.id} value={option.id}>
                   {option.requisitionNumber} — {option.selectedCandidateName} —{' '}
                   {option.designation ?? 'Role TBD'}
-                  {option.hasApprovedOffer ? '' : ' (terms pending)'}
+                  {option.offerReferenceNumber
+                    ? ` (offer ${option.offerReferenceNumber})`
+                    : ''}
                 </option>
               ))}
             </Select>
             <p className={cn('mt-2 text-xs', SIGNAL_MUTED)}>
-              Approved and Fulfilled requisitions appear. The candidate name,
-              vertical, designation, and employment type are filled from the
-              requisition; approved Offer Letter terms (compensation, joining
-              date) are added when available. Every field remains editable for
-              HR review.
+              Only requisitions whose candidate has accepted an approved Offer
+              Letter appear here — the acceptance is what authorizes the hire. The
+              name, designation, employment type, joining date, place of posting
+              and compensation are all filled from the letter they accepted, and
+              every field remains editable for HR review.
             </p>
           </Field>
       </SCard>
@@ -708,6 +714,7 @@ export default function OnboardEmployeePage() {
                   <Select
                     value={verticalId}
                     onChange={(e) => setVerticalId(e.target.value)}
+                    disabled={!!candidateRequisitionId}
                   >
                     <option value="">Select a vertical…</option>
                     {verticals.map((v) => (
@@ -716,6 +723,12 @@ export default function OnboardEmployeePage() {
                       </option>
                     ))}
                   </Select>
+                  {candidateRequisitionId && (
+                    <p className={cn('mt-1 text-xs', SIGNAL_MUTED)}>
+                      Assigned automatically from the approved candidate
+                      requisition.
+                    </p>
+                  )}
                 </Field>
                 <Field label="Designation">
                   <Input

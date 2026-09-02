@@ -1,11 +1,16 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, StatutoryConfigType } from '@prisma/client';
-import { StatutoryConfigService } from './statutory-config.service';
+import {
+  COMPANY_PT_STATE,
+  StatutoryConfigService,
+} from './statutory-config.service';
 
 type Money = Prisma.Decimal;
 
+type PfBranch = 'PF_CAPPED' | 'PF_UNCAPPED';
+
 export interface OnboardingCompensationBreakdown {
-  branch: 'PF_CAPPED' | 'PF_UNCAPPED';
+  branch: PfBranch;
   monthlyCtc: string;
   annualCtc: string;
   grossMonthly: string;
@@ -18,6 +23,7 @@ export interface OnboardingCompensationBreakdown {
   employeeEsiMonthly: string | null;
   employerPfMonthly: string;
   employerEsiMonthly: string | null;
+  employerEsiAnnual: string | null;
   totalDeductionsMonthly: string;
   netSalaryMonthly: string;
   totalAnnualisedSalary: string;
@@ -47,14 +53,14 @@ export class OnboardingCompensationService {
       this.statutory.findEffective(
         StatutoryConfigType.PROFESSIONAL_TAX,
         asOf,
-        'Karnataka',
+        COMPANY_PT_STATE,
       ),
     ]);
     const missing = [
       !structureRow && 'Salary Structure',
       !pfRow && 'PF',
       !esiRow && 'ESI',
-      !ptRow && 'Professional Tax (Karnataka)',
+      !ptRow && `Professional Tax (${COMPANY_PT_STATE})`,
     ].filter(Boolean);
     if (missing.length) {
       throw new BadRequestException(
@@ -91,33 +97,97 @@ export class OnboardingCompensationService {
     const cappedEmployerPfAnnual = new Prisma.Decimal(pf.wageCeiling)
       .times(pf.employerRate)
       .times(12);
-    let gross = annualTarget
-      .minus(cappedEmployerPfAnnual)
-      .minus(insurance)
-      .dividedBy(baseAnnualGrossMonths);
-    let branch: 'PF_CAPPED' | 'PF_UNCAPPED' = 'PF_CAPPED';
-    if (gross.times(structure.basicGrossRate).lte(pf.wageCeiling)) {
-      branch = 'PF_UNCAPPED';
-      gross = annualTarget
-        .minus(insurance)
-        .dividedBy(
-          baseAnnualGrossMonths.plus(
-            new Prisma.Decimal(12)
-              .times(pf.employerRate)
-              .times(structure.basicGrossRate),
-          ),
+
+    // Back-solve monthly Gross from the target CTC. CTC is
+    //   12·gross + incentiveGrossMonths·gross + employerPfAnnual
+    //     + employerEsiAnnual + insurance
+    // and BOTH employer contributions depend on gross itself, each with its
+    // own step: employer PF stops growing once Basic passes the PF wage
+    // ceiling, and employer ESI vanishes once gross passes the ESI threshold.
+    // That gives four closed-form solutions — one per (PF branch × ESI
+    // applies) pair. Solve each and keep the first whose own assumptions hold
+    // for the gross it produces, which is what makes the round-trip exact.
+    const solveGross = (branch: PfBranch, esiApplies: boolean): Money => {
+      let numerator = annualTarget.minus(insurance);
+      let divisor = baseAnnualGrossMonths;
+      if (branch === 'PF_CAPPED') {
+        numerator = numerator.minus(cappedEmployerPfAnnual);
+      } else {
+        divisor = divisor.plus(
+          new Prisma.Decimal(12)
+            .times(pf.employerRate)
+            .times(structure.basicGrossRate),
         );
-    }
-    if (!gross.isPositive()) {
+      }
+      if (esiApplies) {
+        divisor = divisor.plus(new Prisma.Decimal(12).times(esi.employerRate));
+      }
+      return numerator.dividedBy(divisor);
+    };
+
+    if (annualTarget.minus(insurance).lte(0)) {
       throw new BadRequestException(
         'Monthly CTC is too low for the configured fixed insurance and contribution rules',
       );
     }
 
-    // Round displayed/stored salary components to paise, then make Other
-    // Allowance the exact balancing remainder so components always equal Gross.
-    gross = gross.toDecimalPlaces(2);
-    const basic = gross.times(structure.basicGrossRate).toDecimalPlaces(2);
+    // ESI-applies candidates are tried first: just above the ESI threshold
+    // there is a band of target CTCs (worth up to one year of employer ESI on
+    // a threshold gross) that BOTH readings balance exactly, and in that band
+    // the employee should stay inside the ESI net rather than be engineered
+    // out of it by taking the higher-gross solution.
+    const candidates: Array<{ branch: PfBranch; esiApplies: boolean }> = [
+      { branch: 'PF_UNCAPPED', esiApplies: true },
+      { branch: 'PF_CAPPED', esiApplies: true },
+      { branch: 'PF_UNCAPPED', esiApplies: false },
+      { branch: 'PF_CAPPED', esiApplies: false },
+    ];
+
+    let solution: {
+      branch: PfBranch;
+      esiApplies: boolean;
+      gross: Money;
+      basic: Money;
+    } | null = null;
+    for (const candidate of candidates) {
+      const raw = solveGross(candidate.branch, candidate.esiApplies);
+      if (!raw.isPositive()) continue;
+      // Test each assumption against the ROUNDED gross and Basic, because
+      // those are the figures every downstream reader sees:
+      // composeCtcBreakdown re-derives ESI applicability from the rounded
+      // components, and would otherwise print an employer ESI the CTC was
+      // never solved for — the exact drift this branch selection prevents.
+      const gross = raw.toDecimalPlaces(2);
+      const basic = gross.times(structure.basicGrossRate).toDecimalPlaces(2);
+      const pfHolds =
+        candidate.branch === 'PF_UNCAPPED'
+          ? basic.lte(pf.wageCeiling)
+          : basic.gt(pf.wageCeiling);
+      const esiHolds = candidate.esiApplies === gross.lte(esi.wageThreshold);
+      if (pfHolds && esiHolds) {
+        solution = { ...candidate, gross, basic };
+        break;
+      }
+    }
+    if (!solution) {
+      // Unreachable for any gross that rounds clear of the ESI threshold: of
+      // the two ESI readings one always holds on the unrounded solve. Only a
+      // solve landing in the half-paisa window straddling the threshold can
+      // fail both rounded re-tests, so pin gross to the threshold itself —
+      // where ESI applies and every downstream reader agrees.
+      const gross = new Prisma.Decimal(esi.wageThreshold);
+      const basic = gross.times(structure.basicGrossRate).toDecimalPlaces(2);
+      solution = {
+        branch: basic.lte(pf.wageCeiling) ? 'PF_UNCAPPED' : 'PF_CAPPED',
+        esiApplies: true,
+        gross,
+        basic,
+      };
+    }
+
+    // Components are rounded to paise, then Other Allowance is made the exact
+    // balancing remainder so they always add back up to Gross.
+    const { branch, gross, basic } = solution;
     const hra = gross.times(structure.hraGrossRate).toDecimalPlaces(2);
     const conveyance = new Prisma.Decimal(
       structure.conveyanceMonthly,
@@ -135,7 +205,9 @@ export class OnboardingCompensationService {
     );
     const employeePf = pfBase.times(pf.employeeRate).toDecimalPlaces(2);
     const employerPf = pfBase.times(pf.employerRate).toDecimalPlaces(2);
-    const esiApplies = gross.lte(esi.wageThreshold);
+    // Taken from the chosen solution rather than re-derived, so the ESI the
+    // CTC was solved for is exactly the ESI that gets charged.
+    const esiApplies = solution.esiApplies;
     const employeeEsi = esiApplies
       ? gross.times(esi.employeeRate).toDecimalPlaces(2)
       : null;
@@ -151,7 +223,14 @@ export class OnboardingCompensationService {
     const deductions = employeePf.plus(employeeEsi ?? 0).plus(professionalTax);
     const incentive = gross.times(structure.incentiveGrossMonths);
     const employerPfAnnual = employerPf.times(12);
-    const contributions = employerPfAnnual.plus(insurance).plus(incentive);
+    // Employer ESI is a real cost to company and is printed in the offer's
+    // Grand Total, so it has to be counted here too — omitting it made the
+    // printed CTC exceed the CTC actually offered.
+    const employerEsiAnnual = employerEsi ? employerEsi.times(12) : null;
+    const contributions = employerPfAnnual
+      .plus(employerEsiAnnual ?? 0)
+      .plus(insurance)
+      .plus(incentive);
 
     const money = (value: Money) => value.toDecimalPlaces(2).toString();
     return {
@@ -168,6 +247,7 @@ export class OnboardingCompensationService {
       employeeEsiMonthly: employeeEsi ? money(employeeEsi) : null,
       employerPfMonthly: money(employerPf),
       employerEsiMonthly: employerEsi ? money(employerEsi) : null,
+      employerEsiAnnual: employerEsiAnnual ? money(employerEsiAnnual) : null,
       totalDeductionsMonthly: money(deductions),
       netSalaryMonthly: money(gross.minus(deductions)),
       totalAnnualisedSalary: money(gross.times(12)),

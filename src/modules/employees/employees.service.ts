@@ -10,6 +10,7 @@ import {
   CandidateHiringStage,
   Employee,
   EmployeeStatus,
+  OfferLetterStatus,
   Prisma,
   Role,
 } from '@prisma/client';
@@ -592,22 +593,31 @@ export class EmployeesService {
 
     const employee = await this.prisma
       .$transaction(async (tx) => {
+        // The offer letter the candidate accepted, resolved before the employee
+        // row exists so it can be re-anchored to them at the end. Held outside the
+        // `if` only because the back-fill below needs it.
+        let acceptedOfferId: string | null = null;
         if (dto.candidateRequisitionId) {
           const requisition = await tx.candidateRequisition.findUnique({
             where: { id: dto.candidateRequisitionId },
             select: {
               status: true,
-              hiringStage: true,
+              verticalId: true,
               onboardedEmployeeId: true,
+              offerLetters: {
+                where: {
+                  status: OfferLetterStatus.APPROVED,
+                  acceptedAt: { not: null },
+                  declinedAt: null,
+                },
+                select: { id: true },
+                take: 1,
+              },
             },
           });
-          if (
-            !requisition ||
-            requisition.status !== 'APPROVED' ||
-            requisition.hiringStage !== CandidateHiringStage.CANDIDATE_SELECTED
-          ) {
+          if (!requisition || requisition.status !== 'APPROVED') {
             throw new BadRequestException(
-              'The selected requisition must be Approved and Fulfilled',
+              'The selected requisition must be Approved',
             );
           }
           if (requisition.onboardedEmployeeId) {
@@ -615,6 +625,22 @@ export class EmployeesService {
               'The selected requisition is already linked to a completed onboarding',
             );
           }
+          if (dto.verticalId !== requisition.verticalId) {
+            throw new BadRequestException(
+              'The employee vertical must match the candidate requisition vertical',
+            );
+          }
+          // The gate that keeps the flow honest: nobody is hired against a
+          // requisition until a fully approved offer letter has been ACCEPTED by
+          // the candidate. The hiring stage is deliberately not checked — it only
+          // reaches CANDIDATE_SELECTED as a RESULT of this onboarding.
+          const acceptedOffer = requisition.offerLetters[0];
+          if (!acceptedOffer) {
+            throw new BadRequestException(
+              'This candidate has not accepted an approved offer letter yet — record their acceptance on the offer before onboarding them',
+            );
+          }
+          acceptedOfferId = acceptedOffer.id;
         }
 
         const employeeId = await this.nextEmployeeCode(
@@ -707,13 +733,15 @@ export class EmployeesService {
             where: {
               id: dto.candidateRequisitionId,
               status: 'APPROVED',
-              hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
               onboardedEmployeeId: null,
             },
             data: {
               onboardedEmployeeId: created.id,
               selectedCandidateName:
                 `${created.firstName} ${created.lastName}`.trim(),
+              // The last rung of the ladder, reached here and only here: the
+              // candidate was selected at interview, offered, accepted, and has
+              // now actually been hired.
               hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
             },
           });
@@ -721,6 +749,16 @@ export class EmployeesService {
             throw new ConflictException(
               'The selected requisition is no longer available for onboarding',
             );
+          }
+          if (acceptedOfferId) {
+            // Re-anchor the accepted letter onto the employee it produced, so the
+            // signed offer stays reachable from the employee record (and from the
+            // legacy /offer-letters/employee/:id lookup) without ever having
+            // required an Employee row to exist first.
+            await tx.offerLetter.update({
+              where: { id: acceptedOfferId },
+              data: { employeeId: created.id },
+            });
           }
         }
 

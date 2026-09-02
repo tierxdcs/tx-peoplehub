@@ -56,12 +56,6 @@ export class CandidateRequisitionsController {
   ) {
     return this.service.listSuperAdminPending(user);
   }
-  @Get('available') available(
-    @Query('employeeId') employeeId: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.service.availableForEmployee(employeeId, user);
-  }
   @Post(':id/vertical-approve')
   @Roles(Role.EMPLOYEE, Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN)
   verticalApprove(

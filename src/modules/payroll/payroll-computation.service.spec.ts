@@ -12,7 +12,10 @@ import {
 import { PrismaService } from '../../core/database/prisma.service';
 import { PayrollComputationService } from './payroll-computation.service';
 import { SalaryStructuresService } from './salary-structures.service';
-import { StatutoryConfigService } from './statutory-config.service';
+import {
+  COMPANY_PT_STATE,
+  StatutoryConfigService,
+} from './statutory-config.service';
 
 /**
  * IMPORTANT: this spec proves the computation ENGINE correctly applies
@@ -26,7 +29,10 @@ describe('PayrollComputationService', () => {
   let service: PayrollComputationService;
   let prisma: any;
   let salaryStructures: { getCurrentOrThrow: jest.Mock };
-  let statutoryConfig: { findEffective: jest.Mock };
+  let statutoryConfig: {
+    findEffective: jest.Mock;
+    findProfessionalTax: jest.Mock;
+  };
 
   const employee: Employee = {
     id: 'emp-1',
@@ -153,12 +159,30 @@ describe('PayrollComputationService', () => {
     updatedAt: new Date(),
   };
 
+  const fakeCompanyPtConfig = {
+    id: 'pt-company',
+    configType: StatutoryConfigType.PROFESSIONAL_TAX,
+    state: COMPANY_PT_STATE,
+    effectiveFrom: new Date('2026-01-01'),
+    effectiveTo: null,
+    configData: {
+      slabs: [
+        { slabFrom: 0, slabTo: 24999, amount: 0 },
+        { slabFrom: 25000, slabTo: null, amount: 200 },
+      ],
+    },
+    sourceNote: 'fake',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
   const fakeConfigs = {
     pf: fakePfConfig,
     esi: fakeEsiConfig,
     tdsSlab: fakeTdsSlabConfig,
     standardDeduction: fakeStandardDeductionConfig,
-    professionalTaxByState: new Map(),
+    professionalTaxByLocation: new Map(),
+    professionalTaxDefault: null,
   } as any;
 
   beforeEach(async () => {
@@ -167,7 +191,28 @@ describe('PayrollComputationService', () => {
       employee: { findUnique: jest.fn().mockResolvedValue(employee) },
     };
     salaryStructures = { getCurrentOrThrow: jest.fn() };
-    statutoryConfig = { findEffective: jest.fn() };
+    statutoryConfig = {
+      findEffective: jest.fn(),
+      // The real findProfessionalTax tries the work location as a state key
+      // then falls back to the company state (proved in
+      // statutory-config.service.spec). Mirrored here so each test can keep
+      // driving PT resolution purely through its findEffective stub.
+      findProfessionalTax: jest.fn(
+        async (workLocation: string | null, asOf: Date) =>
+          (workLocation
+            ? await statutoryConfig.findEffective(
+                StatutoryConfigType.PROFESSIONAL_TAX,
+                asOf,
+                workLocation,
+              )
+            : null) ??
+          (await statutoryConfig.findEffective(
+            StatutoryConfigType.PROFESSIONAL_TAX,
+            asOf,
+            COMPANY_PT_STATE,
+          )),
+      ),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -202,6 +247,8 @@ describe('PayrollComputationService', () => {
           if (type === StatutoryConfigType.STANDARD_DEDUCTION) {
             return Promise.resolve(fakeStandardDeductionConfig);
           }
+          if (type === StatutoryConfigType.PROFESSIONAL_TAX)
+            return Promise.resolve(fakeCompanyPtConfig);
           return Promise.resolve(null);
         },
       );
@@ -212,6 +259,63 @@ describe('PayrollComputationService', () => {
       );
 
       expect(configs.pf).toEqual(fakePfConfig);
+      // employee.workLocation is null — PT still resolves, via the company state.
+      expect(configs.professionalTaxDefault).toEqual(fakeCompanyPtConfig);
+    });
+
+    it('requires the company-state PT row for employees with no work location — a silent zero-PT payslip is worse than a blocked run', async () => {
+      statutoryConfig.findEffective.mockImplementation(
+        (type: StatutoryConfigType) => {
+          if (type === StatutoryConfigType.PF)
+            return Promise.resolve(fakePfConfig);
+          if (type === StatutoryConfigType.ESI)
+            return Promise.resolve(fakeEsiConfig);
+          if (type === StatutoryConfigType.TDS_SLAB)
+            return Promise.resolve(fakeTdsSlabConfig);
+          if (type === StatutoryConfigType.STANDARD_DEDUCTION) {
+            return Promise.resolve(fakeStandardDeductionConfig);
+          }
+          return Promise.resolve(null);
+        },
+      );
+
+      await expect(
+        service.loadRequiredConfigs(new Date('2026-08-31'), [employee]),
+      ).rejects.toThrow(/PROFESSIONAL_TAX config for the company state/);
+    });
+
+    it('falls back to the company state when workLocation is not itself a configured PT state', async () => {
+      // The real-world case: workLocation is "Hybrid", never a state name.
+      const hybridEmployee = { ...employee, workLocation: 'Hybrid' };
+      statutoryConfig.findEffective.mockImplementation(
+        (type: StatutoryConfigType, _asOf: Date, state?: string | null) => {
+          if (type === StatutoryConfigType.PF)
+            return Promise.resolve(fakePfConfig);
+          if (type === StatutoryConfigType.ESI)
+            return Promise.resolve(fakeEsiConfig);
+          if (type === StatutoryConfigType.TDS_SLAB)
+            return Promise.resolve(fakeTdsSlabConfig);
+          if (type === StatutoryConfigType.STANDARD_DEDUCTION) {
+            return Promise.resolve(fakeStandardDeductionConfig);
+          }
+          if (
+            type === StatutoryConfigType.PROFESSIONAL_TAX &&
+            state === COMPANY_PT_STATE
+          ) {
+            return Promise.resolve(fakeCompanyPtConfig);
+          }
+          return Promise.resolve(null);
+        },
+      );
+
+      const configs = await service.loadRequiredConfigs(
+        new Date('2026-08-31'),
+        [hybridEmployee],
+      );
+
+      expect(configs.professionalTaxByLocation.get('Hybrid')).toEqual(
+        fakeCompanyPtConfig,
+      );
     });
 
     it('additionally requires PROFESSIONAL_TAX per distinct workLocation present among employees', async () => {
@@ -537,7 +641,7 @@ describe('PayrollComputationService', () => {
       expect(result.grandTotal.perAnnum).toBe('1438404'); // 114867*12 + 60000
     });
 
-    it('warns about a missing work location rather than looking up PT', async () => {
+    it('names the company state in the warning when there is no work location and no PT row anywhere', async () => {
       prisma.employee.findUnique.mockResolvedValue({
         ...employeeAtHq,
         workLocation: null,
@@ -555,11 +659,46 @@ describe('PayrollComputationService', () => {
       const result = await service.computeCtcBreakdown('emp-1');
 
       expect(result.warnings).toContain(
-        'Professional Tax (no work location on file)',
+        `Professional Tax (${COMPANY_PT_STATE})`,
       );
       expect(
         findRow(result.employeeDeductions, 'Professional Tax (PT)').perMonth,
       ).toBeNull();
+    });
+
+    it('deducts PT via the company-state fallback when workLocation is not a configured PT state', async () => {
+      // Regression: workLocation "Hybrid" used to find no PT row, so the offer
+      // letter and CTC breakdown printed Professional Tax as "—".
+      prisma.employee.findUnique.mockResolvedValue({
+        ...employeeAtHq,
+        workLocation: 'Hybrid',
+      });
+      statutoryConfig.findEffective.mockImplementation(
+        (type: StatutoryConfigType, _asOf: Date, state?: string | null) => {
+          if (type === StatutoryConfigType.PF)
+            return Promise.resolve(fakePfConfig);
+          if (type === StatutoryConfigType.ESI)
+            return Promise.resolve(fakeEsiConfig);
+          if (
+            type === StatutoryConfigType.PROFESSIONAL_TAX &&
+            state === COMPANY_PT_STATE
+          ) {
+            return Promise.resolve(fakeCompanyPtConfig);
+          }
+          return Promise.resolve(null);
+        },
+      );
+
+      const result = await service.computeCtcBreakdown('emp-1');
+
+      expect(result.warnings).toEqual([]);
+      expect(
+        findRow(result.employeeDeductions, 'Professional Tax (PT)').perMonth,
+      ).toBe('200');
+      // Salary Before Taxes = gross 114867 − PF 1800 − PT 200.
+      expect(
+        findRow(result.employeeDeductions, 'Salary Before Taxes').perMonth,
+      ).toBe('112867');
     });
   });
 });

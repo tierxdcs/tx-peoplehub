@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ClipboardCheck } from 'lucide-react';
+import { ClipboardCheck, Plus } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { useIsHrStaff } from '../../../lib/use-is-hr-staff';
@@ -42,6 +42,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../components/ui/dialog';
+import {
+  candidateEmailToast,
+  parseRecipientInput,
+  type CandidateApplicationEmailSummary,
+} from '../../../lib/candidate-application-email';
 import { formatINR } from '../../../lib/sales';
 import { useNumberFormat } from '../../../lib/number-format-context';
 import { RegisterToolbar } from '../../../components/ui/register-toolbar';
@@ -67,7 +72,17 @@ type Requisition = {
   selectedCandidateName: string | null;
   rejectionComment: string | null;
   consumedAt: string | null;
-  offerLetter: { id: string; employeeId: string } | null;
+  // Every letter ever written against this position, newest first. A declined
+  // offer stays on the record and the position reopens, so there can be more
+  // than one.
+  offerLetters: {
+    id: string;
+    referenceNumber: string;
+    status: string;
+    sentAt: string | null;
+    acceptedAt: string | null;
+    declinedAt: string | null;
+  }[];
   onboardedEmployee: {
     id: string;
     employeeId: string;
@@ -105,16 +120,38 @@ type CandidateApplication = {
   projects: string | null;
   resumeFileName: string;
   resumeFileSize: number;
-  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'INTERVIEW_SCHEDULED' | 'SELECTED' | 'REJECTED';
+  status:
+    | 'SUBMITTED'
+    | 'UNDER_REVIEW'
+    | 'INTERVIEW_SCHEDULED'
+    | 'SELECTED'
+    | 'OFFER_DECLINED'
+    | 'REJECTED';
   submittedAt: string;
 };
 
+/**
+ * The only two stages HR sets by hand. The later two are consequences, not
+ * choices: Offer Extended is set by sending the approved offer letter, and
+ * Candidate Selected / Fulfilled by onboarding the candidate who accepted it.
+ */
 const STAGES: { value: HiringStage; label: string }[] = [
   { value: 'JOB_POSTED', label: 'Job Posted' },
   { value: 'INTERVIEWING', label: 'Interviewing' },
-  { value: 'OFFER_EXTENDED', label: 'Offer Extended' },
-  { value: 'CANDIDATE_SELECTED', label: 'Candidate Selected / Fulfilled' },
 ];
+
+/** The latest letter on a position, as one line: our approval state plus the
+ *  candidate's own answer, which are two independent things. */
+function offerLetterSummary(offer: Requisition['offerLetters'][number]) {
+  const answer = offer.acceptedAt
+    ? 'accepted'
+    : offer.declinedAt
+      ? 'declined'
+      : offer.sentAt
+        ? 'awaiting reply'
+        : 'not sent';
+  return `${offer.referenceNumber} · ${offer.status.replaceAll('_', ' ')} · ${answer}`;
+}
 
 function lifecycleLabel(requisition: Requisition) {
   if (requisition.status !== 'APPROVED') {
@@ -136,6 +173,7 @@ export default function CandidateRequisitionsPage() {
   const [register, setRegister] = useState<Requisition[]>([]);
   const [queue, setQueue] = useState<Requisition[]>([]);
   const [viewing, setViewing] = useState<Requisition | null>(null);
+  const [requestOpen, setRequestOpen] = useState(false);
   const [positionTitle, setPositionTitle] = useState('');
   const [employmentType, setEmploymentType] = useState<EmploymentType>(
     'FULL_TIME_PERMANENT',
@@ -239,6 +277,7 @@ export default function CandidateRequisitionsPage() {
           ? `${count} requisitions submitted for approval`
           : 'Requisition submitted for approval',
       );
+      setRequestOpen(false);
       await load();
     } catch (error) {
       toast.error(
@@ -303,13 +342,21 @@ export default function CandidateRequisitionsPage() {
       <PageHeader
         title="Candidate Requisitions"
         description="Authorize hiring sequentially, then follow HR’s recruiting progress through fulfilment."
+        action={
+          canCreate ? (
+            <Button onClick={() => setRequestOpen(true)}>
+              <Plus className="mr-2 size-4" />
+              Submit requisition
+            </Button>
+          ) : undefined
+        }
       />
       {canCreate && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Request a position</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Request a position</DialogTitle>
+            </DialogHeader>
             <form onSubmit={create} className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-medium">
                 Position title
@@ -411,12 +458,19 @@ export default function CandidateRequisitionsPage() {
                   required
                 />
               </label>
-              <div className="sm:col-span-2">
+              <DialogFooter className="sm:col-span-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setRequestOpen(false)}
+                >
+                  Cancel
+                </Button>
                 <Button type="submit">Submit requisition</Button>
-              </div>
+              </DialogFooter>
             </form>
-          </CardContent>
-        </Card>
+          </DialogContent>
+        </Dialog>
       )}
 
       {queue.length > 0 && (
@@ -604,18 +658,34 @@ function RequisitionDetailsDialog({
 }) {
   const toast = useToast();
   const [stage, setStage] = useState<HiringStage>('JOB_POSTED');
-  const [candidateName, setCandidateName] = useState('');
   const [saving, setSaving] = useState(false);
   const [applications, setApplications] = useState<CandidateApplication[]>([]);
   const [applicationLinks, setApplicationLinks] = useState<ApplicationLink[]>([]);
   const [applicationPassword, setApplicationPassword] = useState('');
+  // Which link's "Email link" form is open; only one at a time, since the
+  // addresses typed for one link would never be meant for another.
+  const [emailLinkId, setEmailLinkId] = useState<string | null>(null);
+  const [emailTo, setEmailTo] = useState('');
+  const [emailNote, setEmailNote] = useState('');
+  const [emailing, setEmailing] = useState(false);
 
   useEffect(() => {
-    setStage(requisition?.hiringStage ?? 'JOB_POSTED');
-    setCandidateName(requisition?.selectedCandidateName ?? '');
+    // Later stages aren't offered in the dropdown, so fall back to Interviewing
+    // rather than leaving the Select showing a value it has no option for.
+    setStage(
+      requisition?.hiringStage === 'JOB_POSTED' ||
+        requisition?.hiringStage === 'INTERVIEWING'
+        ? requisition.hiringStage
+        : requisition?.hiringStage
+          ? 'INTERVIEWING'
+          : 'JOB_POSTED',
+    );
   }, [requisition]);
 
   useEffect(() => {
+    setEmailLinkId(null);
+    setEmailTo('');
+    setEmailNote('');
     if (!requisition) {
       setApplications([]);
       setApplicationLinks([]);
@@ -675,6 +745,51 @@ function RequisitionDetailsDialog({
     }
   }
 
+  async function emailApplicationLink(linkId: string) {
+    const recipients = parseRecipientInput(emailTo);
+    if (!recipients.length) {
+      toast.error('Enter at least one candidate email address');
+      return;
+    }
+    setEmailing(true);
+    try {
+      const summary = await apiFetch<CandidateApplicationEmailSummary>(
+        `/candidate-requisitions/application-links/${linkId}/email`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            to: recipients,
+            note: emailNote.trim() || undefined,
+          }),
+        },
+      );
+      const message = candidateEmailToast(summary);
+      toast.toast({
+        title: message.title,
+        description: message.description,
+        variant:
+          message.tone === 'success'
+            ? 'success'
+            : message.tone === 'error'
+              ? 'destructive'
+              : 'default',
+      });
+      // Only clear the form once something actually went out — otherwise HR
+      // would have to retype the shortlist to retry.
+      if (summary.sent > 0 && !summary.failed) {
+        setEmailTo('');
+        setEmailNote('');
+        setEmailLinkId(null);
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError ? error.message : 'Failed to email the application link',
+      );
+    } finally {
+      setEmailing(false);
+    }
+  }
+
   async function updateApplicationStatus(
     application: CandidateApplication,
     status: CandidateApplication['status'],
@@ -690,7 +805,13 @@ function RequisitionDetailsDialog({
         ),
       );
       if (status === 'SELECTED') await onUpdated();
-      toast.success(status === 'SELECTED' ? 'Candidate selected; requisition fulfilled' : 'Application updated');
+      // Selection authorizes an offer; it is not the hire. The requisition is
+      // only fulfilled once this candidate accepts and is onboarded.
+      toast.success(
+        status === 'SELECTED'
+          ? 'Candidate selected — draft their offer letter next (HR › Offer Letters)'
+          : 'Application updated',
+      );
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : 'Update failed');
     }
@@ -709,29 +830,16 @@ function RequisitionDetailsDialog({
 
   async function saveLifecycle() {
     if (!requisition) return;
-    if (stage === 'CANDIDATE_SELECTED' && !candidateName.trim()) {
-      toast.error(
-        'Enter the selected candidate name to fulfil the requisition',
-      );
-      return;
-    }
     setSaving(true);
     try {
       await apiFetch(
         `/candidate-requisitions/${requisition.id}/hiring-lifecycle`,
         {
           method: 'PATCH',
-          body: JSON.stringify({
-            hiringStage: stage,
-            selectedCandidateName: candidateName.trim() || undefined,
-          }),
+          body: JSON.stringify({ hiringStage: stage }),
         },
       );
-      toast.success(
-        stage === 'CANDIDATE_SELECTED'
-          ? 'Requisition marked Fulfilled'
-          : 'Hiring progress updated',
-      );
+      toast.success('Hiring progress updated');
       await onUpdated();
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : 'Update failed');
@@ -740,10 +848,22 @@ function RequisitionDetailsDialog({
     }
   }
 
+  // Only the pre-offer stages are HR's to set. From Offer Extended onward the
+  // stage is driven by the offer letter (sent / accepted) and by onboarding, so
+  // the form would only offer a move the server refuses.
   const editable =
     canEditLifecycle &&
     requisition?.status === 'APPROVED' &&
-    requisition.hiringStage !== 'CANDIDATE_SELECTED';
+    (requisition.hiringStage === null ||
+      requisition.hiringStage === 'JOB_POSTED' ||
+      requisition.hiringStage === 'INTERVIEWING');
+  // A position stops taking applications the moment somebody accepts its offer —
+  // not when a candidate is merely selected, since they may still decline. The
+  // server enforces the same rule on create/email/submit.
+  const linksOpen =
+    !!requisition &&
+    requisition.hiringStage !== 'CANDIDATE_SELECTED' &&
+    !requisition.offerLetters.some((offer) => offer.acceptedAt);
   const publicOrigin = typeof window === 'undefined' ? '' : window.location.origin;
 
   return (
@@ -799,8 +919,11 @@ function RequisitionDetailsDialog({
                     value={requisition.selectedCandidateName}
                   />
                 )}
-                {requisition.offerLetter && (
-                  <Detail label="Offer letter" value="Created" />
+                {requisition.offerLetters.length > 0 && (
+                  <Detail
+                    label="Offer letter"
+                    value={offerLetterSummary(requisition.offerLetters[0])}
+                  />
                 )}
                 {requisition.onboardedEmployee && (
                   <Detail
@@ -849,19 +972,11 @@ function RequisitionDetailsDialog({
                         ))}
                       </Select>
                     </label>
-                    {stage === 'CANDIDATE_SELECTED' && (
-                      <label className="block text-sm font-medium">
-                        Selected candidate name
-                        <Input
-                          className="mt-1"
-                          value={candidateName}
-                          onChange={(event) =>
-                            setCandidateName(event.target.value)
-                          }
-                          required
-                        />
-                      </label>
-                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Offer Extended and Fulfilled are not set here: sending the
+                      approved offer letter extends the offer, and onboarding the
+                      candidate who accepted it fulfils the requisition.
+                    </p>
                     <Button onClick={saveLifecycle} disabled={saving}>
                       {saving ? 'Saving…' : 'Save progress'}
                     </Button>
@@ -874,7 +989,7 @@ function RequisitionDetailsDialog({
                     <CardTitle>Public application link</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {canEditLifecycle && requisition.hiringStage !== 'CANDIDATE_SELECTED' && (
+                    {canEditLifecycle && linksOpen && (
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <Input
                           type="password"
@@ -887,20 +1002,70 @@ function RequisitionDetailsDialog({
                     )}
                     {applicationLinks.map((link) => {
                       const url = `${publicOrigin}/public/job-applications/${link.token}`;
+                      const canEmail =
+                        canEditLifecycle &&
+                        !link.revokedAt &&
+                        new Date(link.expiresAt) > new Date() &&
+                        linksOpen;
                       return (
-                        <div key={link.id} className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="min-w-0">
-                            <p className="truncate font-medium">{url}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Expires {new Date(link.expiresAt).toLocaleDateString()}
-                              {link.hasPassword ? ' · Password protected' : ' · No password'}
-                              {link.revokedAt ? ' · Revoked' : ''}
-                            </p>
+                        <div key={link.id} className="space-y-3 rounded-md border p-3">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="truncate font-medium">{url}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Expires {new Date(link.expiresAt).toLocaleDateString()}
+                                {link.hasPassword ? ' · Password protected' : ' · No password'}
+                                {link.revokedAt ? ' · Revoked' : ''}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              {!link.revokedAt && <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(url)}>Copy</Button>}
+                              {canEmail && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    setEmailLinkId((current) => (current === link.id ? null : link.id))
+                                  }
+                                >
+                                  {emailLinkId === link.id ? 'Cancel email' : 'Email link'}
+                                </Button>
+                              )}
+                              {canEditLifecycle && !link.revokedAt && <Button size="sm" variant="destructive" onClick={() => revokeApplicationLink(link.id)}>Revoke</Button>}
+                            </div>
                           </div>
-                          <div className="flex gap-2">
-                            {!link.revokedAt && <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(url)}>Copy</Button>}
-                            {canEditLifecycle && !link.revokedAt && <Button size="sm" variant="destructive" onClick={() => revokeApplicationLink(link.id)}>Revoke</Button>}
-                          </div>
+                          {canEmail && emailLinkId === link.id && (
+                            <div className="space-y-2 border-t pt-3">
+                              <Input
+                                type="text"
+                                placeholder="Candidate emails, separated by commas"
+                                value={emailTo}
+                                onChange={(event) => setEmailTo(event.target.value)}
+                              />
+                              <Textarea
+                                rows={2}
+                                placeholder="Optional note to include in the email"
+                                value={emailNote}
+                                onChange={(event) => setEmailNote(event.target.value)}
+                              />
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs text-muted-foreground">
+                                  Each candidate gets their own email — nobody sees who else was
+                                  approached.
+                                  {link.hasPassword
+                                    ? ' The link password is never included; share it separately.'
+                                    : ''}
+                                </p>
+                                <Button
+                                  size="sm"
+                                  onClick={() => emailApplicationLink(link.id)}
+                                  disabled={emailing || !parseRecipientInput(emailTo).length}
+                                >
+                                  {emailing ? 'Sending…' : 'Send email'}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -932,6 +1097,12 @@ function RequisitionDetailsDialog({
                               <option value="INTERVIEW_SCHEDULED">Interview scheduled</option>
                               <option value="SELECTED">Selected</option>
                               <option value="REJECTED">Rejected</option>
+                              {/* Set by recording the candidate's decline on the
+                                  offer letter, never chosen here — present only
+                                  so the Select can display it. */}
+                              <option value="OFFER_DECLINED" disabled>
+                                Offer declined
+                              </option>
                             </Select>
                           ) : <Badge variant="secondary">{application.status.replaceAll('_', ' ')}</Badge>}
                         </div>

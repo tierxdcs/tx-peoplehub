@@ -12,6 +12,7 @@ import {
   CandidateApplicationResolveDto,
   CandidateResumeUploadUrlDto,
   CreateCandidateApplicationInviteDto,
+  EmailCandidateApplicationInviteDto,
   SubmitCandidateApplicationDto,
   UpdateCandidateApplicationStatusDto,
 } from './dto/candidate-application.dto';
@@ -35,6 +36,15 @@ export class CandidateApplicationsController {
   @Get(':id/application-links')
   listLinks(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.listInvites(id, user);
+  }
+
+  @Post('application-links/:linkId/email')
+  emailLink(
+    @Param('linkId') linkId: string,
+    @Body() dto: EmailCandidateApplicationInviteDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.emailInvite(linkId, dto, user);
   }
 
   @Post('application-links/:linkId/revoke')

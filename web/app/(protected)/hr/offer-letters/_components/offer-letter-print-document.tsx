@@ -1,4 +1,5 @@
 import { COMPANY } from '../../../../lib/theme';
+import type { EmploymentType } from '../../../../lib/types';
 
 type Row = {
   label: string;
@@ -15,10 +16,14 @@ export type OfferLetterStatus =
   | 'REJECTED';
 
 export type OfferLetterDocument = {
+  id: string;
   referenceNumber: string;
   keyResponsibilities: string;
   kpis: string;
   createdAt: string;
+  // The letter's subject, whoever it is. Still called `employee` because that is
+  // the shape every stored snapshot uses: for a candidate-anchored letter the
+  // server fills it from the application + the letter's own offered terms.
   employee: {
     firstName: string;
     lastName: string;
@@ -56,7 +61,36 @@ export type OfferLetterDocument = {
   rejectedAt: string | null;
   // The vertical owner the letter routes to on submit (null → CEO finalises).
   verticalOwner: { firstName: string; lastName: string } | null;
-  candidateRequisition?: { id: string; requisitionNumber: string; positionTitle: string } | null;
+  // The candidate's own answer — orthogonal to `status`, which is only our
+  // internal approval ladder. Onboarding requires APPROVED *and* accepted.
+  sentAt: string | null;
+  acceptedAt: string | null;
+  declinedAt: string | null;
+  declineReason: string | null;
+  // The letter's own copy of the employment terms, so the authoring form can
+  // round-trip them. Null on a legacy employee-anchored letter, whose Employee
+  // row remains the source of truth.
+  offeredDesignation: string | null;
+  offeredEmploymentType: EmploymentType | null;
+  offeredDateOfJoining: string | null;
+  offeredWorkLocation: string | null;
+  offeredTerritory: string | null;
+  offeredMonthlyCtc: string | null;
+  reportsToId: string | null;
+  // Exactly one of these anchors the letter: an employee (legacy) or the
+  // selected candidate application the offer was made to (the normal path).
+  employeeId: string | null;
+  candidateApplication?: {
+    id: string;
+    name: string;
+    contact: string;
+    status: string;
+  } | null;
+  candidateRequisition?: {
+    id: string;
+    requisitionNumber: string;
+    positionTitle: string;
+  } | null;
 };
 
 const ink = '#11343e';
@@ -226,13 +260,13 @@ function SalaryTable({ title, rows }: { title: string; rows: Row[] }) {
                 className="border p-2 text-right"
                 style={{ borderColor: border }}
               >
-                {row.note ?? fmt(row.perMonth)}
+                {row.perMonth === null ? (row.note ?? '—') : fmt(row.perMonth)}
               </td>
               <td
                 className="border p-2 text-right"
                 style={{ borderColor: border }}
               >
-                {row.note ?? fmt(row.perAnnum)}
+                {row.perAnnum === null ? (row.note ?? '—') : fmt(row.perAnnum)}
               </td>
             </tr>
           ))}

@@ -1,10 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMaxSize,
+  ArrayNotEmpty,
+  IsArray,
+  IsEmail,
   IsEnum,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
@@ -22,6 +27,33 @@ export class CreateCandidateApplicationInviteDto {
   @IsInt()
   @Min(1)
   expiresInHours?: number;
+}
+
+/**
+ * Body for "email this application link". Unlike the vendor and supplier invite
+ * emails there is no address on file to fall back to — we hold nothing about a
+ * candidate until they apply — so `to` is required rather than optional, which
+ * is why this does not reuse the shared SendInviteEmailDto.
+ */
+export class EmailCandidateApplicationInviteDto {
+  @ApiProperty({
+    type: [String],
+    description:
+      'Candidate addresses. Each gets its own email, never a shared To line.',
+  })
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(25)
+  @IsEmail({}, { each: true })
+  to!: string[];
+
+  @ApiPropertyOptional({
+    description: 'Optional note included in the email body',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
 }
 
 export class CandidateApplicationResolveDto {

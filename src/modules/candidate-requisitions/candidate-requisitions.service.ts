@@ -42,7 +42,22 @@ const include = {
     select: { id: true, firstName: true, lastName: true },
   },
   rejectedBy: { select: { id: true, firstName: true, lastName: true } },
-  offerLetter: { select: { id: true, employeeId: true } },
+  // A requisition can accumulate several letters over its life — a declined
+  // offer releases the requisition so the next applicant can be made one — so
+  // this is a list. `consumedAt` is what enforces "only one LIVE offer".
+  offerLetters: {
+    select: {
+      id: true,
+      employeeId: true,
+      candidateApplicationId: true,
+      referenceNumber: true,
+      status: true,
+      sentAt: true,
+      acceptedAt: true,
+      declinedAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  },
   onboardedEmployee: {
     select: {
       id: true,
@@ -250,10 +265,16 @@ export class CandidateRequisitionsService {
     });
   }
 
-  /** Approved and fulfilled requisitions available to seed onboarding.
-   * An approved Offer Letter is optional enrichment: when present, values come
-   * from its frozen approval snapshot; otherwise only the confirmed name is
-   * returned and HR enters the employment terms manually. */
+  /** Requisitions whose candidate has ACCEPTED an approved offer letter — the
+   * only requisitions that may be onboarded.
+   *
+   * Selection at interview is not a hire and the hiring stage is not the gate:
+   * the gate is an approved letter the candidate said yes to. Because that letter
+   * is now guaranteed to exist, its frozen snapshot is the normal prefill source
+   * rather than optional enrichment — every employment term the wizard needs was
+   * approved and agreed before we got here. The requisition reaches
+   * CANDIDATE_SELECTED when onboarding completes, not before, so this
+   * deliberately does not filter on the stage. */
   async listOnboardingOptions(user: AuthenticatedUser) {
     const isAdmin = user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     if (!isAdmin && !(await this.isHrStaff(user))) {
@@ -264,8 +285,14 @@ export class CandidateRequisitionsService {
     const requisitions = await this.prisma.candidateRequisition.findMany({
       where: {
         status: CandidateRequisitionStatus.APPROVED,
-        hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
         onboardedEmployeeId: null,
+        offerLetters: {
+          some: {
+            status: OfferLetterStatus.APPROVED,
+            acceptedAt: { not: null },
+            declinedAt: null,
+          },
+        },
       },
       select: {
         id: true,
@@ -274,23 +301,31 @@ export class CandidateRequisitionsService {
         employmentType: true,
         selectedCandidateName: true,
         vertical: { select: { id: true, name: true } },
-        offerLetter: {
+        offerLetters: {
+          where: {
+            status: OfferLetterStatus.APPROVED,
+            acceptedAt: { not: null },
+            declinedAt: null,
+          },
           select: {
             id: true,
             referenceNumber: true,
             status: true,
             snapshotData: true,
+            acceptedAt: true,
+            candidateApplication: { select: { id: true, name: true } },
           },
+          orderBy: { acceptedAt: 'desc' },
+          take: 1,
         },
       },
       orderBy: { superAdminApprovedAt: 'asc' },
     });
 
     return requisitions.map((requisition) => {
-      const approvedOffer =
-        requisition.offerLetter?.status === OfferLetterStatus.APPROVED
-          ? requisition.offerLetter
-          : null;
+      // Guaranteed present by the `some` filter above; the `?? null` keeps the
+      // mapping honest rather than asserting.
+      const approvedOffer = requisition.offerLetters[0] ?? null;
       const snapshot = (approvedOffer?.snapshotData ?? {}) as Record<
         string,
         any
@@ -316,32 +351,33 @@ export class CandidateRequisitionsService {
         offerLetterId: approvedOffer?.id ?? null,
         offerReferenceNumber: approvedOffer?.referenceNumber ?? null,
         hasApprovedOffer: !!approvedOffer,
-        selectedCandidateName: requisition.selectedCandidateName ?? '',
-        // Role facts come straight from the approved requisition, so they
-        // prefill even before an Offer Letter exists. An approved Offer Letter,
-        // when present, can still override the designation/type it snapshotted.
-        // (Compensation and joining details below stay offer-gated — those are
-        // never safe to guess without an approved offer.)
-        designation: approvedOffer
-          ? (employee.designation ?? requisition.positionTitle)
-          : requisition.positionTitle,
-        employmentType: approvedOffer
-          ? (employee.employmentType ?? requisition.employmentType)
-          : requisition.employmentType,
+        offerAcceptedAt: approvedOffer?.acceptedAt ?? null,
+        candidateApplicationId: approvedOffer?.candidateApplication?.id ?? null,
+        // The name on the accepted offer is the authoritative one — it is who the
+        // letter was addressed to. The requisition's copy is the fallback for a
+        // legacy employee-anchored letter, which has no application behind it.
+        selectedCandidateName:
+          approvedOffer?.candidateApplication?.name ??
+          requisition.selectedCandidateName ??
+          '',
+        // Every term below comes from the frozen snapshot the candidate accepted,
+        // falling back to the requisition only where the snapshot is silent — so
+        // the employee record, the first salary structure and the signed letter
+        // all say the same thing.
+        designation: employee.designation ?? requisition.positionTitle,
+        employmentType: employee.employmentType ?? requisition.employmentType,
         vertical: requisition.vertical,
-        dateOfJoining: approvedOffer ? (employee.dateOfJoining ?? null) : null,
-        workLocation: approvedOffer ? (employee.workLocation ?? null) : null,
-        territory: approvedOffer ? (employee.territory ?? null) : null,
-        compensation: approvedOffer
-          ? {
-              monthlyCtc: grandTotal.perMonth ?? null,
-              basicSalary: amount(direct, 'Basic Salary'),
-              hra: amount(direct, 'House Rent Allowance (HRA)'),
-              specialAllowance: amount(direct, 'Special Allowance'),
-              variablePay: amount(indirect, 'Variable Pay', 'perAnnum'),
-              effectiveDate: compensation.effectiveFrom ?? null,
-            }
-          : null,
+        dateOfJoining: employee.dateOfJoining ?? null,
+        workLocation: employee.workLocation ?? null,
+        territory: employee.territory ?? null,
+        compensation: {
+          monthlyCtc: grandTotal.perMonth ?? null,
+          basicSalary: amount(direct, 'Basic Salary'),
+          hra: amount(direct, 'House Rent Allowance (HRA)'),
+          specialAllowance: amount(direct, 'Special Allowance'),
+          variablePay: amount(indirect, 'Variable Pay', 'perAnnum'),
+          effectiveDate: compensation.effectiveFrom ?? null,
+        },
       };
     });
   }
@@ -366,16 +402,20 @@ export class CandidateRequisitionsService {
       throw new BadRequestException('A fulfilled requisition is terminal');
     }
 
-    const candidateName = dto.selectedCandidateName?.trim() ?? '';
-    const targetStage = candidateName
-      ? CandidateHiringStage.CANDIDATE_SELECTED
-      : dto.hiringStage;
-    if (
-      targetStage === CandidateHiringStage.CANDIDATE_SELECTED &&
-      !candidateName
-    ) {
+    const targetStage = dto.hiringStage;
+    // The last two stages are no longer HR's to type in: OFFER_EXTENDED is what
+    // sending an approved offer letter means, and CANDIDATE_SELECTED is what
+    // completing the onboarding means. Setting either by hand would claim the
+    // position was filled while no offer had been made or accepted — the exact
+    // inversion this flow exists to prevent.
+    if (targetStage === CandidateHiringStage.OFFER_EXTENDED) {
       throw new BadRequestException(
-        'Selected candidate name is required to fulfil the requisition',
+        'Offer Extended is set by sending the approved offer letter to the candidate',
+      );
+    }
+    if (targetStage === CandidateHiringStage.CANDIDATE_SELECTED) {
+      throw new BadRequestException(
+        'A requisition is fulfilled when the accepted candidate is onboarded, not before',
       );
     }
 
@@ -394,13 +434,7 @@ export class CandidateRequisitionsService {
 
     return this.prisma.candidateRequisition.update({
       where: { id },
-      data: {
-        hiringStage: targetStage,
-        selectedCandidateName:
-          targetStage === CandidateHiringStage.CANDIDATE_SELECTED
-            ? candidateName
-            : null,
-      },
+      data: { hiringStage: targetStage },
       include,
     });
   }
@@ -610,33 +644,11 @@ export class CandidateRequisitionsService {
     );
   }
 
-  async availableForEmployee(employeeId: string, user: AuthenticatedUser) {
-    if (
-      user.role !== Role.MANAGER &&
-      user.role !== Role.ADMIN &&
-      user.role !== Role.SUPER_ADMIN
-    )
-      throw new ForbiddenException('You cannot create offer letters');
-    const employee = await this.prisma.employee.findUnique({
-      where: { id: employeeId },
-      select: { verticalId: true, designation: true },
-    });
-    if (!employee) throw new NotFoundException('Employee not found');
-    return this.prisma.candidateRequisition.findMany({
-      where: {
-        status: CandidateRequisitionStatus.APPROVED,
-        consumedAt: null,
-        offerLetter: null,
-        verticalId: employee.verticalId ?? undefined,
-        positionTitle: {
-          equals: employee.designation ?? '',
-          mode: 'insensitive',
-        },
-      },
-      include,
-      orderBy: { superAdminApprovedAt: 'asc' },
-    });
-  }
+  // `availableForEmployee` used to match an already-onboarded employee to an
+  // unconsumed requisition by vertical + job title, so HR could attach an offer
+  // letter to a hire after the fact. Offers are now made to a SELECTED candidate
+  // before any employee exists (OfferLettersService.listCandidatesAwaitingOffer),
+  // so there is nothing left for it to answer.
 
   private async find(id: string) {
     const req = await this.prisma.candidateRequisition.findUnique({

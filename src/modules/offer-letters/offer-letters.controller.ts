@@ -7,6 +7,7 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { OfferLetterDecisionDto } from './dto/offer-letter-decision.dto';
+import { DeclineOfferLetterDto } from './dto/offer-letter-response.dto';
 import { SaveOfferLetterDto } from './dto/save-offer-letter.dto';
 import { OfferLettersService } from './offer-letters.service';
 
@@ -37,6 +38,16 @@ export class OfferLettersController {
     return this.service.listPendingApproval(user);
   }
 
+  // Also declared before ':id'. The starting point of the whole flow: applicants
+  // selected at interview who are waiting for an offer.
+  @Get('candidates-awaiting-offer')
+  @ApiOperation({
+    summary: 'Selected candidates with no live offer letter yet',
+  })
+  listCandidatesAwaitingOffer(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.listCandidatesAwaitingOffer(user);
+  }
+
   @Post()
   @ApiOperation({ summary: 'Create or update authored offer-letter content' })
   save(
@@ -49,7 +60,7 @@ export class OfferLettersController {
   @Get('employee/:employeeId')
   @ApiOperation({
     summary:
-      'Resolve an offer letter — live data while DRAFT/REJECTED, frozen snapshot once submitted',
+      'Resolve a legacy employee-anchored offer letter — live data while DRAFT/REJECTED, frozen snapshot once submitted',
   })
   getForEmployee(
     @Param('employeeId') employeeId: string,
@@ -58,16 +69,53 @@ export class OfferLettersController {
     return this.service.getForEmployee(employeeId, user);
   }
 
-  @Post('employee/:employeeId/submit')
+  @Get(':id')
+  @ApiOperation({
+    summary:
+      'Resolve an offer letter by id — live data while DRAFT/REJECTED, frozen snapshot once submitted',
+  })
+  getById(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.getById(id, user);
+  }
+
+  @Post(':id/submit')
   @ApiOperation({
     summary:
       'Submit an offer letter for vertical-owner approval (freezes a snapshot)',
   })
-  submit(
-    @Param('employeeId') employeeId: string,
+  submit(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.submit(id, user);
+  }
+
+  @Post(':id/send')
+  @ApiOperation({
+    summary:
+      'Record that the approved offer has gone out to the candidate (moves the requisition to Offer Extended)',
+  })
+  send(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.send(id, user);
+  }
+
+  @Post(':id/accept')
+  @ApiOperation({
+    summary:
+      'Record the candidate’s acceptance — this is what authorizes onboarding',
+  })
+  accept(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.accept(id, user);
+  }
+
+  @Post(':id/decline')
+  @ApiOperation({
+    summary:
+      'Record that the candidate declined, releasing the requisition for another applicant',
+  })
+  decline(
+    @Param('id') id: string,
+    @Body() dto: DeclineOfferLetterDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.submit(employeeId, user);
+    return this.service.decline(id, dto, user);
   }
 
   @Get(':id/review')

@@ -443,7 +443,10 @@ function BreakdownSection({
               <TableCell className={row.emphasize ? 'font-semibold' : undefined}>
                 {row.label}
               </TableCell>
-              {row.note ? (
+              {/* A note only takes over the value columns when the row has no
+                  values at all (TDS). Net Take Home carries both values AND a
+                  "Before TDS" note, and must still show its numbers. */}
+              {row.note && row.perMonth === null && row.perAnnum === null ? (
                 <TableCell
                   colSpan={2}
                   className="text-right text-muted-foreground"

@@ -41,8 +41,12 @@ export class CtcBreakdownRow {
  * trustworthy for an offer letter, so it is surfaced as a note only.
  */
 export class CtcBreakdownEntity {
-  @ApiProperty()
-  employeeId!: string;
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Null for a candidate-anchored offer letter — the subject has no employee id until onboarding',
+  })
+  employeeId!: string | null;
 
   @ApiProperty()
   effectiveFrom!: Date;

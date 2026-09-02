@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import {
   CandidateHiringStage,
   CandidateRequisitionStatus,
+  OfferLetterStatus,
   Role,
 } from '@prisma/client';
 import { CandidateRequisitionsService } from './candidate-requisitions.service';
@@ -360,12 +361,12 @@ describe('CandidateRequisitionsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('uses the selected candidate name as the terminal fulfilment signal', async () => {
+  it('advances the pre-offer stages HR actually owns', async () => {
     prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'HR' } });
     prisma.candidateRequisition.findUnique.mockResolvedValue({
       ...request,
       status: CandidateRequisitionStatus.APPROVED,
-      hiringStage: CandidateHiringStage.INTERVIEWING,
+      hiringStage: CandidateHiringStage.JOB_POSTED,
     });
     prisma.candidateRequisition.update.mockImplementation(
       ({ data }: any) => data,
@@ -373,28 +374,27 @@ describe('CandidateRequisitionsService', () => {
 
     const result: any = await service.updateHiringLifecycle(
       'req',
-      {
-        hiringStage: CandidateHiringStage.INTERVIEWING,
-        selectedCandidateName: '  Priya Rao  ',
-      },
+      { hiringStage: CandidateHiringStage.INTERVIEWING },
       { id: 'hr-user', role: Role.EMPLOYEE, verticalId: 'hr' } as any,
     );
 
-    expect(result).toEqual(
-      expect.objectContaining({
-        hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
-        selectedCandidateName: 'Priya Rao',
-      }),
-    );
+    expect(result).toEqual({
+      hiringStage: CandidateHiringStage.INTERVIEWING,
+    });
   });
 
-  it('requires a candidate name and keeps fulfilled requisitions terminal', async () => {
+  it('refuses to hand-set the offer and fulfilment stages, and keeps a fulfilled requisition terminal', async () => {
     prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'HR' } });
     prisma.candidateRequisition.findUnique
       .mockResolvedValueOnce({
         ...request,
         status: CandidateRequisitionStatus.APPROVED,
-        hiringStage: CandidateHiringStage.OFFER_EXTENDED,
+        hiringStage: CandidateHiringStage.INTERVIEWING,
+      })
+      .mockResolvedValueOnce({
+        ...request,
+        status: CandidateRequisitionStatus.APPROVED,
+        hiringStage: CandidateHiringStage.INTERVIEWING,
       })
       .mockResolvedValueOnce({
         ...request,
@@ -407,23 +407,30 @@ describe('CandidateRequisitionsService', () => {
       verticalId: 'hr',
     } as any;
 
+    // Offer Extended follows from sending an approved offer letter…
+    await expect(
+      service.updateHiringLifecycle(
+        'req',
+        { hiringStage: CandidateHiringStage.OFFER_EXTENDED },
+        hrUser,
+      ),
+    ).rejects.toThrow('sending the approved offer letter');
+    // …and Candidate Selected from onboarding the candidate who accepted it.
     await expect(
       service.updateHiringLifecycle(
         'req',
         { hiringStage: CandidateHiringStage.CANDIDATE_SELECTED },
         hrUser,
       ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toThrow('onboarded');
     await expect(
       service.updateHiringLifecycle(
         'req',
-        {
-          hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
-          selectedCandidateName: 'Another Person',
-        },
+        { hiringStage: CandidateHiringStage.INTERVIEWING },
         hrUser,
       ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toThrow('terminal');
+    expect(prisma.candidateRequisition.update).not.toHaveBeenCalled();
   });
 
   it('gives the CEO unrestricted visibility of every requisition, including first-stage owned-vertical requests', async () => {
@@ -454,46 +461,7 @@ describe('CandidateRequisitionsService', () => {
     );
   });
 
-  it('returns approved requisition responsibilities and KPIs for Offer Letter prefill', async () => {
-    prisma.employee.findUnique.mockResolvedValue({
-      verticalId: 'sales',
-      designation: 'Sample Manager',
-    });
-    prisma.candidateRequisition.findMany.mockResolvedValue([
-      {
-        id: 'req-offer',
-        requisitionNumber: 'REQ-2026-0001',
-        positionTitle: 'Sample Manager',
-        keyResponsibilities: 'Lead the regional sales team',
-        keyPerformanceIndicators: 'Revenue attainment\nGross margin',
-      },
-    ]);
-
-    const result = await service.availableForEmployee('employee-1', manager);
-
-    expect(prisma.candidateRequisition.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          status: CandidateRequisitionStatus.APPROVED,
-          consumedAt: null,
-          offerLetter: null,
-          verticalId: 'sales',
-          positionTitle: {
-            equals: 'Sample Manager',
-            mode: 'insensitive',
-          },
-        }),
-      }),
-    );
-    expect(result[0]).toEqual(
-      expect.objectContaining({
-        keyResponsibilities: 'Lead the regional sales team',
-        keyPerformanceIndicators: 'Revenue attainment\nGross margin',
-      }),
-    );
-  });
-
-  it('offers unlinked Approved and Fulfilled requisitions and enriches them from an Approved Offer Letter', async () => {
+  it('lists only requisitions whose candidate ACCEPTED an approved offer, and prefills from that letter', async () => {
     prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'HR' } });
     prisma.candidateRequisition.findMany.mockResolvedValue([
       {
@@ -503,30 +471,36 @@ describe('CandidateRequisitionsService', () => {
         employmentType: 'FULL_TIME_PERMANENT',
         selectedCandidateName: 'Priya Rao',
         vertical: { id: 'rnd', name: 'R&D' },
-        offerLetter: {
-          id: 'offer',
-          referenceNumber: 'PD/HR/2026/ENG',
-          status: 'APPROVED',
-          snapshotData: {
-            employee: {
-              firstName: 'Priya',
-              lastName: 'Rao',
-              designation: 'Engineer',
-              employmentType: 'FULL_TIME_PERMANENT',
-            },
-            compensation: {
-              effectiveFrom: '2026-09-01T00:00:00.000Z',
-              directComponents: [
-                { label: 'Basic Salary', perMonth: '50000.00' },
-                { label: 'House Rent Allowance (HRA)', perMonth: '20000.00' },
-                { label: 'Special Allowance', perMonth: '5000.00' },
-              ],
-              indirectBenefits: [
-                { label: 'Variable Pay', perAnnum: '60000.00' },
-              ],
+        offerLetters: [
+          {
+            id: 'offer',
+            referenceNumber: 'PD/HR/2026/ENG',
+            status: 'APPROVED',
+            acceptedAt: new Date('2026-09-05T00:00:00.000Z'),
+            candidateApplication: { id: 'app-1', name: 'Priya Rao' },
+            snapshotData: {
+              employee: {
+                firstName: 'Priya',
+                lastName: 'Rao',
+                designation: 'Engineer',
+                employmentType: 'FULL_TIME_PERMANENT',
+                dateOfJoining: '2026-10-01T00:00:00.000Z',
+                workLocation: 'Bengaluru',
+              },
+              compensation: {
+                effectiveFrom: '2026-09-01T00:00:00.000Z',
+                directComponents: [
+                  { label: 'Basic Salary', perMonth: '50000.00' },
+                  { label: 'House Rent Allowance (HRA)', perMonth: '20000.00' },
+                  { label: 'Special Allowance', perMonth: '5000.00' },
+                ],
+                indirectBenefits: [
+                  { label: 'Variable Pay', perAnnum: '60000.00' },
+                ],
+              },
             },
           },
-        },
+        ],
       },
     ]);
 
@@ -536,38 +510,63 @@ describe('CandidateRequisitionsService', () => {
       verticalId: 'hr',
     } as any);
 
+    // The gate is an accepted offer, NOT the hiring stage — the requisition only
+    // reaches CANDIDATE_SELECTED as a result of the onboarding this list feeds.
     expect(prisma.candidateRequisition.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           status: CandidateRequisitionStatus.APPROVED,
-          hiringStage: CandidateHiringStage.CANDIDATE_SELECTED,
           onboardedEmployeeId: null,
+          offerLetters: {
+            some: {
+              status: OfferLetterStatus.APPROVED,
+              acceptedAt: { not: null },
+              declinedAt: null,
+            },
+          },
         },
       }),
     );
     expect(result[0]).toEqual(
       expect.objectContaining({
+        offerLetterId: 'offer',
+        hasApprovedOffer: true,
+        candidateApplicationId: 'app-1',
+        // The name on the accepted letter wins over the requisition's copy.
         selectedCandidateName: 'Priya Rao',
         designation: 'Engineer',
+        dateOfJoining: '2026-10-01T00:00:00.000Z',
+        workLocation: 'Bengaluru',
         compensation: expect.objectContaining({
           basicSalary: '50000.00',
           variablePay: '60000.00',
+          effectiveDate: '2026-09-01T00:00:00.000Z',
         }),
       }),
     );
   });
 
-  it('keeps a fulfilled requisition selectable without an Offer Letter and prefills its role facts (compensation stays offer-gated)', async () => {
+  it('falls back to the requisition for anything the accepted snapshot leaves out', async () => {
     prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'HR' } });
     prisma.candidateRequisition.findMany.mockResolvedValue([
       {
-        id: 'req-no-offer',
+        id: 'req-legacy',
         requisitionNumber: 'REQ-2026-0003',
         positionTitle: 'Technician',
         employmentType: 'CONTRACT',
         selectedCandidateName: 'Arun Kumar',
         vertical: { id: 'production', name: 'Production' },
-        offerLetter: null,
+        offerLetters: [
+          {
+            id: 'legacy-offer',
+            referenceNumber: 'PD/HR/2026/TECH',
+            status: 'APPROVED',
+            acceptedAt: new Date('2026-09-05T00:00:00.000Z'),
+            // A letter written before candidate-anchoring has no application.
+            candidateApplication: null,
+            snapshotData: {},
+          },
+        ],
       },
     ]);
 
@@ -580,61 +579,12 @@ describe('CandidateRequisitionsService', () => {
     expect(result).toEqual(
       expect.objectContaining({
         selectedCandidateName: 'Arun Kumar',
-        hasApprovedOffer: false,
-        // Role facts prefill from the requisition even without an Offer Letter.
+        hasApprovedOffer: true,
         designation: 'Technician',
         employmentType: 'CONTRACT',
         vertical: { id: 'production', name: 'Production' },
-        // Compensation stays gated on an approved Offer Letter.
-        compensation: null,
-      }),
-    );
-  });
-
-  it('keeps a fulfilled requisition selectable when its Offer Letter is not approved and ignores those draft terms', async () => {
-    prisma.employee.findUnique.mockResolvedValue({ vertical: { code: 'HR' } });
-    prisma.candidateRequisition.findMany.mockResolvedValue([
-      {
-        id: 'req-draft-offer',
-        requisitionNumber: 'REQ-2026-0001',
-        positionTitle: 'Manager',
-        employmentType: 'FULL_TIME_PERMANENT',
-        selectedCandidateName: 'Meera Shah',
-        vertical: { id: 'sales', name: 'Sales' },
-        offerLetter: {
-          id: 'draft-offer',
-          referenceNumber: 'DRAFT/001',
-          status: 'DRAFT',
-          snapshotData: {
-            employee: { designation: 'Unapproved designation' },
-            compensation: {
-              directComponents: [
-                { label: 'Basic Salary', perMonth: '999999.00' },
-              ],
-            },
-          },
-        },
-      },
-    ]);
-
-    const [result]: any[] = await service.listOnboardingOptions({
-      id: 'hr-user',
-      role: Role.EMPLOYEE,
-      verticalId: 'hr',
-    } as any);
-
-    expect(result).toEqual(
-      expect.objectContaining({
-        selectedCandidateName: 'Meera Shah',
-        offerLetterId: null,
-        offerReferenceNumber: null,
-        hasApprovedOffer: false,
-        // Draft offer terms are ignored; role facts come from the requisition
-        // (designation is the positionTitle, not the draft's snapshot value).
-        designation: 'Manager',
-        employmentType: 'FULL_TIME_PERMANENT',
-        vertical: { id: 'sales', name: 'Sales' },
-        compensation: null,
+        dateOfJoining: null,
+        compensation: expect.objectContaining({ basicSalary: null }),
       }),
     );
   });

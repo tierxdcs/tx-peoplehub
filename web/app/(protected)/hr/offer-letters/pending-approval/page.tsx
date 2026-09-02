@@ -27,10 +27,14 @@ import { useRegisterList } from '../../../../lib/use-register-list';
 import { StatusBadge } from '../../../../components/ui/status-badge';
 
 /**
- * A pending offer letter as returned by the list endpoint (raw record + a
- * selected employee). The approver reviews and decides on the detail page.
- * `status` distinguishes the first-stage vertical-owner sign-off from the CEO's
- * final sign-off — the CEO's queue mixes both (plus owner-less fallbacks).
+ * A pending offer letter as returned by the list endpoint. The approver reviews
+ * and decides on the detail page. `status` distinguishes the first-stage
+ * vertical-owner sign-off from the CEO's final sign-off — the CEO's queue mixes
+ * both (plus owner-less fallbacks).
+ *
+ * The subject is whichever anchor the letter carries: a candidate application
+ * (the normal path — the offer precedes the hire, so there is no employee) or an
+ * Employee row for a letter written before candidate-anchoring.
  */
 type PendingOfferLetter = {
   id: string;
@@ -43,8 +47,30 @@ type PendingOfferLetter = {
     firstName: string;
     lastName: string;
     designation: string | null;
-  };
+  } | null;
+  candidateApplication: { id: string; name: string } | null;
+  candidateRequisition: {
+    requisitionNumber: string;
+    positionTitle: string;
+  } | null;
 };
+
+/** Who the letter is about, and the position — from whichever anchor it has. */
+const subjectOf = (letter: PendingOfferLetter) => ({
+  name:
+    letter.candidateApplication?.name ??
+    (letter.employee
+      ? `${letter.employee.firstName} ${letter.employee.lastName}`
+      : '—'),
+  reference:
+    letter.employee?.employeeId ??
+    letter.candidateRequisition?.requisitionNumber ??
+    null,
+  position:
+    letter.candidateRequisition?.positionTitle ??
+    letter.employee?.designation ??
+    '—',
+});
 
 /**
  * Offer letters awaiting the current user's vertical-owner approval (Super
@@ -58,7 +84,10 @@ export default function OfferLetterApprovalQueuePage() {
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const register = useRegisterList(letters, (letter) => `${letter.referenceNumber} ${letter.employee.firstName} ${letter.employee.lastName} ${letter.employee.employeeId} ${letter.employee.designation ?? ''} ${letter.status} pending`);
+  const register = useRegisterList(letters, (letter) => {
+    const subject = subjectOf(letter);
+    return `${letter.referenceNumber} ${subject.name} ${subject.reference ?? ''} ${subject.position} ${letter.status} pending`;
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,46 +155,51 @@ export default function OfferLetterApprovalQueuePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {register.visibleItems.map((l) => (
-                  <TableRow
-                    key={l.id}
-                    className="cursor-pointer"
-                    onClick={() =>
-                      router.push(`/hr/offer-letters/pending-approval/${l.id}`)
-                    }
-                  >
-                    <TableCell className="font-medium">
-                      {l.referenceNumber}
-                    </TableCell>
-                    <TableCell>
-                      {l.employee.firstName} {l.employee.lastName}
-                      <span className="ml-1 text-muted-foreground">
-                        · {l.employee.employeeId}
-                      </span>
-                    </TableCell>
-                    <TableCell>{l.employee.designation ?? '—'}</TableCell>
-                    <TableCell>
-                      <StatusBadge value={l.status} />
-                    </TableCell>
-                    <TableCell>
-                      {l.submittedAt ? dateOnlyStr(l.submittedAt) : '—'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(
-                            `/hr/offer-letters/pending-approval/${l.id}`,
-                          );
-                        }}
-                      >
-                        Review &amp; decide →
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {register.visibleItems.map((l) => {
+                  const subject = subjectOf(l);
+                  return (
+                    <TableRow
+                      key={l.id}
+                      className="cursor-pointer"
+                      onClick={() =>
+                        router.push(`/hr/offer-letters/pending-approval/${l.id}`)
+                      }
+                    >
+                      <TableCell className="font-medium">
+                        {l.referenceNumber}
+                      </TableCell>
+                      <TableCell>
+                        {subject.name}
+                        {subject.reference && (
+                          <span className="ml-1 text-muted-foreground">
+                            · {subject.reference}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>{subject.position}</TableCell>
+                      <TableCell>
+                        <StatusBadge value={l.status} />
+                      </TableCell>
+                      <TableCell>
+                        {l.submittedAt ? dateOnlyStr(l.submittedAt) : '—'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(
+                              `/hr/offer-letters/pending-approval/${l.id}`,
+                            );
+                          }}
+                        >
+                          Review &amp; decide →
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
                 {register.visibleItems.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="p-0">

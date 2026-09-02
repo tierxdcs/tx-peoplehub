@@ -263,11 +263,16 @@ enum CandidateHiringStage {
   CANDIDATE_SELECTED
 }
 
+/// SELECTED is the interview outcome, NOT the end of hiring: it authorizes an
+/// offer letter, which the candidate may still decline. OFFER_DECLINED records
+/// that refusal and frees the requisition so HR can select another applicant —
+/// distinct from REJECTED, which is OUR decision about them.
 enum CandidateApplicationStatus {
   SUBMITTED
   UNDER_REVIEW
   INTERVIEW_SCHEDULED
   SELECTED
+  OFFER_DECLINED
   REJECTED
 }
 
@@ -545,6 +550,7 @@ model Employee {
   offerLettersVerticalApproved            OfferLetter[]          @relation("OfferLetterVerticalApprover")
   offerLettersCeoApproved                 OfferLetter[]          @relation("OfferLetterCeoApprover")
   offerLettersRejected                    OfferLetter[]          @relation("OfferLetterRejecter")
+  offerLettersReportingTo                 OfferLetter[]          @relation("OfferLetterReportsTo")
   provisioningRequests                    ProvisioningRequest[]  @relation("ProvisioningEmployee")
   provisioningRequestsApproved            ProvisioningRequest[]  @relation("ProvisioningApprovedBy")
   provisioningRequestsFulfilled           ProvisioningRequest[]  @relation("ProvisioningFulfilledBy")
@@ -854,17 +860,49 @@ model LearningProgress {
   @@map("learning_progress")
 }
 
-/// Human-authored offer content only. Employee, reporting and compensation
-/// values are deliberately resolved live whenever the document is generated.
+/// An offer made to a CANDIDATE, before any Employee row exists — an offer the
+/// candidate may still decline. `status` is the INTERNAL approval axis (draft →
+/// vertical → CEO → approved); the candidate's own answer is recorded
+/// orthogonally in sentAt/acceptedAt/declinedAt, because "we approved it" and
+/// "they took it" are different facts and every gate that reads APPROVED means
+/// the former. Only an APPROVED **and accepted** letter authorizes onboarding.
 model OfferLetter {
   id                     String                @id @default(uuid())
-  employeeId             String                @unique
-  employee               Employee              @relation("OfferLetterEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
-  candidateRequisitionId String?               @unique
+  /// Nullable: the letter is authored months before the Employee row exists.
+  /// Back-filled at onboarding, so historical employee-anchored lookups (and
+  /// every letter written before candidate-anchoring) keep resolving.
+  employeeId             String?               @unique
+  employee               Employee?             @relation("OfferLetterEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  /// The selected candidate application this offer is addressed to — the normal
+  /// anchor for a new letter. One live offer per application.
+  candidateApplicationId String?               @unique
+  candidateApplication   CandidateApplication? @relation(fields: [candidateApplicationId], references: [id], onDelete: Restrict)
+  /// NOT unique: a declined offer is followed by a fresh one to the next
+  /// applicant on the same requisition, so a requisition accumulates letters.
+  /// At most one of them is live (see CandidateRequisition.consumedAt).
+  candidateRequisitionId String?
   candidateRequisition   CandidateRequisition? @relation(fields: [candidateRequisitionId], references: [id], onDelete: Restrict)
   referenceNumber        String                @unique
   keyResponsibilities    String                @db.Text
   kpis                   String                @db.Text
+  /// The offered employment terms. These live on the letter because a candidate
+  /// has no Employee row to read them from — and because what we OFFERED must
+  /// stay readable even if the terms are renegotiated before joining. For a
+  /// legacy employee-anchored letter these are null and the Employee row is
+  /// still the source of truth.
+  offeredDesignation     String?
+  offeredEmploymentType  EmploymentType?
+  offeredDateOfJoining   DateTime?             @db.Date
+  offeredWorkLocation    String?
+  offeredTerritory       String?
+  /// Monthly CTC (INR) offered. The Annexure A breakdown is derived from this
+  /// through the SAME calculator onboarding uses, so the offer and the first
+  /// salary structure can never disagree.
+  offeredMonthlyCtc      Decimal?              @db.Decimal(14, 2)
+  /// Who the candidate will report to ("Reports To" on the letter). An Employee
+  /// (the manager already works here) even when the subject does not yet.
+  reportsToId            String?
+  reportsTo              Employee?             @relation("OfferLetterReportsTo", fields: [reportsToId], references: [id], onDelete: SetNull)
   status                 OfferLetterStatus     @default(DRAFT)
   /// Frozen at Submit-for-Approval time: the fully-rendered document payload
   /// (employee position/reporting fields + the computed CTC/Annexure A
@@ -892,6 +930,13 @@ model OfferLetter {
   /// Reviewer comment. Optional on approve; the service REQUIRES a non-empty
   /// value on reject (mirrors every other rejection gate in the system).
   approverComments       String?               @db.Text
+  /// The candidate response axis, orthogonal to `status`. A letter can only be
+  /// sent once APPROVED; only an accepted letter authorizes onboarding; a
+  /// decline frees the requisition for a fresh offer to another applicant.
+  sentAt                 DateTime?
+  acceptedAt             DateTime?
+  declinedAt             DateTime?
+  declineReason          String?               @db.Text
   createdById            String
   createdBy              Employee              @relation("OfferLetterCreator", fields: [createdById], references: [id], onDelete: Restrict)
   createdAt              DateTime              @default(now())
@@ -899,6 +944,8 @@ model OfferLetter {
 
   @@index([createdById])
   @@index([status])
+  @@index([candidateRequisitionId])
+  @@index([reportsToId])
   @@map("offer_letters")
 }
 
@@ -936,8 +983,11 @@ model CandidateRequisition {
   rejectedBy               Employee?                    @relation("CandidateRequisitionRejector", fields: [rejectedById], references: [id], onDelete: SetNull)
   rejectedAt               DateTime?
   rejectionComment         String?                      @db.Text
+  /// When the requisition's LIVE offer was created. Cleared again if that offer
+  /// is declined, which re-opens the requisition for an offer to another
+  /// applicant. Non-null therefore means "an undeclined offer is out".
   consumedAt               DateTime?
-  offerLetter              OfferLetter?
+  offerLetters             OfferLetter[]
   onboardedEmployeeId      String?                      @unique
   onboardedEmployee        Employee?                    @relation("CandidateRequisitionOnboardedEmployee", fields: [onboardedEmployeeId], references: [id], onDelete: Restrict)
   applicationInvites       CandidateApplicationInvite[]
@@ -987,6 +1037,8 @@ model CandidateApplication {
   resumeFileSize          Int
   resumeMimeType          String
   status                  CandidateApplicationStatus @default(SUBMITTED)
+  /// The offer addressed to this applicant, once they are SELECTED.
+  offerLetter             OfferLetter?
   submittedAt             DateTime                   @default(now())
   updatedAt               DateTime                   @updatedAt
 

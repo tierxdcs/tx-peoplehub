@@ -14,7 +14,10 @@ import {
 import { PrismaService } from '../../core/database/prisma.service';
 import { endOfMonth } from '../../common/utils/date.util';
 import { SalaryStructuresService } from './salary-structures.service';
-import { StatutoryConfigService } from './statutory-config.service';
+import {
+  COMPANY_PT_STATE,
+  StatutoryConfigService,
+} from './statutory-config.service';
 import {
   CtcBreakdownEntity,
   CtcBreakdownRow,
@@ -26,7 +29,9 @@ export interface RequiredConfigs {
   tdsSlab: StatutoryConfig;
   standardDeduction: StatutoryConfig;
   /** Keyed by the exact Employee.workLocation string — see the TODO below. */
-  professionalTaxByState: Map<string, StatutoryConfig>;
+  professionalTaxByLocation: Map<string, StatutoryConfig>;
+  /** Applies to employees with no work location on file. */
+  professionalTaxDefault: StatutoryConfig | null;
 }
 
 export interface PayslipComputation {
@@ -101,32 +106,43 @@ export class PayrollComputationService {
       );
     }
 
-    // TODO(payroll-compliance-review): Professional Tax is legally keyed
-    // by the employee's state of employment, but Employee has no proper
-    // state field today — only a free-text workLocation (e.g. "Bangalore
-    // HQ"). This treats workLocation itself as the state lookup key, which
-    // only works if StatutoryConfig.state is populated with the exact
-    // same string. Confirm whether a dedicated state field is needed
-    // before relying on this for real payroll.
-    const states = [
+    // TODO(payroll-compliance-review): Professional Tax is legally keyed by the
+    // employee's state of employment, but Employee has no proper state field
+    // today — only a free-text workLocation (e.g. "Hybrid", "Unit 1 - Peenya").
+    // findProfessionalTax tries workLocation as the state key first, then falls
+    // back to COMPANY_PT_STATE, so a location-shaped value still resolves.
+    // Revisit if the company ever employs outside one state.
+    const professionalTaxByLocation = new Map<string, StatutoryConfig>();
+    const locations = [
       ...new Set(
         employees.map((e) => e.workLocation).filter((w): w is string => !!w),
       ),
     ];
-    const professionalTaxByState = new Map<string, StatutoryConfig>();
-    for (const state of states) {
-      const config = await this.statutoryConfig.findEffective(
-        StatutoryConfigType.PROFESSIONAL_TAX,
+    for (const location of locations) {
+      const config = await this.statutoryConfig.findProfessionalTax(
+        location,
         asOf,
-        state,
       );
       if (!config) {
         missing.push(
-          `PROFESSIONAL_TAX config for state "${state}" effective on ${asOf.toISOString().slice(0, 10)}`,
+          `PROFESSIONAL_TAX config for "${location}" (or fallback state "${COMPANY_PT_STATE}") effective on ${asOf.toISOString().slice(0, 10)}`,
         );
         continue;
       }
-      professionalTaxByState.set(state, config);
+      professionalTaxByLocation.set(location, config);
+    }
+    // Employees with no work location on file still owe PT — resolve the
+    // company-state row once for them rather than skipping the deduction.
+    // Missing is fatal here for the same reason it is above: a silent zero-PT
+    // payslip is worse than a blocked run.
+    const anyWithoutLocation = employees.some((e) => !e.workLocation);
+    const professionalTaxDefault = anyWithoutLocation
+      ? await this.statutoryConfig.findProfessionalTax(null, asOf)
+      : null;
+    if (anyWithoutLocation && !professionalTaxDefault) {
+      missing.push(
+        `PROFESSIONAL_TAX config for the company state "${COMPANY_PT_STATE}" (employees with no work location on file) effective on ${asOf.toISOString().slice(0, 10)}`,
+      );
     }
 
     if (missing.length > 0) {
@@ -141,7 +157,8 @@ export class PayrollComputationService {
       esi: esi as StatutoryConfig,
       tdsSlab: tdsSlab as StatutoryConfig,
       standardDeduction: standardDeduction as StatutoryConfig,
-      professionalTaxByState,
+      professionalTaxByLocation,
+      professionalTaxDefault,
     };
   }
 
@@ -181,8 +198,7 @@ export class PayrollComputationService {
     const esi = this.calculateEsi(grossEarnings, configs.esi);
     const professionalTax = this.calculateProfessionalTax(
       grossEarnings,
-      employee.workLocation,
-      configs.professionalTaxByState,
+      this.professionalTaxConfigFor(employee, configs),
     );
     const tdsDeducted = this.calculateTds(
       grossEarnings,
@@ -245,11 +261,50 @@ export class PayrollComputationService {
       asOf,
     );
 
-    const basic = structure.basic;
-    const hra = structure.hra;
-    const specialAllowance = structure.specialAllowance;
-    const otherAllowances = structure.otherAllowances ?? new Prisma.Decimal(0);
-    const variablePayAnnual = structure.variablePay ?? new Prisma.Decimal(0);
+    return this.composeCtcBreakdown({
+      employeeId,
+      effectiveFrom: structure.effectiveFrom,
+      workLocation: employee.workLocation,
+      basic: structure.basic,
+      hra: structure.hra,
+      specialAllowance: structure.specialAllowance,
+      otherAllowances: structure.otherAllowances ?? new Prisma.Decimal(0),
+      variablePayAnnual: structure.variablePay ?? new Prisma.Decimal(0),
+      asOf,
+    });
+  }
+
+  /**
+   * The same breakdown assembled from RAW earning components rather than from an
+   * employee's salary structure — the path a candidate-anchored offer letter
+   * takes, where there is no Employee row and no SalaryStructure yet (the
+   * components come from OnboardingCompensationService, exactly the ones
+   * onboarding will later persist).
+   *
+   * Deliberately the single implementation behind both entry points: the row
+   * LABELS are a contract (listOnboardingOptions reads 'Basic Salary',
+   * 'House Rent Allowance (HRA)', 'Special Allowance' and 'Variable Pay' out of
+   * a frozen snapshot to prefill the onboarding wizard), and the statutory rows
+   * must be derived by the payroll engine's own PF/ESI/PT logic, so a
+   * second copy of this assembly would silently drift.
+   *
+   * `employeeId` is null for a candidate — nobody has an employee id yet.
+   */
+  async composeCtcBreakdown(input: {
+    employeeId: string | null;
+    effectiveFrom: Date;
+    workLocation: string | null;
+    basic: Prisma.Decimal;
+    hra: Prisma.Decimal;
+    specialAllowance: Prisma.Decimal;
+    otherAllowances: Prisma.Decimal;
+    variablePayAnnual: Prisma.Decimal;
+    asOf?: Date;
+  }): Promise<CtcBreakdownEntity> {
+    const asOf = input.asOf ?? new Date();
+    const { basic, hra, specialAllowance, otherAllowances, variablePayAnnual } =
+      input;
+    const workLocation = input.workLocation;
     const grossMonthly = basic
       .plus(hra)
       .plus(specialAllowance)
@@ -262,13 +317,7 @@ export class PayrollComputationService {
     const [pfConfig, esiConfig, ptConfig] = await Promise.all([
       this.statutoryConfig.findEffective(StatutoryConfigType.PF, asOf),
       this.statutoryConfig.findEffective(StatutoryConfigType.ESI, asOf),
-      employee.workLocation
-        ? this.statutoryConfig.findEffective(
-            StatutoryConfigType.PROFESSIONAL_TAX,
-            asOf,
-            employee.workLocation,
-          )
-        : Promise.resolve(null),
+      this.statutoryConfig.findProfessionalTax(workLocation, asOf),
     ]);
 
     const pf = pfConfig ? this.calculatePf(basic, pfConfig) : null;
@@ -277,17 +326,13 @@ export class PayrollComputationService {
     const esi = esiConfig ? this.calculateEsi(grossMonthly, esiConfig) : null;
     if (!esiConfig) warnings.push('ESI');
 
+    // PT resolves through the company-state fallback, so it no longer depends
+    // on a work location being on file — only on a PT row existing at all.
     let professionalTax: Prisma.Decimal | null = null;
-    if (!employee.workLocation) {
-      warnings.push('Professional Tax (no work location on file)');
-    } else if (!ptConfig) {
-      warnings.push(`Professional Tax (${employee.workLocation})`);
+    if (!ptConfig) {
+      warnings.push(`Professional Tax (${workLocation ?? COMPANY_PT_STATE})`);
     } else {
-      professionalTax = this.calculateProfessionalTax(
-        grossMonthly,
-        employee.workLocation,
-        new Map([[employee.workLocation, ptConfig]]),
-      );
+      professionalTax = this.calculateProfessionalTax(grossMonthly, ptConfig);
     }
 
     // Direct Components — the typed earning components + gross sub-total.
@@ -379,8 +424,8 @@ export class PayrollComputationService {
     };
 
     return new CtcBreakdownEntity({
-      employeeId,
-      effectiveFrom: structure.effectiveFrom,
+      employeeId: input.employeeId,
+      effectiveFrom: input.effectiveFrom,
       directComponents,
       employeeDeductions,
       indirectBenefits,
@@ -492,13 +537,8 @@ export class PayrollComputationService {
   // workLocation-as-state-key limitation noted in loadRequiredConfigs.
   private calculateProfessionalTax(
     grossEarnings: Prisma.Decimal,
-    workLocation: string | null,
-    configByState: Map<string, StatutoryConfig>,
+    config: StatutoryConfig | null,
   ): Prisma.Decimal | null {
-    if (!workLocation) {
-      return null;
-    }
-    const config = configByState.get(workLocation);
     if (!config) {
       return null;
     }
@@ -556,19 +596,32 @@ export class PayrollComputationService {
     return annualTax.dividedBy(12);
   }
 
+  /**
+   * The PT row that applies to one employee: their work location's row if one
+   * is configured, otherwise the company-state fallback resolved in
+   * loadConfigs. Single resolver so the deduction and the stored snapshot can
+   * never name different rows.
+   */
+  private professionalTaxConfigFor(
+    employee: Employee,
+    configs: RequiredConfigs,
+  ): StatutoryConfig | null {
+    const byLocation = employee.workLocation
+      ? configs.professionalTaxByLocation.get(employee.workLocation)
+      : undefined;
+    return byLocation ?? configs.professionalTaxDefault;
+  }
+
   private buildSnapshot(
     employee: Employee,
     configs: RequiredConfigs,
   ): Record<string, unknown> {
-    const pt = employee.workLocation
-      ? configs.professionalTaxByState.get(employee.workLocation)
-      : undefined;
     return {
       pf: configs.pf,
       esi: configs.esi,
       tdsSlab: configs.tdsSlab,
       standardDeduction: configs.standardDeduction,
-      professionalTax: pt ?? null,
+      professionalTax: this.professionalTaxConfigFor(employee, configs),
     };
   }
 }

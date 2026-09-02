@@ -51,32 +51,69 @@ const CONFIG_TYPES: StatutoryConfigType[] = [
   'SALARY_STRUCTURE',
 ];
 
-/** Placeholder configData JSON per type — matches StatutoryConfigService's REQUIRED_FIELDS. */
+/**
+ * Placeholder configData JSON per type. The field set is exactly
+ * StatutoryConfigService's REQUIRED_FIELDS, which the server enforces as an
+ * ALLOW-LIST — an extra key is rejected, not stored, so these placeholders
+ * must not show fields no computation reads.
+ *
+ * Keep these in step with the rates actually in force: they are the shape an
+ * admin copies when adding a version, and a stale rate here is a wrong rate
+ * typed into a live config. Slab ladders must end in an open-ended slab
+ * (slabTo: null) or the server rejects them.
+ */
 const CONFIG_DATA_PLACEHOLDER: Record<StatutoryConfigType, string> = {
   PF: JSON.stringify(
-    { employeeRate: 0.12, employerRate: 0.13, epsRate: 0.0833, wageCeiling: 15000, adminCharge: 0.005 },
-    null, 2,
+    {
+      employeeRate: 0.12,
+      employerRate: 0.12,
+      epsRate: 0.0833,
+      wageCeiling: 15000,
+      adminCharge: 0.005,
+    },
+    null,
+    2,
   ),
   ESI: JSON.stringify(
     { employeeRate: 0.0075, employerRate: 0.0325, wageThreshold: 21000 },
-    null, 2,
+    null,
+    2,
   ),
+  // Karnataka: nil below ₹25,000/month, flat ₹200 at or above it.
   PROFESSIONAL_TAX: JSON.stringify(
-    { slabs: [{ slabFrom: 0, slabTo: 15000, amount: 0 }] },
-    null, 2,
+    {
+      slabs: [
+        { slabFrom: 0, slabTo: 24999.99, amount: 0 },
+        { slabFrom: 25000, slabTo: null, amount: 200 },
+      ],
+    },
+    null,
+    2,
   ),
+  // New-regime annual slabs.
   TDS_SLAB: JSON.stringify(
-    { slabs: [{ slabFrom: 0, slabTo: 300000, rate: 0 }] },
-    null, 2,
+    {
+      slabs: [
+        { slabFrom: 0, slabTo: 400000, rate: 0 },
+        { slabFrom: 400000, slabTo: 800000, rate: 0.05 },
+        { slabFrom: 800000, slabTo: 1200000, rate: 0.1 },
+        { slabFrom: 1200000, slabTo: 1600000, rate: 0.15 },
+        { slabFrom: 1600000, slabTo: 2000000, rate: 0.2 },
+        { slabFrom: 2000000, slabTo: 2400000, rate: 0.25 },
+        { slabFrom: 2400000, slabTo: null, rate: 0.3 },
+      ],
+    },
+    null,
+    2,
   ),
-  STANDARD_DEDUCTION: JSON.stringify({ amount: 50000 }, null, 2),
+  STANDARD_DEDUCTION: JSON.stringify({ amount: 75000 }, null, 2),
   SALARY_STRUCTURE: JSON.stringify(
     {
-      basicGrossRate: 0.6,
-      hraGrossRate: 0.32,
-      conveyanceMonthly: 500,
-      annualInsurance: 8940,
-      incentiveGrossMonths: 1,
+      basicGrossRate: 0.5,
+      hraGrossRate: 0.2,
+      conveyanceMonthly: 0,
+      annualInsurance: 0,
+      incentiveGrossMonths: 0,
     },
     null,
     2,
