@@ -1,8 +1,15 @@
 'use client';
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../components/ui/table';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
@@ -12,9 +19,31 @@ import { PageHeader } from '../../../components/ui/page-header';
 import { Select } from '../../../components/ui/select';
 import { useToast } from '../../../components/ui/toaster';
 
-type AccountType = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'COST_OF_GOODS_SOLD' | 'EXPENSE' | 'OTHER_INCOME' | 'OTHER_EXPENSE';
-interface Account { id: string; code: string; name: string; accountType: AccountType; normalBalance: 'DEBIT' | 'CREDIT'; isActive: boolean; parentId: string | null; }
-interface FiscalYear { id: string; name: string; startsOn: string; endsOn: string; status: string; }
+type AccountType =
+  | 'ASSET'
+  | 'LIABILITY'
+  | 'EQUITY'
+  | 'REVENUE'
+  | 'COST_OF_GOODS_SOLD'
+  | 'EXPENSE'
+  | 'OTHER_INCOME'
+  | 'OTHER_EXPENSE';
+interface Account {
+  id: string;
+  code: string;
+  name: string;
+  accountType: AccountType;
+  normalBalance: 'DEBIT' | 'CREDIT';
+  isActive: boolean;
+  parentId: string | null;
+}
+interface FiscalYear {
+  id: string;
+  name: string;
+  startsOn: string;
+  endsOn: string;
+  status: string;
+}
 
 /** Tally-standard group-header ledgers are seeded with this code prefix (see prisma/seed.ts ACCOUNT_GROUPS) — used only to bold them in the hierarchy, not a hard rule. */
 function isGroupHeader(a: Account) {
@@ -25,31 +54,106 @@ export default function FinanceAccountsPage() {
   const toast = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [years, setYears] = useState<FiscalYear[]>([]);
-  const [code, setCode] = useState(''); const [name, setName] = useState('');
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
   const [accountType, setAccountType] = useState<AccountType>('ASSET');
-  const [normalBalance, setNormalBalance] = useState<'DEBIT' | 'CREDIT'>('DEBIT');
+  const [normalBalance, setNormalBalance] = useState<'DEBIT' | 'CREDIT'>(
+    'DEBIT',
+  );
   const [parentId, setParentId] = useState('');
-  const [startYear, setStartYear] = useState(new Date().getMonth() >= 3 ? new Date().getFullYear() : new Date().getFullYear() - 1);
-  const load = () => Promise.all([apiFetch<Account[]>('/finance/accounts'), apiFetch<FiscalYear[]>('/finance/fiscal-years')]).then(([a, y]) => { setAccounts(a); setYears(y); });
-  useEffect(() => { load().catch((e) => toast.error(e instanceof ApiError ? e.message : 'Failed to load finance setup')); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | AccountType>('ALL');
+  const [balanceFilter, setBalanceFilter] = useState<
+    'ALL' | 'DEBIT' | 'CREDIT'
+  >('ALL');
+  const [groupFilter, setGroupFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState<
+    'ALL' | 'ACTIVE' | 'INACTIVE'
+  >('ALL');
+  const [startYear, setStartYear] = useState(
+    new Date().getMonth() >= 3
+      ? new Date().getFullYear()
+      : new Date().getFullYear() - 1,
+  );
+  const load = () =>
+    Promise.all([
+      apiFetch<Account[]>('/finance/accounts'),
+      apiFetch<FiscalYear[]>('/finance/fiscal-years'),
+    ]).then(([a, y]) => {
+      setAccounts(a);
+      setYears(y);
+    });
+  useEffect(() => {
+    load().catch((e) =>
+      toast.error(
+        e instanceof ApiError ? e.message : 'Failed to load finance setup',
+      ),
+    );
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build the parentId hierarchy for display: top-level accounts (no parent)
   // each followed by their direct children, both sorted by code. The seeded
   // data is one level deep (25 accounts under 15 GRP-* groups) but this walks
   // however deep the data actually is, rather than assuming exactly one level.
+  const filteredAccounts = useMemo(() => {
+    const byId = new Map(accounts.map((account) => [account.id, account]));
+    const query = search.trim().toLocaleLowerCase();
+    const isWithinGroup = (account: Account) => {
+      if (groupFilter === 'ALL') return true;
+      let current: Account | undefined = account;
+      while (current) {
+        if (current.id === groupFilter) return true;
+        current = current.parentId ? byId.get(current.parentId) : undefined;
+      }
+      return false;
+    };
+    const matches = accounts.filter(
+      (account) =>
+        (!query ||
+          `${account.code} ${account.name}`
+            .toLocaleLowerCase()
+            .includes(query)) &&
+        (typeFilter === 'ALL' || account.accountType === typeFilter) &&
+        (balanceFilter === 'ALL' || account.normalBalance === balanceFilter) &&
+        (statusFilter === 'ALL' ||
+          account.isActive === (statusFilter === 'ACTIVE')) &&
+        isWithinGroup(account),
+    );
+
+    // Keep ancestors of matching ledgers visible so filtered results retain
+    // their chart-of-accounts context instead of becoming an unexplained flat row.
+    const visibleIds = new Set(matches.map((account) => account.id));
+    for (const match of matches) {
+      let parent = match.parentId ? byId.get(match.parentId) : undefined;
+      while (parent) {
+        visibleIds.add(parent.id);
+        parent = parent.parentId ? byId.get(parent.parentId) : undefined;
+      }
+    }
+    return accounts.filter((account) => visibleIds.has(account.id));
+  }, [accounts, balanceFilter, groupFilter, search, statusFilter, typeFilter]);
+
   const byParent = new Map<string | null, Account[]>();
-  for (const a of accounts) {
+  for (const a of filteredAccounts) {
     const key = a.parentId ?? null;
     const list = byParent.get(key) ?? [];
     list.push(a);
     byParent.set(key, list);
   }
-  for (const list of byParent.values()) list.sort((x, y) => x.code.localeCompare(y.code));
+  for (const list of byParent.values())
+    list.sort((x, y) => x.code.localeCompare(y.code));
   function renderRows(parent: string | null, depth: number): React.ReactNode[] {
     return (byParent.get(parent) ?? []).flatMap((a) => [
       <TableRow className="border-b" key={a.id}>
-        <TableCell className="p-3 font-mono" style={{ paddingLeft: `${12 + depth * 20}px` }}>{a.code}</TableCell>
-        <TableCell className={isGroupHeader(a) ? 'font-semibold' : undefined}>{a.name}</TableCell>
+        <TableCell
+          className="p-3 font-mono"
+          style={{ paddingLeft: `${12 + depth * 20}px` }}
+        >
+          {a.code}
+        </TableCell>
+        <TableCell className={isGroupHeader(a) ? 'font-semibold' : undefined}>
+          {a.name}
+        </TableCell>
         <TableCell>{a.accountType.replaceAll('_', ' ')}</TableCell>
         <TableCell>{a.normalBalance}</TableCell>
         <TableCell>{a.isActive ? 'Active' : 'Inactive'}</TableCell>
@@ -61,42 +165,252 @@ export default function FinanceAccountsPage() {
   async function addAccount(event: FormEvent) {
     event.preventDefault();
     try {
-      await apiFetch('/finance/accounts', { method: 'POST', body: JSON.stringify({ code, name, accountType, normalBalance, parentId: parentId || undefined }) });
-      setCode(''); setName(''); setParentId(''); toast.success('Ledger account created'); await load();
-    } catch (e) { toast.error(e instanceof ApiError ? e.message : 'Failed to create account'); }
+      await apiFetch('/finance/accounts', {
+        method: 'POST',
+        body: JSON.stringify({
+          code,
+          name,
+          accountType,
+          normalBalance,
+          parentId: parentId || undefined,
+        }),
+      });
+      setCode('');
+      setName('');
+      setParentId('');
+      toast.success('Ledger account created');
+      await load();
+    } catch (e) {
+      toast.error(
+        e instanceof ApiError ? e.message : 'Failed to create account',
+      );
+    }
   }
 
   async function addFiscalYear() {
     try {
-      await apiFetch('/finance/fiscal-years', { method: 'POST', body: JSON.stringify({ name: `FY ${startYear}-${String(startYear + 1).slice(-2)}`, startYear }) });
-      toast.success('Fiscal year and 12 periods created'); await load();
-    } catch (e) { toast.error(e instanceof ApiError ? e.message : 'Failed to create fiscal year'); }
+      await apiFetch('/finance/fiscal-years', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: `FY ${startYear}-${String(startYear + 1).slice(-2)}`,
+          startYear,
+        }),
+      });
+      toast.success('Fiscal year and 12 periods created');
+      await load();
+    } catch (e) {
+      toast.error(
+        e instanceof ApiError ? e.message : 'Failed to create fiscal year',
+      );
+    }
   }
 
-  return <PageContainer>
-    <PageHeader title="Ledgers" description="India April–March fiscal periods and ledger accounts (chart of accounts)" />
-    <Card className="mb-6"><CardContent className="p-5">
-      <h2 className="mb-3 font-semibold">Fiscal years</h2>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm">Starting year<Input type="number" value={startYear} onChange={(e) => setStartYear(Number(e.target.value))} /></label>
-        <Button onClick={addFiscalYear}>Create April–March year</Button>
-      </div>
-      <div className="mt-3 text-sm text-muted-foreground">{years.length ? years.map((y) => `${y.name} (${y.status})`).join(' · ') : 'No fiscal year configured.'}</div>
-    </CardContent></Card>
-    <Card className="mb-6"><CardContent className="p-5">
-      <h2 className="mb-3 font-semibold">Add ledger account</h2>
-      <form onSubmit={addAccount} className="grid gap-3 md:grid-cols-6">
-        <Input required placeholder="Code" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
-        <Input required placeholder="Account name" value={name} onChange={(e) => setName(e.target.value)} />
-        <Select value={accountType} onChange={(e) => setAccountType(e.target.value as AccountType)}>{['ASSET','LIABILITY','EQUITY','REVENUE','COST_OF_GOODS_SOLD','EXPENSE','OTHER_INCOME','OTHER_EXPENSE'].map((t) => <option key={t}>{t}</option>)}</Select>
-        <Select value={normalBalance} onChange={(e) => setNormalBalance(e.target.value as 'DEBIT'|'CREDIT')}><option>DEBIT</option><option>CREDIT</option></Select>
-        <Select value={parentId} onChange={(e) => setParentId(e.target.value)}>
-          <option value="">No group</option>
-          {accounts.filter(isGroupHeader).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-        </Select>
-        <Button type="submit">Add account</Button>
-      </form>
-    </CardContent></Card>
-    <Card><CardContent className="overflow-x-auto p-0"><Table className="w-full text-sm"><TableHeader><TableRow className="border-b text-left"><TableHead className="p-3">Code</TableHead><TableHead>Name</TableHead><TableHead>Type</TableHead><TableHead>Normal balance</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{renderRows(null, 0)}</TableBody></Table></CardContent></Card>
-  </PageContainer>;
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Ledgers"
+        description="India April–March fiscal periods and ledger accounts (chart of accounts)"
+      />
+      <Card className="mb-6">
+        <CardContent className="p-5">
+          <h2 className="mb-3 font-semibold">Fiscal years</h2>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              Starting year
+              <Input
+                type="number"
+                value={startYear}
+                onChange={(e) => setStartYear(Number(e.target.value))}
+              />
+            </label>
+            <Button onClick={addFiscalYear}>Create April–March year</Button>
+          </div>
+          <div className="mt-3 text-sm text-muted-foreground">
+            {years.length
+              ? years.map((y) => `${y.name} (${y.status})`).join(' · ')
+              : 'No fiscal year configured.'}
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="mb-6">
+        <CardContent className="p-5">
+          <h2 className="mb-3 font-semibold">Add ledger account</h2>
+          <form onSubmit={addAccount} className="grid gap-3 md:grid-cols-6">
+            <Input
+              required
+              placeholder="Code"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+            />
+            <Input
+              required
+              placeholder="Account name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <Select
+              value={accountType}
+              onChange={(e) => setAccountType(e.target.value as AccountType)}
+            >
+              {[
+                'ASSET',
+                'LIABILITY',
+                'EQUITY',
+                'REVENUE',
+                'COST_OF_GOODS_SOLD',
+                'EXPENSE',
+                'OTHER_INCOME',
+                'OTHER_EXPENSE',
+              ].map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </Select>
+            <Select
+              value={normalBalance}
+              onChange={(e) =>
+                setNormalBalance(e.target.value as 'DEBIT' | 'CREDIT')
+              }
+            >
+              <option>DEBIT</option>
+              <option>CREDIT</option>
+            </Select>
+            <Select
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+            >
+              <option value="">No group</option>
+              {accounts.filter(isGroupHeader).map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </Select>
+            <Button type="submit">Add account</Button>
+          </form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-0">
+          <div className="border-b p-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold">Chart of accounts</h2>
+                <p className="text-sm text-muted-foreground">
+                  {filteredAccounts.length} of {accounts.length} ledgers visible
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSearch('');
+                  setTypeFilter('ALL');
+                  setBalanceFilter('ALL');
+                  setGroupFilter('ALL');
+                  setStatusFilter('ALL');
+                }}
+              >
+                Clear filters
+              </Button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <Input
+                aria-label="Search ledgers"
+                placeholder="Search code or account name…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <Select
+                aria-label="Filter by account type"
+                value={typeFilter}
+                onChange={(e) =>
+                  setTypeFilter(e.target.value as 'ALL' | AccountType)
+                }
+              >
+                <option value="ALL">All account types</option>
+                {[
+                  'ASSET',
+                  'LIABILITY',
+                  'EQUITY',
+                  'REVENUE',
+                  'COST_OF_GOODS_SOLD',
+                  'EXPENSE',
+                  'OTHER_INCOME',
+                  'OTHER_EXPENSE',
+                ].map((t) => (
+                  <option key={t} value={t}>
+                    {t.replaceAll('_', ' ')}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                aria-label="Filter by normal balance"
+                value={balanceFilter}
+                onChange={(e) =>
+                  setBalanceFilter(e.target.value as 'ALL' | 'DEBIT' | 'CREDIT')
+                }
+              >
+                <option value="ALL">All normal balances</option>
+                <option value="DEBIT">Debit</option>
+                <option value="CREDIT">Credit</option>
+              </Select>
+              <Select
+                aria-label="Filter by group"
+                value={groupFilter}
+                onChange={(e) => setGroupFilter(e.target.value)}
+              >
+                <option value="ALL">All groups</option>
+                {accounts.filter(isGroupHeader).map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                aria-label="Filter by status"
+                value={statusFilter}
+                onChange={(e) =>
+                  setStatusFilter(
+                    e.target.value as 'ALL' | 'ACTIVE' | 'INACTIVE',
+                  )
+                }
+              >
+                <option value="ALL">All statuses</option>
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </Select>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <Table className="w-full text-sm">
+              <TableHeader>
+                <TableRow className="border-b text-left">
+                  <TableHead className="p-3">Code</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Normal balance</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAccounts.length ? (
+                  renderRows(null, 0)
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      No ledgers match these filters.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </PageContainer>
+  );
 }

@@ -150,6 +150,28 @@ export class ConfirmationSheetsService {
     return this.toEntity(updated);
   }
 
+  /** Delete an unissued draft within the order's existing owner/team scope. */
+  async remove(id: string, user: AuthenticatedUser): Promise<{ id: string }> {
+    const { sheet } = await this.loadForWrite(id, user);
+    if (sheet.status !== OrderConfirmationStatus.DRAFT) {
+      throw new BadRequestException(
+        'Only a DRAFT confirmation sheet can be deleted',
+      );
+    }
+
+    // Include the status in the delete predicate so a concurrent PDF lock
+    // cannot race this request and remove a sheet that is no longer a draft.
+    const deleted = await this.prisma.orderConfirmationSheet.deleteMany({
+      where: { id, status: OrderConfirmationStatus.DRAFT },
+    });
+    if (deleted.count !== 1) {
+      throw new BadRequestException(
+        'This confirmation sheet is no longer a DRAFT and cannot be deleted',
+      );
+    }
+    return { id };
+  }
+
   /**
    * Lock the sheet and move it to AWAITING_CUSTOMER_SIGNATURE. Enforces the
    * full required-field set here (including the structured packaging block,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, FileSignature, Upload } from 'lucide-react';
+import { Download, FileSignature, Trash2, Upload } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../../lib/api';
 import { useAuth } from '../../../../../lib/auth-context';
 import {
@@ -285,6 +285,28 @@ export function ConfirmationSheetsSection({
     }
   }
 
+  async function deleteDraft(sheet: OrderConfirmationSheet) {
+    const ok = await confirm({
+      title: 'Delete this draft confirmation sheet?',
+      description: `${sheet.confirmationNumber} will be permanently deleted. This action cannot be undone.`,
+      confirmLabel: 'Delete draft',
+      destructive: true,
+    });
+    if (!ok) return;
+    setActing(true);
+    try {
+      await apiFetch(`/confirmation-sheets/${sheet.id}`, { method: 'DELETE' });
+      toast.success('Draft confirmation sheet deleted');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to delete draft',
+      );
+    } finally {
+      setActing(false);
+    }
+  }
+
   async function generatePdf() {
     if (!latest || !form) return;
     const ok = await confirm({
@@ -485,7 +507,7 @@ export function ConfirmationSheetsSection({
                     <TableHead>Status</TableHead>
                     <TableHead>Signed copy</TableHead>
                     <TableHead>Executed</TableHead>
-                    <TableHead className="text-right">PDF</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -511,32 +533,43 @@ export function ConfirmationSheetsSection({
                           : '—'}
                       </TableCell>
                       <TableCell className="text-right">
-                        {s.status !== 'DRAFT' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              s.hasSignedCopy
-                                ? openSignedCopy(s.id)
-                                : openExecutedPdf(s.id)
-                            }
-                          >
-                            <Download />
-                            {s.hasSignedCopy
-                              ? ' Final signed PDF'
-                              : ' PDF'}
-                          </Button>
-                        )}
+                        <div className="flex justify-end gap-2">
+                          {s.status === 'DRAFT' && canWrite && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              disabled={acting}
+                              onClick={() => void deleteDraft(s)}
+                            >
+                              <Trash2 className="size-4" />
+                              Delete
+                            </Button>
+                          )}
+                          {s.status !== 'DRAFT' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                s.hasSignedCopy
+                                  ? openSignedCopy(s.id)
+                                  : openExecutedPdf(s.id)
+                              }
+                            >
+                              <Download />
+                              {s.hasSignedCopy ? ' Final signed PDF' : ' PDF'}
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
               <p className="text-xs text-muted-foreground">
-                The row-level PDF actions distinguish the two files now:
-                - executed sheets open the generated confirmation document with
-                the Sales Head signature block
-                - customer-signed scans remain available separately when present
+                The row-level PDF actions distinguish the two files now: -
+                executed sheets open the generated confirmation document with
+                the Sales Head signature block - customer-signed scans remain
+                available separately when present
               </p>
 
               {latest && (
@@ -578,7 +611,10 @@ export function ConfirmationSheetsSection({
       />
 
       {/* Reject dialog — comments mandatory. */}
-      <Dialog open={rejectOpen} onOpenChange={(o) => !o && setRejectOpen(false)}>
+      <Dialog
+        open={rejectOpen}
+        onOpenChange={(o) => !o && setRejectOpen(false)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reject confirmation sheet</DialogTitle>
@@ -964,7 +1000,9 @@ function DraftEditor({
       <Field label="Site readiness requirements">
         <Textarea
           value={form.siteReadinessRequirements}
-          onChange={(e) => setField('siteReadinessRequirements', e.target.value)}
+          onChange={(e) =>
+            setField('siteReadinessRequirements', e.target.value)
+          }
           disabled={disabled}
         />
       </Field>

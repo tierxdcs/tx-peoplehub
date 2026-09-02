@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -84,6 +85,12 @@ export class ConfirmationSheetsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.update(id, dto, user);
+  }
+
+  @Delete('confirmation-sheets/:id')
+  @ApiOperation({ summary: 'Delete a confirmation sheet (DRAFT only)' })
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.remove(id, user);
   }
 
   @Post('confirmation-sheets/:id/generate-pdf')
