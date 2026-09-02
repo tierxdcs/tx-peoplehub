@@ -136,6 +136,7 @@ export type ApprovalPushKind =
   | 'bom-release'
   | 'rfq-pm-approval'
   | 'ad-hoc-po'
+  | 'purchase-order'
   | 'design-change'
   | 'expense-claim';
 
@@ -150,6 +151,7 @@ const APPROVAL_LABEL: Record<ApprovalPushKind, string> = {
   'bom-release': 'BOM release',
   'rfq-pm-approval': 'RFQ',
   'ad-hoc-po': 'Ad-hoc purchase order',
+  'purchase-order': 'Purchase order',
   'design-change': 'Engineering change request',
   'expense-claim': 'Expense claim',
 };

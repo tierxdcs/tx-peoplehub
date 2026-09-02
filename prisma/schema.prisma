@@ -718,21 +718,22 @@ model Employee {
   expenseReceiptsUploaded ExpenseClaimReceipt[] @relation("ExpenseReceiptUploader")
 
   // Purchasing (Stores) back-relations.
-  purchaseOrdersCreated   PurchaseOrder[]        @relation("PurchaseOrderCreator")
-  grnsReceived            GoodsReceiptNote[]     @relation("GrnReceivedBy")
-  grnsInspected           GoodsReceiptNote[]     @relation("GrnInspectedBy")
-  grnsSupervised          GoodsReceiptNote[]     @relation("GrnSupervisorSignOff")
-  ncrsRaised              NonConformanceReport[] @relation("NcrRaisedBy")
-  ncrsDispositioned       NonConformanceReport[] @relation("NcrDispositionedBy")
-  materialIndentsRaised   MaterialIndent[]       @relation("MaterialIndentRaisedBy")
-  materialIssuesIssued    MaterialIssueNote[]    @relation("MaterialIssueIssuedBy")
-  ordersFinalQcCleared    Order[]                @relation("OrderFinalQcClearedBy")
-  deliveryChallansCreated DeliveryChallan[]      @relation("DeliveryChallanCreatedBy")
-  rfqsCreated             Rfq[]                  @relation("RfqCreatedBy")
-  rfqsAwarded             Rfq[]                  @relation("RfqAwardDecisionBy")
-  rfqsPmApproved          Rfq[]                  @relation("RfqPmApprovedBy")
-  rfqAttachmentsUploaded  RfqAttachment[]        @relation("RfqAttachmentUploader")
-  rfqRevisionsRequested   RfqInvitee[]           @relation("RfqInviteeRevisionRequestedBy")
+  purchaseOrdersCreated         PurchaseOrder[]         @relation("PurchaseOrderCreator")
+  purchaseOrderApprovalsDecided PurchaseOrderApproval[] @relation("PurchaseOrderApprovalDecider")
+  grnsReceived                  GoodsReceiptNote[]      @relation("GrnReceivedBy")
+  grnsInspected                 GoodsReceiptNote[]      @relation("GrnInspectedBy")
+  grnsSupervised                GoodsReceiptNote[]      @relation("GrnSupervisorSignOff")
+  ncrsRaised                    NonConformanceReport[]  @relation("NcrRaisedBy")
+  ncrsDispositioned             NonConformanceReport[]  @relation("NcrDispositionedBy")
+  materialIndentsRaised         MaterialIndent[]        @relation("MaterialIndentRaisedBy")
+  materialIssuesIssued          MaterialIssueNote[]     @relation("MaterialIssueIssuedBy")
+  ordersFinalQcCleared          Order[]                 @relation("OrderFinalQcClearedBy")
+  deliveryChallansCreated       DeliveryChallan[]       @relation("DeliveryChallanCreatedBy")
+  rfqsCreated                   Rfq[]                   @relation("RfqCreatedBy")
+  rfqsAwarded                   Rfq[]                   @relation("RfqAwardDecisionBy")
+  rfqsPmApproved                Rfq[]                   @relation("RfqPmApprovedBy")
+  rfqAttachmentsUploaded        RfqAttachment[]         @relation("RfqAttachmentUploader")
+  rfqRevisionsRequested         RfqInvitee[]            @relation("RfqInviteeRevisionRequestedBy")
 
   /// Personal sidebar shortcuts (see NavShortcut). Backend-persisted rather than
   /// local, so they follow the employee across devices and browsers.
@@ -802,11 +803,11 @@ model NavShortcut {
 /// Rows are disposable — the sender deletes any endpoint the push service
 /// reports as gone (404/410), and the browser re-creates one on the next visit.
 model PushSubscription {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   employeeId String
-  employee   Employee @relation("PushSubscriptionOwner", fields: [employeeId], references: [id], onDelete: Cascade)
+  employee   Employee  @relation("PushSubscriptionOwner", fields: [employeeId], references: [id], onDelete: Cascade)
   /// Push service URL for this device, issued by the browser vendor.
-  endpoint   String   @unique
+  endpoint   String    @unique
   /// The device's public key (base64url), for payload encryption.
   p256dh     String
   /// The device's auth secret (base64url), for payload encryption.
@@ -817,8 +818,8 @@ model PushSubscription {
   /// Last time a push to this endpoint was accepted by the push service. Null
   /// until the first one — useful for spotting a device that never worked.
   lastPushAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([employeeId])
   @@map("push_subscriptions")
@@ -1826,26 +1827,26 @@ enum OrderFulfilmentStatus {
 }
 
 model OrderLineItem {
-  id               String   @id @default(uuid())
-  orderId          String
-  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id                        String   @id @default(uuid())
+  orderId                   String
+  order                     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   /// Nullable only for unresolved ad-hoc INTERNAL-order lines. Exactly one of
   /// productId / adHocProductName is enforced by OrdersService. Customer-order
   /// promotion is the formalization gate that requires every line resolved.
-  productId        String?
-  product          Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
-  adHocProductName String?
-  adHocDescription String?
+  productId                 String?
+  product                   Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+  adHocProductName          String?
+  adHocDescription          String?
   /// Customer-facing display override for THIS line only — the customer's own
   /// PO wording. Purely presentational on order-context/customer surfaces;
   /// the shared Product record, BOM, costing and PLM keep referencing the
   /// real Product/Item. Internal engineering/procurement screens (Item
   /// Master, BOM, Resource Planning) deliberately ignore these.
   customerFacingProductName String?
-  customerFacingDescription String? @db.Text
-  quantity         Decimal  @db.Decimal(14, 2)
-  unitPrice        Decimal  @db.Decimal(14, 2)
-  lineTotal        Decimal  @db.Decimal(14, 2)
+  customerFacingDescription String?  @db.Text
+  quantity                  Decimal  @db.Decimal(14, 2)
+  unitPrice                 Decimal  @db.Decimal(14, 2)
+  lineTotal                 Decimal  @db.Decimal(14, 2)
 
   /// Per-line delivery classification, set at project kickoff. Nullable — an
   /// order line has no classification until a PM assigns one. Additive to the
@@ -4873,13 +4874,29 @@ model JournalLine {
 /// here so Phase 2 can plug in receipt-based derivation (computed from GRN data)
 /// without a migration — the enum values already exist.
 enum PurchaseOrderStatus {
-  PENDING_CEO_APPROVAL
   DRAFT
+  PENDING_CSCO_APPROVAL
+  PENDING_COO_APPROVAL
+  PENDING_CEO_APPROVAL
+  APPROVED
   ISSUED
   PARTIALLY_RECEIVED
   FULLY_RECEIVED
   REJECTED
   CANCELLED
+}
+
+enum PurchaseOrderApprovalLevel {
+  CSCO
+  COO
+  CEO
+}
+
+enum PurchaseOrderApprovalStatus {
+  WAITING
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 /// A purchase order raised on at most one registered trading partner. A PO with
@@ -4893,6 +4910,9 @@ model PurchaseOrder {
   /// resetting annually like Bids/Orders.
   poNumber String              @unique
   status   PurchaseOrderStatus @default(DRAFT)
+
+  /// Line-total snapshot used to select and preserve the submitted approval tier.
+  approvalAmount Decimal? @db.Decimal(18, 2)
 
   /// At most one of supplierId / vendorId is set (CHECK constraint in migration).
   supplierId String?
@@ -4930,6 +4950,7 @@ model PurchaseOrder {
   lastEmailedTo String?
 
   lines             PurchaseOrderLine[]
+  approvals         PurchaseOrderApproval[]
   goodsReceiptNotes GoodsReceiptNote[]
   apInvoices        AccountsPayableInvoice[]
 
@@ -4940,6 +4961,28 @@ model PurchaseOrder {
   @@index([supplierId])
   @@index([vendorId])
   @@map("purchase_orders")
+}
+
+/// Immutable approval ladder selected from PO value when the draft is submitted.
+model PurchaseOrderApproval {
+  id              String                      @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder               @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  level           PurchaseOrderApprovalLevel
+  sequence        Int
+  status          PurchaseOrderApprovalStatus @default(PENDING)
+  amountSnapshot  Decimal                     @db.Decimal(18, 2)
+  decidedById     String?
+  decidedBy       Employee?                   @relation("PurchaseOrderApprovalDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt       DateTime?
+  comment         String?                     @db.Text
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+
+  @@unique([purchaseOrderId, level])
+  @@unique([purchaseOrderId, sequence])
+  @@index([level, status])
+  @@map("purchase_order_approvals")
 }
 
 /// One ordered line. lineTotal is stored (orderedQuantity × unitPrice, computed
@@ -5553,44 +5596,44 @@ enum QmsCapaActionStatus {
 }
 
 model QmsNonConformance {
-  id                 String          @id @default(uuid())
-  ncrNumber          String          @unique
-  source             QmsNcrSource
-  sourceId           String?
-  legacyStoreNcrId   String?         @unique
-  inspectionId       String?
-  inspection         QmsInspection?  @relation(fields: [inspectionId], references: [id], onDelete: SetNull)
-  severity           QmsNcrSeverity
-  status             QmsNcrStatus    @default(OPEN)
-  title              String
-  description        String          @db.Text
-  requirement        String?         @db.Text
-  actualResult       String?         @db.Text
-  productId          String?
-  orderId            String?
-  projectKickoffId   String?
-  grnId              String?
-  itemId             String?
-  batchOrSerial      String?
-  affectedQuantity   Decimal?        @db.Decimal(14, 4)
-  costOfPoorQuality  Decimal?        @db.Decimal(18, 2)
+  id                      String          @id @default(uuid())
+  ncrNumber               String          @unique
+  source                  QmsNcrSource
+  sourceId                String?
+  legacyStoreNcrId        String?         @unique
+  inspectionId            String?
+  inspection              QmsInspection?  @relation(fields: [inspectionId], references: [id], onDelete: SetNull)
+  severity                QmsNcrSeverity
+  status                  QmsNcrStatus    @default(OPEN)
+  title                   String
+  description             String          @db.Text
+  requirement             String?         @db.Text
+  actualResult            String?         @db.Text
+  productId               String?
+  orderId                 String?
+  projectKickoffId        String?
+  grnId                   String?
+  itemId                  String?
+  batchOrSerial           String?
+  affectedQuantity        Decimal?        @db.Decimal(14, 4)
+  costOfPoorQuality       Decimal?        @db.Decimal(18, 2)
   costOfPoorQualitySource QmsCopqSource?
-  containmentAction  String?         @db.Text
-  containedAt        DateTime?
-  disposition        QmsDisposition?
-  dispositionNotes   String?         @db.Text
-  concessionRequired Boolean         @default(false)
-  ownerId            String
-  targetDate         DateTime
-  raisedById         String
-  dispositionedById  String?
-  dispositionedAt    DateTime?
-  closedById         String?
-  closedAt           DateTime?
-  closureNote        String?         @db.Text
-  capa               QmsCapa?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  containmentAction       String?         @db.Text
+  containedAt             DateTime?
+  disposition             QmsDisposition?
+  dispositionNotes        String?         @db.Text
+  concessionRequired      Boolean         @default(false)
+  ownerId                 String
+  targetDate              DateTime
+  raisedById              String
+  dispositionedById       String?
+  dispositionedAt         DateTime?
+  closedById              String?
+  closedAt                DateTime?
+  closureNote             String?         @db.Text
+  capa                    QmsCapa?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
 
   @@index([status, targetDate])
   @@index([severity, status])
@@ -7452,16 +7495,16 @@ model Rfq {
 }
 
 model RfqLine {
-  id                 String  @id @default(uuid())
+  id                 String   @id @default(uuid())
   rfqId              String
-  rfq                Rfq     @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  rfq                Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
   itemId             String
-  item               Item    @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  quantity           Decimal @db.Decimal(14, 4)
+  item               Item     @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  quantity           Decimal  @db.Decimal(14, 4)
   unitOfMeasure      String
-  specificationNotes String? @db.Text
+  specificationNotes String?  @db.Text
   targetPrice        Decimal? @db.Decimal(18, 2)
-  sequence           Int     @default(0)
+  sequence           Int      @default(0)
 
   quoteLines  RfqQuoteLine[]
   attachments RfqAttachment[]
@@ -7538,7 +7581,7 @@ model RfqInvitee {
   /// overwritten (see RfqQuote).
   quotes        RfqQuote[]
   /// Back-relation for Rfq.awardedInvitee (named to disambiguate).
-  awardedForRfq Rfq?      @relation("RfqAwardedInvitee")
+  awardedForRfq Rfq?       @relation("RfqAwardedInvitee")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -7778,15 +7821,15 @@ model Ping {
 }
 
 model PingRecipient {
-  id          String              @id @default(uuid())
-  pingId      String
-  ping        Ping                @relation(fields: [pingId], references: [id], onDelete: Cascade)
-  employeeId  String
-  employee    Employee            @relation("PingRecipientEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
-  status      PingRecipientStatus @default(PENDING)
+  id             String              @id @default(uuid())
+  pingId         String
+  ping           Ping                @relation(fields: [pingId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee            @relation("PingRecipientEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  status         PingRecipientStatus @default(PENDING)
   /// First acknowledgement time, retained even if the ping is later resolved.
   acknowledgedAt DateTime?
-  respondedAt DateTime?
+  respondedAt    DateTime?
 
   @@unique([pingId, employeeId])
   @@index([employeeId, status])

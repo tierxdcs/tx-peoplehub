@@ -24,7 +24,24 @@ interface PrintLine {
   product: { name: string; sku: string } | null;
 }
 
+/**
+ * The supplier's registered identity, from the Statutory Config the Finance
+ * Head maintains. CGST Rule 46(a)-(b) requires all three on the face of a tax
+ * invoice, and this is the same record that goes to the IRP.
+ */
+export interface PrintableSupplier {
+  legalName: string;
+  gstin: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  state: string;
+  stateCode: string;
+  postalCode: string;
+}
+
 interface PrintableSalesInvoice {
+  supplier: PrintableSupplier | null;
   invoiceNumber: string;
   invoiceDate: string;
   dueDate: string;
@@ -69,6 +86,18 @@ function addressText(value: unknown): string {
 
 function dateOnly(value: string): string {
   return value.slice(0, 10);
+}
+
+export function supplierAddressText(supplier: PrintableSupplier): string {
+  return [
+    supplier.addressLine1,
+    supplier.addressLine2,
+    supplier.city,
+    supplier.state,
+    supplier.postalCode,
+  ]
+    .filter((part) => part && part.trim())
+    .join(', ');
 }
 
 function Kicker({ children }: { children: React.ReactNode }) {
@@ -300,6 +329,31 @@ export function SalesInvoicePrintDocument({
                   >
                     TAX INVOICE
                   </div>
+                  {/* Supplier identity on the face of the invoice — Rule 46
+                      requires the name, address and GSTIN of the supplier, and
+                      the customer's AP team needs the GSTIN to claim ITC. */}
+                  {invoice.supplier && (
+                    <div
+                      style={{
+                        color: '#333',
+                        fontSize: 10.5,
+                        marginTop: 10,
+                        maxWidth: 300,
+                      }}
+                    >
+                      <div style={{ fontWeight: 700 }}>
+                        {invoice.supplier.legalName}
+                      </div>
+                      <div style={{ marginTop: 2 }}>
+                        {supplierAddressText(invoice.supplier)}
+                      </div>
+                      <div
+                        style={{ color: NAVY, fontWeight: 700, marginTop: 3 }}
+                      >
+                        GSTIN: {invoice.supplier.gstin}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <table
                   style={{
@@ -554,7 +608,10 @@ export function SalesInvoicePrintDocument({
                   <div
                     style={{ color: NAVY, fontWeight: 700, marginBottom: 38 }}
                   >
-                    For {COMPANY.legalEntityName}
+                    {/* The statutory record wins over the letterhead constant,
+                        so the signature block and the GSTIN block above can
+                        never name two different legal entities. */}
+                    For {invoice.supplier?.legalName ?? COMPANY.legalEntityName}
                   </div>
                   <div
                     style={{ borderTop: `1px solid ${NAVY}`, paddingTop: 6 }}

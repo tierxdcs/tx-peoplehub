@@ -17,8 +17,11 @@ import type {
 
 // ── Enums ────────────────────────────────────────────────────────────
 export type PurchaseOrderStatus =
-  | 'PENDING_CEO_APPROVAL'
   | 'DRAFT'
+  | 'PENDING_CSCO_APPROVAL'
+  | 'PENDING_COO_APPROVAL'
+  | 'PENDING_CEO_APPROVAL'
+  | 'APPROVED'
   | 'ISSUED'
   | 'PARTIALLY_RECEIVED'
   | 'FULLY_RECEIVED'
@@ -36,16 +39,10 @@ export type GoodsReceiptNoteStatus =
 export type NonConformanceReportStatus = 'OPEN' | 'DISPOSITIONED' | 'CLOSED';
 
 export type NcrDispositionType =
-  | 'RETURN_TO_SUPPLIER'
-  | 'SCRAP'
-  | 'USE_AS_IS'
-  | 'REWORK';
+  'RETURN_TO_SUPPLIER' | 'SCRAP' | 'USE_AS_IS' | 'REWORK';
 
 export type MaterialIndentStatus =
-  | 'OPEN'
-  | 'PARTIALLY_ISSUED'
-  | 'FULLY_ISSUED'
-  | 'CANCELLED';
+  'OPEN' | 'PARTIALLY_ISSUED' | 'FULLY_ISSUED' | 'CANCELLED';
 
 export type PackingCondition = 'GOOD' | 'DAMAGED' | 'PARTIALLY_DAMAGED';
 
@@ -117,6 +114,17 @@ export interface PurchaseOrder {
    */
   partyEmail: string | null;
   totalAmount: string;
+  approvalAmount: string | null;
+  approvals: Array<{
+    id: string;
+    level: 'CSCO' | 'COO' | 'CEO';
+    sequence: number;
+    status: 'WAITING' | 'PENDING' | 'APPROVED' | 'REJECTED';
+    decidedById: string | null;
+    decidedByName: string | null;
+    decidedAt: string | null;
+    comment: string | null;
+  }>;
   lines: PurchaseOrderLine[];
   qualificationWarning?: QualificationWarning | null;
   createdAt: string;
@@ -146,7 +154,9 @@ export interface CreatePurchaseOrderInput {
   lines: PurchaseOrderLineInput[];
 }
 
-export function listPurchaseOrders(opts: { status?: PurchaseOrderStatus } = {}) {
+export function listPurchaseOrders(
+  opts: { status?: PurchaseOrderStatus } = {},
+) {
   const qs = opts.status ? `?status=${opts.status}` : '';
   return apiFetch<PurchaseOrder[]>(`/purchase-orders${qs}`);
 }
@@ -163,11 +173,34 @@ export function createPurchaseOrder(input: CreatePurchaseOrderInput) {
 }
 
 export function issuePurchaseOrder(id: string) {
-  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/issue`, { method: 'POST' });
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/issue`, {
+    method: 'POST',
+  });
+}
+
+export function submitPurchaseOrderForApproval(id: string) {
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/submit-for-approval`, {
+    method: 'POST',
+  });
+}
+
+export function approvePurchaseOrder(id: string) {
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/approve`, {
+    method: 'POST',
+  });
+}
+
+export function rejectPurchaseOrder(id: string, comment: string) {
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ comment }),
+  });
 }
 
 export function cancelPurchaseOrder(id: string) {
-  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/cancel`, { method: 'POST' });
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/cancel`, {
+    method: 'POST',
+  });
 }
 
 export function approveAdHocPurchaseOrder(id: string) {
@@ -384,7 +417,9 @@ export function listGrns(
   if (opts.status) params.set('status', opts.status);
   if (opts.purchaseOrderId) params.set('purchaseOrderId', opts.purchaseOrderId);
   const qs = params.toString();
-  return apiFetch<GoodsReceiptNote[]>(`/goods-receipt-notes${qs ? `?${qs}` : ''}`);
+  return apiFetch<GoodsReceiptNote[]>(
+    `/goods-receipt-notes${qs ? `?${qs}` : ''}`,
+  );
 }
 
 export function getGrn(id: string) {
@@ -468,9 +503,12 @@ export function dispositionNcr(
 }
 
 export function closeNcr(id: string) {
-  return apiFetch<NonConformanceReport>(`/non-conformance-reports/${id}/close`, {
-    method: 'POST',
-  });
+  return apiFetch<NonConformanceReport>(
+    `/non-conformance-reports/${id}/close`,
+    {
+      method: 'POST',
+    },
+  );
 }
 
 // ── Material Indent + Issue ──────────────────────────────────────────
@@ -534,7 +572,8 @@ export function listIndents(
 ) {
   const params = new URLSearchParams();
   if (opts.status) params.set('status', opts.status);
-  if (opts.projectKickoffId) params.set('projectKickoffId', opts.projectKickoffId);
+  if (opts.projectKickoffId)
+    params.set('projectKickoffId', opts.projectKickoffId);
   const qs = params.toString();
   return apiFetch<MaterialIndent[]>(`/material-indents${qs ? `?${qs}` : ''}`);
 }
@@ -604,8 +643,6 @@ export function grnFlowStage(status: GoodsReceiptNoteStatus): {
 /** Whether a GRN status is a finalized (QC-complete) state. */
 export function isGrnFinalized(status: GoodsReceiptNoteStatus): boolean {
   return (
-    status === 'QC_PASSED' ||
-    status === 'QC_PARTIAL' ||
-    status === 'QC_FAILED'
+    status === 'QC_PASSED' || status === 'QC_PARTIAL' || status === 'QC_FAILED'
   );
 }

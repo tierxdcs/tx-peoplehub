@@ -79,6 +79,21 @@ export class PurchaseOrderEntity {
   @ApiProperty({ description: 'Sum of the line totals' })
   totalAmount!: string;
 
+  @ApiProperty({ nullable: true, description: 'PO value frozen at submission' })
+  approvalAmount!: string | null;
+
+  @ApiProperty({ isArray: true })
+  approvals!: Array<{
+    id: string;
+    level: 'CSCO' | 'COO' | 'CEO';
+    sequence: number;
+    status: 'WAITING' | 'PENDING' | 'APPROVED' | 'REJECTED';
+    decidedById: string | null;
+    decidedByName: string | null;
+    decidedAt: string | null;
+    comment: string | null;
+  }>;
+
   @ApiProperty({ type: [PurchaseOrderLineEntity] })
   lines!: PurchaseOrderLineEntity[];
 

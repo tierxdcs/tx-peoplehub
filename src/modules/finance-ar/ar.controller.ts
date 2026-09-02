@@ -82,7 +82,7 @@ export class ArController {
   ) {
     return this.ar.invoice(id, u);
   }
-  /** Only pre-issuance invoices; see ArService.DELETABLE_INVOICE_STATUSES. */
+  /** Pre-issuance invoices, plus a guarded CEO-only ISSUED exception. */
   @Delete('invoices/:id') deleteInvoice(
     @Param('id') id: string,
     @CurrentUser() u: AuthenticatedUser,

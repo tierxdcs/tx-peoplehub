@@ -98,7 +98,7 @@ export const APPROVAL_QUEUES: readonly ApprovalQueueDef[] = [
   },
   {
     key: 'adHocPoApprovals',
-    label: 'Ad-hoc purchase orders',
+    label: 'Purchase order approvals',
     hrefs: ['/stores/purchase-orders'],
   },
   {

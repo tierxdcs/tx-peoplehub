@@ -81,9 +81,36 @@ export class PurchaseOrderController {
   }
 
   @Post(':id/issue')
-  @ApiOperation({ summary: 'Issue a DRAFT purchase order (SCM Manager+/SA)' })
+  @ApiOperation({ summary: 'Issue a fully APPROVED purchase order' })
   issue(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.issue(id, user);
+  }
+
+  @Post(':id/submit-for-approval')
+  @ApiOperation({
+    summary: 'Submit a DRAFT PO into its value-based approval ladder',
+  })
+  submitForApproval(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.submitForApproval(id, user);
+  }
+
+  @Post(':id/approve')
+  @ApiOperation({ summary: 'Approve the current CSCO, COO, or CEO step' })
+  approve(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.approve(id, user);
+  }
+
+  @Post(':id/reject')
+  @ApiOperation({ summary: 'Reject the current PO approval step' })
+  reject(
+    @Param('id') id: string,
+    @Body() dto: RejectAdHocPurchaseOrderDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.rejectApproval(id, dto, user);
   }
 
   @Post(':id/email')

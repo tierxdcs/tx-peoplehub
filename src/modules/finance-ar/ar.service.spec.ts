@@ -1,5 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
-import { GstDocumentType, SalesInvoiceStatus } from '@prisma/client';
+import {
+  AccountingPeriodStatus,
+  GstDocumentType,
+  Role,
+  SalesInvoiceStatus,
+} from '@prisma/client';
 import { ArService } from './ar.service';
 
 describe('ArService invoice calculations', () => {
@@ -260,7 +265,85 @@ describe('ArService invoice calculations', () => {
     });
   });
 
-  describe('deleteInvoice — pre-issuance only', () => {
+  describe('invoice — supplier identity for the printed tax invoice', () => {
+    const user = { id: 'accounts-1' } as any;
+    const settings = {
+      legalName: 'Phaze Dynamics India Pvt Ltd',
+      gstin: '29AARCP3898H1ZG',
+      addressLine1: '1 Industrial Area',
+      addressLine2: null,
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      stateCode: '29',
+      postalCode: '560001',
+      pan: 'AARCP3898H',
+      tan: 'BLRP00000A',
+      eInvoiceEnabled: true,
+    };
+
+    function invoiceService(companySettings: unknown) {
+      const prisma = {
+        salesInvoice: {
+          findUnique: jest
+            .fn()
+            .mockResolvedValue({ id: 'inv-1', invoiceNumber: 'INV-2026-0002' }),
+        },
+        financeCompanySettings: {
+          findUnique: jest.fn().mockResolvedValue(companySettings),
+        },
+      };
+      const current = new ArService(
+        prisma as any,
+        { assertCanUseFinance: jest.fn().mockResolvedValue(undefined) } as any,
+        {} as any,
+        {} as any,
+        {} as any,
+      );
+      return { current, prisma };
+    }
+
+    it('returns the registered name, address and GSTIN alongside the invoice', async () => {
+      const { current, prisma } = invoiceService(settings);
+
+      const result: any = await current.invoice('inv-1', user);
+
+      expect(result.invoiceNumber).toBe('INV-2026-0002');
+      expect(result.supplier).toEqual({
+        legalName: 'Phaze Dynamics India Pvt Ltd',
+        gstin: '29AARCP3898H1ZG',
+        addressLine1: '1 Industrial Area',
+        addressLine2: null,
+        city: 'Bengaluru',
+        state: 'Karnataka',
+        stateCode: '29',
+        postalCode: '560001',
+      });
+      // The same single-tenant row gstPayload() sends to the IRP, so the
+      // printed document and the e-invoice cannot name different suppliers.
+      expect(prisma.financeCompanySettings.findUnique).toHaveBeenCalledWith({
+        where: { id: 'INDIA' },
+      });
+    });
+
+    it('withholds TAN and the e-invoice toggle, which are not invoice fields', async () => {
+      const { current } = invoiceService(settings);
+
+      const result: any = await current.invoice('inv-1', user);
+
+      expect(result.supplier).not.toHaveProperty('tan');
+      expect(result.supplier).not.toHaveProperty('eInvoiceEnabled');
+    });
+
+    it('serves the invoice with a null supplier when settings are unset', async () => {
+      const { current } = invoiceService(null);
+
+      await expect(current.invoice('inv-1', user)).resolves.toMatchObject({
+        supplier: null,
+      });
+    });
+  });
+
+  describe('deleteInvoice — pre-issuance plus CEO issued override', () => {
     const user = { id: 'accounts-1' } as any;
 
     function deleteService(invoice: Record<string, unknown> | null) {
@@ -271,7 +354,9 @@ describe('ArService invoice calculations', () => {
               id: 'invoice-1',
               invoiceNumber: 'INV-2026-0016',
               irn: null,
+              eWayBillNumber: null,
               journalEntryId: null,
+              journalEntry: null,
               deliveryChallan: null,
               _count: { allocations: 0, adjustmentNotes: 0 },
               ...invoice,
@@ -279,7 +364,10 @@ describe('ArService invoice calculations', () => {
           ),
           delete: jest.fn().mockResolvedValue({}),
         },
+        journalEntry: { delete: jest.fn().mockResolvedValue({}) },
+        $transaction: jest.fn(),
       };
+      prisma.$transaction.mockImplementation((fn) => fn(prisma));
       const access = {
         assertCanUseFinance: jest.fn().mockResolvedValue(undefined),
       };
@@ -306,6 +394,7 @@ describe('ArService invoice calculations', () => {
         id: 'invoice-1',
         invoiceNumber: 'INV-2026-0016',
         unlinkedChallanNumber: null,
+        removedJournalNumber: null,
       });
       // Accounts-vertical users and SUPER_ADMIN, not just the Accounts Head.
       expect(access.assertCanUseFinance).toHaveBeenCalledWith(user);
@@ -315,7 +404,6 @@ describe('ArService invoice calculations', () => {
     });
 
     it.each([
-      SalesInvoiceStatus.ISSUED,
       SalesInvoiceStatus.E_INVOICE_GENERATED,
       SalesInvoiceStatus.PARTIALLY_PAID,
       SalesInvoiceStatus.PAID,
@@ -326,6 +414,68 @@ describe('ArService invoice calculations', () => {
       await expect(current.deleteInvoice('invoice-1', user)).rejects.toThrow(
         /cannot be deleted/,
       );
+      expect(prisma.salesInvoice.delete).not.toHaveBeenCalled();
+    });
+
+    it('refuses an ordinary Finance user who tries to delete an ISSUED voucher', async () => {
+      const { current, prisma } = deleteService({
+        status: SalesInvoiceStatus.ISSUED,
+        journalEntryId: 'journal-1',
+      });
+
+      await expect(current.deleteInvoice('invoice-1', user)).rejects.toThrow(
+        'Only the CEO/SuperAdmin',
+      );
+      expect(prisma.salesInvoice.delete).not.toHaveBeenCalled();
+    });
+
+    it('lets the CEO delete an ISSUED voucher and its posted journal atomically', async () => {
+      const { current, prisma } = deleteService({
+        status: SalesInvoiceStatus.ISSUED,
+        journalEntryId: 'journal-1',
+        journalEntry: {
+          id: 'journal-1',
+          journalNumber: 'JV-2026-00016',
+          period: { status: AccountingPeriodStatus.OPEN },
+          reversalEntry: null,
+        },
+      });
+
+      await expect(
+        current.deleteInvoice('invoice-1', {
+          ...user,
+          role: Role.SUPER_ADMIN,
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({ removedJournalNumber: 'JV-2026-00016' }),
+      );
+      expect(prisma.salesInvoice.delete).toHaveBeenCalledWith({
+        where: { id: 'invoice-1' },
+      });
+      expect(prisma.journalEntry.delete).toHaveBeenCalledWith({
+        where: { id: 'journal-1' },
+      });
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not let the CEO delete an issued voucher from a closed period', async () => {
+      const { current, prisma } = deleteService({
+        status: SalesInvoiceStatus.ISSUED,
+        journalEntryId: 'journal-1',
+        journalEntry: {
+          id: 'journal-1',
+          journalNumber: 'JV-2026-00016',
+          period: { status: AccountingPeriodStatus.CLOSED },
+          reversalEntry: null,
+        },
+      });
+
+      await expect(
+        current.deleteInvoice('invoice-1', {
+          ...user,
+          role: Role.SUPER_ADMIN,
+        }),
+      ).rejects.toThrow('closed accounting period');
       expect(prisma.salesInvoice.delete).not.toHaveBeenCalled();
     });
 

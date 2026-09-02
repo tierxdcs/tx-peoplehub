@@ -159,7 +159,7 @@ function buildService(fixture: Fixture) {
   });
   const poFindMany = jest.fn((args: { where?: Record<string, unknown> }) => {
     const where = args?.where ?? {};
-    if (where.status === 'PENDING_CEO_APPROVAL') {
+    if (where.vendorId === null && where.supplierId === null) {
       return Promise.resolve(fixture.adHocPending ?? []);
     }
     if (
@@ -523,11 +523,17 @@ describe('ScmDashboardService — purchase order health', () => {
       adHocApprovedCount: 4,
     });
     const result = await service.build(USER, NOW);
-    // Both partner links must be absent — the status alone is not the test.
+    // Both partner links must be absent — approval status alone is not the test.
     const call = poFindMany.mock.calls.find(
       (args) =>
-        (args[0] as { where?: Record<string, unknown> }).where?.status ===
-        'PENDING_CEO_APPROVAL',
+        Array.isArray(
+          (
+            (args[0] as { where?: { status?: { in?: unknown[] } } }).where
+              ?.status as { in?: unknown[] } | undefined
+          )?.in,
+        ) &&
+        (args[0] as { where?: Record<string, unknown> }).where?.vendorId ===
+          null,
     );
     expect(
       (call?.[0] as { where: Record<string, unknown> }).where,

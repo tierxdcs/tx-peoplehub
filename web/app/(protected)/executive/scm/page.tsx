@@ -104,7 +104,9 @@ export default function ScmExecutiveDashboardPage() {
         setError(null);
       })
       .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : 'Failed to load dashboard'),
+        setError(
+          err instanceof Error ? err.message : 'Failed to load dashboard',
+        ),
       )
       .finally(() => setLoading(false));
   }, []);
@@ -200,7 +202,7 @@ export default function ScmExecutiveDashboardPage() {
               }
             />
             <StatTile
-              label="Ad-hoc POs awaiting CEO"
+              label="Ad-hoc POs in approval"
               value={data.purchaseOrders.adHoc.pendingCount}
               valueClass={
                 data.purchaseOrders.adHoc.pendingCount > 0
@@ -222,10 +224,10 @@ export default function ScmExecutiveDashboardPage() {
           {onFire === 0 && (
             <SCard className="p-[18px]">
               <p className={cn('text-[12.5px]', SIGNAL_MUTED)}>
-                No RFQ is held at the approval gate, no purchase order is past its
-                expected delivery date, nothing is waiting on CEO approval, and
-                every vendor is inside its update cadence. The sections below carry
-                the operating detail.
+                No RFQ is held at the approval gate, no purchase order is past
+                its expected delivery date, nothing is waiting on CEO approval,
+                and every vendor is inside its update cadence. The sections
+                below carry the operating detail.
               </p>
             </SCard>
           )}
@@ -278,8 +280,8 @@ export default function ScmExecutiveDashboardPage() {
                 </div>
                 {data.rfqHealth.open.pmRejected > 0 && (
                   <p className={cn('mt-2.5 text-[11.5px]', WARNING_TEXT)}>
-                    {data.rfqHealth.open.pmRejected} of these were rejected by the
-                    Project Manager at least once and are back with SCM.
+                    {data.rfqHealth.open.pmRejected} of these were rejected by
+                    the Project Manager at least once and are back with SCM.
                   </p>
                 )}
 
@@ -303,13 +305,24 @@ export default function ScmExecutiveDashboardPage() {
                           <span className="min-w-0 flex-1 truncate text-[12px]">
                             {rfq.title}
                             {rfq.rejectedOnce && (
-                              <span className={cn('ml-1.5 text-[11px]', WARNING_TEXT)}>
+                              <span
+                                className={cn(
+                                  'ml-1.5 text-[11px]',
+                                  WARNING_TEXT,
+                                )}
+                              >
                                 · rejected once
                               </span>
                             )}
                           </span>
-                          <span className={cn('flex-none text-[11px]', SIGNAL_FAINT)}>
-                            {rfq.lineCount} line(s) · {rfq.inviteeCount} invitee(s)
+                          <span
+                            className={cn(
+                              'flex-none text-[11px]',
+                              SIGNAL_FAINT,
+                            )}
+                          >
+                            {rfq.lineCount} line(s) · {rfq.inviteeCount}{' '}
+                            invitee(s)
                           </span>
                           <span
                             className={cn(
@@ -386,10 +399,16 @@ export default function ScmExecutiveDashboardPage() {
                       <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">
                         {partner.partnerName}
                       </span>
-                      <span className={cn('flex-none text-[11px]', SIGNAL_FAINT)}>
-                        {partner.partnerType === 'VENDOR' ? 'Vendor' : 'Supplier'}
+                      <span
+                        className={cn('flex-none text-[11px]', SIGNAL_FAINT)}
+                      >
+                        {partner.partnerType === 'VENDOR'
+                          ? 'Vendor'
+                          : 'Supplier'}
                       </span>
-                      <span className={cn('flex-none text-[11.5px]', SIGNAL_MUTED)}>
+                      <span
+                        className={cn('flex-none text-[11.5px]', SIGNAL_MUTED)}
+                      >
                         {partner.submitted}/{partner.invited} quoted
                         {partner.declined > 0 &&
                           ` · ${partner.declined} declined`}
@@ -494,7 +513,8 @@ export default function ScmExecutiveDashboardPage() {
                 <div className={SIGNAL_EYEBROW}>Quote revisions</div>
                 <span className="text-[12.5px] font-semibold tabular-nums">
                   {data.rfqHealth.quoteRevisions.revisions} revised quote(s) ·{' '}
-                  {data.rfqHealth.quoteRevisions.revisionRequests} reopened link(s)
+                  {data.rfqHealth.quoteRevisions.revisionRequests} reopened
+                  link(s)
                 </span>
               </div>
               <p className={cn('mt-1 text-[11.5px]', SIGNAL_MUTED)}>
@@ -504,7 +524,9 @@ export default function ScmExecutiveDashboardPage() {
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                   {data.rfqHealth.quoteRevisions.partners.map((partner) => (
                     <span key={partner.key} className="text-[12px]">
-                      <span className="font-semibold">{partner.partnerName}</span>
+                      <span className="font-semibold">
+                        {partner.partnerName}
+                      </span>
                       <span className={cn('ml-1', SIGNAL_MUTED)}>
                         {partner.revisions} revision(s)
                       </span>
@@ -547,7 +569,9 @@ export default function ScmExecutiveDashboardPage() {
                 label="Past expected delivery"
                 value={String(data.purchaseOrders.overdue.count)}
                 valueClass={
-                  data.purchaseOrders.overdue.count > 0 ? DANGER_TEXT : undefined
+                  data.purchaseOrders.overdue.count > 0
+                    ? DANGER_TEXT
+                    : undefined
                 }
                 detail={`${money(data.purchaseOrders.overdue.value)} at risk${
                   data.purchaseOrders.overdue.withoutExpectedDate > 0
@@ -591,7 +615,9 @@ export default function ScmExecutiveDashboardPage() {
                       <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">
                         {order.partyName}
                       </span>
-                      <span className={cn('flex-none text-[11px]', SIGNAL_FAINT)}>
+                      <span
+                        className={cn('flex-none text-[11px]', SIGNAL_FAINT)}
+                      >
                         due {formatDate(order.expectedDeliveryDate)}
                       </span>
                       <span className="flex-none text-[12px] font-semibold tabular-nums">
@@ -613,12 +639,7 @@ export default function ScmExecutiveDashboardPage() {
             )}
 
             {/* The compliance signal: buying outside the vetted base. */}
-            <div
-              className={cn(
-                'mt-4 border-t pt-3.5',
-                SIGNAL_ROW_DIVIDER,
-              )}
-            >
+            <div className={cn('mt-4 border-t pt-3.5', SIGNAL_ROW_DIVIDER)}>
               <div className="flex flex-wrap items-baseline gap-2">
                 <ShieldAlert
                   className={cn(
@@ -629,7 +650,7 @@ export default function ScmExecutiveDashboardPage() {
                   )}
                 />
                 <div className={SIGNAL_EYEBROW}>
-                  Ad-hoc orders awaiting CEO approval
+                  Ad-hoc orders awaiting approval
                 </div>
                 <span
                   className={cn(
@@ -787,7 +808,9 @@ export default function ScmExecutiveDashboardPage() {
             {/* Overrides: visible and revisitable, never quietly permanent. */}
             <div className={cn('mt-4 border-t pt-3.5', SIGNAL_ROW_DIVIDER)}>
               <div className="flex flex-wrap items-baseline gap-2">
-                <div className={SIGNAL_EYEBROW}>Active classification overrides</div>
+                <div className={SIGNAL_EYEBROW}>
+                  Active classification overrides
+                </div>
                 <span
                   className={cn(
                     'text-[12.5px] font-semibold tabular-nums',
@@ -815,8 +838,12 @@ export default function ScmExecutiveDashboardPage() {
                       <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">
                         {partner.partnerName}
                       </span>
-                      <span className={cn('flex-none text-[11px]', SIGNAL_FAINT)}>
-                        {partner.partnerType === 'VENDOR' ? 'Vendor' : 'Supplier'}
+                      <span
+                        className={cn('flex-none text-[11px]', SIGNAL_FAINT)}
+                      >
+                        {partner.partnerType === 'VENDOR'
+                          ? 'Vendor'
+                          : 'Supplier'}
                       </span>
                       <span
                         className={cn(
@@ -854,9 +881,8 @@ export default function ScmExecutiveDashboardPage() {
                   <span className="font-semibold">
                     {data.supplyBase.concentration.topPartnerName}
                   </span>{' '}
-                  holds{' '}
-                  {pct(data.supplyBase.concentration.topPartnerPercent)} of all
-                  purchase order value
+                  holds {pct(data.supplyBase.concentration.topPartnerPercent)}{' '}
+                  of all purchase order value
                   {topConcentration >= CONCENTRATION_WARN_PERCENT &&
                     ' — a single-partner dependency worth a second source'}
                   .
@@ -895,8 +921,7 @@ export default function ScmExecutiveDashboardPage() {
                               )}%`,
                               background:
                                 index === 0 &&
-                                topConcentration >=
-                                  CONCENTRATION_WARN_PERCENT
+                                topConcentration >= CONCENTRATION_WARN_PERCENT
                                   ? CHART_COLORS.orange
                                   : CHART_COLORS.blue,
                             }}
@@ -924,7 +949,9 @@ export default function ScmExecutiveDashboardPage() {
               right={
                 <ToneChip
                   tone={
-                    data.vendorProjects.overdueUpdates > 0 ? 'danger' : 'success'
+                    data.vendorProjects.overdueUpdates > 0
+                      ? 'danger'
+                      : 'success'
                   }
                 >
                   {data.vendorProjects.lineCount} line(s) ·{' '}
@@ -1031,7 +1058,9 @@ export default function ScmExecutiveDashboardPage() {
                       <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">
                         {row.productName}
                       </span>
-                      <span className={cn('flex-none text-[11px]', SIGNAL_FAINT)}>
+                      <span
+                        className={cn('flex-none text-[11px]', SIGNAL_FAINT)}
+                      >
                         {row.businessUnit} · {row.lineCount} line(s)
                         {!row.hasBom && ' · no BOM'}
                       </span>
@@ -1067,7 +1096,9 @@ export default function ScmExecutiveDashboardPage() {
                       <span className="min-w-0 flex-1 truncate text-[12.5px]">
                         {row.title}
                       </span>
-                      <span className={cn('flex-none text-[11px]', SIGNAL_FAINT)}>
+                      <span
+                        className={cn('flex-none text-[11px]', SIGNAL_FAINT)}
+                      >
                         {row.awaitingPmApproval
                           ? 'awaiting PM approval'
                           : 'approved, not issued'}
@@ -1181,7 +1212,10 @@ export default function ScmExecutiveDashboardPage() {
                             {project.projectName}
                           </span>
                           <span
-                            className={cn('flex-none text-[11px]', SIGNAL_FAINT)}
+                            className={cn(
+                              'flex-none text-[11px]',
+                              SIGNAL_FAINT,
+                            )}
                           >
                             {project.orderNumber} ·{' '}
                             {project.negotiatedLineCount}/{project.lineCount}{' '}
@@ -1267,7 +1301,14 @@ export default function ScmExecutiveDashboardPage() {
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                   <span className="text-[12px]">
-                    <span className={cn('font-semibold tabular-nums', data.qualityOfSupply.ncrs.open > 0 ? WARNING_TEXT : undefined)}>
+                    <span
+                      className={cn(
+                        'font-semibold tabular-nums',
+                        data.qualityOfSupply.ncrs.open > 0
+                          ? WARNING_TEXT
+                          : undefined,
+                      )}
+                    >
                       {data.qualityOfSupply.ncrs.open}
                     </span>
                     <span className={cn('ml-1', SIGNAL_MUTED)}>open</span>
@@ -1319,7 +1360,9 @@ export default function ScmExecutiveDashboardPage() {
                         <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">
                           {partner.partnerName}
                         </span>
-                        <span className={cn('flex-none text-[11px]', SIGNAL_FAINT)}>
+                        <span
+                          className={cn('flex-none text-[11px]', SIGNAL_FAINT)}
+                        >
                           {partner.returned > 0
                             ? `${partner.returned} returned`
                             : `${partner.rejectedQuantity} rejected`}
@@ -1373,7 +1416,9 @@ export default function ScmExecutiveDashboardPage() {
                           <span
                             className={cn(
                               'flex-none text-[11.5px] tabular-nums',
-                              row.waitingDays >= 7 ? WARNING_TEXT : SIGNAL_MUTED,
+                              row.waitingDays >= 7
+                                ? WARNING_TEXT
+                                : SIGNAL_MUTED,
                             )}
                           >
                             {row.waitingDays}d
@@ -1394,8 +1439,15 @@ export default function ScmExecutiveDashboardPage() {
               subtitle="what partners are promising, month by month — the earliest supply-stress signal"
               right={
                 <div className="flex items-center gap-2">
-                  <DirectionChip direction={data.leadTime.direction} risingIsBad />
-                  <ToneChip tone={data.leadTime.averageDays === null ? 'warning' : 'success'}>
+                  <DirectionChip
+                    direction={data.leadTime.direction}
+                    risingIsBad
+                  />
+                  <ToneChip
+                    tone={
+                      data.leadTime.averageDays === null ? 'warning' : 'success'
+                    }
+                  >
                     {days(data.leadTime.averageDays)} average
                   </ToneChip>
                 </div>
@@ -1439,7 +1491,9 @@ export default function ScmExecutiveDashboardPage() {
                         <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">
                           {partner.partnerName}
                         </span>
-                        <span className={cn('flex-none text-[11px]', SIGNAL_FAINT)}>
+                        <span
+                          className={cn('flex-none text-[11px]', SIGNAL_FAINT)}
+                        >
                           {partner.quotesMeasured} quote(s)
                         </span>
                         <span className="flex-none text-[12px] font-semibold tabular-nums">
@@ -1486,12 +1540,7 @@ function VendorLineRow({ line }: { line: ScmVendorLine }) {
     ? CADENCE_COLORS[line.cadenceStatus]
     : null;
   return (
-    <div
-      className={cn(
-        'border-b py-2 last:border-0',
-        SIGNAL_ROW_DIVIDER,
-      )}
-    >
+    <div className={cn('border-b py-2 last:border-0', SIGNAL_ROW_DIVIDER)}>
       <div className="flex flex-wrap items-baseline gap-2">
         {cadenceColor && (
           <span
@@ -1550,8 +1599,7 @@ function VendorLineRow({ line }: { line: ScmVendorLine }) {
           {line.lastUpdateAt
             ? `last self-report ${formatDate(line.lastUpdateAt)}`
             : 'no self-report received yet'}
-          {line.cadenceDueAt &&
-            ` · next due ${formatDate(line.cadenceDueAt)}`}
+          {line.cadenceDueAt && ` · next due ${formatDate(line.cadenceDueAt)}`}
         </span>
         {line.selfReport && (
           <span className={cn('text-[11.5px]', SIGNAL_MUTED)}>
@@ -1637,7 +1685,9 @@ function DirectionChip({
     );
   }
   if (direction === 'FLAT') {
-    return <span className={cn('text-[11px]', SIGNAL_MUTED)}>holding flat</span>;
+    return (
+      <span className={cn('text-[11px]', SIGNAL_MUTED)}>holding flat</span>
+    );
   }
   const rising = direction === 'RISING';
   const bad = rising === risingIsBad;

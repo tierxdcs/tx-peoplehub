@@ -26,20 +26,48 @@ export interface FlowResult {
 // ── Bid: assessment → approval → sent → accepted ─────────────────────
 const BID_STEPS: ProcessFlowStep[] = [
   { key: 'draft', label: 'Drafted', next: 'Submit for approval.' },
-  { key: 'pending', label: 'Pending approval', gate: true, next: 'Awaiting Sales Head approval.' },
-  { key: 'approved', label: 'Approved', gate: true, next: 'Send the bid to the customer.' },
+  {
+    key: 'pending',
+    label: 'Pending approval',
+    gate: true,
+    next: 'Awaiting Sales Head approval.',
+  },
+  {
+    key: 'approved',
+    label: 'Approved',
+    gate: true,
+    next: 'Send the bid to the customer.',
+  },
   { key: 'sent', label: 'Sent', next: 'Awaiting the customer’s decision.' },
   { key: 'accepted', label: 'Accepted', next: 'Convert to an order.' },
 ];
 
 export function bidFlow(status: BidStatus): FlowResult {
   if (status === 'REJECTED')
-    return { steps: BID_STEPS, currentStage: null, cancelled: true, cancelledLabel: 'This bid was rejected in approval.' };
+    return {
+      steps: BID_STEPS,
+      currentStage: null,
+      cancelled: true,
+      cancelledLabel: 'This bid was rejected in approval.',
+    };
   if (status === 'EXPIRED')
-    return { steps: BID_STEPS, currentStage: null, cancelled: true, cancelledLabel: 'This bid expired before acceptance.' };
+    return {
+      steps: BID_STEPS,
+      currentStage: null,
+      cancelled: true,
+      cancelledLabel: 'This bid expired before acceptance.',
+    };
   if (status === 'LOST')
-    return { steps: BID_STEPS, currentStage: null, cancelled: true, cancelledLabel: 'This bid was closed as lost.' };
-  const map: Record<Exclude<BidStatus, 'REJECTED' | 'EXPIRED' | 'LOST'>, string> = {
+    return {
+      steps: BID_STEPS,
+      currentStage: null,
+      cancelled: true,
+      cancelledLabel: 'This bid was closed as lost.',
+    };
+  const map: Record<
+    Exclude<BidStatus, 'REJECTED' | 'EXPIRED' | 'LOST'>,
+    string
+  > = {
     DRAFT: 'draft',
     PENDING_APPROVAL: 'pending',
     APPROVED: 'approved',
@@ -52,15 +80,29 @@ export function bidFlow(status: BidStatus): FlowResult {
 // ── Order: confirmed → in production → ready → shipped → delivered ────
 const ORDER_STEPS: ProcessFlowStep[] = [
   { key: 'confirmed', label: 'Confirmed', next: 'Release to production.' },
-  { key: 'production', label: 'In production', next: 'Build and finish the order.' },
-  { key: 'ready', label: 'Ready to ship', gate: true, next: 'Final QC cleared; dispatch it.' },
+  {
+    key: 'production',
+    label: 'In production',
+    next: 'Build and finish the order.',
+  },
+  {
+    key: 'ready',
+    label: 'Ready to ship',
+    gate: true,
+    next: 'Final QC cleared; dispatch it.',
+  },
   { key: 'shipped', label: 'Shipped', next: 'In transit to the customer.' },
   { key: 'delivered', label: 'Delivered', next: 'Order fulfilled.' },
 ];
 
 export function orderFlow(status: OrderStatus): FlowResult {
   if (status === 'CANCELLED')
-    return { steps: ORDER_STEPS, currentStage: null, cancelled: true, cancelledLabel: 'This order was cancelled.' };
+    return {
+      steps: ORDER_STEPS,
+      currentStage: null,
+      cancelled: true,
+      cancelledLabel: 'This order was cancelled.',
+    };
   const map: Record<Exclude<OrderStatus, 'CANCELLED'>, string> = {
     CONFIRMED: 'confirmed',
     IN_PRODUCTION: 'production',
@@ -73,19 +115,52 @@ export function orderFlow(status: OrderStatus): FlowResult {
 
 // ── Purchase Order: draft → issued → partially/fully received ────────
 const PO_STEPS: ProcessFlowStep[] = [
-  { key: 'approval', label: 'CEO approval', gate: true, next: 'Awaiting approval for the unlisted party.' },
-  { key: 'draft', label: 'Draft', next: 'Issue the PO to the supplier.' },
+  {
+    key: 'draft',
+    label: 'Draft',
+    next: 'Submit the PO for value-based approval.',
+  },
+  {
+    key: 'approval',
+    label: 'Approval',
+    gate: true,
+    next: 'Awaiting the next required authority.',
+  },
+  {
+    key: 'approved',
+    label: 'Approved',
+    gate: true,
+    next: 'Issue the PO to the supplier.',
+  },
   { key: 'issued', label: 'Issued', next: 'Awaiting goods receipt.' },
-  { key: 'partial', label: 'Partially received', next: 'Some lines received; awaiting the rest.' },
+  {
+    key: 'partial',
+    label: 'Partially received',
+    next: 'Some lines received; awaiting the rest.',
+  },
   { key: 'full', label: 'Fully received', next: 'All goods received.' },
 ];
 
 export function poFlow(status: PurchaseOrderStatus): FlowResult {
   if (status === 'CANCELLED' || status === 'REJECTED')
-    return { steps: PO_STEPS, currentStage: null, cancelled: true, cancelledLabel: status === 'REJECTED' ? 'This ad-hoc purchase order was rejected.' : 'This purchase order was cancelled.' };
-  const map: Record<Exclude<PurchaseOrderStatus, 'CANCELLED' | 'REJECTED'>, string> = {
+    return {
+      steps: PO_STEPS,
+      currentStage: null,
+      cancelled: true,
+      cancelledLabel:
+        status === 'REJECTED'
+          ? 'This purchase order was rejected during approval.'
+          : 'This purchase order was cancelled.',
+    };
+  const map: Record<
+    Exclude<PurchaseOrderStatus, 'CANCELLED' | 'REJECTED'>,
+    string
+  > = {
+    PENDING_CSCO_APPROVAL: 'approval',
+    PENDING_COO_APPROVAL: 'approval',
     PENDING_CEO_APPROVAL: 'approval',
     DRAFT: 'draft',
+    APPROVED: 'approved',
     ISSUED: 'issued',
     PARTIALLY_RECEIVED: 'partial',
     FULLY_RECEIVED: 'full',
@@ -97,13 +172,27 @@ export function poFlow(status: PurchaseOrderStatus): FlowResult {
 const RFQ_STEPS: ProcessFlowStep[] = [
   { key: 'draft', label: 'Draft', next: 'Issue the RFQ to invitees.' },
   { key: 'issued', label: 'Issued', next: 'Collecting sealed quotes.' },
-  { key: 'closed', label: 'Closed', gate: true, next: 'Compare quotes and award.' },
-  { key: 'awarded', label: 'Awarded', next: 'A draft PO is pre-filled from the award.' },
+  {
+    key: 'closed',
+    label: 'Closed',
+    gate: true,
+    next: 'Compare quotes and award.',
+  },
+  {
+    key: 'awarded',
+    label: 'Awarded',
+    next: 'A draft PO is pre-filled from the award.',
+  },
 ];
 
 export function rfqFlow(status: RfqStatus): FlowResult {
   if (status === 'CANCELLED')
-    return { steps: RFQ_STEPS, currentStage: null, cancelled: true, cancelledLabel: 'This RFQ was cancelled.' };
+    return {
+      steps: RFQ_STEPS,
+      currentStage: null,
+      cancelled: true,
+      cancelledLabel: 'This RFQ was cancelled.',
+    };
   const map: Record<Exclude<RfqStatus, 'CANCELLED'>, string> = {
     DRAFT: 'draft',
     ISSUED: 'issued',
@@ -122,10 +211,24 @@ export function rfqFlow(status: RfqStatus): FlowResult {
 
 // ── Vendor / Supplier qualification (shared shape) ───────────────────
 const QUALIFICATION_STEPS: ProcessFlowStep[] = [
-  { key: 'questionnaire', label: 'Questionnaire sent', next: 'Awaiting the questionnaire response.' },
+  {
+    key: 'questionnaire',
+    label: 'Questionnaire sent',
+    next: 'Awaiting the questionnaire response.',
+  },
   { key: 'submitted', label: 'Submitted', next: 'Schedule the audit.' },
-  { key: 'audit', label: 'Under audit', gate: true, next: 'Audit in progress; scoring to follow.' },
-  { key: 'classified', label: 'Classified', gate: true, next: 'Qualification decision recorded.' },
+  {
+    key: 'audit',
+    label: 'Under audit',
+    gate: true,
+    next: 'Audit in progress; scoring to follow.',
+  },
+  {
+    key: 'classified',
+    label: 'Classified',
+    gate: true,
+    next: 'Qualification decision recorded.',
+  },
 ];
 
 function qualificationStage(status: VendorStatus | SupplierStatus): string {
@@ -143,18 +246,30 @@ function qualificationStage(status: VendorStatus | SupplierStatus): string {
 }
 
 export function vendorFlow(status: VendorStatus): FlowResult {
-  return { steps: QUALIFICATION_STEPS, currentStage: qualificationStage(status), cancelled: false };
+  return {
+    steps: QUALIFICATION_STEPS,
+    currentStage: qualificationStage(status),
+    cancelled: false,
+  };
 }
 
 export function supplierFlow(status: SupplierStatus): FlowResult {
-  return { steps: QUALIFICATION_STEPS, currentStage: qualificationStage(status), cancelled: false };
+  return {
+    steps: QUALIFICATION_STEPS,
+    currentStage: qualificationStage(status),
+    cancelled: false,
+  };
 }
 
 // ── Project Kickoff: created → attendees → action items → completed ──
 const KICKOFF_STEPS: ProcessFlowStep[] = [
   { key: 'created', label: 'Created', next: 'Add attendees to the kickoff.' },
   { key: 'attendees', label: 'Attendees added', next: 'Assign action items.' },
-  { key: 'actions', label: 'Action items assigned', next: 'Work the plan to completion.' },
+  {
+    key: 'actions',
+    label: 'Action items assigned',
+    next: 'Work the plan to completion.',
+  },
   { key: 'completed', label: 'Completed', next: 'Kickoff finalised.' },
 ];
 

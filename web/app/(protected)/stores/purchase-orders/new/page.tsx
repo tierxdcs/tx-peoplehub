@@ -174,13 +174,17 @@ export default function NewPurchaseOrderPage() {
   );
 
   function updateLine(key: number, patch: Partial<LineDraft>) {
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+    setLines((prev) =>
+      prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
+    );
   }
   function addLine(source: LineDraft['source']) {
     setLines((prev) => [...prev, emptyLine(source)]);
   }
   function removeLine(key: number) {
-    setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.key !== key) : prev));
+    setLines((prev) =>
+      prev.length > 1 ? prev.filter((l) => l.key !== key) : prev,
+    );
   }
 
   const validLines = lines.filter(
@@ -191,7 +195,8 @@ export default function NewPurchaseOrderPage() {
       Number(l.orderedQuantity) > 0 &&
       Number(l.unitPrice) >= 0,
   );
-  const hasParty = partnerType === 'AD_HOC' ? !!adHocPartyName.trim() : !!partnerId;
+  const hasParty =
+    partnerType === 'AD_HOC' ? !!adHocPartyName.trim() : !!partnerId;
   const canSubmit = hasParty && validLines.length > 0 && !submitting;
 
   // What still blocks or would drop content — feeds the summary-rail card.
@@ -236,7 +241,9 @@ export default function NewPurchaseOrderPage() {
                 ? { adHocPartyAddress: adHocPartyAddress.trim() }
                 : {}),
             }),
-      ...(expectedDeliveryDate ? { expectedDeliveryDate: new Date(expectedDeliveryDate).toISOString() } : {}),
+      ...(expectedDeliveryDate
+        ? { expectedDeliveryDate: new Date(expectedDeliveryDate).toISOString() }
+        : {}),
       ...(notes ? { notes } : {}),
       lines: validLines.map((l) => ({
         ...(l.source === 'CATALOG'
@@ -254,21 +261,19 @@ export default function NewPurchaseOrderPage() {
     };
     try {
       const po = await createPurchaseOrder(input);
-      if (po.status === 'PENDING_CEO_APPROVAL') {
-        toast.success(
-          `PO ${po.poNumber} created and sent for CEO/SuperAdmin approval`,
-        );
-      } else if (po.qualificationWarning) {
+      if (po.qualificationWarning) {
         toast.success(
           `PO ${po.poNumber} created — note: ${po.qualificationWarning.message}`,
           'Created with warning',
         );
       } else {
-        toast.success(`Purchase order ${po.poNumber} created`);
+        toast.success(`Purchase order ${po.poNumber} saved as draft`);
       }
       router.push(`/stores/purchase-orders/${po.id}`);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to create PO');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to create PO',
+      );
       setSubmitting(false);
     }
   }
@@ -315,7 +320,10 @@ export default function NewPurchaseOrderPage() {
           <div className="flex min-w-0 flex-col gap-3.5">
             {/* Trading Party */}
             <SCard className="px-5 py-[18px]">
-              <SCardTitle title="Trading Party" subtitle="Who you are buying from" />
+              <SCardTitle
+                title="Trading Party"
+                subtitle="Who you are buying from"
+              />
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <Field label="Partner Type" htmlFor="partnerType">
                   <Select
@@ -376,7 +384,10 @@ export default function NewPurchaseOrderPage() {
               {partnerType === 'AD_HOC' && (
                 <>
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    <Field label="Contact Information" htmlFor="adHocContactInfo">
+                    <Field
+                      label="Contact Information"
+                      htmlFor="adHocContactInfo"
+                    >
                       <Textarea
                         id="adHocContactInfo"
                         value={adHocContactInfo}
@@ -394,9 +405,9 @@ export default function NewPurchaseOrderPage() {
                     </Field>
                   </div>
                   <Callout>
-                    This exception PO will remain blocked until the CEO/SuperAdmin
-                    approves the unlisted party. It cannot be issued or used for a GRN
-                    before approval.
+                    This exception PO will remain blocked until the
+                    CEO/SuperAdmin approves the unlisted party. It cannot be
+                    issued or used for a GRN before approval.
                   </Callout>
                 </>
               )}
@@ -425,9 +436,9 @@ export default function NewPurchaseOrderPage() {
                     This {partnerType.toLowerCase()} is not qualified.
                   </span>{' '}
                   {selectedPartner?.companyName} is currently{' '}
-                  {humanizeEnum(selectedPartner!.status)}. The purchase order is still
-                  allowed (emergency purchases are legitimate), but review before
-                  issuing.
+                  {humanizeEnum(selectedPartner!.status)}. The purchase order is
+                  still allowed (emergency purchases are legitimate), but review
+                  before issuing.
                 </Callout>
               )}
             </SCard>
@@ -465,7 +476,8 @@ export default function NewPurchaseOrderPage() {
                   {lines.map((line, index) => {
                     const item = itemById(line.itemId);
                     const lineTotal =
-                      Number(line.orderedQuantity) * Number(line.unitPrice) || 0;
+                      Number(line.orderedQuantity) * Number(line.unitPrice) ||
+                      0;
                     return (
                       <div
                         key={line.key}
@@ -563,7 +575,9 @@ export default function NewPurchaseOrderPage() {
                                     unitOfMeasure: '',
                                   });
                                 else
-                                  updateLine(line.key, { unitOfMeasure: value });
+                                  updateLine(line.key, {
+                                    unitOfMeasure: value,
+                                  });
                               }}
                             >
                               <option value="">Unit…</option>
@@ -582,7 +596,9 @@ export default function NewPurchaseOrderPage() {
                             className="text-right tabular-nums"
                             value={line.unitPrice}
                             onChange={(e) =>
-                              updateLine(line.key, { unitPrice: e.target.value })
+                              updateLine(line.key, {
+                                unitPrice: e.target.value,
+                              })
                             }
                           />
                           <div className="text-right text-[13px] font-bold tabular-nums">
@@ -738,4 +754,3 @@ function AddLineButton({
     </button>
   );
 }
-

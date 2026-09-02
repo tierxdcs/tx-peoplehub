@@ -115,7 +115,10 @@ const VARIANT_BY_VALUE: Record<string, BadgeVariant> = {
   // vertical-owner and the CEO/super-admin stages are "awaiting a decision".
   PENDING_VERTICAL_APPROVAL: 'warning',
   PENDING_SUPERADMIN_APPROVAL: 'warning',
+  PENDING_CSCO_APPROVAL: 'warning',
+  PENDING_COO_APPROVAL: 'warning',
   PENDING_CEO_APPROVAL: 'warning',
+  WAITING: 'muted',
   PENDING_CLOSURE: 'warning',
   AWAITING_INTERNAL_SIGNATURE: 'warning',
   AWAITING_CUSTOMER_SIGNATURE: 'warning',

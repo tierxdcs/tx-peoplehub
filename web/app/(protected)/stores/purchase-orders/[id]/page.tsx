@@ -4,15 +4,17 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Check, Download, Mail, PackagePlus, X } from 'lucide-react';
-import { ApiError } from '../../../../lib/api';
+import { apiFetch, ApiError } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
+import type { Employee } from '../../../../lib/types';
 import {
   getPurchaseOrder,
   listGrns,
   issuePurchaseOrder,
+  submitPurchaseOrderForApproval,
+  approvePurchaseOrder,
+  rejectPurchaseOrder,
   cancelPurchaseOrder,
-  approveAdHocPurchaseOrder,
-  rejectAdHocPurchaseOrder,
   emailPurchaseOrder,
   isGrnFinalized,
   type PurchaseOrder,
@@ -65,6 +67,7 @@ export default function PurchaseOrderDetailPage() {
   const { style: numberFormatStyle } = useNumberFormat();
 
   const [po, setPo] = useState<PurchaseOrder | null>(null);
+  const [me, setMe] = useState<Employee | null>(null);
   const [grns, setGrns] = useState<GoodsReceiptNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,18 +84,22 @@ export default function PurchaseOrderDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const [poData, grnData] = await Promise.all([
+      const [poData, grnData, employee] = await Promise.all([
         getPurchaseOrder(id),
         listGrns({ purchaseOrderId: id }),
+        user
+          ? apiFetch<Employee>(`/employees/${user.sub}`)
+          : Promise.resolve(null),
       ]);
       setPo(poData);
       setGrns(grnData);
+      setMe(employee);
     } catch {
       setError('Failed to load purchase order.');
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, user]);
 
   useEffect(() => {
     void load();
@@ -101,7 +108,10 @@ export default function PurchaseOrderDetailPage() {
   // Computed received quantity per PO line: sum of ACCEPTED quantities across
   // all finalized GRNs against that line. Received-but-not-yet-inspected qty is
   // shown separately so the two aren't conflated.
-  function receivedFor(poLineId: string): { accepted: number; pending: number } {
+  function receivedFor(poLineId: string): {
+    accepted: number;
+    pending: number;
+  } {
     let accepted = 0;
     let pending = 0;
     for (const grn of grns) {
@@ -120,7 +130,14 @@ export default function PurchaseOrderDetailPage() {
 
   async function handleIssue() {
     if (!po) return;
-    if (!(await confirm({ title: 'Issue purchase order', description: `Issue ${po.poNumber}? It can no longer be edited.`, confirmLabel: 'Issue' }))) return;
+    if (
+      !(await confirm({
+        title: 'Issue purchase order',
+        description: `Issue ${po.poNumber}? It can no longer be edited.`,
+        confirmLabel: 'Issue',
+      }))
+    )
+      return;
     setActing(true);
     try {
       await issuePurchaseOrder(po.id);
@@ -133,9 +150,43 @@ export default function PurchaseOrderDetailPage() {
     }
   }
 
+  async function handleSubmitForApproval() {
+    if (!po) return;
+    if (
+      !(await confirm({
+        title: 'Submit purchase order for approval',
+        description: `Submit ${po.poNumber}? Its value and approval route will be locked until a decision is made.`,
+        confirmLabel: 'Submit',
+      }))
+    )
+      return;
+    setActing(true);
+    try {
+      await submitPurchaseOrderForApproval(po.id);
+      toast.success('Purchase order sent to CSCO for approval');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to submit purchase order',
+      );
+    } finally {
+      setActing(false);
+    }
+  }
+
   async function handleCancel() {
     if (!po) return;
-    if (!(await confirm({ title: 'Cancel purchase order', description: `Cancel ${po.poNumber}?`, confirmLabel: 'Cancel PO', destructive: true }))) return;
+    if (
+      !(await confirm({
+        title: 'Cancel purchase order',
+        description: `Cancel ${po.poNumber}?`,
+        confirmLabel: 'Cancel PO',
+        destructive: true,
+      }))
+    )
+      return;
     setActing(true);
     try {
       await cancelPurchaseOrder(po.id);
@@ -148,17 +199,20 @@ export default function PurchaseOrderDetailPage() {
     }
   }
 
-  async function handleApproveAdHoc() {
+  async function handleApprove() {
     if (!po) return;
-    if (!(await confirm({
-      title: 'Approve ad-hoc purchase order',
-      description: `Approve ${po.poNumber} for ${po.adHocPartyName}? SCM may then issue it and receive goods against it.`,
-      confirmLabel: 'Approve',
-    }))) return;
+    if (
+      !(await confirm({
+        title: 'Approve purchase order',
+        description: `Approve the current step for ${po.poNumber}?`,
+        confirmLabel: 'Approve',
+      }))
+    )
+      return;
     setActing(true);
     try {
-      await approveAdHocPurchaseOrder(po.id);
-      toast.success('Ad-hoc purchase order approved');
+      await approvePurchaseOrder(po.id);
+      toast.success('Purchase order approval recorded');
       await load();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Failed to approve');
@@ -167,21 +221,24 @@ export default function PurchaseOrderDetailPage() {
     }
   }
 
-  async function handleRejectAdHoc() {
+  async function handleReject() {
     if (!po || !rejectionComment.trim()) {
       toast.error('Enter a rejection reason before rejecting');
       return;
     }
-    if (!(await confirm({
-      title: 'Reject ad-hoc purchase order',
-      description: `Reject ${po.poNumber}? This decision is terminal.`,
-      confirmLabel: 'Reject',
-      destructive: true,
-    }))) return;
+    if (
+      !(await confirm({
+        title: 'Reject purchase order',
+        description: `Reject ${po.poNumber}? This decision is terminal.`,
+        confirmLabel: 'Reject',
+        destructive: true,
+      }))
+    )
+      return;
     setActing(true);
     try {
-      await rejectAdHocPurchaseOrder(po.id, rejectionComment.trim());
-      toast.success('Ad-hoc purchase order rejected');
+      await rejectPurchaseOrder(po.id, rejectionComment.trim());
+      toast.success('Purchase order rejected');
       await load();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Failed to reject');
@@ -228,7 +285,9 @@ export default function PurchaseOrderDetailPage() {
       await load();
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : 'Failed to email the purchase order',
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to email the purchase order',
       );
     } finally {
       setEmailing(false);
@@ -266,18 +325,36 @@ export default function PurchaseOrderDetailPage() {
     return (
       <PageContainer>
         <p className="text-sm text-destructive">{error ?? 'Not found.'}</p>
-        <Button variant="outline" className="mt-4" onClick={() => router.push('/stores/purchase-orders')}>
+        <Button
+          variant="outline"
+          className="mt-4"
+          onClick={() => router.push('/stores/purchase-orders')}
+        >
           <ArrowLeft className="size-4" /> Back
         </Button>
       </PageContainer>
     );
   }
 
-  const canReceive = po.status === 'ISSUED' || po.status === 'PARTIALLY_RECEIVED';
-  const partyLabel = po.supplierId ? 'Supplier' : po.vendorId ? 'Vendor' : 'Party';
-  // A DRAFT is not yet an order and an unapproved ad-hoc PO is not yet a
-  // commitment — neither may be put in front of a supplier. The server enforces
-  // the same list; this only keeps the button off the page.
+  const canReceive =
+    po.status === 'ISSUED' || po.status === 'PARTIALLY_RECEIVED';
+  const currentApproval =
+    po.approvals.find((approval) => approval.status === 'PENDING') ?? null;
+  const canDecideCurrent =
+    currentApproval?.level === 'CSCO'
+      ? me?.isScmHead === true
+      : currentApproval?.level === 'COO'
+        ? me?.isProductionHead === true
+        : currentApproval?.level === 'CEO'
+          ? user?.role === 'SUPER_ADMIN'
+          : false;
+  const partyLabel = po.supplierId
+    ? 'Supplier'
+    : po.vendorId
+      ? 'Vendor'
+      : 'Party';
+  // An unapproved PO is not yet a commitment and may not be put in front of a
+  // supplier. The server enforces the same rule.
   const canEmail =
     canManage &&
     (po.status === 'ISSUED' ||
@@ -290,270 +367,420 @@ export default function PurchaseOrderDetailPage() {
       <PurchaseOrderPrintDocument po={po} generatedOn={todayDateStr()} />
 
       <PageContainer>
-      <div className="mb-4">
-        <Link
-          href="/stores/purchase-orders"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" /> Purchase Orders
-        </Link>
-      </div>
+        <div className="mb-4">
+          <Link
+            href="/stores/purchase-orders"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" /> Purchase Orders
+          </Link>
+        </div>
 
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
-            {po.poNumber}
-            <StatusBadge value={po.status} />
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {po.supplierName ?? po.vendorName ?? po.adHocPartyName} ·{' '}
-            {po.supplierId ? 'Supplier' : po.vendorId ? 'Vendor' : 'Ad-hoc / Unlisted Party'}
-          </p>
-          {/* Whether the order has actually reached them, and where — the
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
+              {po.poNumber}
+              <StatusBadge value={po.status} />
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {po.supplierName ?? po.vendorName ?? po.adHocPartyName} ·{' '}
+              {po.supplierId
+                ? 'Supplier'
+                : po.vendorId
+                  ? 'Vendor'
+                  : 'Ad-hoc / Unlisted Party'}
+            </p>
+            {/* Whether the order has actually reached them, and where — the
               question a buyer asks before chasing a supplier. */}
-          {po.lastEmailedAt && (
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Mail className="size-3" />
-              Emailed to {po.lastEmailedTo} on {dateOnlyStr(po.lastEmailedAt)}
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button variant="outline" onClick={printPurchaseOrder}>
-            <Download className="size-4" /> Download PDF
-          </Button>
-          {canEmail && (
-            <Button variant="outline" onClick={openEmailDialog} disabled={emailing}>
-              <Mail className="size-4" />
-              {po.lastEmailedAt ? `Resend to ${partyLabel}` : `Email to ${partyLabel}`}
-            </Button>
-          )}
-          {canReceive && (
-            <Button onClick={() => router.push(`/stores/grn/new?poId=${po.id}`)}>
-              <PackagePlus className="size-4" /> Receive Goods (GRN)
-            </Button>
-          )}
-          {canManage && po.status === 'DRAFT' && (
-            <Button variant="outline" onClick={handleIssue} disabled={acting}>
-              Issue
-            </Button>
-          )}
-          {canManage && (po.status === 'DRAFT' || po.status === 'ISSUED') && (
-            <Button variant="destructive" onClick={handleCancel} disabled={acting}>
-              Cancel
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Live flow indicator — stage derived from the PO's status. */}
-      <ProcessFlow title="PO progress" className="mb-6" {...poFlow(po.status)} />
-
-      {po.status === 'PENDING_CEO_APPROVAL' && (
-        <Card className="mb-6 border-warning/40 bg-warning/10">
-          <CardHeader>
-            <CardTitle className="text-base">CEO/SuperAdmin approval required</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              This PO uses the unlisted party <strong className="text-foreground">{po.adHocPartyName}</strong>.
-              It cannot be issued or used to receive a GRN until approved.
-            </p>
-            {po.adHocContactInfo && <Info label="Contact" value={po.adHocContactInfo} />}
-            {po.adHocPartyAddress && <Info label="Address" value={po.adHocPartyAddress} />}
-            {user?.role === 'SUPER_ADMIN' && (
-              <div className="space-y-3 border-t pt-4">
-                <Textarea
-                  value={rejectionComment}
-                  onChange={(e) => setRejectionComment(e.target.value)}
-                  placeholder="Rejection reason (required only when rejecting)"
-                />
-                <div className="flex gap-2">
-                  <Button onClick={handleApproveAdHoc} disabled={acting}>
-                    <Check className="size-4" /> Approve exception
-                  </Button>
-                  <Button variant="destructive" onClick={handleRejectAdHoc} disabled={acting || !rejectionComment.trim()}>
-                    <X className="size-4" /> Reject
-                  </Button>
-                </div>
-              </div>
+            {po.lastEmailedAt && (
+              <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Mail className="size-3" />
+                Emailed to {po.lastEmailedTo} on {dateOnlyStr(po.lastEmailedAt)}
+              </p>
             )}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" onClick={printPurchaseOrder}>
+              <Download className="size-4" /> Download PDF
+            </Button>
+            {canEmail && (
+              <Button
+                variant="outline"
+                onClick={openEmailDialog}
+                disabled={emailing}
+              >
+                <Mail className="size-4" />
+                {po.lastEmailedAt
+                  ? `Resend to ${partyLabel}`
+                  : `Email to ${partyLabel}`}
+              </Button>
+            )}
+            {canReceive && (
+              <Button
+                onClick={() => router.push(`/stores/grn/new?poId=${po.id}`)}
+              >
+                <PackagePlus className="size-4" /> Receive Goods (GRN)
+              </Button>
+            )}
+            {canManage && po.status === 'DRAFT' && (
+              <Button onClick={handleSubmitForApproval} disabled={acting}>
+                Submit for approval
+              </Button>
+            )}
+            {canManage && po.status === 'APPROVED' && (
+              <Button variant="outline" onClick={handleIssue} disabled={acting}>
+                Issue
+              </Button>
+            )}
+            {canManage &&
+              [
+                'DRAFT',
+                'PENDING_CSCO_APPROVAL',
+                'PENDING_COO_APPROVAL',
+                'PENDING_CEO_APPROVAL',
+                'APPROVED',
+                'ISSUED',
+              ].includes(po.status) && (
+                <Button
+                  variant="destructive"
+                  onClick={handleCancel}
+                  disabled={acting}
+                >
+                  Cancel
+                </Button>
+              )}
+          </div>
+        </div>
+
+        {/* Live flow indicator — stage derived from the PO's status. */}
+        <ProcessFlow
+          title="PO progress"
+          className="mb-6"
+          {...poFlow(po.status)}
+        />
+
+        <Card className="mb-6 border-primary/20 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="text-base">
+              Purchase Order approval policy
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="grid gap-2 md:grid-cols-3">
+              <div className="rounded-md border bg-background p-3">
+                <strong>Up to ₹25,00,000</strong>
+                <p className="text-muted-foreground">CSCO approval</p>
+              </div>
+              <div className="rounded-md border bg-background p-3">
+                <strong>₹25,00,001–₹50,00,000</strong>
+                <p className="text-muted-foreground">CSCO → COO</p>
+              </div>
+              <div className="rounded-md border bg-background p-3">
+                <strong>Above ₹50,00,000</strong>
+                <p className="text-muted-foreground">CSCO → COO → CEO</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              CSCO is the designated SCM Head. COO is the designated Production
+              Head. An ad-hoc/unlisted party always adds CEO approval regardless
+              of value.
+            </p>
           </CardContent>
         </Card>
-      )}
 
-      {po.status === 'REJECTED' && po.rejectionComment && (
-        <Card className="mb-6 border-destructive/40">
-          <CardHeader><CardTitle className="text-base text-destructive">PO rejected</CardTitle></CardHeader>
-          <CardContent className="text-sm">{po.rejectionComment}</CardContent>
-        </Card>
-      )}
+        {po.approvals.length > 0 && (
+          <Card className="mb-6 border-warning/40 bg-warning/10">
+            <CardHeader>
+              <CardTitle className="text-base">Approval ladder</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Approval value:{' '}
+                <strong className="text-foreground">
+                  {formatINR(
+                    po.approvalAmount ?? po.totalAmount,
+                    numberFormatStyle,
+                  )}
+                </strong>
+                . Approvals must be completed in sequence.
+              </p>
+              <div className="grid gap-2 md:grid-cols-3">
+                {po.approvals.map((approval) => (
+                  <div
+                    key={approval.id}
+                    className="rounded-md border bg-background p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <strong>{approval.level}</strong>
+                      <StatusBadge value={approval.status} />
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {approval.level === 'CSCO'
+                        ? 'SCM Head'
+                        : approval.level === 'COO'
+                          ? 'Production Head'
+                          : 'CEO / SuperAdmin'}
+                      {approval.decidedByName
+                        ? ` · ${approval.decidedByName}`
+                        : ''}
+                    </p>
+                    {approval.comment && (
+                      <p className="mt-2 text-xs text-destructive">
+                        {approval.comment}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {currentApproval && (
+                <p className="text-sm">
+                  Currently awaiting <strong>{currentApproval.level}</strong>{' '}
+                  approval.
+                </p>
+              )}
+              {canDecideCurrent && currentApproval && (
+                <div className="space-y-3 border-t pt-4">
+                  <Textarea
+                    value={rejectionComment}
+                    onChange={(e) => setRejectionComment(e.target.value)}
+                    placeholder="Rejection reason (required only when rejecting)"
+                  />
+                  <div className="flex gap-2">
+                    <Button onClick={handleApprove} disabled={acting}>
+                      <Check className="size-4" /> Approve as{' '}
+                      {currentApproval.level}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleReject}
+                      disabled={acting || !rejectionComment.trim()}
+                    >
+                      <X className="size-4" /> Reject
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Info label="Order Date" value={dateOnlyStr(po.orderDate)} />
-        <Info label="Expected Delivery" value={po.expectedDeliveryDate ? dateOnlyStr(po.expectedDeliveryDate) : '—'} />
-        <Info label="Raised By" value={po.createdByName ?? '—'} />
-        <Info label="Total Value" value={formatINR(po.totalAmount, numberFormatStyle)} />
-      </div>
+        {po.status === 'REJECTED' && po.rejectionComment && (
+          <Card className="mb-6 border-destructive/40">
+            <CardHeader>
+              <CardTitle className="text-base text-destructive">
+                PO rejected
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm">{po.rejectionComment}</CardContent>
+          </Card>
+        )}
 
-      {po.notes && (
-        <Card className="mb-6">
+        <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+          <Info label="Order Date" value={dateOnlyStr(po.orderDate)} />
+          <Info
+            label="Expected Delivery"
+            value={
+              po.expectedDeliveryDate
+                ? dateOnlyStr(po.expectedDeliveryDate)
+                : '—'
+            }
+          />
+          <Info label="Raised By" value={po.createdByName ?? '—'} />
+          <Info
+            label="Total Value"
+            value={formatINR(po.totalAmount, numberFormatStyle)}
+          />
+        </div>
+
+        {po.notes && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-sm">Notes</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              {po.notes}
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Notes</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">{po.notes}</CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Line Items</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Item</TableHead>
-                <TableHead className="text-right">Ordered</TableHead>
-                <TableHead className="text-right">Received (accepted)</TableHead>
-                <TableHead className="text-right">Unit Price</TableHead>
-                <TableHead className="text-right">Line Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {po.lines.map((line) => {
-                const rec = receivedFor(line.id);
-                return (
-                  <TableRow key={line.id}>
-                    <TableCell>
-                      <div className="font-medium">{line.itemName}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {line.itemCode ?? 'Free-text line · non-inventory'}
-                      </div>
-                      {line.adHocDescription && (
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {line.adHocDescription}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {line.orderedQuantity} {line.unitOfMeasure}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="font-medium">{rec.accepted}</span>
-                      {rec.pending > 0 && (
-                        <span className="ml-1 text-xs text-warning">
-                          (+{rec.pending} pending QC)
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">{formatINR(line.unitPrice, numberFormatStyle)}</TableCell>
-                    <TableCell className="text-right">{formatINR(line.lineTotal, numberFormatStyle)}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {grns.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="text-base">Goods Receipts</CardTitle>
+            <CardTitle className="text-base">Line Items</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>GRN No.</TableHead>
-                  <TableHead>Received</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Item</TableHead>
+                  <TableHead className="text-right">Ordered</TableHead>
+                  <TableHead className="text-right">
+                    Received (accepted)
+                  </TableHead>
+                  <TableHead className="text-right">Unit Price</TableHead>
+                  <TableHead className="text-right">Line Total</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {grns.map((grn) => (
-                  <TableRow
-                    key={grn.id}
-                    className="cursor-pointer"
-                    onClick={() => router.push(`/stores/grn/${grn.id}`)}
-                  >
-                    <TableCell className="font-medium text-primary">{grn.grnNumber}</TableCell>
-                    <TableCell>{dateOnlyStr(grn.receivedDate)}</TableCell>
-                    <TableCell>
-                      <StatusBadge value={grn.status} />
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {po.lines.map((line) => {
+                  const rec = receivedFor(line.id);
+                  return (
+                    <TableRow key={line.id}>
+                      <TableCell>
+                        <div className="font-medium">{line.itemName}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {line.itemCode ?? 'Free-text line · non-inventory'}
+                        </div>
+                        {line.adHocDescription && (
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {line.adHocDescription}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {line.orderedQuantity} {line.unitOfMeasure}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="font-medium">{rec.accepted}</span>
+                        {rec.pending > 0 && (
+                          <span className="ml-1 text-xs text-warning">
+                            (+{rec.pending} pending QC)
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatINR(line.unitPrice, numberFormatStyle)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatINR(line.lineTotal, numberFormatStyle)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
-      )}
 
-      <Dialog open={emailOpen} onOpenChange={(open) => !emailing && setEmailOpen(open)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {po.lastEmailedAt ? 'Resend' : 'Email'} {po.poNumber}
-            </DialogTitle>
-            <DialogDescription>
-              Sends the order as a PDF attachment to{' '}
-              {po.supplierName ?? po.vendorName ?? po.adHocPartyName}
-              {po.lastEmailedAt
-                ? '. The email will say it is a repeat, not a new order.'
-                : '.'}
-            </DialogDescription>
-          </DialogHeader>
+        {grns.length > 0 && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-base">Goods Receipts</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>GRN No.</TableHead>
+                    <TableHead>Received</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {grns.map((grn) => (
+                    <TableRow
+                      key={grn.id}
+                      className="cursor-pointer"
+                      onClick={() => router.push(`/stores/grn/${grn.id}`)}
+                    >
+                      <TableCell className="font-medium text-primary">
+                        {grn.grnNumber}
+                      </TableCell>
+                      <TableCell>{dateOnlyStr(grn.receivedDate)}</TableCell>
+                      <TableCell>
+                        <StatusBadge value={grn.status} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
 
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="po-email-to" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Send to
-              </label>
-              <Input
-                id="po-email-to"
-                type="email"
-                value={emailTo}
-                onChange={(e) => setEmailTo(e.target.value)}
-                placeholder="supplier@example.com"
-                className="mt-1"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                {po.partyEmail
-                  ? `Contact on record: ${po.partyEmail}. Change it to send elsewhere this time only — the ${partyLabel.toLowerCase()} master is not updated.`
-                  : 'This party has no email on record, so an address is required here.'}
-              </p>
+        <Dialog
+          open={emailOpen}
+          onOpenChange={(open) => !emailing && setEmailOpen(open)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {po.lastEmailedAt ? 'Resend' : 'Email'} {po.poNumber}
+              </DialogTitle>
+              <DialogDescription>
+                Sends the order as a PDF attachment to{' '}
+                {po.supplierName ?? po.vendorName ?? po.adHocPartyName}
+                {po.lastEmailedAt
+                  ? '. The email will say it is a repeat, not a new order.'
+                  : '.'}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="po-email-to"
+                  className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                >
+                  Send to
+                </label>
+                <Input
+                  id="po-email-to"
+                  type="email"
+                  value={emailTo}
+                  onChange={(e) => setEmailTo(e.target.value)}
+                  placeholder="supplier@example.com"
+                  className="mt-1"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {po.partyEmail
+                    ? `Contact on record: ${po.partyEmail}. Change it to send elsewhere this time only — the ${partyLabel.toLowerCase()} master is not updated.`
+                    : 'This party has no email on record, so an address is required here.'}
+                </p>
+              </div>
+              <div>
+                <label
+                  htmlFor="po-email-note"
+                  className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                >
+                  Note (optional)
+                </label>
+                <Textarea
+                  id="po-email-note"
+                  value={emailNote}
+                  onChange={(e) => setEmailNote(e.target.value)}
+                  placeholder="e.g. Freight is to our account. Please confirm the dispatch date."
+                  className="mt-1"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Added to the covering email. The attached order is unchanged —
+                  use the PO notes for anything that must appear on the document
+                  itself.
+                </p>
+              </div>
             </div>
-            <div>
-              <label htmlFor="po-email-note" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Note (optional)
-              </label>
-              <Textarea
-                id="po-email-note"
-                value={emailNote}
-                onChange={(e) => setEmailNote(e.target.value)}
-                placeholder="e.g. Freight is to our account. Please confirm the dispatch date."
-                className="mt-1"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Added to the covering email. The attached order is unchanged — use
-                the PO notes for anything that must appear on the document itself.
-              </p>
-            </div>
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEmailOpen(false)} disabled={emailing}>
-              Cancel
-            </Button>
-            <Button onClick={handleEmail} disabled={emailing || !emailTo.trim()}>
-              <Mail className="size-4" />
-              {emailing ? 'Sending…' : po.lastEmailedAt ? 'Resend order' : 'Send order'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setEmailOpen(false)}
+                disabled={emailing}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleEmail}
+                disabled={emailing || !emailTo.trim()}
+              >
+                <Mail className="size-4" />
+                {emailing
+                  ? 'Sending…'
+                  : po.lastEmailedAt
+                    ? 'Resend order'
+                    : 'Send order'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </PageContainer>
     </>
   );
@@ -562,7 +789,9 @@ export default function PurchaseOrderDetailPage() {
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
       <div className="mt-0.5 text-sm font-medium">{value}</div>
     </div>
   );

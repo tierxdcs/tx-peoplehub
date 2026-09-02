@@ -76,7 +76,7 @@ export class NotificationsService {
       this.candidateRequisitions.pendingApprovalQueue(user),
       this.bom.pendingReleaseQueue(user),
       this.expenseClaims.pendingReviewQueue(user),
-      this.purchaseOrders.pendingCeoApprovalQueue(user),
+      this.purchaseOrders.pendingApprovalQueue(user),
       this.design.pendingChangeApprovalQueue(user),
       isAdmin
         ? this.employees.pendingAccessQueue()

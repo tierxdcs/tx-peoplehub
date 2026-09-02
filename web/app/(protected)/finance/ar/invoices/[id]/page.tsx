@@ -25,7 +25,10 @@ import {
   TableRow,
 } from '../../../../../components/ui/table';
 import { useToast } from '../../../../../components/ui/toaster';
-import { SalesInvoicePrintDocument } from '../_components/sales-invoice-print-document';
+import {
+  PrintableSupplier,
+  SalesInvoicePrintDocument,
+} from '../_components/sales-invoice-print-document';
 import { ManualIrnDialog } from '../_components/manual-irn-dialog';
 
 interface Person {
@@ -56,6 +59,8 @@ interface InvoiceLine {
 
 interface InvoiceDetail {
   id: string;
+  /** Our own registered identity, for the printed tax invoice's Rule 46 block. */
+  supplier: PrintableSupplier | null;
   invoiceNumber: string;
   invoiceDate: string;
   dueDate: string;

@@ -34,8 +34,11 @@ import {
 } from '../../../components/ui/table';
 
 const STATUSES: PurchaseOrderStatus[] = [
-  'PENDING_CEO_APPROVAL',
   'DRAFT',
+  'PENDING_CSCO_APPROVAL',
+  'PENDING_COO_APPROVAL',
+  'PENDING_CEO_APPROVAL',
+  'APPROVED',
   'ISSUED',
   'PARTIALLY_RECEIVED',
   'FULLY_RECEIVED',
@@ -54,7 +57,9 @@ export default function PurchaseOrdersPage() {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<PurchaseOrderStatus | ''>('');
+  const [statusFilter, setStatusFilter] = useState<PurchaseOrderStatus | ''>(
+    '',
+  );
 
   const canCreate = user?.role === 'SUPER_ADMIN' || user?.role === 'MANAGER';
 
@@ -75,10 +80,15 @@ export default function PurchaseOrdersPage() {
   }, [load]);
 
   const filtered = useMemo(
-    () => (statusFilter ? orders.filter((o) => o.status === statusFilter) : orders),
+    () =>
+      statusFilter ? orders.filter((o) => o.status === statusFilter) : orders,
     [orders, statusFilter],
   );
-  const register = useRegisterList(filtered, (po) => `${po.poNumber} ${po.status} ${po.supplierName ?? ''} ${po.vendorName ?? ''} ${po.adHocPartyName ?? ''}`);
+  const register = useRegisterList(
+    filtered,
+    (po) =>
+      `${po.poNumber} ${po.status} ${po.supplierName ?? ''} ${po.vendorName ?? ''} ${po.adHocPartyName ?? ''}`,
+  );
 
   return (
     <PageContainer>
@@ -94,18 +104,28 @@ export default function PurchaseOrdersPage() {
         }
       />
 
-      <RegisterToolbar title="Purchase Order Register" search={register.search} onSearchChange={register.setSearch} searchPlaceholder="Search PO, supplier/vendor or status" filters={<Select
-          className="w-56"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as PurchaseOrderStatus | '')}
-        >
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s.replace(/_/g, ' ')}
-            </option>
-          ))}
-        </Select>} />
+      <RegisterToolbar
+        title="Purchase Order Register"
+        search={register.search}
+        onSearchChange={register.setSearch}
+        searchPlaceholder="Search PO, supplier/vendor or status"
+        filters={
+          <Select
+            className="w-56"
+            value={statusFilter}
+            onChange={(e) =>
+              setStatusFilter(e.target.value as PurchaseOrderStatus | '')
+            }
+          >
+            <option value="">All statuses</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s.replace(/_/g, ' ')}
+              </option>
+            ))}
+          </Select>
+        }
+      />
 
       <Card>
         <CardContent className="p-0">
@@ -139,7 +159,9 @@ export default function PurchaseOrdersPage() {
                   <TableRow
                     key={po.id}
                     className="cursor-pointer"
-                    onClick={() => router.push(`/stores/purchase-orders/${po.id}`)}
+                    onClick={() =>
+                      router.push(`/stores/purchase-orders/${po.id}`)
+                    }
                   >
                     <TableCell className="font-medium">
                       <Link
@@ -151,9 +173,18 @@ export default function PurchaseOrdersPage() {
                       </Link>
                     </TableCell>
                     <TableCell>
-                      {po.supplierName ?? po.vendorName ?? po.adHocPartyName ?? '—'}
+                      {po.supplierName ??
+                        po.vendorName ??
+                        po.adHocPartyName ??
+                        '—'}
                       <span className="ml-1 text-xs text-muted-foreground">
-                        ({po.supplierId ? 'Supplier' : po.vendorId ? 'Vendor' : 'Ad-hoc'})
+                        (
+                        {po.supplierId
+                          ? 'Supplier'
+                          : po.vendorId
+                            ? 'Vendor'
+                            : 'Ad-hoc'}
+                        )
                       </span>
                     </TableCell>
                     <TableCell>{dateOnlyStr(po.orderDate)}</TableCell>
@@ -170,7 +201,12 @@ export default function PurchaseOrdersPage() {
           )}
         </CardContent>
       </Card>
-      <RegisterPagination page={register.page} pageCount={register.pageCount} onPageChange={register.setPage} disabled={loading} />
+      <RegisterPagination
+        page={register.page}
+        pageCount={register.pageCount}
+        onPageChange={register.setPage}
+        disabled={loading}
+      />
     </PageContainer>
   );
 }

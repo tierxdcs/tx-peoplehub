@@ -545,28 +545,11 @@ export class GoodsReceiptNoteService {
     });
     if (!po) throw new NotFoundException('Purchase order not found');
     if (
-      !po.supplierId &&
-      !po.vendorId &&
-      (!po.ceoApprovedAt ||
-        po.status === PurchaseOrderStatus.PENDING_CEO_APPROVAL)
+      po.status !== PurchaseOrderStatus.ISSUED &&
+      po.status !== PurchaseOrderStatus.PARTIALLY_RECEIVED
     ) {
       throw new BadRequestException(
-        'Cannot receive against an ad-hoc purchase order before CEO/SuperAdmin approval',
-      );
-    }
-    if (po.status === PurchaseOrderStatus.DRAFT) {
-      throw new BadRequestException(
-        'Cannot receive against a DRAFT purchase order — issue it first',
-      );
-    }
-    if (po.status === PurchaseOrderStatus.CANCELLED) {
-      throw new BadRequestException(
-        'Cannot receive against a CANCELLED purchase order',
-      );
-    }
-    if (po.status === PurchaseOrderStatus.FULLY_RECEIVED) {
-      throw new BadRequestException(
-        'Cannot receive against a FULLY RECEIVED purchase order',
+        'Cannot receive against a purchase order until it is fully approved and issued',
       );
     }
     return po;

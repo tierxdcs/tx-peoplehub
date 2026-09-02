@@ -11,6 +11,7 @@ import {
   OrderType,
   Prisma,
   ReceiptStatus,
+  Role,
   SalesInvoiceStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
@@ -449,7 +450,29 @@ export class ArService {
   }
   async invoice(id: string, user: AuthenticatedUser) {
     await this.access.assertCanUseFinance(user);
-    return this.findInvoice(id);
+    const [inv, settings] = await Promise.all([
+      this.findInvoice(id),
+      this.prisma.financeCompanySettings.findUnique({
+        where: { id: 'INDIA' },
+      }),
+    ]);
+    // A tax invoice must carry the supplier's own name, address and GSTIN
+    // (CGST Rule 46(a)-(b)). It comes from the same FinanceCompanySettings row
+    // that gstPayload() sends to the IRP, so the printed document and the
+    // e-invoice can never disagree about who raised the bill.
+    return {
+      ...inv,
+      supplier: settings && {
+        legalName: settings.legalName,
+        gstin: settings.gstin,
+        addressLine1: settings.addressLine1,
+        addressLine2: settings.addressLine2,
+        city: settings.city,
+        state: settings.state,
+        stateCode: settings.stateCode,
+        postalCode: settings.postalCode,
+      },
+    };
   }
   async submitInvoice(id: string, user: AuthenticatedUser) {
     await this.access.assertCanUseFinance(user);
@@ -571,12 +594,9 @@ export class ArService {
    * same people who can create one — Accounts-vertical users, the designated
    * Finance/Accounts Head, and SUPER_ADMIN.
    *
-   * Only reachable from the pre-issuance statuses (see
-   * {@link DELETABLE_INVOICE_STATUSES}). The status list is the friendly gate;
-   * the journal/IRN/receipt/note checks below are the real invariant — an
-   * invoice that has touched the ledger, the GST portal, or a customer payment
-   * is never deletable whatever its status says. Post-issuance corrections go
-   * through a credit note (FinanceAdjustmentNote), never a delete.
+   * Normally only reachable from the pre-issuance statuses. CEO/SUPER_ADMIN has
+   * one narrow exception for ISSUED invoices: when no GST/customer/downstream
+   * dependency exists, the invoice and its posted journal are deleted together.
    *
    * Cascades: invoice lines and any queued GST submission rows go with it. A
    * dispatch-seeded delivery challan survives but loses its invoice link
@@ -591,24 +611,42 @@ export class ArService {
         invoiceNumber: true,
         status: true,
         irn: true,
+        eWayBillNumber: true,
         journalEntryId: true,
+        journalEntry: {
+          select: {
+            id: true,
+            journalNumber: true,
+            period: { select: { status: true } },
+            reversalEntry: { select: { id: true } },
+          },
+        },
         deliveryChallan: { select: { dcNumber: true } },
         _count: { select: { allocations: true, adjustmentNotes: true } },
       },
     });
     if (!inv) throw new NotFoundException('Sales invoice not found');
 
-    if (!DELETABLE_INVOICE_STATUSES.includes(inv.status))
+    const isCeoIssuedDelete =
+      inv.status === SalesInvoiceStatus.ISSUED &&
+      user.role === Role.SUPER_ADMIN;
+    if (!DELETABLE_INVOICE_STATUSES.includes(inv.status) && !isCeoIssuedDelete)
       throw new BadRequestException(
-        `A ${inv.status.replaceAll('_', ' ').toLowerCase()} invoice cannot be deleted — it has been issued to the customer and posted to the ledger. Raise a credit note instead.`,
+        inv.status === SalesInvoiceStatus.ISSUED
+          ? 'Only the CEO/SuperAdmin may delete an issued sales voucher'
+          : `A ${inv.status.replaceAll('_', ' ').toLowerCase()} invoice cannot be deleted. Raise a credit note instead.`,
       );
-    if (inv.journalEntryId)
+    if (inv.journalEntryId && !isCeoIssuedDelete)
       throw new BadRequestException(
         'This invoice is already posted to the general ledger and cannot be deleted. Raise a credit note instead.',
       );
     if (inv.irn)
       throw new BadRequestException(
         'This invoice is registered on the GST portal with an IRN. Cancel the e-invoice first, then raise a credit note.',
+      );
+    if (inv.eWayBillNumber)
+      throw new BadRequestException(
+        'This invoice has an e-way bill and cannot be deleted. Cancel the statutory document first.',
       );
     if (inv._count.allocations > 0)
       throw new BadRequestException(
@@ -619,11 +657,34 @@ export class ArService {
         'A credit or debit note references this invoice. Delete that note first.',
       );
 
-    await this.prisma.salesInvoice.delete({ where: { id } });
+    if (
+      isCeoIssuedDelete &&
+      inv.journalEntry?.period.status !== AccountingPeriodStatus.OPEN
+    ) {
+      throw new BadRequestException(
+        'The issued voucher belongs to a closed accounting period and cannot be deleted',
+      );
+    }
+    if (isCeoIssuedDelete && inv.journalEntry?.reversalEntry) {
+      throw new BadRequestException(
+        'The posted journal already has a reversal and cannot be deleted',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.salesInvoice.delete({ where: { id } });
+      if (isCeoIssuedDelete && inv.journalEntryId) {
+        await tx.journalEntry.delete({ where: { id: inv.journalEntryId } });
+      }
+    });
     return {
       id: inv.id,
       invoiceNumber: inv.invoiceNumber,
       unlinkedChallanNumber: inv.deliveryChallan?.dcNumber ?? null,
+      removedJournalNumber:
+        isCeoIssuedDelete && inv.journalEntry
+          ? inv.journalEntry.journalNumber
+          : null,
     };
   }
 

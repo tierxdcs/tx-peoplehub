@@ -344,7 +344,7 @@ export class ScmDashboardService {
   }
 
   /**
-   * Ad-hoc POs awaiting CEO approval. An ad-hoc PO is one with NEITHER a vendor
+   * Ad-hoc POs anywhere in the approval ladder. An ad-hoc PO has NEITHER a vendor
    * nor a supplier link — the compliance question is exactly "how often is a
    * purchase being raised outside the vetted base", so the absence of both links
    * is the test, not the status alone.
@@ -352,7 +352,13 @@ export class ScmDashboardService {
   private loadAdHocPending() {
     return this.prisma.purchaseOrder.findMany({
       where: {
-        status: PurchaseOrderStatus.PENDING_CEO_APPROVAL,
+        status: {
+          in: [
+            PurchaseOrderStatus.PENDING_CSCO_APPROVAL,
+            PurchaseOrderStatus.PENDING_COO_APPROVAL,
+            PurchaseOrderStatus.PENDING_CEO_APPROVAL,
+          ],
+        },
         supplierId: null,
         vendorId: null,
       },
@@ -375,6 +381,8 @@ export class ScmDashboardService {
           notIn: [
             PurchaseOrderStatus.CANCELLED,
             PurchaseOrderStatus.REJECTED,
+            PurchaseOrderStatus.PENDING_CSCO_APPROVAL,
+            PurchaseOrderStatus.PENDING_COO_APPROVAL,
             PurchaseOrderStatus.PENDING_CEO_APPROVAL,
           ],
         },
@@ -850,7 +858,7 @@ export class ScmDashboardService {
         pendingValue: money(sumDecimals(adHocPending.map(valueOf))),
         oldestPendingAt: adHocPending[0]?.createdAt ?? null,
         approvedThisPeriod: adHocApprovedThisPeriod,
-        note: `An ad-hoc order has neither a registered vendor nor a registered supplier behind it, so it bypasses the vetted base and needs CEO approval. ${adHocApprovedThisPeriod} were approved in ${periodLabel}.`,
+        note: `An ad-hoc order has neither a registered vendor nor a registered supplier behind it, so it follows the amount-based ladder and always includes CEO approval. ${adHocApprovedThisPeriod} were approved in ${periodLabel}.`,
         orders: adHocPending.slice(0, NAMED_ROW_LIMIT).map((po) => ({
           id: po.id,
           poNumber: po.poNumber,

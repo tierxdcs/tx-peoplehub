@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import {
   Prisma,
+  PurchaseOrderApprovalLevel,
+  PurchaseOrderApprovalStatus,
   PurchaseOrderStatus,
   Role,
   SupplierStatus,
@@ -48,6 +50,12 @@ const PO_INCLUDE = {
   supplier: { select: { companyName: true, status: true, contactEmail: true } },
   vendor: { select: { companyName: true, status: true, contactEmail: true } },
   createdBy: { select: { firstName: true, lastName: true } },
+  approvals: {
+    orderBy: { sequence: 'asc' as const },
+    include: {
+      decidedBy: { select: { firstName: true, lastName: true } },
+    },
+  },
   lines: {
     orderBy: { sequence: 'asc' as const },
     include: { item: { select: { itemCode: true, name: true } } },
@@ -131,9 +139,7 @@ export class PurchaseOrderService {
       return tx.purchaseOrder.create({
         data: {
           poNumber,
-          status: isAdHoc
-            ? PurchaseOrderStatus.PENDING_CEO_APPROVAL
-            : PurchaseOrderStatus.DRAFT,
+          status: PurchaseOrderStatus.DRAFT,
           supplierId: dto.supplierId ?? null,
           vendorId: dto.vendorId ?? null,
           adHocPartyName: isAdHoc ? adHocPartyName : null,
@@ -153,20 +159,6 @@ export class PurchaseOrderService {
         },
       });
     });
-    // An ad-hoc PO is born PENDING_CEO_APPROVAL (there is no separate submit),
-    // so creation is the moment it needs the CEO. A partner-backed PO is born
-    // DRAFT and never passes through this gate at all.
-    if (isAdHoc) {
-      void this.pushEvents.approvalRequired({
-        kind: 'ad-hoc-po',
-        audience: { pool: 'SUPER_ADMIN' },
-        reference: `${created.poNumber} — ${adHocPartyName}`,
-        requestedById: user.id,
-        recordId: created.id,
-        url: `/stores/purchase-orders/${created.id}`,
-        actorId: user.id,
-      });
-    }
     const entity = await this.get(created.id);
     entity.qualificationWarning = warning;
     return entity;
@@ -230,15 +222,190 @@ export class PurchaseOrderService {
   }
 
   // ── Status transitions ───────────────────────────────────────────────
+  async submitForApproval(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<PurchaseOrderEntity> {
+    await this.access.assertCanManagePurchaseOrders(user);
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id },
+      include: { lines: { select: { lineTotal: true } } },
+    });
+    if (!po) throw new NotFoundException('Purchase order not found');
+    if (po.status !== PurchaseOrderStatus.DRAFT) {
+      throw new BadRequestException(
+        'Only a DRAFT purchase order can be submitted',
+      );
+    }
+    const amount = po.lines.reduce(
+      (sum, line) => sum.plus(line.lineTotal),
+      new Prisma.Decimal(0),
+    );
+    if (amount.lte(0)) {
+      throw new BadRequestException(
+        'Purchase order value must be greater than zero',
+      );
+    }
+    const levels: PurchaseOrderApprovalLevel[] = [
+      PurchaseOrderApprovalLevel.CSCO,
+    ];
+    if (amount.gt(2_500_000)) levels.push(PurchaseOrderApprovalLevel.COO);
+    if (amount.gt(5_000_000) || (!po.supplierId && !po.vendorId)) {
+      levels.push(PurchaseOrderApprovalLevel.CEO);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.purchaseOrder.updateMany({
+        where: { id, status: PurchaseOrderStatus.DRAFT },
+        data: {
+          status: PurchaseOrderStatus.PENDING_CSCO_APPROVAL,
+          approvalAmount: amount,
+          rejectedById: null,
+          rejectedAt: null,
+          rejectionComment: null,
+        },
+      });
+      if (claimed.count !== 1) {
+        throw new BadRequestException(
+          'This purchase order is no longer a DRAFT',
+        );
+      }
+      await tx.purchaseOrderApproval.deleteMany({
+        where: { purchaseOrderId: id },
+      });
+      await tx.purchaseOrderApproval.createMany({
+        data: levels.map((level, sequence) => ({
+          purchaseOrderId: id,
+          level,
+          sequence: sequence + 1,
+          amountSnapshot: amount,
+          status:
+            sequence === 0
+              ? PurchaseOrderApprovalStatus.PENDING
+              : PurchaseOrderApprovalStatus.WAITING,
+        })),
+      });
+    });
+    await this.notifyApprovalRequired(
+      id,
+      po.poNumber,
+      user,
+      PurchaseOrderApprovalLevel.CSCO,
+    );
+    return this.get(id);
+  }
+
+  async approve(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<PurchaseOrderEntity> {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id },
+      include: { approvals: { orderBy: { sequence: 'asc' } } },
+    });
+    if (!po) throw new NotFoundException('Purchase order not found');
+    const current = po.approvals.find(
+      (approval) => approval.status === PurchaseOrderApprovalStatus.PENDING,
+    );
+    if (!current || po.status !== this.pendingStatus(current.level)) {
+      throw new BadRequestException(
+        'This purchase order is not awaiting your approval',
+      );
+    }
+    await this.assertApprovalAuthority(current.level, user);
+    const next = po.approvals.find(
+      (approval) => approval.sequence === current.sequence + 1,
+    );
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.purchaseOrderApproval.updateMany({
+        where: { id: current.id, status: PurchaseOrderApprovalStatus.PENDING },
+        data: {
+          status: PurchaseOrderApprovalStatus.APPROVED,
+          decidedById: user.id,
+          decidedAt: new Date(),
+          comment: null,
+        },
+      });
+      if (claimed.count !== 1) {
+        throw new BadRequestException('This approval has already been decided');
+      }
+      if (next) {
+        await tx.purchaseOrderApproval.update({
+          where: { id: next.id },
+          data: { status: PurchaseOrderApprovalStatus.PENDING },
+        });
+      }
+      await tx.purchaseOrder.update({
+        where: { id },
+        data: {
+          status: next
+            ? this.pendingStatus(next.level)
+            : PurchaseOrderStatus.APPROVED,
+          ...(current.level === PurchaseOrderApprovalLevel.CEO
+            ? { ceoApprovedById: user.id, ceoApprovedAt: new Date() }
+            : {}),
+        },
+      });
+    });
+    if (next)
+      await this.notifyApprovalRequired(id, po.poNumber, user, next.level);
+    return this.get(id);
+  }
+
+  async rejectApproval(
+    id: string,
+    dto: RejectAdHocPurchaseOrderDto,
+    user: AuthenticatedUser,
+  ): Promise<PurchaseOrderEntity> {
+    const comment = dto.comment?.trim();
+    if (!comment)
+      throw new BadRequestException('A rejection comment is required');
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id },
+      include: { approvals: { orderBy: { sequence: 'asc' } } },
+    });
+    if (!po) throw new NotFoundException('Purchase order not found');
+    const current = po.approvals.find(
+      (approval) => approval.status === PurchaseOrderApprovalStatus.PENDING,
+    );
+    if (!current || po.status !== this.pendingStatus(current.level)) {
+      throw new BadRequestException(
+        'This purchase order is not awaiting your decision',
+      );
+    }
+    await this.assertApprovalAuthority(current.level, user);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.purchaseOrderApproval.update({
+        where: { id: current.id },
+        data: {
+          status: PurchaseOrderApprovalStatus.REJECTED,
+          decidedById: user.id,
+          decidedAt: new Date(),
+          comment,
+        },
+      });
+      await tx.purchaseOrder.update({
+        where: { id },
+        data: {
+          status: PurchaseOrderStatus.REJECTED,
+          rejectedById: user.id,
+          rejectedAt: new Date(),
+          rejectionComment: comment,
+        },
+      });
+    });
+    return this.get(id);
+  }
+
   async issue(
     id: string,
     user: AuthenticatedUser,
   ): Promise<PurchaseOrderEntity> {
     const po = await this.prisma.purchaseOrder.findUnique({ where: { id } });
     if (!po) throw new NotFoundException('Purchase order not found');
-    if (!po.supplierId && !po.vendorId && !po.ceoApprovedAt) {
+    if (po.status !== PurchaseOrderStatus.APPROVED) {
       throw new BadRequestException(
-        'An ad-hoc purchase order cannot be issued before CEO/SuperAdmin approval',
+        'A purchase order cannot be issued until every required approval is complete',
       );
     }
     return this.transition(id, PurchaseOrderStatus.ISSUED, user, {
@@ -259,28 +426,7 @@ export class PurchaseOrderService {
     id: string,
     user: AuthenticatedUser,
   ): Promise<PurchaseOrderEntity> {
-    this.assertCeo(user);
-    const po = await this.prisma.purchaseOrder.findUnique({ where: { id } });
-    if (!po) throw new NotFoundException('Purchase order not found');
-    if (po.supplierId || po.vendorId || !po.adHocPartyName) {
-      throw new BadRequestException(
-        'Only an ad-hoc purchase order can use this approval action',
-      );
-    }
-    if (po.status !== PurchaseOrderStatus.PENDING_CEO_APPROVAL) {
-      throw new BadRequestException(
-        `Only a PENDING CEO APPROVAL purchase order can be approved (current: ${po.status})`,
-      );
-    }
-    await this.prisma.purchaseOrder.update({
-      where: { id },
-      data: {
-        status: PurchaseOrderStatus.DRAFT,
-        ceoApprovedById: user.id,
-        ceoApprovedAt: new Date(),
-      },
-    });
-    return this.get(id);
+    return this.approve(id, user);
   }
 
   async rejectAdHoc(
@@ -288,28 +434,7 @@ export class PurchaseOrderService {
     dto: RejectAdHocPurchaseOrderDto,
     user: AuthenticatedUser,
   ): Promise<PurchaseOrderEntity> {
-    this.assertCeo(user);
-    const comment = dto.comment?.trim();
-    if (!comment) {
-      throw new BadRequestException('A rejection comment is required');
-    }
-    const po = await this.prisma.purchaseOrder.findUnique({ where: { id } });
-    if (!po) throw new NotFoundException('Purchase order not found');
-    if (po.status !== PurchaseOrderStatus.PENDING_CEO_APPROVAL) {
-      throw new BadRequestException(
-        `Only a PENDING CEO APPROVAL purchase order can be rejected (current: ${po.status})`,
-      );
-    }
-    await this.prisma.purchaseOrder.update({
-      where: { id },
-      data: {
-        status: PurchaseOrderStatus.REJECTED,
-        rejectedById: user.id,
-        rejectedAt: new Date(),
-        rejectionComment: comment,
-      },
-    });
-    return this.get(id);
+    return this.rejectApproval(id, dto, user);
   }
 
   private async transition(
@@ -346,7 +471,14 @@ export class PurchaseOrderService {
       [PurchaseOrderStatus.PENDING_CEO_APPROVAL]: [
         PurchaseOrderStatus.CANCELLED,
       ],
-      [PurchaseOrderStatus.DRAFT]: [
+      [PurchaseOrderStatus.PENDING_CSCO_APPROVAL]: [
+        PurchaseOrderStatus.CANCELLED,
+      ],
+      [PurchaseOrderStatus.PENDING_COO_APPROVAL]: [
+        PurchaseOrderStatus.CANCELLED,
+      ],
+      [PurchaseOrderStatus.DRAFT]: [PurchaseOrderStatus.CANCELLED],
+      [PurchaseOrderStatus.APPROVED]: [
         PurchaseOrderStatus.ISSUED,
         PurchaseOrderStatus.CANCELLED,
       ],
@@ -379,18 +511,95 @@ export class PurchaseOrderService {
     }
   }
 
-  /**
-   * Badge summary for ad-hoc POs awaiting CEO approval — count plus when the
-   * oldest was raised. An ad-hoc PO is created directly in
-   * PENDING_CEO_APPROVAL (see create()), so `createdAt` IS its waiting-since
-   * time. Same audience as assertCeo, but returns an empty queue instead of
-   * throwing so the notifications endpoint can call it for any role.
-   */
-  async pendingCeoApprovalQueue(
+  private pendingStatus(
+    level: PurchaseOrderApprovalLevel,
+  ): PurchaseOrderStatus {
+    return {
+      [PurchaseOrderApprovalLevel.CSCO]:
+        PurchaseOrderStatus.PENDING_CSCO_APPROVAL,
+      [PurchaseOrderApprovalLevel.COO]:
+        PurchaseOrderStatus.PENDING_COO_APPROVAL,
+      [PurchaseOrderApprovalLevel.CEO]:
+        PurchaseOrderStatus.PENDING_CEO_APPROVAL,
+    }[level];
+  }
+
+  private async assertApprovalAuthority(
+    level: PurchaseOrderApprovalLevel,
     user: AuthenticatedUser,
-  ): Promise<PendingQueue> {
-    if (user.role !== Role.SUPER_ADMIN) return EMPTY_PENDING_QUEUE;
-    const where = { status: PurchaseOrderStatus.PENDING_CEO_APPROVAL };
+  ): Promise<void> {
+    if (level === PurchaseOrderApprovalLevel.CEO) {
+      if (user.role === Role.SUPER_ADMIN) return;
+      throw new ForbiddenException(
+        'Only the CEO/SuperAdmin may decide the CEO approval step',
+      );
+    }
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: user.id },
+      select: { status: true, isScmHead: true, isProductionHead: true },
+    });
+    const allowed =
+      employee?.status === 'ACTIVE' &&
+      (level === PurchaseOrderApprovalLevel.CSCO
+        ? employee.isScmHead
+        : employee.isProductionHead);
+    if (!allowed) {
+      throw new ForbiddenException(
+        level === PurchaseOrderApprovalLevel.CSCO
+          ? 'Only the designated CSCO/SCM Head may decide this approval step'
+          : 'Only the designated COO/Production Head may decide this approval step',
+      );
+    }
+  }
+
+  private async notifyApprovalRequired(
+    id: string,
+    poNumber: string,
+    actor: AuthenticatedUser,
+    level: PurchaseOrderApprovalLevel,
+  ): Promise<void> {
+    const recipients = await this.prisma.employee.findMany({
+      where: {
+        status: 'ACTIVE',
+        ...(level === PurchaseOrderApprovalLevel.CSCO
+          ? { isScmHead: true }
+          : level === PurchaseOrderApprovalLevel.COO
+            ? { isProductionHead: true }
+            : { role: Role.SUPER_ADMIN }),
+      },
+      select: { id: true },
+    });
+    void this.pushEvents.approvalRequired({
+      kind: 'purchase-order',
+      audience: { employeeIds: recipients.map((employee) => employee.id) },
+      reference: `${poNumber} — ${level} approval`,
+      requestedById: actor.id,
+      recordId: id,
+      url: `/stores/purchase-orders/${id}`,
+      actorId: actor.id,
+    });
+  }
+
+  /** Approval queue scoped to the caller's CSCO, COO, or CEO authority. */
+  async pendingApprovalQueue(user: AuthenticatedUser): Promise<PendingQueue> {
+    let statuses: PurchaseOrderStatus[] = [];
+    if (user.role === Role.SUPER_ADMIN) {
+      statuses = [PurchaseOrderStatus.PENDING_CEO_APPROVAL];
+    } else {
+      const employee = await this.prisma.employee.findUnique({
+        where: { id: user.id },
+        select: { status: true, isScmHead: true, isProductionHead: true },
+      });
+      if (employee?.status !== 'ACTIVE') return EMPTY_PENDING_QUEUE;
+      if (employee.isScmHead) {
+        statuses.push(PurchaseOrderStatus.PENDING_CSCO_APPROVAL);
+      }
+      if (employee.isProductionHead) {
+        statuses.push(PurchaseOrderStatus.PENDING_COO_APPROVAL);
+      }
+    }
+    if (statuses.length === 0) return EMPTY_PENDING_QUEUE;
+    const where = { status: { in: statuses } };
     const [count, oldest] = await Promise.all([
       this.prisma.purchaseOrder.count({ where }),
       this.prisma.purchaseOrder.findFirst({
@@ -402,12 +611,11 @@ export class PurchaseOrderService {
     return { count, oldestPendingAt: oldest?.createdAt ?? null };
   }
 
-  private assertCeo(user: AuthenticatedUser): void {
-    if (user.role !== Role.SUPER_ADMIN) {
-      throw new ForbiddenException(
-        'Only the CEO/SuperAdmin can approve or reject an ad-hoc purchase order',
-      );
-    }
+  /** Backward-compatible alias for older callers. */
+  async pendingCeoApprovalQueue(
+    user: AuthenticatedUser,
+  ): Promise<PendingQueue> {
+    return this.pendingApprovalQueue(user);
   }
 
   /**
@@ -553,9 +761,21 @@ export class PurchaseOrderService {
       cancelledAt: po.cancelledAt ? po.cancelledAt.toISOString() : null,
       lastEmailedAt: po.lastEmailedAt ? po.lastEmailedAt.toISOString() : null,
       lastEmailedTo: po.lastEmailedTo,
-      partyEmail:
-        po.supplier?.contactEmail ?? po.vendor?.contactEmail ?? null,
+      partyEmail: po.supplier?.contactEmail ?? po.vendor?.contactEmail ?? null,
       totalAmount: total.toFixed(2),
+      approvalAmount: po.approvalAmount?.toFixed(2) ?? null,
+      approvals: po.approvals.map((approval) => ({
+        id: approval.id,
+        level: approval.level,
+        sequence: approval.sequence,
+        status: approval.status,
+        decidedById: approval.decidedById,
+        decidedByName: approval.decidedBy
+          ? `${approval.decidedBy.firstName} ${approval.decidedBy.lastName}`.trim()
+          : null,
+        decidedAt: approval.decidedAt?.toISOString() ?? null,
+        comment: approval.comment,
+      })),
       lines: po.lines.map(
         (l) =>
           new PurchaseOrderLineEntity({
