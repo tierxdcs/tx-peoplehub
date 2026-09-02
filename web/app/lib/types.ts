@@ -487,6 +487,10 @@ export type OpportunityStage =
   | 'NEGOTIATION'
   | 'CLOSED_WON'
   | 'CLOSED_LOST';
+/**
+ * REJECTED is an internal discount refusal and EXPIRED only means the validity
+ * lapsed; LOST is the explicit commercial loss (the customer went elsewhere).
+ */
 export type BidStatus =
   | 'DRAFT'
   | 'PENDING_APPROVAL'
@@ -494,7 +498,8 @@ export type BidStatus =
   | 'REJECTED'
   | 'SENT'
   | 'ACCEPTED'
-  | 'EXPIRED';
+  | 'EXPIRED'
+  | 'LOST';
 export type OrderStatus =
   | 'CONFIRMED'
   | 'IN_PRODUCTION'
@@ -708,6 +713,11 @@ export interface Bid {
   approverComments: string | null;
   approverSignatureTextSnapshot: string | null;
   approverSignatureFontSnapshot: SignatureFont | null;
+  /** Why the bid was lost. Non-null only when status is 'LOST'. */
+  lostReason: string | null;
+  closedAsLostById: string | null;
+  closedAsLostByName: string | null;
+  closedAsLostAt: string | null;
   lineItems?: BidLineItem[];
   amcCharges?: BidAmcCharge[];
   /** Non-null once this bid has been converted to an order. */

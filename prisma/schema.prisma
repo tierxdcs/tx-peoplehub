@@ -164,6 +164,13 @@ enum OpportunityStage {
   CLOSED_LOST
 }
 
+/// REJECTED is an INTERNAL outcome (our own approver refused the discount) and
+/// EXPIRED merely means `validUntil` lapsed. Neither says the customer went
+/// elsewhere, which is why LOST exists: an explicit, reasoned commercial loss
+/// recorded by the bid owner or SUPER_ADMIN. LOST is a dead end — it never
+/// converts to an order and never counts as live pipeline — but it DOES stay in
+/// the win-rate denominator, since a loss is still a bid that reached the
+/// customer.
 enum BidStatus {
   DRAFT
   PENDING_APPROVAL
@@ -172,6 +179,7 @@ enum BidStatus {
   SENT
   ACCEPTED
   EXPIRED
+  LOST
 }
 
 enum OrderStatus {
@@ -581,6 +589,7 @@ model Employee {
   bidsCreated                  Bid[]                         @relation("BidCreator")
   bidsOriginated               Bid[]                         @relation("BidEnquiryCreator")
   bidsApproved                 Bid[]                         @relation("BidApprover")
+  bidsClosedAsLost             Bid[]                         @relation("BidLostCloser")
   ordersOwned                  Order[]                       @relation("OrderOwner")
   ordersOriginated             Order[]                       @relation("OrderEnquiryCreator")
   customerProgressLinksCreated OrderCustomerProgressInvite[] @relation("OrderCustomerProgressInviteCreator")
@@ -1604,6 +1613,15 @@ model Bid {
   /// Snapshot of the approving manager's e-signature at discount-approval time.
   approverSignatureTextSnapshot String?
   approverSignatureFontSnapshot SignatureFont?
+  /// Why this bid was lost — required when status becomes LOST, and the reason a
+  /// closure is auditable rather than a silent status flip. Distinct from
+  /// `approverComments`, which records an internal discount refusal.
+  lostReason                    String?
+  /// Who closed the bid as LOST and when. Set together with `lostReason`; all
+  /// three stay null for every other status.
+  closedAsLostById              String?
+  closedAsLostBy                Employee?            @relation("BidLostCloser", fields: [closedAsLostById], references: [id], onDelete: SetNull)
+  closedAsLostAt                DateTime?
   lineItems                     BidLineItem[]
   amcCharges                    BidAmcCharge[]
   orders                        Order[]
@@ -1617,6 +1635,7 @@ model Bid {
   @@index([createdById])
   @@index([enquiryCreatorId])
   @@index([businessUnitId])
+  @@index([closedAsLostById])
   @@map("bids")
 }
 
@@ -4067,6 +4086,9 @@ model CustomerBomIntake {
   rawFileName        String?
   rawFileSize        Int?
   rawMimeType        String?
+  /// Customer-supplied source files. The legacy rawFile* columns retain the
+  /// first attachment so existing records and integrations remain compatible.
+  rawAttachments     Json?
   status             CustomerBomIntakeStatus @default(DRAFT)
   finishedGoodItemId String?                 @unique
   finishedGoodItem   Item?                   @relation("CustomerBomIntakeFinishedGood", fields: [finishedGoodItemId], references: [id], onDelete: SetNull)

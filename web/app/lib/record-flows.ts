@@ -37,7 +37,9 @@ export function bidFlow(status: BidStatus): FlowResult {
     return { steps: BID_STEPS, currentStage: null, cancelled: true, cancelledLabel: 'This bid was rejected in approval.' };
   if (status === 'EXPIRED')
     return { steps: BID_STEPS, currentStage: null, cancelled: true, cancelledLabel: 'This bid expired before acceptance.' };
-  const map: Record<Exclude<BidStatus, 'REJECTED' | 'EXPIRED'>, string> = {
+  if (status === 'LOST')
+    return { steps: BID_STEPS, currentStage: null, cancelled: true, cancelledLabel: 'This bid was closed as lost.' };
+  const map: Record<Exclude<BidStatus, 'REJECTED' | 'EXPIRED' | 'LOST'>, string> = {
     DRAFT: 'draft',
     PENDING_APPROVAL: 'pending',
     APPROVED: 'approved',

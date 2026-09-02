@@ -58,6 +58,7 @@ describe('PlmService', () => {
     };
     const access = {
       assertCanOperate: jest.fn().mockResolvedValue(undefined),
+      assertCanConfirmStage: jest.fn().mockResolvedValue(undefined),
       assertProductionHead: jest.fn().mockResolvedValue(undefined),
       assertCanCompleteDesign: jest.fn().mockResolvedValue(undefined),
     };
@@ -307,7 +308,7 @@ describe('PlmService', () => {
   });
 
   it('skips the stock-report check and advances Material Planning by manual confirmation when supply is out of scope', async () => {
-    const { service, prisma, stockReports } = setup(
+    const { service, prisma, access, stockReports } = setup(
       tracker({
         currentStage: PlmStage.MATERIAL_PLANNING,
         kickoff: { supplyInScope: false },
@@ -324,6 +325,7 @@ describe('PlmService', () => {
 
     await service.confirmStage('tracker-1', {}, user);
 
+    expect(access.assertCanConfirmStage).toHaveBeenCalledWith(user);
     expect(stockReports.computeReport).not.toHaveBeenCalled();
     expect(prisma.$transaction).toHaveBeenCalled();
   });

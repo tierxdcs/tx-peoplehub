@@ -120,6 +120,7 @@ export function bidStatusColor(status: BidStatus): string {
       return 'hsl(var(--warning))';
     case 'REJECTED':
     case 'EXPIRED':
+    case 'LOST':
       return 'hsl(var(--destructive))';
     case 'DRAFT':
     default:

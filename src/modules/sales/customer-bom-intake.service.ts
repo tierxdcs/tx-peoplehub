@@ -1,6 +1,8 @@
 import { randomBytes } from 'crypto';
 import {
   BadRequestException,
+  ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -23,7 +25,10 @@ import {
   assertExtensionAllowed,
   assertSizeWithinCap,
 } from '../vault/vault-guardrails';
-import { SalesAccessService } from './common/sales-access.service';
+import {
+  SalesAccessService,
+  isSuperAdmin,
+} from './common/sales-access.service';
 import { SalesNumberingService } from './common/sales-numbering.service';
 import { ExplodableBom, explodeProcurementBom } from '../bom/bom-explosion';
 import { BomService } from '../bom/bom.service';
@@ -166,6 +171,22 @@ export function customerBomFileInput(dto: {
     : null;
 }
 
+function customerBomFileInputs(dto: {
+  fileKey?: string;
+  fileName?: string;
+  attachments?: Array<{ fileKey: string; fileName: string }>;
+}) {
+  const legacy = customerBomFileInput(dto);
+  const files = dto.attachments?.map((file) => ({
+    key: file.fileKey,
+    name: file.fileName,
+  })) ?? (legacy ? [legacy] : []);
+  if (files.length > 10) {
+    throw new BadRequestException('A BOM intake can contain at most 10 files');
+  }
+  return files;
+}
+
 @Injectable()
 export class CustomerBomIntakeService implements OnModuleInit {
   private readonly logger = new Logger(CustomerBomIntakeService.name);
@@ -278,7 +299,7 @@ export class CustomerBomIntakeService implements OnModuleInit {
     user: AuthenticatedUser,
   ) {
     const opportunity = await this.ownedOpportunity(opportunityId, user);
-    const fileInput = customerBomFileInput(dto);
+    const fileInputs = customerBomFileInputs(dto);
     // The two modes are mutually exclusive by definition: either the customer
     // handed over a parts list (transcribe it) or they did not (design it).
     const requiresDesign = dto.requiresDesign === true;
@@ -304,13 +325,13 @@ export class CustomerBomIntakeService implements OnModuleInit {
       );
     }
 
-    let uploadedFile: {
+    const uploadedFiles: Array<{
       key: string;
       name: string;
       sizeBytes: number;
       contentType: string;
-    } | null = null;
-    if (fileInput) {
+    }> = [];
+    for (const fileInput of fileInputs) {
       if (!fileInput.key.startsWith(`customer-bom-intake/${user.id}/`)) {
         throw new BadRequestException('Invalid customer BOM file key');
       }
@@ -321,13 +342,14 @@ export class CustomerBomIntakeService implements OnModuleInit {
           'Customer BOM upload was not found in storage',
         );
       assertSizeWithinCap(head.sizeBytes);
-      uploadedFile = {
+      uploadedFiles.push({
         key: fileInput.key,
         name: fileInput.name,
         sizeBytes: head.sizeBytes,
         contentType: head.contentType ?? 'application/octet-stream',
-      };
+      });
     }
+    const uploadedFile = uploadedFiles[0] ?? null;
 
     const businessUnit = await this.prisma.businessUnit.findFirst({
       where: { id: dto.businessUnitId, isActive: true },
@@ -406,6 +428,10 @@ export class CustomerBomIntakeService implements OnModuleInit {
           rawFileName: uploadedFile?.name ?? null,
           rawFileSize: uploadedFile?.sizeBytes ?? null,
           rawMimeType: uploadedFile?.contentType ?? null,
+          rawAttachments:
+            uploadedFiles.length > 0
+              ? (uploadedFiles as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
           status: requiresDesign
             ? CustomerBomIntakeStatus.DESIGN_PENDING
             : CustomerBomIntakeStatus.CREATED,
@@ -492,7 +518,7 @@ export class CustomerBomIntakeService implements OnModuleInit {
           },
         },
         designRequests: DESIGN_REQUEST_SELECT,
-        createdBy: { select: { firstName: true, lastName: true } },
+        createdBy: { select: { id: true, firstName: true, lastName: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -592,6 +618,55 @@ export class CustomerBomIntakeService implements OnModuleInit {
       approvedQuote: approvedQuote(row.rfqs),
       designRequest: designRequests[0] ?? null,
     };
+  }
+
+  /**
+   * A maker may withdraw only their own intake while its derived register state
+   * is still DRAFT. SUPER_ADMIN/CEO uses the same door for Draft rows. The
+   * derived check matters because the intake's stored CREATED state remains in
+   * use while its linked BOM moves through its own lifecycle.
+   */
+  async removeDraft(id: string, user: AuthenticatedUser) {
+    await this.access.assertSalesAccess(user);
+    const intake = await this.prisma.customerBomIntake.findUnique({
+      where: { id },
+      select: {
+        createdById: true,
+        status: true,
+        bom: { select: { status: true } },
+        rfqs: { select: { status: true } },
+      },
+    });
+    if (!intake) throw new NotFoundException('Customer BOM intake not found');
+    const state = deriveIntakeStatus(
+      intake.status,
+      intake.bom?.status ?? null,
+      intake.rfqs.map((rfq) => rfq.status),
+    );
+    if (state !== 'DRAFT') {
+      throw new BadRequestException(
+        `Only a Draft BOM intake can be deleted (current status: ${state})`,
+      );
+    }
+    if (!isSuperAdmin(user) && intake.createdById !== user.id) {
+      throw new ForbiddenException(
+        'Only the employee who created this Draft BOM intake or the CEO/Super Admin can delete it',
+      );
+    }
+    try {
+      await this.prisma.customerBomIntake.delete({ where: { id } });
+      return { deleted: true };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new ConflictException(
+          'This Draft intake has dependent sourcing or engineering records and cannot be deleted until those records are removed.',
+        );
+      }
+      throw error;
+    }
   }
 
   /**

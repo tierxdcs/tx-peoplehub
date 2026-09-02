@@ -192,7 +192,13 @@ export default function SalesExecutiveDashboardPage() {
               hint={
                 data.winRate.bidsSubmitted === 0
                   ? 'No bids submitted in this period'
-                  : `${data.winRate.bidsWon} won of ${data.winRate.bidsSubmitted} submitted`
+                  : `${data.winRate.bidsWon} won of ${data.winRate.bidsSubmitted} submitted` +
+                    // Only mention losses once some are explicitly recorded —
+                    // otherwise it reads as "0 lost" on data that never had the
+                    // status available.
+                    (data.winRate.bidsLost > 0
+                      ? ` · ${data.winRate.bidsLost} lost`
+                      : '')
               }
             />
             <KpiTile

@@ -54,6 +54,10 @@ import { BidPrintDocument } from '../../_components/bid-print-document';
 import { AdHocResolutionCard } from '../../_components/ad-hoc-resolution';
 import { StrategyMeetingsSection } from '../_components/strategy-meetings-section';
 import { PromoteInternalOrderDialog } from '../_components/promote-internal-order-dialog';
+import {
+  canCloseBidAsLost,
+  CloseBidAsLostDialog,
+} from '../_components/close-bid-as-lost-dialog';
 
 export default function BidDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -77,6 +81,7 @@ export default function BidDetailPage() {
   const [comments, setComments] = useState('');
   const [hasSignature, setHasSignature] = useState(true);
   const [promoteOpen, setPromoteOpen] = useState(false);
+  const [closeLostOpen, setCloseLostOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -381,7 +386,9 @@ export default function BidDetailPage() {
                     </Button>
                   </>
                 ))}
-              {(bid.status === 'DRAFT' || bid.status === 'REJECTED') && (
+              {(bid.status === 'DRAFT' ||
+                bid.status === 'REJECTED' ||
+                bid.status === 'SENT') && (
                 <Button
                   variant="outline"
                   onClick={() =>
@@ -390,7 +397,17 @@ export default function BidDetailPage() {
                     )
                   }
                 >
-                  New revised bid
+                  Revise Bid
+                </Button>
+              )}
+              {canCloseBidAsLost(bid) && (
+                <Button
+                  variant="outline"
+                  disabled={acting}
+                  title="Record this bid as lost so it stops counting as live pipeline"
+                  onClick={() => setCloseLostOpen(true)}
+                >
+                  Close as Lost
                 </Button>
               )}
             </>
@@ -615,6 +632,25 @@ export default function BidDetailPage() {
             </p>
           )}
 
+          {/* The loss record. Kept separate from `approverComments` above, which
+              is an INTERNAL discount refusal, not a commercial loss. */}
+          {bid.status === 'LOST' && (
+            <SCard className="px-5 py-[18px]">
+              <SCardTitle title="Closed as lost" />
+              <p className="mt-2 text-sm">{bid.lostReason}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {[
+                  bid.closedAsLostByName ? `By ${bid.closedAsLostByName}` : null,
+                  bid.closedAsLostAt ? bid.closedAsLostAt.slice(0, 10) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                {' — this bid no longer counts as live pipeline, but it still '}
+                counts in the win rate.
+              </p>
+            </SCard>
+          )}
+
           {/* Approver's e-signature, shown once the bid is approved. */}
           {bid.status === 'APPROVED' && (
             <SCard className="px-5 py-[18px]">
@@ -691,6 +727,15 @@ export default function BidDetailPage() {
         onOpenChange={setPromoteOpen}
         onPromoted={(orderId) => router.push(`/sales/orders/${orderId}`)}
         canCreateProduct={canCreateProduct}
+      />
+
+      {/* Reload rather than patching in the response: closing the opportunity's
+          last live bid also closes the opportunity, which this page reflects. */}
+      <CloseBidAsLostDialog
+        bid={bid}
+        open={closeLostOpen}
+        onOpenChange={setCloseLostOpen}
+        onClosed={() => load()}
       />
 
       {/* Convert-to-order confirmation, with optional per-line customer-facing

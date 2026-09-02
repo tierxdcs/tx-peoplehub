@@ -26,6 +26,23 @@ export class PlmAccessService {
     return !!employee?.isProductionHead;
   }
 
+  /**
+   * Moving the lifecycle is a project-control decision. Tracker ownership,
+   * Production Head status, and general PLM visibility deliberately do not
+   * grant this permission.
+   */
+  async assertCanConfirmStage(user: AuthenticatedUser): Promise<void> {
+    if (user.role === Role.SUPER_ADMIN) return;
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: user.id },
+      select: { isProjectManager: true },
+    });
+    if (employee?.isProjectManager) return;
+    throw new ForbiddenException(
+      'Only a Project Manager or CEO/SUPER_ADMIN may confirm a PLM stage',
+    );
+  }
+
   async assertProductionHead(user: AuthenticatedUser): Promise<void> {
     if (!(await this.hasFullAccess(user))) {
       throw new ForbiddenException(

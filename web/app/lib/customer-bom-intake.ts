@@ -62,6 +62,7 @@ export const createCustomerBomIntake = (
     expectedBy?: string;
     fileKey?: string;
     fileName?: string;
+    attachments?: Array<{ fileKey: string; fileName: string }>;
     /**
      * The customer stated a requirement, not a parts list: the design team
      * designs the product and authors the BOM. Sent with no lines; the intake
@@ -160,7 +161,7 @@ export interface BomIntakeRegisterRow {
   businessUnit: { name: string };
   product: { sku: string; name: string } | null;
   bom: { id: string; status: string; revisionNumber: number } | null;
-  createdBy: { firstName: string; lastName: string };
+  createdBy: { id: string; firstName: string; lastName: string };
 }
 
 export const listBomIntakeRegister = () =>

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -91,6 +92,18 @@ export class CustomerBomIntakeRegisterController {
   @Get(':id')
   detail(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.detail(id, user);
+  }
+
+  @Delete(':id')
+  @ApiOperation({
+    summary:
+      'Delete a Draft BOM intake (creator or Super Admin/CEO only)',
+  })
+  removeDraft(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.removeDraft(id, user);
   }
 
   @Get(':id/file')

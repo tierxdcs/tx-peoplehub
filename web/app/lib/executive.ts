@@ -77,8 +77,11 @@ export interface SalesDashboard {
     percent: string | null;
     bidsSubmitted: number;
     bidsWon: number;
+    /** Bids explicitly closed as lost, as opposed to merely expired. */
+    bidsLost: number;
     submittedValue: string;
     wonValue: string;
+    lostValue: string;
     status: DataMaturity;
   };
   dealSize: {

@@ -41,6 +41,10 @@ import {
   TableRow,
 } from '../../../../components/ui/table';
 import { BidAssessmentDialog } from '../../_components/bid-assessment-dialog';
+import {
+  canCloseBidAsLost,
+  CloseBidAsLostDialog,
+} from '../../bids/_components/close-bid-as-lost-dialog';
 import { useConfirm } from '../../../../components/ui/confirm';
 import { SignatureDisplay } from '../../../../components/ui/signature-display';
 
@@ -64,6 +68,7 @@ export default function OpportunityDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assessmentDialogOpen, setAssessmentDialogOpen] = useState(false);
+  const [closingBid, setClosingBid] = useState<Bid | null>(null);
 
   const [stage, setStage] = useState<OpportunityStage>('PROSPECTING');
   const [lostReason, setLostReason] = useState('');
@@ -305,15 +310,38 @@ export default function OpportunityDetailPage() {
                   <TableCell className="font-medium">{b.bidNumber}</TableCell>
                   <TableCell>
                     <StatusBadge value={b.status} />
+                    {/* The reason is the whole point of recording a loss —
+                        surface it here rather than only on the bid detail. */}
+                    {b.status === 'LOST' && b.lostReason && (
+                      <p className={`mt-1 text-xs ${SIGNAL_MUTED}`}>
+                        {b.lostReason}
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatINR(b.grandTotal, numberFormatStyle)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Link
-                      href={`/sales/bids/${b.id}`}
-                      className={SIGNAL_LINK}
+                    {/* A lost bid's value is struck through: it is on record but
+                        no longer counts towards anything. */}
+                    <span
+                      className={
+                        b.status === 'LOST'
+                          ? 'text-muted-foreground line-through'
+                          : undefined
+                      }
                     >
+                      {formatINR(b.grandTotal, numberFormatStyle)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="space-x-3 text-right whitespace-nowrap">
+                    {canCloseBidAsLost(b) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setClosingBid(b)}
+                      >
+                        Close as Lost
+                      </Button>
+                    )}
+                    <Link href={`/sales/bids/${b.id}`} className={SIGNAL_LINK}>
                       View →
                     </Link>
                   </TableCell>
@@ -332,6 +360,20 @@ export default function OpportunityDetailPage() {
             </TableBody>
           </Table>
       </SCard>
+
+      {/* Closing the last live bid also closes the opportunity as CLOSED_LOST
+          server-side, so reload the whole page rather than patching the row. */}
+      {closingBid && (
+        <CloseBidAsLostDialog
+          bid={closingBid}
+          open
+          onOpenChange={(o) => !o && setClosingBid(null)}
+          onClosed={() => {
+            setClosingBid(null);
+            load();
+          }}
+        />
+      )}
 
       <BidAssessmentDialog
         opportunityId={opp.id}

@@ -18,7 +18,7 @@ import {
   ApprovedQuoteIndicator,
   IntakeProgressBar,
 } from '../_components/intake-progress';
-import { SuperAdminDeleteButton } from '../_components/super-admin-delete-button';
+import { BomIntakeDeleteButton } from '../_components/bom-intake-delete-button';
 import {
   SCard,
   SIGNAL_BTN_GHOST,
@@ -250,10 +250,11 @@ export default function BomIntakeRegisterPage() {
                       {new Date(row.createdAt).toLocaleDateString('en-IN')}
                     </TableCell>
                     <TableCell>
-                      <SuperAdminDeleteButton
-                        type="bom-intakes"
+                      <BomIntakeDeleteButton
                         id={row.id}
-                        label={row.productName}
+                        productName={row.productName}
+                        createdById={row.createdBy.id}
+                        draft={row.derivedStatus === 'DRAFT'}
                         onDeleted={async () =>
                           setRows(await listBomIntakeRegister())
                         }

@@ -95,6 +95,16 @@ export class RfqController {
     return this.service.quoteStageSourcingLines(intakeId, user);
   }
 
+  @Get('quote-stage-options/:intakeId/attachments/:attachmentId')
+  @ApiOperation({ summary: 'Download customer evidence while drafting an RFQ' })
+  quoteStageAttachment(
+    @Param('intakeId') intakeId: string,
+    @Param('attachmentId') attachmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.quoteStageAttachment(intakeId, attachmentId, user);
+  }
+
   @Get('project-options/:projectKickoffId/sourcing-lines')
   @ApiOperation({
     summary: 'Exploded BUY requirements for an order-linked RFQ',

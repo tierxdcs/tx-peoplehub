@@ -75,11 +75,16 @@ const ISSUED_INVOICE_STATUSES = [
   SalesInvoiceStatus.OVERDUE,
 ] as const;
 
-/** A bid that actually reached the customer (the win-rate denominator). */
+/**
+ * A bid that actually reached the customer (the win-rate denominator). LOST
+ * belongs here precisely BECAUSE it was lost — dropping losses from the
+ * denominator would flatter the win rate towards 100%.
+ */
 const SUBMITTED_BID_STATUSES = [
   BidStatus.SENT,
   BidStatus.ACCEPTED,
   BidStatus.EXPIRED,
+  BidStatus.LOST,
 ] as const;
 
 /**
@@ -496,10 +501,20 @@ export class SalesDashboardService {
     orders: unknown[],
     bookedTotal: Prisma.Decimal,
   ): FunnelStage[] {
-    const submitted = bids.filter((b) =>
-      SUBMITTED_BID_STATUSES.includes(
-        b.status as (typeof SUBMITTED_BID_STATUSES)[number],
-      ),
+    // "Bids sent" is a PIPELINE stage, so it counts only bids that both reached
+    // the customer and could still be won — SENT and ACCEPTED. A bid closed as
+    // LOST (or left to EXPIRE) is money the company will never book, and leaving
+    // it here would keep a lost deal inflating the funnel forever. The full
+    // submitted history, losses included, stays visible in `winRate` below.
+    const sentAndLive = bids.filter(
+      (b) => b.status === BidStatus.SENT || b.status === BidStatus.ACCEPTED,
+    );
+    const deadValue = sumDecimals(
+      bids
+        .filter(
+          (b) => b.status === BidStatus.LOST || b.status === BidStatus.EXPIRED,
+        )
+        .map((b) => b.totalAmount),
     );
     const won = bids.filter((b) => b.status === BidStatus.ACCEPTED);
     return [
@@ -523,9 +538,11 @@ export class SalesDashboardService {
       {
         key: 'bids_sent',
         label: 'Bids sent',
-        count: submitted.length,
-        value: money(sumDecimals(submitted.map((b) => b.totalAmount))),
-        valueNote: null,
+        count: sentAndLive.length,
+        value: money(sumDecimals(sentAndLive.map((b) => b.totalAmount))),
+        valueNote: deadValue.isZero()
+          ? null
+          : `Excludes ${money(deadValue)} of lost/expired bids`,
       },
       {
         key: 'bids_won',
@@ -553,6 +570,10 @@ export class SalesDashboardService {
       ),
     );
     const won = submitted.filter((b) => b.status === BidStatus.ACCEPTED);
+    // Explicitly closed losses, as opposed to bids that merely lapsed. Reported
+    // separately so the numerator/denominator gap is attributable rather than
+    // just "everything that wasn't won".
+    const lost = submitted.filter((b) => b.status === BidStatus.LOST);
     return {
       percent:
         submitted.length === 0
@@ -564,9 +585,11 @@ export class SalesDashboardService {
             ),
       bidsSubmitted: submitted.length,
       bidsWon: won.length,
+      bidsLost: lost.length,
       submittedValue: money(sumDecimals(submitted.map((b) => b.totalAmount)))!,
       wonValue: money(sumDecimals(won.map((b) => b.totalAmount)))!,
-      /** EXPIRED and still-open bids sit in the denominator honestly. */
+      lostValue: money(sumDecimals(lost.map((b) => b.totalAmount)))!,
+      /** EXPIRED, LOST and still-open bids all sit in the denominator honestly. */
       status: this.maturity(submitted.length, submitted.length),
     };
   }

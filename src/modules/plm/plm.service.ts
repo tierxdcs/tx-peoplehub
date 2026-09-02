@@ -374,7 +374,7 @@ export class PlmService {
     user: AuthenticatedUser,
   ) {
     const tracker = await this.getRaw(id);
-    await this.access.assertCanOperate(user, tracker.ownerId);
+    await this.access.assertCanConfirmStage(user);
     const from = tracker.currentStage;
     const to = await this.nextStage(tracker);
 

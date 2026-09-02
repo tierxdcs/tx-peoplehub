@@ -225,6 +225,22 @@ export class BidEntity {
   @ApiProperty({ enum: SignatureFont, nullable: true })
   approverSignatureFontSnapshot!: SignatureFont | null;
 
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Why the bid was lost. Non-null only when status is LOST — distinct from approverComments, which records an internal discount refusal.',
+  })
+  lostReason!: string | null;
+
+  @ApiProperty({ nullable: true })
+  closedAsLostById!: string | null;
+
+  @ApiProperty({ nullable: true })
+  closedAsLostByName!: string | null;
+
+  @ApiProperty({ nullable: true })
+  closedAsLostAt!: Date | null;
+
   @ApiProperty({ type: [BidLineItemEntity], required: false })
   lineItems?: BidLineItemEntity[];
 

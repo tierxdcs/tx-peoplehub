@@ -9,6 +9,7 @@ import {
   BidLineItem,
   BidStatus,
   Customer,
+  OpportunityStage,
   Prisma,
   SalesTaxType,
 } from '@prisma/client';
@@ -24,6 +25,7 @@ import {
 } from '../../common/dto/pagination.dto';
 import { CreateBidDto } from './dto/create-bid.dto';
 import { BidActionDto } from './dto/bid-action.dto';
+import { CloseBidAsLostDto } from './dto/close-bid-as-lost.dto';
 import { ResolveBidLineItemDto } from './dto/resolve-bid-line-item.dto';
 import {
   BidAmcChargeEntity,
@@ -46,6 +48,32 @@ const DISCOUNT_APPROVAL_THRESHOLD = new Prisma.Decimal(10);
 /** The company's home state — intra-state (CGST+SGST) when the customer matches. */
 const COMPANY_STATE = 'Karnataka';
 
+/**
+ * Bids that could still become an order. The complement (REJECTED, EXPIRED,
+ * LOST) is the set of dead ends — so this is the single definition of "live
+ * pipeline" for a bid, used both by the ad-hoc-line-item sweep and by the
+ * opportunity auto-close.
+ */
+export const LIVE_BID_STATUSES = [
+  BidStatus.DRAFT,
+  BidStatus.PENDING_APPROVAL,
+  BidStatus.APPROVED,
+  BidStatus.SENT,
+  BidStatus.ACCEPTED,
+] as const;
+
+/**
+ * Statuses from which a bid may be closed as LOST: the ones where a price had
+ * (or was about to have) reached the customer. DRAFT/PENDING_APPROVAL were never
+ * quoted, ACCEPTED is won, and REJECTED is an internal discount refusal the rep
+ * can still revise and resubmit.
+ */
+export const CLOSEABLE_AS_LOST_STATUSES: BidStatus[] = [
+  BidStatus.APPROVED,
+  BidStatus.SENT,
+  BidStatus.EXPIRED,
+];
+
 type BidLineItemWithProduct = BidLineItem & {
   // Null for an unresolved ad-hoc line (productId is null); populated otherwise.
   product: {
@@ -63,6 +91,7 @@ type BidWithLines = Bid & {
   enquiryCreator?: { firstName: string; lastName: string };
   opportunity?: { owner: { firstName: string; lastName: string } };
   businessUnit?: { name: string; colorHex: string };
+  closedAsLostBy?: { firstName: string; lastName: string } | null;
 };
 
 @Injectable()
@@ -272,6 +301,7 @@ export class BidsService {
             select: { owner: { select: { firstName: true, lastName: true } } },
           },
           businessUnit: { select: { name: true, colorHex: true } },
+          closedAsLostBy: { select: { firstName: true, lastName: true } },
         },
         skip: query.skip,
         take: query.limit,
@@ -519,6 +549,128 @@ export class BidsService {
   }
 
   /**
+   * Close a bid as LOST — the customer awarded it elsewhere, or the enquiry died
+   * commercially. Deliberately NOT part of `markStatus`: the loss reason is
+   * mandatory and the closure is attributed, so it gets its own endpoint rather
+   * than riding on a generic status flip.
+   *
+   * Reachable from the three statuses where a bid had (or was about to have) a
+   * price in front of the customer. DRAFT/PENDING_APPROVAL were never quoted;
+   * ACCEPTED is won and may already carry an order. EXPIRED is included so a bid
+   * whose validity merely lapsed can be reclassified as a confirmed loss.
+   *
+   * Authorization is the standard Sales mutation guard — the bid's own creator,
+   * their management chain, or SUPER_ADMIN.
+   *
+   * Losing the last live bid on an opportunity also closes the opportunity as
+   * CLOSED_LOST, which is what takes its `estimatedValue` out of live pipeline.
+   * See {@link closeOpportunityIfAllBidsDead}.
+   */
+  async closeAsLost(
+    id: string,
+    dto: CloseBidAsLostDto,
+    user: AuthenticatedUser,
+  ): Promise<BidEntity> {
+    await this.access.assertSalesAccess(user);
+    const bid = await this.findRawOrThrow(id);
+    await this.access.assertCanAccessOwned(user, bid.createdById);
+
+    if (!CLOSEABLE_AS_LOST_STATUSES.includes(bid.status)) {
+      throw new BadRequestException(
+        bid.status === BidStatus.LOST
+          ? 'This bid is already closed as lost'
+          : `A ${bid.status} bid cannot be closed as lost — only ${CLOSEABLE_AS_LOST_STATUSES.join(', ')} bids can`,
+      );
+    }
+    // Defensive: no CLOSEABLE status should ever have an order, but closing a
+    // bid the company is already delivering against would be a data lie.
+    if (bid.orders && bid.orders.length > 0) {
+      throw new BadRequestException(
+        'This bid has already been converted to an order and cannot be closed as lost',
+      );
+    }
+
+    const reason = dto.lostReason.trim();
+    if (!reason) {
+      throw new BadRequestException(
+        'lostReason is required when closing a bid as lost',
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const closed = await tx.bid.update({
+        where: { id },
+        data: {
+          status: BidStatus.LOST,
+          lostReason: reason,
+          closedAsLostById: user.id,
+          closedAsLostAt: new Date(),
+        },
+        include: {
+          lineItems: { include: { product: true } },
+          amcCharges: { orderBy: { yearNumber: 'asc' } },
+          closedAsLostBy: { select: { firstName: true, lastName: true } },
+        },
+      });
+      await this.closeOpportunityIfAllBidsDead(
+        tx,
+        bid.opportunityId,
+        bid.bidNumber,
+        reason,
+      );
+      return closed;
+    });
+    return this.toEntity(updated);
+  }
+
+  /**
+   * Move an opportunity to CLOSED_LOST once none of its bids can still become an
+   * order. Without this, an opportunity whose every bid was lost keeps its
+   * `estimatedValue` in the live funnel forever.
+   *
+   * Only fires when the opportunity has bids and every one of them is a dead end
+   * (LOST/EXPIRED/REJECTED — the repo already treats EXPIRED and REJECTED as
+   * "never become orders", see `countAdHocLineItems`). A single still-live bid
+   * anywhere on the opportunity leaves the stage alone. An already-closed
+   * opportunity is never rewritten, so a CLOSED_WON one cannot be flipped to
+   * lost by tidying up its also-ran bids.
+   */
+  private async closeOpportunityIfAllBidsDead(
+    tx: Prisma.TransactionClient,
+    opportunityId: string,
+    closedBidNumber: string,
+    reason: string,
+  ): Promise<void> {
+    const opportunity = await tx.opportunity.findUnique({
+      where: { id: opportunityId },
+      select: { id: true, stage: true },
+    });
+    if (
+      !opportunity ||
+      opportunity.stage === OpportunityStage.CLOSED_LOST ||
+      opportunity.stage === OpportunityStage.CLOSED_WON
+    ) {
+      return;
+    }
+    const stillLive = await tx.bid.count({
+      where: {
+        opportunityId,
+        status: { in: [...LIVE_BID_STATUSES] },
+      },
+    });
+    if (stillLive > 0) {
+      return;
+    }
+    await tx.opportunity.update({
+      where: { id: opportunityId },
+      data: {
+        stage: OpportunityStage.CLOSED_LOST,
+        lostReason: `All bids closed — last was ${closedBidNumber}: ${reason}`,
+      },
+    });
+  }
+
+  /**
    * Resolve an ad-hoc placeholder line to a real Product ("commit formally").
    * One-way: sets productId and clears the ad-hoc fields, but preserves the
    * snapshotted unitPrice/lineTotal (the customer was quoted that figure).
@@ -580,7 +732,7 @@ export class BidsService {
   /**
    * Cross-bid visibility: how many ad-hoc line items are still awaiting product
    * setup, and across how many bids. Scoped to bids that could still convert
-   * (EXPIRED/REJECTED bids are dead ends and never become orders). Non-Sales
+   * (EXPIRED/REJECTED/LOST bids are dead ends and never become orders). Non-Sales
    * callers get zeros rather than an error so the list header can call it for
    * any role.
    */
@@ -590,17 +742,10 @@ export class BidsService {
     if (!isSuperAdmin(user) && !(await this.access.isSalesStaff(user))) {
       return { lineItemCount: 0, bidCount: 0 };
     }
-    const openStatuses: BidStatus[] = [
-      BidStatus.DRAFT,
-      BidStatus.PENDING_APPROVAL,
-      BidStatus.APPROVED,
-      BidStatus.SENT,
-      BidStatus.ACCEPTED,
-    ];
     const unresolved = await this.prisma.bidLineItem.findMany({
       where: {
         productId: null,
-        bid: { status: { in: openStatuses } },
+        bid: { status: { in: [...LIVE_BID_STATUSES] } },
       },
       select: { bidId: true },
     });
@@ -681,6 +826,7 @@ export class BidsService {
           select: { owner: { select: { firstName: true, lastName: true } } },
         },
         businessUnit: { select: { name: true, colorHex: true } },
+        closedAsLostBy: { select: { firstName: true, lastName: true } },
         // The converted order (if any) — a bid converts to at most one.
         orders: { select: { id: true }, take: 1 },
       },
@@ -741,6 +887,12 @@ export class BidsService {
       approverComments: bid.approverComments,
       approverSignatureTextSnapshot: bid.approverSignatureTextSnapshot,
       approverSignatureFontSnapshot: bid.approverSignatureFontSnapshot,
+      lostReason: bid.lostReason ?? null,
+      closedAsLostById: bid.closedAsLostById ?? null,
+      closedAsLostByName: bid.closedAsLostBy
+        ? `${bid.closedAsLostBy.firstName} ${bid.closedAsLostBy.lastName}`.trim()
+        : null,
+      closedAsLostAt: bid.closedAsLostAt ?? null,
       convertedOrderId: bid.orders?.[0]?.id ?? null,
       lineItems: bid.lineItems.map(
         (li) =>

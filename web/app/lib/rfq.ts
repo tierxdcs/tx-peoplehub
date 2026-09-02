@@ -208,6 +208,7 @@ export interface RfqQuoteStageOption {
   opportunity: { id: string; name: string };
   businessUnit: { name: string };
   bom: { revisionNumber: number; status: string } | null;
+  attachments: Array<{ id: string; fileName: string }>;
 }
 
 // ── Comparison ─────────────────────────────────────────────────────────
@@ -289,6 +290,11 @@ export function getRfqProductBomExplosion(productId: string, quantity = 1) {
 export function getRfqQuoteStageSourcingLines(intakeId: string) {
   return apiFetch<RfqSourcingLine[]>(
     `/rfqs/quote-stage-options/${intakeId}/sourcing-lines`,
+  );
+}
+export function getRfqQuoteStageAttachment(intakeId: string, attachmentId: string) {
+  return apiFetch<{ url: string; fileName: string; expiresInSeconds: number }>(
+    `/rfqs/quote-stage-options/${intakeId}/attachments/${attachmentId}`,
   );
 }
 export function getRfqSourcingLines(

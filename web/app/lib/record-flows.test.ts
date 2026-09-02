@@ -18,6 +18,11 @@ describe('record flows — stage derived from actual status', () => {
     expect(bidFlow('REJECTED').cancelled).toBe(true);
     expect(bidFlow('EXPIRED').cancelled).toBe(true);
     expect(bidFlow('REJECTED').currentStage).toBeNull();
+    // A lost bid is a dead end with its own wording — "closed as lost", not
+    // "rejected" (which means our own approver refused the discount).
+    expect(bidFlow('LOST').cancelled).toBe(true);
+    expect(bidFlow('LOST').currentStage).toBeNull();
+    expect(bidFlow('LOST').cancelledLabel).toBe('This bid was closed as lost.');
   });
 
   it('order: confirmed → delivered, cancelled is terminal', () => {

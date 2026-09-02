@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import {
   createRfq,
   listRfqProjectOptions,
   getRfqSourcingLines,
   getRfqQuoteStageSourcingLines,
+  getRfqQuoteStageAttachment,
   listRfqQuoteStageOptions,
   getRfqProductBomExplosion,
   type CreateRfqInput,
@@ -132,6 +133,9 @@ export default function NewRfqPage() {
   const selectedProject =
     projects.find((project) => project.projectKickoffId === projectKickoffId) ??
     null;
+  const selectedQuoteStageIntake =
+    quoteStageOptions.find((intake) => intake.id === customerBomIntakeId) ??
+    null;
   const includedOrderLineCount = selectedProject
     ? selectedProject.lines.filter(
         (line) => !excludedOrderLineIds.has(line.orderLineId),
@@ -214,6 +218,23 @@ export default function NewRfqPage() {
       toast.error(error instanceof ApiError ? error.message : 'Failed to load quote-stage BOM');
     } finally {
       setLoadingSourcingLines(false);
+    }
+  }
+
+  async function openIntakeAttachment(attachmentId: string) {
+    if (!customerBomIntakeId) return;
+    try {
+      const file = await getRfqQuoteStageAttachment(
+        customerBomIntakeId,
+        attachmentId,
+      );
+      window.open(file.url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : 'Failed to open BOM intake attachment',
+      );
     }
   }
 
@@ -315,6 +336,39 @@ export default function NewRfqPage() {
                   ))}
                 </Select>
               </Field>
+              {selectedQuoteStageIntake && (
+                <div className="rounded-lg border bg-muted/20 p-4">
+                  <div className="flex items-center gap-2">
+                    <FileText className="size-4 text-primary" />
+                    <p className="font-semibold">Customer BOM attachments</p>
+                  </div>
+                  {selectedQuoteStageIntake.attachments.length === 0 ? (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      No customer files were attached to this BOM intake.
+                    </p>
+                  ) : (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {selectedQuoteStageIntake.attachments.map((attachment) => (
+                        <Button
+                          key={attachment.id}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void openIntakeAttachment(attachment.id)}
+                        >
+                          <Download className="size-4" />
+                          {attachment.fileName}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Internal drafting evidence only. These files are not sent to
+                    vendors unless SCM explicitly adds them as RFQ technical
+                    attachments after the draft is created.
+                  </p>
+                </div>
+              )}
               {selectedProject && (
                 <div className="rounded-lg border bg-muted/20 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">

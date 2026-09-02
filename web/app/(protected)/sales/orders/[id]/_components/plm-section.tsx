@@ -129,6 +129,8 @@ export function PlmSection({ orderId, trackerId }: PlmSectionProps) {
             me?.isProductionHead ||
             me?.isProjectManager;
           const canOperate = hasFullAccess || user?.sub === tracker.ownerId;
+          const canConfirmStage =
+            user?.role === 'SUPER_ADMIN' || me?.isProjectManager === true;
           const canAudit =
             hasFullAccess || me?.isInternalAuditor;
           return (
@@ -194,7 +196,7 @@ export function PlmSection({ orderId, trackerId }: PlmSectionProps) {
                   {tracker.currentStage === 'DESIGN_REVIEW' && tracker.designReviewStatus === 'PENDING' && hasFullAccess && (
                     <><Button size="sm" disabled={acting === tracker.id || tracker.designSubmittedById === user?.sub} onClick={() => void act(tracker, 'design-review/approve')}>Approve</Button><Button size="sm" variant="destructive" disabled={acting === tracker.id || tracker.designSubmittedById === user?.sub} onClick={() => { const comment = window.prompt('Rejection reason'); if (comment?.trim()) void act(tracker, 'design-review/reject', { comment }); }}>Reject</Button></>
                   )}
-                  {!['DESIGN', 'DESIGN_REVIEW', 'COMPLETED'].includes(tracker.currentStage) && canOperate && (
+                  {!['DESIGN', 'DESIGN_REVIEW', 'COMPLETED'].includes(tracker.currentStage) && canConfirmStage && (
                     <Button size="sm" disabled={acting === tracker.id} onClick={() => void act(tracker, 'confirm-stage')}>Confirm {PLM_STAGE_LABEL[tracker.currentStage]}</Button>
                   )}
                 </div>

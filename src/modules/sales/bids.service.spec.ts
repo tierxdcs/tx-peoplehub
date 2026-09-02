@@ -651,6 +651,7 @@ describe('BidsService', () => {
       // Dead-end statuses never convert, so they're excluded.
       expect(whereArg.bid.status.in).not.toContain(BidStatus.EXPIRED);
       expect(whereArg.bid.status.in).not.toContain(BidStatus.REJECTED);
+      expect(whereArg.bid.status.in).not.toContain(BidStatus.LOST);
     });
 
     it('returns zeros for a non-Sales caller without querying', async () => {
@@ -771,6 +772,197 @@ describe('BidsService', () => {
         service.markStatus('bid-1', BidStatus.ACCEPTED, rep),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
+  });
+
+  describe('closeAsLost — record a reasoned commercial loss', () => {
+    // The raw shape `findRawOrThrow` returns, plus the extra fields `toEntity`
+    // reads off the row the transaction writes back.
+    function rawBid(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'bid-1',
+        bidNumber: 'BID-2026-0025',
+        opportunityId: 'opp-1',
+        customerId: 'cust-1',
+        status: BidStatus.SENT,
+        validUntil: new Date(),
+        tenderReferenceNumber: null,
+        quotationSubject: null,
+        technicalSpecification: null,
+        attachments: null,
+        subtotal: new Prisma.Decimal('1598802'),
+        discountPercent: new Prisma.Decimal('0'),
+        discountAmount: new Prisma.Decimal('0'),
+        taxType: null,
+        taxRate: null,
+        taxAmount: new Prisma.Decimal('0'),
+        totalAmount: new Prisma.Decimal('1598802'),
+        createdById: 'emp-1',
+        approverId: null,
+        approvedAt: null,
+        approverComments: null,
+        lostReason: null,
+        closedAsLostById: null,
+        closedAsLostAt: null,
+        orders: [],
+        lineItems: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...overrides,
+      };
+    }
+
+    /**
+     * `closeAsLost` runs its write inside `$transaction(async (tx) => …)`, so the
+     * bare `$transaction` mock has to become a callback runner handing back a
+     * `tx` with the three delegates the closure touches.
+     */
+    let tx: any;
+    beforeEach(() => {
+      tx = {
+        bid: { update: jest.fn(), count: jest.fn().mockResolvedValue(0) },
+        opportunity: {
+          findUnique: jest
+            .fn()
+            .mockResolvedValue({ id: 'opp-1', stage: 'PROPOSAL' }),
+          update: jest.fn(),
+        },
+      };
+      prisma.$transaction.mockImplementation((cb: any) => cb(tx));
+      tx.bid.update.mockImplementation(async ({ data }: any) =>
+        rawBid({
+          ...data,
+          closedAsLostBy: { firstName: 'Ada', lastName: 'L' },
+        }),
+      );
+    });
+
+    it.each([BidStatus.SENT, BidStatus.APPROVED, BidStatus.EXPIRED])(
+      'closes a %s bid, stamping the reason, closer and timestamp',
+      async (status) => {
+        prisma.bid.findUnique.mockResolvedValue(rawBid({ status }));
+
+        const result = await service.closeAsLost(
+          'bid-1',
+          { lostReason: '  Lost to competitor on price  ' },
+          rep,
+        );
+
+        expect(result.status).toBe(BidStatus.LOST);
+        expect(result.lostReason).toBe('Lost to competitor on price');
+        expect(result.closedAsLostById).toBe('emp-1');
+        expect(result.closedAsLostByName).toBe('Ada L');
+        expect(result.closedAsLostAt).toBeInstanceOf(Date);
+        // The reason is stored trimmed, not as typed.
+        expect(tx.bid.update.mock.calls[0][0].data).toMatchObject({
+          status: BidStatus.LOST,
+          lostReason: 'Lost to competitor on price',
+          closedAsLostById: 'emp-1',
+        });
+      },
+    );
+
+    it.each([
+      BidStatus.DRAFT,
+      BidStatus.PENDING_APPROVAL,
+      BidStatus.ACCEPTED,
+      BidStatus.REJECTED,
+    ])('refuses to close a %s bid', async (status) => {
+      prisma.bid.findUnique.mockResolvedValue(rawBid({ status }));
+
+      await expect(
+        service.closeAsLost('bid-1', { lostReason: 'nope' }, rep),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('tells the caller when the bid is already closed as lost', async () => {
+      prisma.bid.findUnique.mockResolvedValue(
+        rawBid({ status: BidStatus.LOST }),
+      );
+
+      await expect(
+        service.closeAsLost('bid-1', { lostReason: 'again' }, rep),
+      ).rejects.toThrow(/already closed as lost/);
+    });
+
+    it('refuses a bid that already has an order', async () => {
+      prisma.bid.findUnique.mockResolvedValue(
+        rawBid({ orders: [{ id: 'ord-1' }] }),
+      );
+
+      await expect(
+        service.closeAsLost('bid-1', { lostReason: 'lost' }, rep),
+      ).rejects.toThrow(/already been converted to an order/);
+    });
+
+    it('requires a non-blank reason', async () => {
+      prisma.bid.findUnique.mockResolvedValue(rawBid());
+
+      await expect(
+        service.closeAsLost('bid-1', { lostReason: '   ' }, rep),
+      ).rejects.toThrow(/lostReason is required/);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('enforces the owner/manager-chain write guard', async () => {
+      prisma.bid.findUnique.mockResolvedValue(
+        rawBid({ createdById: 'other-emp' }),
+      );
+      access.assertCanAccessOwned.mockRejectedValue(
+        new Error('outside your team'),
+      );
+
+      await expect(
+        service.closeAsLost('bid-1', { lostReason: 'lost' }, rep),
+      ).rejects.toThrow('outside your team');
+      expect(access.assertCanAccessOwned).toHaveBeenCalledWith(
+        rep,
+        'other-emp',
+      );
+    });
+
+    it('closes the opportunity as CLOSED_LOST once no live bid remains', async () => {
+      prisma.bid.findUnique.mockResolvedValue(rawBid());
+      tx.bid.count.mockResolvedValue(0);
+
+      await service.closeAsLost('bid-1', { lostReason: 'Budget pulled' }, rep);
+
+      expect(tx.opportunity.update).toHaveBeenCalledWith({
+        where: { id: 'opp-1' },
+        data: {
+          stage: 'CLOSED_LOST',
+          lostReason: 'All bids closed — last was BID-2026-0025: Budget pulled',
+        },
+      });
+      // Only live statuses count as survivors; dead ends must not block closure.
+      const countWhere = tx.bid.count.mock.calls[0][0].where;
+      expect(countWhere.opportunityId).toBe('opp-1');
+      expect(countWhere.status.in).not.toContain(BidStatus.LOST);
+      expect(countWhere.status.in).not.toContain(BidStatus.EXPIRED);
+    });
+
+    it('leaves the opportunity open while a sibling bid is still live', async () => {
+      prisma.bid.findUnique.mockResolvedValue(rawBid());
+      tx.bid.count.mockResolvedValue(1);
+
+      await service.closeAsLost('bid-1', { lostReason: 'Lost' }, rep);
+
+      expect(tx.opportunity.update).not.toHaveBeenCalled();
+    });
+
+    it.each(['CLOSED_WON', 'CLOSED_LOST'])(
+      'never rewrites a %s opportunity',
+      async (stage) => {
+        prisma.bid.findUnique.mockResolvedValue(rawBid());
+        tx.opportunity.findUnique.mockResolvedValue({ id: 'opp-1', stage });
+
+        await service.closeAsLost('bid-1', { lostReason: 'Lost' }, rep);
+
+        expect(tx.opportunity.update).not.toHaveBeenCalled();
+        // Short-circuits before counting — a won deal is never re-evaluated.
+        expect(tx.bid.count).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('findPendingApproval', () => {

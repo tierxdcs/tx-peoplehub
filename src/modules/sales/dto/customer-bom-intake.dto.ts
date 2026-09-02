@@ -25,6 +25,11 @@ export class CustomerBomUploadUrlDto {
   @Type(() => Number) @IsInt() @Min(1) fileSize!: number;
 }
 
+export class CustomerBomAttachmentDto {
+  @IsString() @MinLength(1) fileKey!: string;
+  @IsString() @MinLength(1) fileName!: string;
+}
+
 export class CustomerBomMatchDto {
   @IsString() @MinLength(2) description!: string;
 }
@@ -84,6 +89,12 @@ export class CreateCustomerBomIntakeDto {
   @IsOptional() @IsDateString() expectedBy?: string;
   @IsOptional() @IsString() @MinLength(1) fileKey?: string;
   @IsOptional() @IsString() @MinLength(1) fileName?: string;
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CustomerBomAttachmentDto)
+  attachments?: CustomerBomAttachmentDto[];
   /**
    * The customer stated a requirement, not a parts list: the design team has to
    * design the product and author the BOM. The intake is still created (finished

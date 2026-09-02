@@ -20,6 +20,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { CreateBidDto } from './dto/create-bid.dto';
 import { BidActionDto } from './dto/bid-action.dto';
 import { BidStatusDto } from './dto/bid-status.dto';
+import { CloseBidAsLostDto } from './dto/close-bid-as-lost.dto';
 import { PromoteInternalOrderDto } from './dto/promote-internal-order.dto';
 import { ResolveBidLineItemDto } from './dto/resolve-bid-line-item.dto';
 import { ConvertBidToOrderDto } from './dto/customer-facing-line.dto';
@@ -116,6 +117,19 @@ export class BidsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.bidsService.markStatus(id, dto.status, user);
+  }
+
+  @Patch(':id/close-as-lost')
+  @ApiOperation({
+    summary:
+      'Close an APPROVED/SENT/EXPIRED bid as LOST with a reason (bid owner, their manager chain, or SUPER_ADMIN)',
+  })
+  closeAsLost(
+    @Param('id') id: string,
+    @Body() dto: CloseBidAsLostDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bidsService.closeAsLost(id, dto, user);
   }
 
   @Patch(':id/line-items/:lineItemId/resolve')

@@ -72,7 +72,7 @@ export default function CustomerBomIntakePage() {
   const [unitOfMeasure, setUnitOfMeasure] = useState('each');
   const [targetMarginPercent, setTargetMarginPercent] = useState('');
   const [expectedBy, setExpectedBy] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   /**
    * The customer stated a requirement rather than handing over a parts list, so
    * there is nothing to transcribe: the design team designs the product and
@@ -157,16 +157,17 @@ export default function CustomerBomIntakePage() {
     if (!ready) return;
     setSubmitting(true);
     try {
-      let uploadedFile: { fileKey: string; fileName: string } | undefined;
-      if (file) {
-        const signed = await customerBomUploadUrl(id, {
-          fileName: file.name,
-          mimeType: file.type || 'application/octet-stream',
-          fileSize: file.size,
-        });
-        await uploadToPresignedUrl(signed.uploadUrl, file);
-        uploadedFile = { fileKey: signed.fileKey, fileName: file.name };
-      }
+      const uploadedFiles = await Promise.all(
+        files.map(async (file) => {
+          const signed = await customerBomUploadUrl(id, {
+            fileName: file.name,
+            mimeType: file.type || 'application/octet-stream',
+            fileSize: file.size,
+          });
+          await uploadToPresignedUrl(signed.uploadUrl, file);
+          return { fileKey: signed.fileKey, fileName: file.name };
+        }),
+      );
       await createCustomerBomIntake(id, {
         businessUnitId,
         productName: productName.trim(),
@@ -179,7 +180,7 @@ export default function CustomerBomIntakePage() {
         ...(expectedBy !== ''
           ? { expectedBy: `${expectedBy}T00:00:00.000Z` }
           : {}),
-        ...uploadedFile,
+        ...(uploadedFiles.length > 0 ? { attachments: uploadedFiles } : {}),
         ...(requiresDesign
           ? {
               requiresDesign: true,
@@ -215,7 +216,7 @@ export default function CustomerBomIntakePage() {
           : 'Customer BOM created as real Product, Items, and Draft BOM',
       );
       setCreatedIntakes(await listCustomerBomIntakes(id));
-      setFile(null);
+      setFiles([]);
       setProductName('');
       setTargetMarginPercent('');
       setExpectedBy('');
@@ -291,15 +292,20 @@ export default function CustomerBomIntakePage() {
         <SCard className="px-5 py-[18px]">
           <SCardTitle title="Customer document and product" />
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <Field label="Customer BOM file (optional)">
+            <Field label="Customer BOM attachments (optional)" hint="Up to 10 PDF, Excel or CSV files">
               <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm">
                 <Upload className="size-4" />{' '}
-                {file?.name ?? 'Choose Excel or PDF'}
+                {files.length > 0
+                  ? `${files.length} file${files.length === 1 ? '' : 's'} selected`
+                  : 'Choose PDF or spreadsheet files'}
                 <input
                   type="file"
                   className="sr-only"
                   accept=".pdf,.xls,.xlsx,.csv"
-                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                  multiple
+                  onChange={(event) =>
+                    setFiles(Array.from(event.target.files ?? []).slice(0, 10))
+                  }
                 />
               </label>
             </Field>

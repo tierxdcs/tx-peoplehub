@@ -106,6 +106,15 @@ const order = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+const bid = (over: Record<string, unknown> = {}) => ({
+  status: 'SENT',
+  createdAt: utc(2026, 5, 1),
+  totalAmount: d(100),
+  discountPercent: d(0),
+  approvedAt: null,
+  ...over,
+});
+
 describe('SalesDashboardService', () => {
   describe('sample and cancelled exclusion', () => {
     it('asks the database only for live CUSTOMER orders, on every order query', async () => {
@@ -267,45 +276,63 @@ describe('SalesDashboardService', () => {
       expect(leads.valueNote).toContain('no value field');
     });
 
-    it('counts only bids that reached the customer as sent, and ACCEPTED as won', async () => {
+    it('counts only bids that are still winnable as sent, and ACCEPTED as won', async () => {
       const result = await buildService({
         bids: [
-          {
-            status: 'DRAFT',
-            createdAt: utc(2026, 5, 1),
-            totalAmount: d(100),
-            discountPercent: d(0),
-            approvedAt: null,
-          },
-          {
-            status: 'SENT',
-            createdAt: utc(2026, 5, 1),
-            totalAmount: d(200),
-            discountPercent: d(0),
-            approvedAt: null,
-          },
-          {
-            status: 'ACCEPTED',
-            createdAt: utc(2026, 5, 1),
-            totalAmount: d(300),
-            discountPercent: d(0),
-            approvedAt: null,
-          },
-          {
-            status: 'EXPIRED',
-            createdAt: utc(2026, 5, 1),
-            totalAmount: d(400),
-            discountPercent: d(0),
-            approvedAt: null,
-          },
+          bid({ status: 'DRAFT', totalAmount: d(100) }),
+          bid({ status: 'SENT', totalAmount: d(200) }),
+          bid({ status: 'ACCEPTED', totalAmount: d(300) }),
+          bid({ status: 'EXPIRED', totalAmount: d(400) }),
         ],
       }).build(NOW);
       const sent = result.funnel.find((s) => s.key === 'bids_sent')!;
       const won = result.funnel.find((s) => s.key === 'bids_won')!;
-      expect(sent.count).toBe(3);
-      expect(sent.value).toBe('900.00');
+      // Pipeline stage: SENT + ACCEPTED only. The EXPIRED bid reached the
+      // customer (so it counts for win rate) but can no longer be won.
+      expect(sent.count).toBe(2);
+      expect(sent.value).toBe('500.00');
+      expect(sent.valueNote).toContain('400.00');
       expect(won.count).toBe(1);
       expect(result.winRate.percent).toBe('33.33');
+    });
+
+    it('drops lost bids out of the pipeline value and names the excluded amount', async () => {
+      const result = await buildService({
+        bids: [
+          bid({ status: 'SENT', totalAmount: d(200) }),
+          bid({ status: 'LOST', totalAmount: d(1000) }),
+        ],
+      }).build(NOW);
+      const sent = result.funnel.find((s) => s.key === 'bids_sent')!;
+      expect(sent.count).toBe(1);
+      expect(sent.value).toBe('200.00');
+      // Nothing is silently deleted — the excluded value is stated.
+      expect(sent.valueNote).toBe('Excludes 1000.00 of lost/expired bids');
+    });
+
+    it('omits the exclusion note when nothing is lost or expired', async () => {
+      const result = await buildService({
+        bids: [bid({ status: 'SENT', totalAmount: d(200) })],
+      }).build(NOW);
+      expect(
+        result.funnel.find((s) => s.key === 'bids_sent')!.valueNote,
+      ).toBeNull();
+    });
+
+    it('keeps losses in the win-rate denominator and reports their value', async () => {
+      const result = await buildService({
+        bids: [
+          bid({ status: 'ACCEPTED', totalAmount: d(300) }),
+          bid({ status: 'LOST', totalAmount: d(700) }),
+          bid({ status: 'LOST', totalAmount: d(300) }),
+        ],
+      }).build(NOW);
+      // 1 won of 3 that reached the customer — dropping the losses would have
+      // flattered this to 100%.
+      expect(result.winRate.percent).toBe('33.33');
+      expect(result.winRate.bidsSubmitted).toBe(3);
+      expect(result.winRate.bidsLost).toBe(2);
+      expect(result.winRate.lostValue).toBe('1000.00');
     });
 
     it('reports a null win rate rather than 0% with no bids submitted', async () => {

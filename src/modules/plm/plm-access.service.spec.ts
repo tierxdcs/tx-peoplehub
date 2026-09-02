@@ -17,6 +17,12 @@ describe('PlmAccessService — Project Manager authority', () => {
     role: Role.EMPLOYEE,
     verticalId: 'scm',
   };
+  const productionHead: AuthenticatedUser = {
+    id: 'production-head-1',
+    email: 'production@example.com',
+    role: Role.MANAGER,
+    verticalId: 'production',
+  };
 
   let prisma: {
     employee: { findUnique: jest.Mock };
@@ -30,7 +36,7 @@ describe('PlmAccessService — Project Manager authority', () => {
         findUnique: jest.fn().mockImplementation(({ where }) =>
           Promise.resolve({
             isProjectManager: where.id === projectManager.id,
-            isProductionHead: false,
+            isProductionHead: where.id === productionHead.id,
             isInternalAuditor: false,
             isDesignHead: false,
             isRdHead: false,
@@ -53,6 +59,9 @@ describe('PlmAccessService — Project Manager authority', () => {
   it('grants a Project Manager every internal PLM permission gate', async () => {
     await expect(
       service.assertCanOperate(projectManager, 'someone-else'),
+    ).resolves.toBeUndefined();
+    await expect(
+      service.assertCanConfirmStage(projectManager),
     ).resolves.toBeUndefined();
     await expect(
       service.assertProductionHead(projectManager),
@@ -81,5 +90,20 @@ describe('PlmAccessService — Project Manager authority', () => {
     await expect(service.assertProductionHead(employee)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+
+  it('does not let a tracker owner or Production Head confirm a lifecycle stage', async () => {
+    await expect(
+      service.assertCanConfirmStage(employee),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.assertCanConfirmStage(productionHead),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('lets the CEO/SuperAdmin confirm a lifecycle stage', async () => {
+    await expect(
+      service.assertCanConfirmStage({ ...employee, role: Role.SUPER_ADMIN }),
+    ).resolves.toBeUndefined();
   });
 });

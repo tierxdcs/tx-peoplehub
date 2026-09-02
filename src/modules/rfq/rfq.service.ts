@@ -685,10 +685,73 @@ export class RfqService {
         opportunity: { select: { id: true, name: true } },
         businessUnit: { select: { name: true } },
         bom: { select: { revisionNumber: true, status: true } },
+        rawFileKey: true,
+        rawFileName: true,
+        rawAttachments: true,
       },
       orderBy: { createdAt: 'desc' },
     });
-    return rows;
+    return rows.map(({ rawFileKey, rawFileName, rawAttachments, ...row }) => ({
+      ...row,
+      attachments: this.intakeAttachments(
+        rawAttachments,
+        rawFileKey,
+        rawFileName,
+      ).map((file, index) => ({ id: String(index), fileName: file.name })),
+    }));
+  }
+
+  async quoteStageAttachment(
+    intakeId: string,
+    attachmentId: string,
+    user: AuthenticatedUser,
+  ) {
+    await this.access.assertCanReadRfqs(user);
+    const intake = await this.prisma.customerBomIntake.findUnique({
+      where: { id: intakeId },
+      select: {
+        rawFileKey: true,
+        rawFileName: true,
+        rawAttachments: true,
+      },
+    });
+    if (!intake) throw new NotFoundException('Quote-stage customer BOM not found');
+    const files = this.intakeAttachments(
+      intake.rawAttachments,
+      intake.rawFileKey,
+      intake.rawFileName,
+    );
+    const index = Number(attachmentId);
+    const file = Number.isInteger(index) ? files[index] : undefined;
+    if (!file) throw new NotFoundException('BOM intake attachment not found');
+    const signed = await this.storage.createDownloadUrl(file.key);
+    return {
+      url: signed.url,
+      fileName: file.name,
+      expiresInSeconds: signed.expiresInSeconds,
+    };
+  }
+
+  private intakeAttachments(
+    value: Prisma.JsonValue | null,
+    legacyKey: string | null,
+    legacyName: string | null,
+  ): Array<{ key: string; name: string }> {
+    if (Array.isArray(value)) {
+      return value.flatMap((file) => {
+        if (
+          file &&
+          typeof file === 'object' &&
+          !Array.isArray(file) &&
+          typeof file.key === 'string' &&
+          typeof file.name === 'string'
+        ) {
+          return [{ key: file.key, name: file.name }];
+        }
+        return [];
+      });
+    }
+    return legacyKey && legacyName ? [{ key: legacyKey, name: legacyName }] : [];
   }
 
   async quoteStageSourcingLines(intakeId: string, user: AuthenticatedUser) {
