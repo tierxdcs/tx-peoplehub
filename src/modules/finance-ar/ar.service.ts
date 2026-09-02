@@ -46,6 +46,27 @@ const INVOICE_INCLUDE = {
   gstSubmissions: { orderBy: { createdAt: 'desc' as const } },
 };
 
+/**
+ * Statuses a sales invoice may be deleted from — every state BEFORE it is issued
+ * to the customer. Once `issueAndPost` runs the invoice owns a posted
+ * JournalEntry (and usually a GST IRN), so deleting it would leave an orphan
+ * debit to Receivables / credit to Revenue in the trial balance with no source
+ * document. ISSUED, E_INVOICE_GENERATED, PARTIALLY_PAID, PAID and OVERDUE are
+ * all post-issuance and therefore absent.
+ *
+ * CANCELLED is here because nothing sets it for sales invoices today, so it can
+ * only be an un-posted leftover. If a future cancellation path ever posts a
+ * journal, `deleteInvoice`'s journal/IRN/receipt guards still refuse the delete
+ * regardless of status.
+ */
+export const DELETABLE_INVOICE_STATUSES: SalesInvoiceStatus[] = [
+  SalesInvoiceStatus.DRAFT,
+  SalesInvoiceStatus.PENDING_APPROVAL,
+  SalesInvoiceStatus.REJECTED,
+  SalesInvoiceStatus.GST_PENDING,
+  SalesInvoiceStatus.CANCELLED,
+];
+
 @Injectable()
 export class ArService {
   constructor(
@@ -528,6 +549,67 @@ export class ArService {
       });
     }
     return this.issueAndPost(id, user.id);
+  }
+
+  /**
+   * Delete a sales invoice that never reached the customer. Available to the
+   * same people who can create one — Accounts-vertical users, the designated
+   * Finance/Accounts Head, and SUPER_ADMIN.
+   *
+   * Only reachable from the pre-issuance statuses (see
+   * {@link DELETABLE_INVOICE_STATUSES}). The status list is the friendly gate;
+   * the journal/IRN/receipt/note checks below are the real invariant — an
+   * invoice that has touched the ledger, the GST portal, or a customer payment
+   * is never deletable whatever its status says. Post-issuance corrections go
+   * through a credit note (FinanceAdjustmentNote), never a delete.
+   *
+   * Cascades: invoice lines and any queued GST submission rows go with it. A
+   * dispatch-seeded delivery challan survives but loses its invoice link
+   * (SetNull), so the caller is told which challan was unlinked.
+   */
+  async deleteInvoice(id: string, user: AuthenticatedUser) {
+    await this.access.assertCanUseFinance(user);
+    const inv = await this.prisma.salesInvoice.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        status: true,
+        irn: true,
+        journalEntryId: true,
+        deliveryChallan: { select: { dcNumber: true } },
+        _count: { select: { allocations: true, adjustmentNotes: true } },
+      },
+    });
+    if (!inv) throw new NotFoundException('Sales invoice not found');
+
+    if (!DELETABLE_INVOICE_STATUSES.includes(inv.status))
+      throw new BadRequestException(
+        `A ${inv.status.replaceAll('_', ' ').toLowerCase()} invoice cannot be deleted — it has been issued to the customer and posted to the ledger. Raise a credit note instead.`,
+      );
+    if (inv.journalEntryId)
+      throw new BadRequestException(
+        'This invoice is already posted to the general ledger and cannot be deleted. Raise a credit note instead.',
+      );
+    if (inv.irn)
+      throw new BadRequestException(
+        'This invoice is registered on the GST portal with an IRN. Cancel the e-invoice first, then raise a credit note.',
+      );
+    if (inv._count.allocations > 0)
+      throw new BadRequestException(
+        'A customer receipt is allocated to this invoice. Reverse the receipt before deleting it.',
+      );
+    if (inv._count.adjustmentNotes > 0)
+      throw new BadRequestException(
+        'A credit or debit note references this invoice. Delete that note first.',
+      );
+
+    await this.prisma.salesInvoice.delete({ where: { id } });
+    return {
+      id: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      unlinkedChallanNumber: inv.deliveryChallan?.dcNumber ?? null,
+    };
   }
 
   async queueEwayBill(

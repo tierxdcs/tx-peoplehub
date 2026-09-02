@@ -159,4 +159,119 @@ describe('ArService invoice calculations', () => {
       expect(prisma.salesInvoice.update).not.toHaveBeenCalled();
     });
   });
+
+  describe('deleteInvoice — pre-issuance only', () => {
+    const user = { id: 'accounts-1' } as any;
+
+    function deleteService(invoice: Record<string, unknown> | null) {
+      const prisma = {
+        salesInvoice: {
+          findUnique: jest.fn().mockResolvedValue(
+            invoice && {
+              id: 'invoice-1',
+              invoiceNumber: 'INV-2026-0016',
+              irn: null,
+              journalEntryId: null,
+              deliveryChallan: null,
+              _count: { allocations: 0, adjustmentNotes: 0 },
+              ...invoice,
+            },
+          ),
+          delete: jest.fn().mockResolvedValue({}),
+        },
+      };
+      const access = {
+        assertCanUseFinance: jest.fn().mockResolvedValue(undefined),
+      };
+      const current = new ArService(
+        prisma as any,
+        access as any,
+        {} as any,
+        {} as any,
+        {} as any,
+      );
+      return { current, prisma, access };
+    }
+
+    it.each([
+      SalesInvoiceStatus.DRAFT,
+      SalesInvoiceStatus.PENDING_APPROVAL,
+      SalesInvoiceStatus.REJECTED,
+      SalesInvoiceStatus.GST_PENDING,
+      SalesInvoiceStatus.CANCELLED,
+    ])('deletes a %s invoice', async (status) => {
+      const { current, prisma, access } = deleteService({ status });
+
+      await expect(current.deleteInvoice('invoice-1', user)).resolves.toEqual({
+        id: 'invoice-1',
+        invoiceNumber: 'INV-2026-0016',
+        unlinkedChallanNumber: null,
+      });
+      // Accounts-vertical users and SUPER_ADMIN, not just the Accounts Head.
+      expect(access.assertCanUseFinance).toHaveBeenCalledWith(user);
+      expect(prisma.salesInvoice.delete).toHaveBeenCalledWith({
+        where: { id: 'invoice-1' },
+      });
+    });
+
+    it.each([
+      SalesInvoiceStatus.ISSUED,
+      SalesInvoiceStatus.E_INVOICE_GENERATED,
+      SalesInvoiceStatus.PARTIALLY_PAID,
+      SalesInvoiceStatus.PAID,
+      SalesInvoiceStatus.OVERDUE,
+    ])('refuses to delete a %s invoice', async (status) => {
+      const { current, prisma } = deleteService({ status });
+
+      await expect(current.deleteInvoice('invoice-1', user)).rejects.toThrow(
+        /cannot be deleted/,
+      );
+      expect(prisma.salesInvoice.delete).not.toHaveBeenCalled();
+    });
+
+    it('names the delivery challan that loses its invoice link', async () => {
+      const { current } = deleteService({
+        status: SalesInvoiceStatus.DRAFT,
+        deliveryChallan: { dcNumber: 'DC-2026-0007' },
+      });
+
+      await expect(current.deleteInvoice('invoice-1', user)).resolves.toEqual(
+        expect.objectContaining({ unlinkedChallanNumber: 'DC-2026-0007' }),
+      );
+    });
+
+    it('reports a missing invoice rather than silently succeeding', async () => {
+      const { current, prisma } = deleteService(null);
+
+      await expect(current.deleteInvoice('invoice-1', user)).rejects.toThrow(
+        'Sales invoice not found',
+      );
+      expect(prisma.salesInvoice.delete).not.toHaveBeenCalled();
+    });
+
+    // The status list is the friendly gate; these are the real invariant. A
+    // deletable status carrying any of them means the invoice is in the books.
+    it.each([
+      [{ journalEntryId: 'je-1' }, /posted to the general ledger/],
+      [{ irn: 'a'.repeat(64) }, /registered on the GST portal/],
+      [
+        { _count: { allocations: 1, adjustmentNotes: 0 } },
+        /receipt is allocated/,
+      ],
+      [
+        { _count: { allocations: 0, adjustmentNotes: 1 } },
+        /credit or debit note references/,
+      ],
+    ])('refuses a DRAFT invoice with %j', async (overrides, message) => {
+      const { current, prisma } = deleteService({
+        status: SalesInvoiceStatus.DRAFT,
+        ...overrides,
+      });
+
+      await expect(current.deleteInvoice('invoice-1', user)).rejects.toThrow(
+        message,
+      );
+      expect(prisma.salesInvoice.delete).not.toHaveBeenCalled();
+    });
+  });
 });

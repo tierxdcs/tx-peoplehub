@@ -15,6 +15,7 @@ import {
   SignalPage,
 } from '../../../../components/ui/signal';
 import { useToast } from '../../../../components/ui/toaster';
+import { useConfirm } from '../../../../components/ui/confirm';
 import { formatINR } from '../../../../lib/sales';
 import { useNumberFormat } from '../../../../lib/number-format-context';
 import { cn } from '../../../../lib/utils';
@@ -48,8 +49,17 @@ interface Page<T> {
 
 const PAGE_SIZE = 25;
 
+/**
+ * Mirrors ArService.DELETABLE_INVOICE_STATUSES — every status before the invoice
+ * is issued. Anything issued owns a posted journal entry (and usually a GST
+ * IRN), so it is corrected with a credit note rather than deleted. Keeping the
+ * list here means the button hides instead of the server 400ing.
+ */
+const DELETABLE_STATUSES = ['DRAFT', 'PENDING_APPROVAL', 'REJECTED', 'GST_PENDING', 'CANCELLED'];
+
 export default function SalesInvoicesPage() {
   const toast = useToast();
+  const confirm = useConfirm();
   const { isAccountsHead } = useFinanceAccess();
   const { style: numberFormatStyle } = useNumberFormat();
   const [customers, setCustomers] = useState<Customer[]>([]),
@@ -125,6 +135,30 @@ export default function SalesInvoicesPage() {
       await load();
     } catch (x) {
       toast.error(x instanceof ApiError ? x.message : `Failed to ${a}`);
+    }
+  }
+
+  async function remove(i: Invoice) {
+    const ok = await confirm({
+      title: `Delete ${i.invoiceNumber}?`,
+      description: `This permanently deletes the voucher and its lines. It was never issued, so there is nothing to reverse in the ledger — but ${i.invoiceNumber} will not be reissued, leaving a gap in the number series. This cannot be undone.`,
+      confirmLabel: 'Delete voucher',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      const result = await apiFetch<{ unlinkedChallanNumber: string | null }>(`/finance/ar/invoices/${i.id}`, { method: 'DELETE' });
+      toast.success(
+        result.unlinkedChallanNumber
+          ? `${i.invoiceNumber} deleted — delivery challan ${result.unlinkedChallanNumber} no longer has a linked invoice`
+          : `${i.invoiceNumber} deleted`,
+      );
+      // Deleting the last row on a page would otherwise leave the register on an
+      // empty page, so step back instead of reloading into nothing.
+      if (invoices.length === 1 && page > 1) setPage(page - 1);
+      else await load();
+    } catch (x) {
+      toast.error(x instanceof ApiError ? x.message : 'Failed to delete invoice');
     }
   }
 
@@ -227,6 +261,11 @@ export default function SalesInvoicesPage() {
                             Enter IRN manually
                           </Button>
                         </>
+                      )}
+                      {DELETABLE_STATUSES.includes(i.status) && (
+                        <Button size="sm" variant="destructive" onClick={() => remove(i)}>
+                          Delete
+                        </Button>
                       )}
                     </div>
                   </TableCell>

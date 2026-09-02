@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, Query, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+  Put,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   AuthenticatedUser,
@@ -72,6 +81,13 @@ export class ArController {
     @CurrentUser() u: AuthenticatedUser,
   ) {
     return this.ar.invoice(id, u);
+  }
+  /** Only pre-issuance invoices; see ArService.DELETABLE_INVOICE_STATUSES. */
+  @Delete('invoices/:id') deleteInvoice(
+    @Param('id') id: string,
+    @CurrentUser() u: AuthenticatedUser,
+  ) {
+    return this.ar.deleteInvoice(id, u);
   }
   @Post('invoices/:id/submit') submitInvoice(
     @Param('id') id: string,
