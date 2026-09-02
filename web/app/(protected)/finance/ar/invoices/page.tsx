@@ -17,6 +17,13 @@ import {
 import { useToast } from '../../../../components/ui/toaster';
 import { useConfirm } from '../../../../components/ui/confirm';
 import { formatINR } from '../../../../lib/sales';
+import {
+  COMPANY_GST_STATE_CODE,
+  DEFAULT_GST_RATE,
+  GST_STATES,
+  gstStateByCode,
+  splitGstRate,
+} from '../../../../lib/gst-states';
 import { useNumberFormat } from '../../../../lib/number-format-context';
 import { cn } from '../../../../lib/utils';
 import { RegisterPagination } from '../../../../components/ui/register-pagination';
@@ -74,9 +81,11 @@ export default function SalesInvoicesPage() {
     [hsn, setHsn] = useState(''),
     [quantity, setQuantity] = useState('1'),
     [price, setPrice] = useState(''),
-    [gstRate, setGstRate] = useState('18'),
-    [state, setState] = useState('Karnataka'),
-    [stateCode, setStateCode] = useState('29');
+    // One total GST rate; the place of supply decides whether it lands on IGST
+    // (inter-state) or is halved into CGST + SGST (intra-state).
+    [gstRate, setGstRate] = useState(String(DEFAULT_GST_RATE)),
+    [stateCode, setStateCode] = useState(COMPANY_GST_STATE_CODE);
+  const state = gstStateByCode(stateCode)?.name ?? '';
 
   const load = () =>
     Promise.all([
@@ -111,7 +120,7 @@ export default function SalesInvoicesPage() {
               quantity: Number(quantity),
               unitOfMeasure: 'NOS',
               unitPrice: Number(price),
-              igstRate: Number(gstRate),
+              ...splitGstRate(Number(gstRate), stateCode),
             },
           ],
         }),
@@ -190,9 +199,15 @@ export default function SalesInvoicesPage() {
             <Input required placeholder="HSN/SAC" value={hsn} onChange={(e) => setHsn(e.target.value)} />
             <Input required type="number" step="0.0001" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
             <Input required type="number" step="0.01" placeholder="Unit price" value={price} onChange={(e) => setPrice(e.target.value)} />
-            <Input required type="number" step="0.01" placeholder="IGST %" value={gstRate} onChange={(e) => setGstRate(e.target.value)} />
-            <Input required placeholder="Place of supply state" value={state} onChange={(e) => setState(e.target.value)} />
-            <Input required maxLength={2} placeholder="State code" value={stateCode} onChange={(e) => setStateCode(e.target.value)} />
+            <Input required type="number" step="0.01" placeholder="GST %" title="Total GST — split into CGST+SGST or IGST by the place of supply" value={gstRate} onChange={(e) => setGstRate(e.target.value)} />
+            <Select required aria-label="Place of supply state" value={stateCode} onChange={(e) => setStateCode(e.target.value)}>
+              {GST_STATES.map((s) => (
+                <option key={s.code} value={s.code}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+            <Input readOnly aria-label="State code" title={`GST state code for ${state}`} className="tabular-nums" value={stateCode} />
             <Button type="submit">Create draft</Button>
           </form>
         </SCard>

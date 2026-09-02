@@ -17,6 +17,10 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { SalesNumberingService } from '../sales/common/sales-numbering.service';
 import { InventoryService } from '../bom/inventory.service';
 import { ArService } from '../finance-ar/ar.service';
+import {
+  COMPANY_GST_STATE_CODE,
+  gstStateByCode,
+} from '../finance-ar/gst-states';
 import { VaultStorageService } from '../vault/vault-storage.service';
 import { PushEventsService } from '../notifications/push-events.service';
 import {
@@ -460,9 +464,11 @@ export class DeliveryChallanService {
     const settings = await this.prisma.financeCompanySettings.findUnique({
       where: { id: 'INDIA' },
     });
-    const companyStateCode = settings?.stateCode ?? null;
-    const interState =
-      !!companyStateCode && companyStateCode !== dc.consigneeStateCode;
+    // Fall back to the known home state rather than null: with null the old
+    // expression made every dispatch intra-state, so an out-of-state consignee
+    // was seeded CGST+SGST whenever finance settings had no stateCode.
+    const companyStateCode = settings?.stateCode ?? COMPANY_GST_STATE_CODE;
+    const interState = companyStateCode !== dc.consigneeStateCode;
     const DEFAULT_GST = 18; // best-effort default rate; Finance overrides.
 
     await this.prisma.$transaction(async (tx) => {
@@ -483,7 +489,12 @@ export class DeliveryChallanService {
           customerId: dc.customerId,
           orderId: dc.orderId,
           customerPoReference: dc.customerPoReference ?? undefined,
-          placeOfSupplyState: dc.consigneeStateCode,
+          // The state NAME prints on the tax invoice; only the code goes to the
+          // IRP. Both fields used to be given the code, so the printed invoice
+          // read "Place of Supply: 29" instead of "Karnataka".
+          placeOfSupplyState:
+            gstStateByCode(dc.consigneeStateCode)?.name ??
+            dc.consigneeStateCode,
           placeOfSupplyStateCode: dc.consigneeStateCode,
           createdById: user.id,
           lines: dc.lines.map((l) => ({

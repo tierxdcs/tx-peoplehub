@@ -160,6 +160,106 @@ describe('ArService invoice calculations', () => {
     });
   });
 
+  describe('createInvoice place-of-supply guard', () => {
+    const user = { id: 'accounts-1' } as any;
+    const dto = {
+      customerId: 'customer-1',
+      invoiceDate: '2026-09-02',
+      dueDate: '2026-10-02',
+      currencyCode: 'INR',
+      placeOfSupplyState: 'Karnataka',
+      placeOfSupplyStateCode: '29',
+      lines: [
+        {
+          description: 'Kiosk',
+          hsnSacCode: '8479',
+          quantity: 1,
+          unitOfMeasure: 'NOS',
+          unitPrice: 1000,
+          cgstRate: 9,
+          sgstRate: 9,
+        },
+      ],
+    } as any;
+
+    function createService() {
+      const prisma = {
+        customer: {
+          findUnique: jest
+            .fn()
+            .mockResolvedValue({ id: 'customer-1', billingAddress: {} }),
+        },
+        $transaction: jest.fn(),
+      };
+      // Only the invoice row matters here; the transaction body is otherwise
+      // just numbering + a single create.
+      const create = jest.fn().mockResolvedValue({ id: 'inv-1' });
+      prisma.$transaction.mockImplementation(async (cb: any) =>
+        cb({ salesInvoice: { create } }),
+      );
+      const current = new ArService(
+        prisma as any,
+        {
+          assertCanUseFinance: jest.fn().mockResolvedValue(undefined),
+        } as any,
+        {} as any,
+        { nextNumber: jest.fn().mockResolvedValue('INV-2026-0018') } as any,
+        {} as any,
+      );
+      return { current, prisma, create };
+    }
+
+    it('rejects a state name that does not belong to the code', async () => {
+      const { current, prisma } = createService();
+
+      await expect(
+        current.createInvoice(
+          { ...dto, placeOfSupplyState: 'Tamil Nadu' },
+          user,
+        ),
+      ).rejects.toThrow(/is not the GST state for code 29/);
+      // Refused before any numbering is consumed or row written.
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects a code GSTN has retired', async () => {
+      const { current, prisma } = createService();
+
+      await expect(
+        current.createInvoice(
+          {
+            ...dto,
+            placeOfSupplyState: 'Daman and Diu',
+            placeOfSupplyStateCode: '25',
+          },
+          user,
+        ),
+      ).rejects.toThrow(/place of supply/);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('accepts a matching pair and stores GSTN’s own spelling', async () => {
+      const { current, create } = createService();
+
+      await expect(
+        current.createInvoice(
+          { ...dto, placeOfSupplyState: '  karnataka  ' },
+          user,
+        ),
+      ).resolves.toEqual({ id: 'inv-1' });
+
+      // Whatever case the caller sent, the invoice prints "Karnataka".
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            placeOfSupplyState: 'Karnataka',
+            placeOfSupplyStateCode: '29',
+          }),
+        }),
+      );
+    });
+  });
+
   describe('deleteInvoice — pre-issuance only', () => {
     const user = { id: 'accounts-1' } as any;
 

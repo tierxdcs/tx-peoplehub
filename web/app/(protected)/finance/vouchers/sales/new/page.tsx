@@ -7,7 +7,17 @@ import { apiFetch, ApiError } from '../../../../../lib/api';
 import { formatINR } from '../../../../../lib/sales';
 import { useNumberFormat } from '../../../../../lib/number-format-context';
 import { Input } from '../../../../../components/ui/input';
+import { Select } from '../../../../../components/ui/select';
 import { Field } from '../../../../../components/ui/field';
+import {
+  COMPANY_GST_STATE_CODE,
+  DEFAULT_GST_RATE,
+  GST_STATES,
+  gstSplitWarning,
+  gstStateByCode,
+  isIntraStateSupply,
+  splitGstRate,
+} from '../../../../../lib/gst-states';
 import {
   Callout,
   SCard,
@@ -24,6 +34,14 @@ import { PartyPicker } from '../../_components/party-picker';
 /** Shared column template for the line-item table header + body rows. */
 const LINE_GRID =
   'grid grid-cols-[26px_minmax(240px,1.7fr)_110px_84px_80px_112px_78px_120px_32px] gap-2.5 px-5';
+
+const COMPANY_STATE_NAME = gstStateByCode(COMPANY_GST_STATE_CODE)?.name ?? '';
+/**
+ * A voucher opens on the company's own state at the standard slab, so the
+ * default is the intra-state CGST 9 + SGST 9 — not IGST, which would be wrong
+ * for a Karnataka place of supply.
+ */
+const INITIAL_GST = splitGstRate(DEFAULT_GST_RATE, COMPANY_GST_STATE_CODE);
 
 interface OrderCustomer {
   id: string;
@@ -121,11 +139,13 @@ export default function NewSalesVoucherPage() {
   // Empty until an order is picked: every line's name and description come
   // from the order, so there is nothing to show (or invoice) before that.
   const [lines, setLines] = useState<VoucherLine[]>([]);
-  const [igstRate, setIgstRate] = useState('18');
-  const [cgstRate, setCgstRate] = useState('0');
-  const [sgstRate, setSgstRate] = useState('0');
-  const [state, setState] = useState('Karnataka');
-  const [stateCode, setStateCode] = useState('29');
+  const [igstRate, setIgstRate] = useState(String(INITIAL_GST.igstRate));
+  const [cgstRate, setCgstRate] = useState(String(INITIAL_GST.cgstRate));
+  const [sgstRate, setSgstRate] = useState(String(INITIAL_GST.sgstRate));
+  // The state code is the single source of truth for the place of supply: the
+  // printed state name is looked up from it, so the pair can never disagree
+  // (the server rejects a mismatched pair).
+  const [stateCode, setStateCode] = useState(COMPANY_GST_STATE_CODE);
   // The customer's own PO number for this supply. Optional — some customers
   // raise none — but when present it must reach the printed tax invoice, which
   // is where the customer's AP team matches the bill against their PO.
@@ -160,11 +180,17 @@ export default function NewSalesVoucherPage() {
     (taxableAmount * (numericIgstRate + numericCgstRate + numericSgstRate)) /
     100;
   const total = taxableAmount + gstAmount;
-  // GST rule of thumb: IGST is for inter-state supplies, CGST+SGST for
-  // intra-state — they are mutually exclusive on an invoice. Soft warning only;
-  // saving is never blocked (the preparer may know better).
-  const mixedGst =
-    numericIgstRate > 0 && (numericCgstRate > 0 || numericSgstRate > 0);
+  const state = gstStateByCode(stateCode)?.name ?? '';
+  const intraState = isIntraStateSupply(stateCode);
+  // IGST is for inter-state supplies, CGST+SGST for intra-state, and the place
+  // of supply decides which. Changing the state re-splits the rates, so this
+  // only fires when the preparer has since edited a rate by hand — a soft
+  // warning, never a save block (SEZ and export supplies are the exceptions).
+  const gstWarning = gstSplitWarning(stateCode, {
+    igstRate: numericIgstRate,
+    cgstRate: numericCgstRate,
+    sgstRate: numericSgstRate,
+  });
   const gstRatesValid = [
     numericIgstRate,
     numericCgstRate,
@@ -198,6 +224,24 @@ export default function NewSalesVoucherPage() {
         line.id === id ? { ...line, [field]: value } : line,
       ),
     );
+  }
+
+  /**
+   * The place of supply drives the GST split: Karnataka is the company's own
+   * state, so CGST + SGST; anywhere else is inter-state, so IGST. The *total*
+   * rate carries over rather than resetting to 18, which means a preparer who
+   * picked the 5%, 12% or 28% slab keeps that slab — only its split moves, and
+   * the amount the customer is charged does not change.
+   */
+  function selectPlaceOfSupply(code: string) {
+    setStateCode(code);
+    const split = splitGstRate(
+      numericIgstRate + numericCgstRate + numericSgstRate,
+      code,
+    );
+    setIgstRate(String(split.igstRate));
+    setCgstRate(String(split.cgstRate));
+    setSgstRate(String(split.sgstRate));
   }
 
   function selectOrder(id: string) {
@@ -487,7 +531,12 @@ export default function NewSalesVoucherPage() {
             <SCardTitle title="GST" />
             <p className="mt-1 text-xs text-muted-foreground">
               These rates are applied once to the combined taxable value of all
-              line items.
+              line items. The place of supply sets the split —{' '}
+              {intraState
+                ? `${state} is the company's own state, so CGST + SGST`
+                : `${state} is outside ${COMPANY_STATE_NAME}, so IGST`}{' '}
+              — and changing the state re-splits the same total rate. Edit a
+              rate below to use a different slab.
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <Field label="IGST %">
@@ -524,12 +573,9 @@ export default function NewSalesVoucherPage() {
                 />
               </Field>
             </div>
-            {mixedGst && (
+            {gstWarning && (
               <Callout>
-                IGST is combined with CGST/SGST on this invoice. A supply is
-                either inter-state (IGST alone) or intra-state (CGST + SGST) —
-                using both is usually a GST filing error. You can still save if
-                this is intentional.
+                {gstWarning} You can still save if this is intentional.
               </Callout>
             )}
           </SCard>
@@ -575,16 +621,31 @@ export default function NewSalesVoucherPage() {
         />
       </Field>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Place of Supply (State)" required>
-          <Input value={state} onChange={(e) => setState(e.target.value)} />
-        </Field>
-        <Field label="State Code" required>
-          <Input
-            maxLength={2}
-            className="tabular-nums"
+        <Field
+          label="Place of Supply (State)"
+          required
+          hint={
+            intraState
+              ? `${COMPANY_STATE_NAME} is the company's own state — intra-state supply, taxed CGST + SGST.`
+              : `Outside ${COMPANY_STATE_NAME} — inter-state supply, taxed IGST.`
+          }
+        >
+          <Select
             value={stateCode}
-            onChange={(e) => setStateCode(e.target.value)}
-          />
+            onChange={(e) => selectPlaceOfSupply(e.target.value)}
+          >
+            {GST_STATES.map((s) => (
+              <option key={s.code} value={s.code}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field
+          label="State Code"
+          hint="Set by the state — this is the code that reaches GST filings and the e-invoice."
+        >
+          <Input readOnly className="tabular-nums" value={stateCode} />
         </Field>
       </div>
     </VoucherShell>

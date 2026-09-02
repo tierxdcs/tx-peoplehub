@@ -28,6 +28,7 @@ import {
   RecordManualIrnDto,
 } from './dto/ar.dto';
 import { GstGatewayService } from './gst-gateway.service';
+import { resolvePlaceOfSupply } from './gst-states';
 
 const INVOICE_INCLUDE = {
   customer: true,
@@ -205,6 +206,20 @@ export class ArService {
       throw new BadRequestException(
         'A positive INR exchange rate is required for foreign-currency invoices',
       );
+    // The place of supply is a statutory pair: the state name that prints on the
+    // tax invoice and the two-digit code that reaches the IRP (see
+    // buildGstPayload → placeOfSupply). Resolving the pair here turns a mismatch
+    // into a readable error at creation instead of an IRP rejection after the
+    // invoice has been approved, and stores GSTN's own spelling whatever case
+    // the caller sent.
+    const placeOfSupply = resolvePlaceOfSupply(
+      dto.placeOfSupplyState,
+      dto.placeOfSupplyStateCode,
+    );
+    if (!placeOfSupply)
+      throw new BadRequestException(
+        `"${dto.placeOfSupplyState}" is not the GST state for code ${dto.placeOfSupplyStateCode} — pick a place of supply whose name and two-digit code match`,
+      );
     const lines = dto.lines.map((line, index) =>
       this.calculateLine(line, index),
     );
@@ -271,8 +286,8 @@ export class ArService {
           shippingAddressSnapshot: (customer.shippingAddress ??
             customer.billingAddress) as Prisma.InputJsonValue,
           customerGstinSnapshot: customer.gstin,
-          placeOfSupplyState: dto.placeOfSupplyState,
-          placeOfSupplyStateCode: dto.placeOfSupplyStateCode,
+          placeOfSupplyState: placeOfSupply.name,
+          placeOfSupplyStateCode: placeOfSupply.code,
           subtotal,
           discountAmount: discount,
           taxableAmount: taxable,
