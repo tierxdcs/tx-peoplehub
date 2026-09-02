@@ -18,6 +18,7 @@ import {
   ApprovedQuoteIndicator,
   IntakeProgressBar,
 } from '../_components/intake-progress';
+import { SuperAdminDeleteButton } from '../_components/super-admin-delete-button';
 import {
   SCard,
   SIGNAL_BTN_GHOST,
@@ -177,13 +178,14 @@ export default function BomIntakeRegisterPage() {
                 <TableHead>Rev</TableHead>
                 <TableHead>Raised by</TableHead>
                 <TableHead>Created</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 Array.from({ length: 5 }).map((_, row) => (
                   <TableRow key={row}>
-                    {Array.from({ length: 8 }).map((__, column) => (
+                    {Array.from({ length: 9 }).map((__, column) => (
                       <TableCell key={column}>
                         <Skeleton className="h-4 w-24" />
                       </TableCell>
@@ -192,7 +194,7 @@ export default function BomIntakeRegisterPage() {
                 ))
               ) : register.visibleItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="p-0">
+                  <TableCell colSpan={9} className="p-0">
                     <EmptyState
                       icon={PackageSearch}
                       title="No BOM intake requests match your filters"
@@ -246,6 +248,16 @@ export default function BomIntakeRegisterPage() {
                     </TableCell>
                     <TableCell className="tabular-nums">
                       {new Date(row.createdAt).toLocaleDateString('en-IN')}
+                    </TableCell>
+                    <TableCell>
+                      <SuperAdminDeleteButton
+                        type="bom-intakes"
+                        id={row.id}
+                        label={row.productName}
+                        onDeleted={async () =>
+                          setRows(await listBomIntakeRegister())
+                        }
+                      />
                     </TableCell>
                   </TableRow>
                 ))

@@ -58,6 +58,7 @@ import {
 } from '../../../components/ui/table';
 import { useToast } from '../../../components/ui/toaster';
 import { useConfirm } from '../../../components/ui/confirm';
+import { SuperAdminDeleteButton } from '../_components/super-admin-delete-button';
 
 export default function LeadsPage() {
   const router = useRouter();
@@ -384,6 +385,12 @@ export default function LeadsPage() {
                                 </Button>
                               )}
                             {renderAction(lead)}
+                            <SuperAdminDeleteButton
+                              type="leads"
+                              id={lead.id}
+                              label={lead.leadNumber}
+                              onDeleted={load}
+                            />
                           </div>
                         </TableCell>
                       </TableRow>

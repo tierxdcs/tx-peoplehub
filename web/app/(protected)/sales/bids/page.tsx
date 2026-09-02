@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '../../../components/ui/table';
+import { SuperAdminDeleteButton } from '../_components/super-admin-delete-button';
 
 const STATUSES: BidStatus[] = [
   'DRAFT',
@@ -276,13 +277,21 @@ export default function BidsPage() {
                       {new Date(bid.validUntil).toLocaleDateString('en-IN')}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push(`/sales/bids/${bid.id}`)}
-                      >
-                        View Bid
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => router.push(`/sales/bids/${bid.id}`)}
+                        >
+                          View Bid
+                        </Button>
+                        <SuperAdminDeleteButton
+                          type="bids"
+                          id={bid.id}
+                          label={bid.bidNumber}
+                          onDeleted={load}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

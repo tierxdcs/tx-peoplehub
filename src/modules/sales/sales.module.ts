@@ -35,6 +35,8 @@ import { DesignBomIntakeController } from './design-bom-intake.controller';
 import { DesignModule } from '../design/design.module';
 import { BidStrategyMeetingsController } from './bid-strategy-meetings.controller';
 import { BidStrategyMeetingsService } from './bid-strategy-meetings.service';
+import { PipelineAdminDeleteController } from './pipeline-admin-delete.controller';
+import { PipelineAdminDeleteService } from './pipeline-admin-delete.service';
 
 /**
  * Sales pipeline: Customer/Product master data → Lead → Opportunity →
@@ -77,6 +79,7 @@ import { BidStrategyMeetingsService } from './bid-strategy-meetings.service';
     CustomerBomIntakeRegisterController,
     DesignBomIntakeController,
     BidStrategyMeetingsController,
+    PipelineAdminDeleteController,
   ],
   providers: [
     SalesAccessService,
@@ -94,6 +97,7 @@ import { BidStrategyMeetingsService } from './bid-strategy-meetings.service';
     ConfirmationSheetsService,
     CustomerBomIntakeService,
     BidStrategyMeetingsService,
+    PipelineAdminDeleteService,
   ],
   exports: [
     BidsService,

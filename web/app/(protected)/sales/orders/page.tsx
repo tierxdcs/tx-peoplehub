@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '../../../components/ui/table';
+import { SuperAdminDeleteButton } from '../_components/super-admin-delete-button';
 
 const STATUSES: OrderStatus[] = [
   'CONFIRMED',
@@ -288,13 +289,21 @@ export default function OrdersPage() {
                       {new Date(order.createdAt).toLocaleDateString('en-IN')}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push(`/sales/orders/${order.id}`)}
-                      >
-                        View Order
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => router.push(`/sales/orders/${order.id}`)}
+                        >
+                          View Order
+                        </Button>
+                        <SuperAdminDeleteButton
+                          type="orders"
+                          id={order.id}
+                          label={order.orderNumber}
+                          onDeleted={load}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

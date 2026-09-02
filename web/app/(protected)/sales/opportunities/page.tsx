@@ -33,6 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from '../../../components/ui/table';
+import { SuperAdminDeleteButton } from '../_components/super-admin-delete-button';
 
 const STAGES: OpportunityStage[] = [
   'PROSPECTING',
@@ -263,15 +264,23 @@ export default function OpportunitiesPage() {
                       ).toLocaleDateString('en-IN')}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          router.push(`/sales/opportunities/${opportunity.id}`)
-                        }
-                      >
-                        View Opportunity
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            router.push(`/sales/opportunities/${opportunity.id}`)
+                          }
+                        >
+                          View Opportunity
+                        </Button>
+                        <SuperAdminDeleteButton
+                          type="opportunities"
+                          id={opportunity.id}
+                          label={opportunity.name}
+                          onDeleted={load}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
