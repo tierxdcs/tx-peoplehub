@@ -130,8 +130,7 @@ export function BoardView({
   // Deleting the WHOLE board is owner-only: its creator or a SUPER_ADMIN,
   // mirroring KanbanAccessService.assertCanDeleteBoard (a Scrum Master who only
   // manages the board does NOT get this).
-  const canDeleteBoard =
-    isSuperAdmin || board?.createdById === user?.sub;
+  const canDeleteBoard = isSuperAdmin || board?.createdById === user?.sub;
   const canArchiveBoard =
     canDeleteBoard &&
     board?.status === 'ACTIVE' &&
@@ -213,6 +212,28 @@ export function BoardView({
   useEffect(() => {
     void loadShell();
   }, [loadShell]);
+
+  // Sprints may have been created after the board shell was first loaded (for
+  // example, from another tab or after returning from sprint management).
+  // Refresh them whenever a card opens so its assignment dropdown never relies
+  // on that stale initial snapshot.
+  useEffect(() => {
+    if (!openCard) return;
+
+    let cancelled = false;
+    void listBoardSprints(boardId)
+      .then((latestSprints) => {
+        if (!cancelled) setSprints(latestSprints);
+      })
+      .catch(() => {
+        // Keep the already-loaded choices when a background refresh fails; the
+        // card itself remains usable and the board-level error state is spared.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [boardId, openCard]);
 
   useEffect(() => {
     if (!loading && !forbidden && lists.length >= 0 && board) {
