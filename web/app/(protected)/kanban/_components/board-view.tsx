@@ -221,17 +221,24 @@ export function BoardView({
     if (!openCard) return;
 
     let cancelled = false;
-    void listBoardSprints(boardId)
-      .then((latestSprints) => {
-        if (!cancelled) setSprints(latestSprints);
-      })
-      .catch(() => {
-        // Keep the already-loaded choices when a background refresh fails; the
-        // card itself remains usable and the board-level error state is spared.
-      });
+    const refreshSprints = () => {
+      void listBoardSprints(boardId)
+        .then((latestSprints) => {
+          if (!cancelled) setSprints(latestSprints);
+        })
+        .catch(() => {
+          // Keep the already-loaded choices when a background refresh fails;
+          // the card itself remains usable.
+        });
+    };
+
+    refreshSprints();
+    // Also cover a sprint created in another tab while this card remains open.
+    window.addEventListener('focus', refreshSprints);
 
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', refreshSprints);
     };
   }, [boardId, openCard]);
 

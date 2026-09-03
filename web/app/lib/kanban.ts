@@ -25,7 +25,12 @@ export interface KanbanBoard {
   status: 'ACTIVE' | 'ARCHIVED';
   memberCount: number;
   isCustomerBoard: boolean;
-  taskCounts: { todo: number; inProgress: number; complete: number; overdue: number };
+  taskCounts: {
+    todo: number;
+    inProgress: number;
+    complete: number;
+    overdue: number;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -203,7 +208,9 @@ export function reorderList(listId: string, position: number) {
 // ── Sprints ──────────────────────────────────────────────────────────
 
 export function listBoardSprints(boardId: string) {
-  return apiFetch<KanbanSprint[]>(`/kanban/boards/${boardId}/sprints`);
+  return apiFetch<KanbanSprint[]>(`/kanban/boards/${boardId}/sprints`, {
+    cache: 'no-store',
+  });
 }
 
 export function createSprint(
@@ -378,10 +385,9 @@ export function attachmentDownloadUrl(cardId: string, attachmentId: string) {
 }
 
 export function deleteAttachment(cardId: string, attachmentId: string) {
-  return apiFetch<void>(
-    `/kanban/cards/${cardId}/attachments/${attachmentId}`,
-    { method: 'DELETE' },
-  );
+  return apiFetch<void>(`/kanban/cards/${cardId}/attachments/${attachmentId}`, {
+    method: 'DELETE',
+  });
 }
 
 // ── Labels ───────────────────────────────────────────────────────────
