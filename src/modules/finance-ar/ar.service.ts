@@ -308,6 +308,144 @@ export class ArService {
     });
   }
 
+  async updateInvoice(
+    id: string,
+    dto: CreateSalesInvoiceDto,
+    user: AuthenticatedUser,
+  ) {
+    await this.access.assertCanUseFinance(user);
+    const existing = await this.findInvoice(id);
+    if (existing.status !== SalesInvoiceStatus.DRAFT)
+      throw new BadRequestException('Only draft sales vouchers can be edited');
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: dto.customerId },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+    if (dto.orderId) {
+      const order = await this.prisma.order.findUnique({
+        where: { id: dto.orderId },
+      });
+      if (!order || order.customerId !== customer.id)
+        throw new BadRequestException(
+          'Order does not belong to the selected customer',
+        );
+    }
+    if (dto.milestoneId) {
+      const milestone = await this.prisma.billingMilestone.findUnique({
+        where: { id: dto.milestoneId },
+      });
+      if (
+        !milestone ||
+        milestone.orderId !== dto.orderId ||
+        (milestone.status === 'INVOICED' &&
+          milestone.id !== existing.milestoneId)
+      )
+        throw new BadRequestException(
+          'Milestone is unavailable for this order',
+        );
+    }
+    const currency = dto.currencyCode.toUpperCase();
+    if (!['INR', 'USD', 'CAD', 'EUR'].includes(currency))
+      throw new BadRequestException('Unsupported currency');
+    if (
+      currency !== 'INR' &&
+      (!dto.exchangeRateToInr || dto.exchangeRateToInr <= 0)
+    )
+      throw new BadRequestException(
+        'A positive INR exchange rate is required for foreign-currency invoices',
+      );
+    const placeOfSupply = resolvePlaceOfSupply(
+      dto.placeOfSupplyState,
+      dto.placeOfSupplyStateCode,
+    );
+    if (!placeOfSupply)
+      throw new BadRequestException(
+        `"${dto.placeOfSupplyState}" is not the GST state for code ${dto.placeOfSupplyStateCode} — pick a place of supply whose name and two-digit code match`,
+      );
+    const lines = dto.lines.map((line, index) =>
+      this.calculateLine(line, index),
+    );
+    const subtotal = lines
+      .reduce(
+        (sum, line) => sum.plus(line.quantity.times(line.unitPrice)),
+        new Prisma.Decimal(0),
+      )
+      .toDecimalPlaces(2);
+    const taxable = lines.reduce(
+      (sum, line) => sum.plus(line.taxableAmount),
+      new Prisma.Decimal(0),
+    );
+    const cgst = lines.reduce(
+      (sum, line) => sum.plus(line.cgstAmount),
+      new Prisma.Decimal(0),
+    );
+    const sgst = lines.reduce(
+      (sum, line) => sum.plus(line.sgstAmount),
+      new Prisma.Decimal(0),
+    );
+    const igst = lines.reduce(
+      (sum, line) => sum.plus(line.igstAmount),
+      new Prisma.Decimal(0),
+    );
+    const other = new Prisma.Decimal(dto.otherCharges ?? 0);
+    const roundOff = new Prisma.Decimal(dto.roundOff ?? 0);
+    const total = taxable
+      .plus(cgst)
+      .plus(sgst)
+      .plus(igst)
+      .plus(other)
+      .plus(roundOff)
+      .toDecimalPlaces(2);
+    const invoiceDate = this.day(dto.invoiceDate);
+    const dueDate = this.day(dto.dueDate);
+    if (dueDate < invoiceDate)
+      throw new BadRequestException('Due date cannot precede invoice date');
+
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.salesInvoice.findUnique({ where: { id } });
+      if (!current) throw new NotFoundException('Sales invoice not found');
+      if (current.status !== SalesInvoiceStatus.DRAFT)
+        throw new BadRequestException(
+          'Only draft sales vouchers can be edited',
+        );
+      await tx.salesInvoiceLine.deleteMany({ where: { invoiceId: id } });
+      return tx.salesInvoice.update({
+        where: { id },
+        data: {
+          invoiceDate,
+          dueDate,
+          customerId: customer.id,
+          orderId: dto.orderId ?? null,
+          milestoneId: dto.milestoneId ?? null,
+          customerPoReference: dto.customerPoReference ?? null,
+          currencyCode: currency,
+          exchangeRateToInr: dto.exchangeRateToInr ?? 1,
+          billingAddressSnapshot:
+            customer.billingAddress as Prisma.InputJsonValue,
+          shippingAddressSnapshot: (customer.shippingAddress ??
+            customer.billingAddress) as Prisma.InputJsonValue,
+          customerGstinSnapshot: customer.gstin,
+          placeOfSupplyState: placeOfSupply.name,
+          placeOfSupplyStateCode: placeOfSupply.code,
+          subtotal,
+          discountAmount: subtotal.minus(taxable),
+          taxableAmount: taxable,
+          cgstAmount: cgst,
+          sgstAmount: sgst,
+          igstAmount: igst,
+          otherCharges: other,
+          roundOff,
+          totalAmount: total,
+          outstandingAmount: total,
+          paymentTerms: dto.paymentTerms ?? null,
+          lines: { create: lines },
+        },
+        include: INVOICE_INCLUDE,
+      });
+    });
+  }
+
   /**
    * Seed a DRAFT sales invoice from another module (Logistics & Dispatch), WITHOUT
    * a finance access check — a logistics user would fail assertCanUseFinance, but

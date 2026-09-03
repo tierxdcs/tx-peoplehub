@@ -17,12 +17,17 @@ import { CreatePayrollRunDto } from './dto/create-payroll-run.dto';
 import { PayrollRunEntity } from './entities/payroll-run.entity';
 import { PayslipEntity } from './entities/payslip.entity';
 import { PayrollComputationService } from './payroll-computation.service';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { FinanceAccessService } from '../finance/finance-access.service';
+import { FinanceService } from '../finance/finance.service';
 
 @Injectable()
 export class PayrollRunsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly computation: PayrollComputationService,
+    private readonly financeAccess: FinanceAccessService,
+    private readonly finance: FinanceService,
   ) {}
 
   async create(
@@ -86,6 +91,21 @@ export class PayrollRunsService {
     const periodEnd = endOfMonth(
       new Date(Date.UTC(run.year, run.month - 1, 1)),
     );
+    const periodStart = new Date(Date.UTC(run.year, run.month - 1, 1));
+    const incompleteAttendance = await this.prisma.attendance.count({
+      where: {
+        date: { gte: periodStart, lte: periodEnd },
+        OR: [
+          { checkInTime: { not: null }, checkOutTime: null },
+          { checkInTime: null, checkOutTime: { not: null } },
+        ],
+      },
+    });
+    if (incompleteAttendance > 0) {
+      throw new BadRequestException(
+        `Payroll cannot be processed while ${incompleteAttendance} attendance record(s) have a missing check-in or check-out`,
+      );
+    }
     const employees = await this.prisma.employee.findMany({
       where: { status: EmployeeStatus.ACTIVE },
     });
@@ -154,16 +174,190 @@ export class PayrollRunsService {
 
   async lock(id: string): Promise<PayrollRunEntity> {
     const run = await this.findRawOrThrow(id);
+    throw new BadRequestException(
+      `Direct locking is disabled (current status: ${run.status}). Submit the completed run to Accounts; Finance approval locks it automatically.`,
+    );
+  }
+
+  async submit(id: string, user: AuthenticatedUser): Promise<PayrollRunEntity> {
+    const run = await this.findRawOrThrow(id);
     if (run.status !== PayrollRunStatus.COMPLETED) {
       throw new BadRequestException(
-        `Only a COMPLETED run can be locked (current status: ${run.status})`,
+        'Only a COMPLETED payroll run can be submitted',
       );
     }
     const updated = await this.prisma.payrollRun.update({
       where: { id },
-      data: { status: PayrollRunStatus.LOCKED, lockedAt: new Date() },
+      data: {
+        status: PayrollRunStatus.PENDING_APPROVAL,
+        submittedById: user.id,
+        submittedAt: new Date(),
+      },
     });
     return this.toEntity(updated);
+  }
+
+  async accountsQueue(user: AuthenticatedUser) {
+    await this.financeAccess.assertCanUseFinance(user);
+    const runs = await this.prisma.payrollRun.findMany({
+      where: {
+        status: {
+          in: [
+            PayrollRunStatus.PENDING_APPROVAL,
+            PayrollRunStatus.APPROVED,
+            PayrollRunStatus.LOCKED,
+            PayrollRunStatus.PAID,
+          ],
+        },
+      },
+      include: { payslips: true },
+      orderBy: [{ year: 'desc' }, { month: 'desc' }],
+    });
+    return runs.map((run) => {
+      const totals = this.totals(run.payslips);
+      return {
+        ...this.toEntity(run),
+        employeeCount: totals.employeeCount,
+        grossEarnings: totals.grossEarnings.toString(),
+        unpaidLeaveDeduction: totals.unpaidLeaveDeduction.toString(),
+        employerContributions: totals.employerContributions.toString(),
+        netPay: totals.netPay.toString(),
+        tds: totals.tds.toString(),
+        totalExpense: totals.totalExpense.toString(),
+      };
+    });
+  }
+
+  async approve(id: string, user: AuthenticatedUser) {
+    await this.financeAccess.assertAccountsHead(user);
+    const run = await this.prisma.payrollRun.findUnique({
+      where: { id },
+      include: { payslips: true },
+    });
+    if (!run) throw new NotFoundException('Payroll run not found');
+    if (run.status !== PayrollRunStatus.PENDING_APPROVAL)
+      throw new BadRequestException('Payroll run is not awaiting approval');
+    if (run.initiatedById === user.id || run.submittedById === user.id)
+      throw new BadRequestException(
+        'The payroll maker cannot approve the same run',
+      );
+    const totals = this.totals(run.payslips);
+    return this.prisma.$transaction(async (tx) => {
+      const [expense, accrued, tds] = await Promise.all([
+        this.account(tx, '6000'),
+        this.account(tx, '2400'),
+        this.account(tx, '2200'),
+      ]);
+      const journal = await this.finance.postJournalTx(tx, {
+        entryDate: endOfMonth(new Date(Date.UTC(run.year, run.month - 1, 1))),
+        description: `Payroll accrual ${run.month}/${run.year}`,
+        reference: `PAYROLL-${run.year}-${String(run.month).padStart(2, '0')}`,
+        createdById: run.initiatedById,
+        submittedById: run.submittedById,
+        submittedAt: run.submittedAt,
+        approvedById: user.id,
+        lines: [
+          { accountId: expense.id, debit: totals.totalExpense, credit: 0 },
+          { accountId: accrued.id, debit: 0, credit: totals.nonTdsPayable },
+          { accountId: tds.id, debit: 0, credit: totals.tds },
+        ],
+      });
+      return tx.payrollRun.update({
+        where: { id },
+        data: {
+          status: PayrollRunStatus.APPROVED,
+          approvedById: user.id,
+          approvedAt: new Date(),
+          lockedAt: new Date(),
+          accrualJournalEntryId: journal.id,
+        },
+      });
+    });
+  }
+
+  async executePayment(
+    id: string,
+    bankReference: string,
+    user: AuthenticatedUser,
+  ) {
+    await this.financeAccess.assertCanUseFinance(user);
+    if (!bankReference?.trim())
+      throw new BadRequestException('Bank reference is required');
+    const run = await this.prisma.payrollRun.findUnique({
+      where: { id },
+      include: { payslips: true },
+    });
+    if (!run) throw new NotFoundException('Payroll run not found');
+    if (
+      ![PayrollRunStatus.APPROVED, PayrollRunStatus.LOCKED].includes(
+        run.status as any,
+      )
+    )
+      throw new BadRequestException('Only an approved payroll run can be paid');
+    const totals = this.totals(run.payslips);
+    return this.prisma.$transaction(async (tx) => {
+      const [accrued, bank] = await Promise.all([
+        this.account(tx, '2400'),
+        this.account(tx, '1000'),
+      ]);
+      const journal = await this.finance.postJournalTx(tx, {
+        entryDate: new Date(),
+        description: `Salary payment ${run.month}/${run.year}`,
+        reference: bankReference.trim(),
+        createdById: user.id,
+        approvedById: run.approvedById ?? user.id,
+        lines: [
+          { accountId: accrued.id, debit: totals.netPay, credit: 0 },
+          { accountId: bank.id, debit: 0, credit: totals.netPay },
+        ],
+      });
+      await tx.payslip.updateMany({
+        where: { payrollRunId: id },
+        data: { status: 'PAID' },
+      });
+      return tx.payrollRun.update({
+        where: { id },
+        data: {
+          status: PayrollRunStatus.PAID,
+          paidAt: new Date(),
+          paymentBankReference: bankReference.trim(),
+          paymentJournalEntryId: journal.id,
+        },
+      });
+    });
+  }
+
+  private totals(payslips: Payslip[]) {
+    const sum = (pick: (p: Payslip) => Prisma.Decimal | null) =>
+      payslips.reduce(
+        (total, p) => total.plus(pick(p) ?? 0),
+        new Prisma.Decimal(0),
+      );
+    const gross = sum((p) => p.grossEarnings);
+    const unpaid = sum((p) => p.unpaidLeaveDeduction);
+    const employer = sum((p) => p.pfEmployer).plus(sum((p) => p.esiEmployer));
+    const tds = sum((p) => p.tdsDeducted);
+    const netPay = sum((p) => p.netPay);
+    const totalExpense = gross.minus(unpaid).plus(employer);
+    return {
+      employeeCount: payslips.length,
+      grossEarnings: gross,
+      unpaidLeaveDeduction: unpaid,
+      employerContributions: employer,
+      netPay,
+      tds,
+      totalExpense,
+      nonTdsPayable: totalExpense.minus(tds),
+    };
+  }
+
+  private async account(tx: Prisma.TransactionClient, code: string) {
+    const account = await tx.ledgerAccount.findUnique({ where: { code } });
+    if (!account?.isActive)
+      throw new BadRequestException(
+        `Required payroll ledger ${code} is missing or inactive`,
+      );
+    return account;
   }
 
   private async findRawOrThrow(id: string): Promise<PayrollRun> {
@@ -183,6 +377,10 @@ export class PayrollRunsService {
       initiatedById: run.initiatedById,
       processedAt: run.processedAt,
       lockedAt: run.lockedAt,
+      submittedAt: run.submittedAt,
+      approvedAt: run.approvedAt,
+      paidAt: run.paidAt,
+      paymentBankReference: run.paymentBankReference,
       createdAt: run.createdAt,
     });
   }

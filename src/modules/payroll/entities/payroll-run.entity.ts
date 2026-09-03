@@ -23,6 +23,11 @@ export class PayrollRunEntity {
   @ApiProperty({ nullable: true })
   lockedAt!: Date | null;
 
+  @ApiProperty({ nullable: true }) submittedAt!: Date | null;
+  @ApiProperty({ nullable: true }) approvedAt!: Date | null;
+  @ApiProperty({ nullable: true }) paidAt!: Date | null;
+  @ApiProperty({ nullable: true }) paymentBankReference!: string | null;
+
   @ApiProperty()
   createdAt!: Date;
 

@@ -330,6 +330,7 @@ export function sharedNav(access: Access): NavGroup[] {
         { label: FINANCE_LABELS.journalVoucher, href: '/finance/journals' },
         { label: FINANCE_LABELS.contraVoucher, href: '/finance/contra' },
         { label: 'Expense Claims', href: '/finance/expense-claims' },
+        { label: 'Salary Payments', href: '/finance/payroll' },
       ],
     });
     groups.push({

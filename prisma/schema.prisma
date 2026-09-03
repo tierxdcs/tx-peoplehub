@@ -125,7 +125,10 @@ enum PayrollRunStatus {
   DRAFT
   PROCESSING
   COMPLETED
+  PENDING_APPROVAL
+  APPROVED
   LOCKED
+  PAID
 }
 
 enum PayslipStatus {
@@ -1305,17 +1308,25 @@ model StatutoryConfig {
 /// (payslips generated) -> LOCKED (immutable; corrections require a new
 /// period's adjustment, never a retroactive edit).
 model PayrollRun {
-  id            String           @id @default(uuid())
-  month         Int
-  year          Int
-  status        PayrollRunStatus @default(DRAFT)
-  initiatedById String
-  initiatedBy   Employee         @relation(fields: [initiatedById], references: [id], onDelete: Restrict)
-  processedAt   DateTime?
-  lockedAt      DateTime?
-  payslips      Payslip[]
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id                    String           @id @default(uuid())
+  month                 Int
+  year                  Int
+  status                PayrollRunStatus @default(DRAFT)
+  initiatedById         String
+  initiatedBy           Employee         @relation(fields: [initiatedById], references: [id], onDelete: Restrict)
+  processedAt           DateTime?
+  lockedAt              DateTime?
+  submittedById         String?
+  submittedAt           DateTime?
+  approvedById          String?
+  approvedAt            DateTime?
+  accrualJournalEntryId String?          @unique
+  paymentJournalEntryId String?          @unique
+  paymentBankReference  String?
+  paidAt                DateTime?
+  payslips              Payslip[]
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
 
   @@unique([month, year])
   @@map("payroll_runs")
@@ -3268,32 +3279,32 @@ enum KanbanCardAttachmentStatus {
 /// pending-approvals counters (things needing ACTION). Poll-based, like the
 /// rest of the app's notification surfaces.
 model Notification {
-  id                  String           @id @default(uuid())
-  employeeId          String
-  employee            Employee         @relation("NotificationRecipient", fields: [employeeId], references: [id], onDelete: Cascade)
-  type                NotificationType
+  id                     String           @id @default(uuid())
+  employeeId             String
+  employee               Employee         @relation("NotificationRecipient", fields: [employeeId], references: [id], onDelete: Cascade)
+  type                   NotificationType
   /// Deep-link target for card-based notifications (Kanban). Null for others.
-  relatedCardId       String?
-  relatedCard         KanbanCard?      @relation(fields: [relatedCardId], references: [id], onDelete: Cascade)
+  relatedCardId          String?
+  relatedCard            KanbanCard?      @relation(fields: [relatedCardId], references: [id], onDelete: Cascade)
   /// Deep-link target for vendor-based notifications (SCM). Null for others.
   /// A notification carries at most one related-entity id, by type.
-  relatedVendorId     String?
-  relatedVendor       Vendor?          @relation(fields: [relatedVendorId], references: [id], onDelete: Cascade)
+  relatedVendorId        String?
+  relatedVendor          Vendor?          @relation(fields: [relatedVendorId], references: [id], onDelete: Cascade)
   /// Deep-link target for supplier-based notifications (SCM raw-materials).
-  relatedSupplierId   String?
-  relatedSupplier     Supplier?        @relation(fields: [relatedSupplierId], references: [id], onDelete: Cascade)
+  relatedSupplierId      String?
+  relatedSupplier        Supplier?        @relation(fields: [relatedSupplierId], references: [id], onDelete: Cascade)
   /// Deep-link target for BOM workflow notifications (R&D). Null for others.
-  relatedBomId        String?
-  relatedBom          Bom?             @relation(fields: [relatedBomId], references: [id], onDelete: Cascade)
+  relatedBomId           String?
+  relatedBom             Bom?             @relation(fields: [relatedBomId], references: [id], onDelete: Cascade)
   /// Deep-link target for PLM workflow notifications.
-  relatedPlmTrackerId String?
-  relatedPlmTracker   PlmTracker?      @relation(fields: [relatedPlmTrackerId], references: [id], onDelete: Cascade)
+  relatedPlmTrackerId    String?
+  relatedPlmTracker      PlmTracker?      @relation(fields: [relatedPlmTrackerId], references: [id], onDelete: Cascade)
   /// Deep-link target for the PO advance-payment handoff (Stores ↔ Accounts).
   relatedPurchaseOrderId String?
-  relatedPurchaseOrder   PurchaseOrder? @relation(fields: [relatedPurchaseOrderId], references: [id], onDelete: Cascade)
-  message             String
-  isRead              Boolean          @default(false)
-  createdAt           DateTime         @default(now())
+  relatedPurchaseOrder   PurchaseOrder?   @relation(fields: [relatedPurchaseOrderId], references: [id], onDelete: Cascade)
+  message                String
+  isRead                 Boolean          @default(false)
+  createdAt              DateTime         @default(now())
 
   @@index([employeeId, isRead])
   @@index([relatedPlmTrackerId])

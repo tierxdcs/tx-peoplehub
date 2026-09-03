@@ -8,6 +8,8 @@ import { EmployeeStatus, PayrollRunStatus } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { PayrollRunsService } from './payroll-runs.service';
 import { PayrollComputationService } from './payroll-computation.service';
+import { FinanceAccessService } from '../finance/finance-access.service';
+import { FinanceService } from '../finance/finance.service';
 
 describe('PayrollRunsService', () => {
   let service: PayrollRunsService;
@@ -38,6 +40,7 @@ describe('PayrollRunsService', () => {
         update: jest.fn(),
       },
       payslip: { findMany: jest.fn() },
+      attendance: { count: jest.fn().mockResolvedValue(0) },
       employee: { findMany: jest.fn() },
       $transaction: jest.fn(),
     };
@@ -51,6 +54,8 @@ describe('PayrollRunsService', () => {
         PayrollRunsService,
         { provide: PrismaService, useValue: prisma },
         { provide: PayrollComputationService, useValue: computation },
+        { provide: FinanceAccessService, useValue: {} },
+        { provide: FinanceService, useValue: {} },
       ],
     }).compile();
 
@@ -191,20 +196,15 @@ describe('PayrollRunsService', () => {
       );
     });
 
-    it('locks a COMPLETED run', async () => {
+    it('routes a COMPLETED run through Accounts instead of direct locking', async () => {
       prisma.payrollRun.findUnique.mockResolvedValue({
         ...draftRun,
         status: PayrollRunStatus.COMPLETED,
       });
-      prisma.payrollRun.update.mockResolvedValue({
-        ...draftRun,
-        status: PayrollRunStatus.LOCKED,
-        lockedAt: new Date(),
-      });
-
-      const result = await service.lock('run-1');
-
-      expect(result.status).toBe(PayrollRunStatus.LOCKED);
+      await expect(service.lock('run-1')).rejects.toThrow(
+        'Submit the completed run to Accounts',
+      );
+      expect(prisma.payrollRun.update).not.toHaveBeenCalled();
     });
   });
 

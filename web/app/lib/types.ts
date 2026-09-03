@@ -228,7 +228,14 @@ export interface StatutoryConfig {
   sourceNote: string;
 }
 
-export type PayrollRunStatus = 'DRAFT' | 'PROCESSING' | 'COMPLETED' | 'LOCKED';
+export type PayrollRunStatus =
+  | 'DRAFT'
+  | 'PROCESSING'
+  | 'COMPLETED'
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'LOCKED'
+  | 'PAID';
 
 export interface PayrollRun {
   id: string;
@@ -238,6 +245,10 @@ export interface PayrollRun {
   initiatedById: string;
   processedAt: string | null;
   lockedAt: string | null;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  paidAt: string | null;
+  paymentBankReference: string | null;
   createdAt: string;
 }
 
@@ -295,11 +306,7 @@ export type VaultFileTypeCategory =
  * source-module column, so this is never a user-editable field.
  */
 export type VaultFileOrigin =
-  | 'DESIGN'
-  | 'SALES_LEAD'
-  | 'VENDOR_QUALIFICATION'
-  | 'RFQ'
-  | 'MANUAL';
+  'DESIGN' | 'SALES_LEAD' | 'VENDOR_QUALIFICATION' | 'RFQ' | 'MANUAL';
 
 /** RELEVANCE only ranks meaningfully when a search term is present. */
 export type VaultSortOption =

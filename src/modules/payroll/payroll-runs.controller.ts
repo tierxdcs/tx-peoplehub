@@ -65,9 +65,17 @@ export class PayrollRunsController {
     return this.payrollRunsService.processRun(id);
   }
 
+  @Post(':id/submit')
+  @ApiOperation({
+    summary: 'Submit a COMPLETED payroll run to Accounts for approval',
+  })
+  submit(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.payrollRunsService.submit(id, user);
+  }
+
   @Patch(':id/lock')
   @ApiOperation({
-    summary: 'Lock a COMPLETED run — no further edits permitted after this',
+    summary: 'Legacy endpoint; direct locking is disabled—submit to Accounts',
   })
   lock(@Param('id') id: string) {
     return this.payrollRunsService.lock(id);

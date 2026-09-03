@@ -70,6 +70,13 @@ export class ArController {
   ) {
     return this.ar.createInvoice(d, u);
   }
+  @Put('invoices/:id') updateInvoice(
+    @Param('id') id: string,
+    @Body() d: CreateSalesInvoiceDto,
+    @CurrentUser() u: AuthenticatedUser,
+  ) {
+    return this.ar.updateInvoice(id, d, u);
+  }
   @Get('invoices') invoices(
     @Query() q: PaginationQueryDto,
     @CurrentUser() u: AuthenticatedUser,

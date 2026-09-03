@@ -18,6 +18,30 @@ describe('ArService invoice calculations', () => {
   const calculate = (line: Record<string, unknown>) =>
     (service as any).calculateLine(line, 0);
 
+  it('refuses to edit a sales voucher after it leaves draft', async () => {
+    const prisma = { customer: { findUnique: jest.fn() } };
+    const access = {
+      assertCanUseFinance: jest.fn().mockResolvedValue(undefined),
+    };
+    const current = new ArService(
+      prisma as any,
+      access as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    jest.spyOn(current as any, 'findInvoice').mockResolvedValue({
+      id: 'invoice-1',
+      status: SalesInvoiceStatus.PENDING_APPROVAL,
+    });
+
+    await expect(
+      current.updateInvoice('invoice-1', {} as any, { id: 'finance-1' } as any),
+    ).rejects.toThrow('Only draft sales vouchers can be edited');
+    expect(access.assertCanUseFinance).toHaveBeenCalled();
+    expect(prisma.customer.findUnique).not.toHaveBeenCalled();
+  });
+
   it('calculates discounted taxable value and IGST using Decimal arithmetic', () => {
     const line = calculate({
       description: 'Machine',

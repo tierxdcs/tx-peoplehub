@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Lock } from 'lucide-react';
+import { Send } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
 import { Employee, PayrollRun, Payslip } from '../../../../lib/types';
 import { formatINR } from '../../../../lib/sales';
@@ -28,8 +28,18 @@ import {
 } from '../../../../components/ui/table';
 
 const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ];
 
 export default function PayrollRunDetailPage() {
@@ -39,12 +49,14 @@ export default function PayrollRunDetailPage() {
   const { style: numberFormatStyle } = useNumberFormat();
   const [run, setRun] = useState<PayrollRun | null>(null);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
-  const [employeeNames, setEmployeeNames] = useState<Record<string, string>>({});
+  const [employeeNames, setEmployeeNames] = useState<Record<string, string>>(
+    {},
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [processError, setProcessError] = useState<string | null>(null);
-  const [locking, setLocking] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -53,7 +65,7 @@ export default function PayrollRunDetailPage() {
       const runRes = await apiFetch<PayrollRun>(`/payroll-runs/${id}`);
       setRun(runRes);
 
-      if (runRes.status === 'COMPLETED' || runRes.status === 'LOCKED') {
+      if (!['DRAFT', 'PROCESSING'].includes(runRes.status)) {
         const payslipsRes = await apiFetch<Payslip[]>(
           `/payroll-runs/${id}/payslips`,
         );
@@ -112,25 +124,24 @@ export default function PayrollRunDetailPage() {
     }
   }
 
-  async function handleLock() {
+  async function handleSubmit() {
     const ok = await confirm({
-      title: 'Lock this payroll run?',
+      title: 'Send payroll to Accounts?',
       description:
-        'Once locked, this run cannot be edited — corrections require a new adjustment in a future period.',
-      confirmLabel: 'Lock',
-      destructive: true,
+        'Accounts will review the control totals. The Finance Head must approve it before salary payment.',
+      confirmLabel: 'Send to Accounts',
     });
     if (!ok) return;
-    setLocking(true);
+    setSubmitting(true);
     try {
-      await apiFetch(`/payroll-runs/${id}/lock`, { method: 'PATCH' });
+      await apiFetch(`/payroll-runs/${id}/submit`, { method: 'POST' });
       await load();
     } catch (err) {
       setProcessError(
-        err instanceof ApiError ? err.message : 'Failed to lock run',
+        err instanceof ApiError ? err.message : 'Failed to submit payroll',
       );
     } finally {
-      setLocking(false);
+      setSubmitting(false);
     }
   }
 
@@ -149,7 +160,9 @@ export default function PayrollRunDetailPage() {
     return (
       <SignalPage>
         <div className="px-5 pb-7 pt-[18px] lg:px-7">
-          <p className="text-destructive">{error ?? 'Payroll run not found.'}</p>
+          <p className="text-destructive">
+            {error ?? 'Payroll run not found.'}
+          </p>
         </div>
       </SignalPage>
     );
@@ -164,74 +177,80 @@ export default function PayrollRunDetailPage() {
         chip={<StatusBadge value={run.status} />}
       />
       <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
-
-      <SCard className="px-5 py-[18px]">
-        <div className="grid gap-6 sm:grid-cols-3">
-          <div>
-            <div className={SIGNAL_EYEBROW}>Status</div>
-            <div className="mt-1"><StatusBadge value={run.status} /></div>
-          </div>
-          <div>
-            <div className={SIGNAL_EYEBROW}>Processed at</div>
-            <div className="mt-1 text-sm font-medium tabular-nums">
-              {run.processedAt ? new Date(run.processedAt).toLocaleString() : '—'}
-            </div>
-          </div>
-          <div>
-            <div className={SIGNAL_EYEBROW}>Locked at</div>
-            <div className="mt-1 text-sm font-medium tabular-nums">
-              {run.lockedAt ? new Date(run.lockedAt).toLocaleString() : '—'}
-            </div>
-          </div>
-        </div>
-      </SCard>
-
-      {run.status === 'DRAFT' && (
         <SCard className="px-5 py-[18px]">
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-muted-foreground">
-              Generate payslips for all active employees using the current
-              statutory config.
-            </p>
+          <div className="grid gap-6 sm:grid-cols-3">
             <div>
-              <Button onClick={handleProcess} disabled={processing}>
-                {processing ? 'Processing…' : 'Process Payroll'}
-              </Button>
+              <div className={SIGNAL_EYEBROW}>Status</div>
+              <div className="mt-1">
+                <StatusBadge value={run.status} />
+              </div>
+            </div>
+            <div>
+              <div className={SIGNAL_EYEBROW}>Processed at</div>
+              <div className="mt-1 text-sm font-medium tabular-nums">
+                {run.processedAt
+                  ? new Date(run.processedAt).toLocaleString()
+                  : '—'}
+              </div>
+            </div>
+            <div>
+              <div className={SIGNAL_EYEBROW}>Locked at</div>
+              <div className="mt-1 text-sm font-medium tabular-nums">
+                {run.lockedAt ? new Date(run.lockedAt).toLocaleString() : '—'}
+              </div>
+            </div>
+          </div>
+        </SCard>
+
+        {run.status === 'DRAFT' && (
+          <SCard className="px-5 py-[18px]">
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-muted-foreground">
+                Generate payslips for all active employees using the current
+                statutory config.
+              </p>
+              <div>
+                <Button onClick={handleProcess} disabled={processing}>
+                  {processing ? 'Processing…' : 'Process Payroll'}
+                </Button>
+              </div>
+              {processError && (
+                <p className="max-w-xl text-sm text-destructive">
+                  {processError}
+                </p>
+              )}
+            </div>
+          </SCard>
+        )}
+
+        {run.status === 'PROCESSING' && (
+          <SCard className="px-5 py-[18px]">
+            <p className="text-sm text-muted-foreground">
+              Processing is in progress…
+            </p>
+          </SCard>
+        )}
+
+        {!['DRAFT', 'PROCESSING'].includes(run.status) && (
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-[15px] font-bold">Payslips</h2>
+              {run.status === 'COMPLETED' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                >
+                  <Send className="size-4" />{' '}
+                  {submitting ? 'Sending…' : 'Send to Accounts'}
+                </Button>
+              )}
             </div>
             {processError && (
-              <p className="max-w-xl text-sm text-destructive">{processError}</p>
+              <p className="mb-3 text-sm text-destructive">{processError}</p>
             )}
-          </div>
-        </SCard>
-      )}
-
-      {run.status === 'PROCESSING' && (
-        <SCard className="px-5 py-[18px]">
-          <p className="text-sm text-muted-foreground">
-            Processing is in progress…
-          </p>
-        </SCard>
-      )}
-
-      {(run.status === 'COMPLETED' || run.status === 'LOCKED') && (
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[15px] font-bold">Payslips</h2>
-            {run.status === 'COMPLETED' && (
-              <Button variant="outline" size="sm" onClick={handleLock} disabled={locking}>
-                <Lock className="size-4" /> {locking ? 'Locking…' : 'Lock Run'}
-              </Button>
-            )}
-            {run.status === 'LOCKED' && (
-              <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Lock className="size-4" /> Locked — cannot be edited
-              </span>
-            )}
-          </div>
-          {processError && (
-            <p className="mb-3 text-sm text-destructive">{processError}</p>
-          )}
-          <SCard className="overflow-hidden">
+            <SCard className="overflow-hidden">
               {payslips.length === 0 ? (
                 <EmptyState title="No payslips" />
               ) : (
@@ -251,9 +270,15 @@ export default function PayrollRunDetailPage() {
                         <TableCell className="font-medium">
                           {employeeNames[p.employeeId] ?? '…'}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{formatINR(p.grossEarnings, numberFormatStyle)}</TableCell>
-                        <TableCell className="text-right font-medium tabular-nums">{formatINR(p.netPay, numberFormatStyle)}</TableCell>
-                        <TableCell><StatusBadge value={p.status} /></TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatINR(p.grossEarnings, numberFormatStyle)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium tabular-nums">
+                          {formatINR(p.netPay, numberFormatStyle)}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge value={p.status} />
+                        </TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="outline"
@@ -272,9 +297,9 @@ export default function PayrollRunDetailPage() {
                   </TableBody>
                 </Table>
               )}
-          </SCard>
-        </div>
-      )}
+            </SCard>
+          </div>
+        )}
       </div>
     </SignalPage>
   );
