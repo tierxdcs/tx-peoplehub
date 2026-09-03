@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { SalesModule } from '../sales/sales.module';
 import { BomModule } from '../bom/bom.module';
+import { FinanceApModule } from '../finance-ap/finance-ap.module';
 import { PurchaseOrderController } from './purchase-order.controller';
 import { PurchaseOrderService } from './purchase-order.service';
 import { PurchaseOrderEmailService } from './purchase-order-email.service';
@@ -30,7 +31,11 @@ import { MaterialService } from './material.service';
   // BomModule is forwardRef'd because this module sits inside the
   // Notifications ↔ Bom cycle (NotificationsModule imports this module for the
   // ad-hoc PO approval badge), so BomModule may still be mid-load here.
-  imports: [SalesModule, forwardRef(() => BomModule)],
+  // FinanceApModule needs no forwardRef: nothing it reaches (FinanceModule,
+  // VaultModule → EmployeesModule) imports this module back, so the edge is
+  // acyclic — the only importers of ScmPurchasingModule are App, Rfq and
+  // Notifications.
+  imports: [SalesModule, FinanceApModule, forwardRef(() => BomModule)],
   controllers: [
     PurchaseOrderController,
     GoodsReceiptNoteController,

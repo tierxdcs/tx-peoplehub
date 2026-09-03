@@ -394,6 +394,7 @@ export class KanbanNotificationsService {
     relatedBomId: string | null;
     relatedPlmTrackerId: string | null;
     relatedPlmTracker: { orderId: string } | null;
+    relatedPurchaseOrderId: string | null;
     message: string;
     isRead: boolean;
     createdAt: Date;
@@ -407,6 +408,7 @@ export class KanbanNotificationsService {
       relatedBomId: n.relatedBomId,
       relatedPlmTrackerId: n.relatedPlmTrackerId,
       relatedPlmOrderId: n.relatedPlmTracker?.orderId ?? null,
+      relatedPurchaseOrderId: n.relatedPurchaseOrderId,
       message: n.message,
       isRead: n.isRead,
       createdAt: n.createdAt.toISOString(),

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  NotificationType,
   Prisma,
   PurchaseOrderApprovalLevel,
   PurchaseOrderApprovalStatus,
@@ -19,8 +20,10 @@ import {
   EMPTY_PENDING_QUEUE,
   PendingQueue,
 } from '../../common/types/pending-queue';
+import { formatIndianAmount } from '../../common/utils/indian-money.util';
 import { SalesNumberingService } from '../sales/common/sales-numbering.service';
 import { PushEventsService } from '../notifications/push-events.service';
+import { ApService } from '../finance-ap/ap.service';
 import { PurchasingAccessService } from './purchasing-access.service';
 import {
   CreatePurchaseOrderDto,
@@ -29,6 +32,7 @@ import {
   RejectAdHocPurchaseOrderDto,
 } from './dto/purchase-order.dto';
 import {
+  PurchaseOrderAdvanceEntity,
   PurchaseOrderEntity,
   PurchaseOrderLineEntity,
   QualificationWarningEntity,
@@ -60,6 +64,20 @@ const PO_INCLUDE = {
     orderBy: { sequence: 'asc' as const },
     include: { item: { select: { itemCode: true, name: true } } },
   },
+  // Newest first: after a rejected advance is re-raised, the live request is the
+  // most recent one, and that is the only one the PO page should be showing.
+  advancePayments: {
+    orderBy: { createdAt: 'desc' as const },
+    select: {
+      id: true,
+      paymentNumber: true,
+      status: true,
+      plannedDate: true,
+      executedDate: true,
+      bankReference: true,
+      rejectionComment: true,
+    },
+  },
 } satisfies Prisma.PurchaseOrderInclude;
 
 type PoWithRelations = Prisma.PurchaseOrderGetPayload<{
@@ -82,6 +100,10 @@ export class PurchaseOrderService {
     private readonly numbering: SalesNumberingService,
     // PushEventsModule is @Global, so this needs no import edge here.
     private readonly pushEvents: PushEventsService,
+    // Raises the advance-payment request when a PO carrying an advance is
+    // issued. Reusing AP's payment rather than a parallel request model means
+    // there is only ever one record of whether the vendor has been paid.
+    private readonly ap: ApService,
   ) {}
 
   // ── Reads (company-wide) ─────────────────────────────────────────────
@@ -97,7 +119,14 @@ export class PurchaseOrderService {
       include: PO_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map((r) => this.toEntity(r));
+    const canDelete = await this.access.canDeletePurchaseOrders(user);
+    return rows.map((r) => ({
+      ...this.toEntity(r),
+      canDelete:
+        canDelete &&
+        r.status !== PurchaseOrderStatus.ISSUED &&
+        r.status !== PurchaseOrderStatus.FULLY_RECEIVED,
+    }));
   }
 
   async get(id: string): Promise<PurchaseOrderEntity> {
@@ -107,6 +136,49 @@ export class PurchaseOrderService {
     });
     if (!row) throw new NotFoundException('Purchase order not found');
     return this.toEntity(row);
+  }
+
+  async remove(id: string, user: AuthenticatedUser) {
+    await this.access.assertCanDeletePurchaseOrders(user);
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id },
+      select: {
+        poNumber: true,
+        status: true,
+        _count: {
+          select: {
+            goodsReceiptNotes: true,
+            apInvoices: true,
+            advancePayments: true,
+          },
+        },
+      },
+    });
+    if (!po) throw new NotFoundException('Purchase order not found');
+    if (
+      po.status === PurchaseOrderStatus.ISSUED ||
+      po.status === PurchaseOrderStatus.FULLY_RECEIVED
+    ) {
+      throw new BadRequestException(
+        `${po.status.replaceAll('_', ' ')} purchase orders cannot be deleted`,
+      );
+    }
+    // A hard delete must never erase receiving, QC, stock or accounting audit.
+    // PARTIALLY_RECEIVED normally lands here because it owns at least one GRN.
+    // advancePayments is checked here for the message: the FK is ON DELETE
+    // RESTRICT, so without it a cancelled PO whose advance was already paid
+    // would fail with a raw constraint error instead of an explanation.
+    if (
+      po._count.goodsReceiptNotes > 0 ||
+      po._count.apInvoices > 0 ||
+      po._count.advancePayments > 0
+    ) {
+      throw new BadRequestException(
+        'This purchase order has linked GRN or Accounts Payable records and cannot be deleted',
+      );
+    }
+    await this.prisma.purchaseOrder.delete({ where: { id } });
+    return { id, poNumber: po.poNumber, deleted: true };
   }
 
   // ── Create / edit ────────────────────────────────────────────────────
@@ -123,6 +195,7 @@ export class PurchaseOrderService {
         'Party name is required for an ad-hoc purchase order',
       );
     }
+    this.assertAdvanceAllowed(dto.advancePercent, isAdHoc);
     const warning = await this.resolvePartnerAndWarn(
       dto.supplierId,
       dto.vendorId,
@@ -154,6 +227,7 @@ export class PurchaseOrderService {
             ? new Date(dto.expectedDeliveryDate)
             : null,
           notes: dto.notes ?? null,
+          advancePercent: dto.advancePercent ?? null,
           createdById: user.id,
           lines: { create: lines },
         },
@@ -192,6 +266,12 @@ export class PurchaseOrderService {
     );
 
     const isAdHoc = !nextSupplierId && !nextVendorId;
+    // Validate the advance that will *result* from this edit, not just the one
+    // sent: switching an advance-carrying PO to an ad-hoc party would otherwise
+    // leave a commitment with no payables account to pay it from.
+    const nextAdvancePercent =
+      dto.advancePercent !== undefined ? dto.advancePercent : po.advancePercent;
+    this.assertAdvanceAllowed(nextAdvancePercent, isAdHoc);
     const lineData = dto.lines
       ? await this.buildLineData(dto.lines, isAdHoc)
       : undefined;
@@ -213,6 +293,9 @@ export class PurchaseOrderService {
             }
           : {}),
         ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+        ...(dto.advancePercent !== undefined
+          ? { advancePercent: dto.advancePercent }
+          : {}),
         ...(lineData ? { lines: { deleteMany: {}, create: lineData } } : {}),
       },
     });
@@ -397,19 +480,144 @@ export class PurchaseOrderService {
     return this.get(id);
   }
 
+  /**
+   * Issue the order to the party. When the PO carries an advance commitment this
+   * is also the moment the request reaches Accounts: issuing is when the promise
+   * to pay becomes real (the party receives a document saying so), so the
+   * payment and the ISSUED status are written in one transaction. An ISSUED PO
+   * promising an advance that Accounts was never told about is exactly the
+   * failure this feature exists to remove.
+   *
+   * The rupee amount is snapshotted here rather than recomputed on read, so the
+   * printed PO, the request Accounts sees, and the PO page can never disagree.
+   */
   async issue(
     id: string,
     user: AuthenticatedUser,
   ): Promise<PurchaseOrderEntity> {
-    const po = await this.prisma.purchaseOrder.findUnique({ where: { id } });
+    await this.access.assertCanManagePurchaseOrders(user);
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id },
+      include: { lines: { select: { lineTotal: true } } },
+    });
     if (!po) throw new NotFoundException('Purchase order not found');
     if (po.status !== PurchaseOrderStatus.APPROVED) {
       throw new BadRequestException(
         'A purchase order cannot be issued until every required approval is complete',
       );
     }
-    return this.transition(id, PurchaseOrderStatus.ISSUED, user, {
-      issuedAt: new Date(),
+    this.assertTransitionAllowed(po.status, PurchaseOrderStatus.ISSUED);
+
+    const issuedAt = new Date();
+    const total = po.lines.reduce(
+      (sum, l) => sum.plus(l.lineTotal),
+      new Prisma.Decimal(0),
+    );
+    const advanceAmount = po.advancePercent
+      ? this.computeAdvanceAmount(total, po.advancePercent)
+      : null;
+    if (advanceAmount && advanceAmount.lte(0)) {
+      throw new BadRequestException(
+        'The advance works out to zero at this order value — raise the percentage or remove the advance',
+      );
+    }
+
+    const request = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.purchaseOrder.updateMany({
+        where: { id, status: PurchaseOrderStatus.APPROVED },
+        data: {
+          status: PurchaseOrderStatus.ISSUED,
+          issuedAt,
+          ...(advanceAmount ? { advanceAmount } : {}),
+        },
+      });
+      if (claimed.count !== 1) {
+        throw new BadRequestException(
+          'This purchase order is no longer APPROVED',
+        );
+      }
+      if (!advanceAmount || !po.advancePercent) return null;
+      return this.ap.createPurchaseOrderAdvanceTx(tx, {
+        purchaseOrderId: id,
+        poNumber: po.poNumber,
+        supplierId: po.supplierId,
+        vendorId: po.vendorId,
+        amount: advanceAmount,
+        advancePercent: po.advancePercent,
+        // Date-only, matching how AP stores every other payment's plannedDate.
+        plannedDate: new Date(
+          `${issuedAt.toISOString().slice(0, 10)}T00:00:00.000Z`,
+        ),
+        createdById: user.id,
+      });
+    });
+
+    // After the commit: a failed notification must not un-issue the order.
+    if (request && advanceAmount && po.advancePercent) {
+      await this.notifyAdvanceRequested(
+        id,
+        po.poNumber,
+        advanceAmount,
+        po.advancePercent,
+      );
+    }
+    return this.get(id);
+  }
+
+  /**
+   * The advance in rupees: a percentage of the pre-tax line total, which is the
+   * same basis as the approvalAmount snapshot. Decimal throughout — a rupee
+   * figure that moves real cash must never round-trip through a JS float.
+   */
+  private computeAdvanceAmount(
+    total: Prisma.Decimal,
+    percent: Prisma.Decimal,
+  ): Prisma.Decimal {
+    return total.times(percent).dividedBy(100).toDecimalPlaces(2);
+  }
+
+  /**
+   * An advance needs a party with a payables account: AccountsPayablePayment
+   * requires a Supplier or Vendor id, so an ad-hoc PO has nothing to raise the
+   * request against. Range (0.01–100) is enforced by the DTO.
+   */
+  private assertAdvanceAllowed(
+    percent: Prisma.Decimal | number | null | undefined,
+    isAdHoc: boolean,
+  ): void {
+    if (percent === null || percent === undefined) return;
+    if (isAdHoc) {
+      throw new BadRequestException(
+        'An advance can only be committed to a registered supplier or vendor — clear the advance percentage first',
+      );
+    }
+  }
+
+  /**
+   * Tells Accounts an advance is due. Audience is the ACCOUNTS vertical, the
+   * same set that can act on the payment once it lands in their queue.
+   */
+  private async notifyAdvanceRequested(
+    purchaseOrderId: string,
+    poNumber: string,
+    amount: Prisma.Decimal,
+    percent: Prisma.Decimal,
+  ): Promise<void> {
+    const recipients = await this.prisma.employee.findMany({
+      where: { status: 'ACTIVE', vertical: { code: 'ACCOUNTS' } },
+      select: { id: true },
+    });
+    if (recipients.length === 0) return;
+    const message =
+      `${poNumber} has been issued with a ${percent.toFixed(2)}% advance of ` +
+      `₹${formatIndianAmount(amount.toFixed(2))} payable before delivery`;
+    await this.prisma.notification.createMany({
+      data: recipients.map((employee) => ({
+        employeeId: employee.id,
+        type: NotificationType.PO_ADVANCE_PAYMENT_REQUESTED,
+        relatedPurchaseOrderId: purchaseOrderId,
+        message,
+      })),
     });
   }
 
@@ -764,6 +972,7 @@ export class PurchaseOrderService {
       partyEmail: po.supplier?.contactEmail ?? po.vendor?.contactEmail ?? null,
       totalAmount: total.toFixed(2),
       approvalAmount: po.approvalAmount?.toFixed(2) ?? null,
+      advance: this.toAdvanceEntity(po, total),
       approvals: po.approvals.map((approval) => ({
         id: approval.id,
         level: approval.level,
@@ -795,6 +1004,35 @@ export class PurchaseOrderService {
       qualificationWarning: null,
       createdAt: po.createdAt.toISOString(),
       updatedAt: po.updatedAt.toISOString(),
+    });
+  }
+
+  /**
+   * The advance as the PO page needs it. Before issue there is no payment yet,
+   * so the rupee figure is `indicativeAmount` — derived live, and labelled
+   * differently precisely because it still moves when the lines are edited.
+   * After issue it is `amount`, the frozen snapshot, and the payment's own
+   * status is the single answer to "has the vendor been paid".
+   */
+  private toAdvanceEntity(
+    po: PoWithRelations,
+    total: Prisma.Decimal,
+  ): PurchaseOrderAdvanceEntity | null {
+    if (!po.advancePercent) return null;
+    const request = po.advancePayments[0] ?? null;
+    return new PurchaseOrderAdvanceEntity({
+      percent: po.advancePercent.toFixed(2),
+      amount: po.advanceAmount?.toFixed(2) ?? null,
+      indicativeAmount: po.advanceAmount
+        ? null
+        : this.computeAdvanceAmount(total, po.advancePercent).toFixed(2),
+      paymentId: request?.id ?? null,
+      paymentNumber: request?.paymentNumber ?? null,
+      status: request?.status ?? null,
+      plannedDate: request?.plannedDate?.toISOString() ?? null,
+      executedDate: request?.executedDate?.toISOString() ?? null,
+      bankReference: request?.bankReference ?? null,
+      rejectionComment: request?.rejectionComment ?? null,
     });
   }
 }

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { PurchaseOrderStatus } from '@prisma/client';
+import { ApPaymentStatus, PurchaseOrderStatus } from '@prisma/client';
 
 export class PurchaseOrderLineEntity {
   @ApiProperty() id!: string;
@@ -36,6 +36,46 @@ export class QualificationWarningEntity {
   @ApiProperty() message!: string;
 
   constructor(p: Partial<QualificationWarningEntity>) {
+    Object.assign(this, p);
+  }
+}
+
+/**
+ * The advance-payment leg of a PO, as the detail page needs to show it: what was
+ * committed, and what Accounts has done about it.
+ *
+ * `status` is the AccountsPayablePayment's own status — the payment IS the
+ * request, so there is no second workflow that could disagree with it about
+ * whether the vendor has been paid. Null `paymentNumber` means the PO carries a
+ * commitment but has not been issued yet, so no request exists.
+ */
+export class PurchaseOrderAdvanceEntity {
+  @ApiProperty({ description: 'Percentage of the pre-tax line total' })
+  percent!: string;
+  @ApiProperty({
+    nullable: true,
+    description: 'Rupee value frozen at issue; null before issue',
+  })
+  amount!: string | null;
+  @ApiProperty({
+    nullable: true,
+    description: 'Live derived value, for a DRAFT that has not been issued',
+  })
+  indicativeAmount!: string | null;
+  @ApiProperty({ nullable: true }) paymentId!: string | null;
+  @ApiProperty({ nullable: true }) paymentNumber!: string | null;
+  @ApiProperty({
+    enum: ApPaymentStatus,
+    nullable: true,
+    description: 'Null until the PO is issued and the request is raised',
+  })
+  status!: ApPaymentStatus | null;
+  @ApiProperty({ nullable: true }) plannedDate!: string | null;
+  @ApiProperty({ nullable: true }) executedDate!: string | null;
+  @ApiProperty({ nullable: true }) bankReference!: string | null;
+  @ApiProperty({ nullable: true }) rejectionComment!: string | null;
+
+  constructor(p: Partial<PurchaseOrderAdvanceEntity>) {
     Object.assign(this, p);
   }
 }
@@ -81,6 +121,13 @@ export class PurchaseOrderEntity {
 
   @ApiProperty({ nullable: true, description: 'PO value frozen at submission' })
   approvalAmount!: string | null;
+
+  /**
+   * The advance commitment and where Accounts has taken it. Null when the PO
+   * carries no advance.
+   */
+  @ApiProperty({ type: PurchaseOrderAdvanceEntity, nullable: true })
+  advance!: PurchaseOrderAdvanceEntity | null;
 
   @ApiProperty({ isArray: true })
   approvals!: Array<{

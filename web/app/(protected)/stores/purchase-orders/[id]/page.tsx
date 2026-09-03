@@ -16,6 +16,7 @@ import {
   rejectPurchaseOrder,
   cancelPurchaseOrder,
   emailPurchaseOrder,
+  updatePurchaseOrder,
   isGrnFinalized,
   type PurchaseOrder,
   type GoodsReceiptNote,
@@ -77,6 +78,10 @@ export default function PurchaseOrderDetailPage() {
   const [emailTo, setEmailTo] = useState('');
   const [emailNote, setEmailNote] = useState('');
   const [emailing, setEmailing] = useState(false);
+  // Editable copy of the advance percentage, seeded from the loaded PO. Only
+  // meaningful while the PO is a DRAFT — once issued, the commitment is printed.
+  const [advanceDraft, setAdvanceDraft] = useState('');
+  const [savingAdvance, setSavingAdvance] = useState(false);
 
   const canManage = user?.role === 'SUPER_ADMIN' || user?.role === 'MANAGER';
 
@@ -92,6 +97,7 @@ export default function PurchaseOrderDetailPage() {
           : Promise.resolve(null),
       ]);
       setPo(poData);
+      setAdvanceDraft(poData.advance?.percent ?? '');
       setGrns(grnData);
       setMe(employee);
     } catch {
@@ -128,12 +134,46 @@ export default function PurchaseOrderDetailPage() {
     return { accepted, pending };
   }
 
+  /**
+   * Save the advance percentage on a DRAFT PO. An empty box clears it — the
+   * server takes an explicit null as "no advance", which is what makes removing
+   * a commitment possible before the PO is issued.
+   */
+  async function handleSaveAdvance() {
+    if (!po) return;
+    const trimmed = advanceDraft.trim();
+    const percent = trimmed === '' ? null : Number(trimmed);
+    if (
+      percent !== null &&
+      (!Number.isFinite(percent) || percent <= 0 || percent > 100)
+    ) {
+      toast.error('Enter a percentage between 0.01 and 100');
+      return;
+    }
+    setSavingAdvance(true);
+    try {
+      await updatePurchaseOrder(po.id, { advancePercent: percent });
+      toast.success(
+        percent === null ? 'Advance removed' : `Advance set to ${percent}%`,
+      );
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to save the advance',
+      );
+    } finally {
+      setSavingAdvance(false);
+    }
+  }
+
   async function handleIssue() {
     if (!po) return;
     if (
       !(await confirm({
         title: 'Issue purchase order',
-        description: `Issue ${po.poNumber}? It can no longer be edited.`,
+        description: po.advance
+          ? `Issue ${po.poNumber}? It can no longer be edited, and the ${po.advance.percent}% advance will be sent to Accounts as a payment request.`
+          : `Issue ${po.poNumber}? It can no longer be edited.`,
         confirmLabel: 'Issue',
       }))
     )
@@ -338,6 +378,11 @@ export default function PurchaseOrderDetailPage() {
 
   const canReceive =
     po.status === 'ISSUED' || po.status === 'PARTIALLY_RECEIVED';
+  const isDraft = po.status === 'DRAFT';
+  // An advance needs a registered party: an ad-hoc PO has no payables account
+  // for Accounts to pay from, so the field is not offered at all.
+  const advanceEditable =
+    isDraft && canManage && !!(po.supplierId || po.vendorId);
   const currentApproval =
     po.approvals.find((approval) => approval.status === 'PENDING') ?? null;
   const canDecideCurrent =
@@ -591,6 +636,115 @@ export default function PurchaseOrderDetailPage() {
             value={formatINR(po.totalAmount, numberFormatStyle)}
           />
         </div>
+
+        {/* Advance payment. Shown whenever the PO carries a commitment, and also
+            on an editable DRAFT so one can be added — this is the only place a
+            buyer can set it after creation. The status is the AP payment's own,
+            so "Paid" here means the money actually left the bank. */}
+        {(po.advance || advanceEditable) && (
+          <Card className="mb-6">
+            <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
+              <CardTitle className="text-base">Advance payment</CardTitle>
+              {po.advance?.status && <StatusBadge value={po.advance.status} />}
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {po.advance ? (
+                <>
+                  <p>
+                    <strong className="text-foreground">
+                      {formatINR(
+                        po.advance.amount ?? po.advance.indicativeAmount,
+                        numberFormatStyle,
+                      )}
+                    </strong>{' '}
+                    — {po.advance.percent}% of the order value, exclusive of
+                    taxes.
+                    {!po.advance.amount && (
+                      <span className="text-muted-foreground">
+                        {' '}
+                        Indicative until the PO is issued; it moves with the
+                        lines.
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {po.advance.status === null
+                      ? 'Not yet requested — the request reaches Accounts when this PO is issued.'
+                      : po.advance.status === 'EXECUTED'
+                        ? `Paid by Accounts${
+                            po.advance.executedDate
+                              ? ` on ${dateOnlyStr(po.advance.executedDate)}`
+                              : ''
+                          }${
+                            po.advance.bankReference
+                              ? ` · ref ${po.advance.bankReference}`
+                              : ''
+                          }.`
+                        : po.advance.status === 'REJECTED'
+                          ? 'Refused by Accounts — the party has been promised this advance on the issued PO, so settle it with Accounts before the delivery date.'
+                          : po.advance.status === 'APPROVED'
+                            ? 'Approved by the Accounts Head — awaiting the bank transfer.'
+                            : po.advance.status === 'PENDING_APPROVAL'
+                              ? 'With the Accounts Head for approval.'
+                              : po.advance.status === 'REVERSED'
+                                ? 'The payment was reversed by Accounts.'
+                                : 'With Accounts — not yet submitted for approval.'}
+                    {po.advance.paymentNumber
+                      ? ` Payment ${po.advance.paymentNumber}.`
+                      : ''}
+                  </p>
+                  {po.advance.rejectionComment && (
+                    <p className="text-destructive">
+                      {po.advance.rejectionComment}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-muted-foreground">
+                  No advance on this order. Adding one prints a payment term on
+                  the PO and sends Accounts a payment request when it is issued.
+                </p>
+              )}
+              {advanceEditable && (
+                <div className="flex flex-wrap items-end gap-2 border-t pt-3">
+                  <div className="w-32">
+                    <label
+                      htmlFor="advancePercent"
+                      className="mb-1 block text-xs text-muted-foreground"
+                    >
+                      Advance %
+                    </label>
+                    <Input
+                      id="advancePercent"
+                      type="number"
+                      inputMode="decimal"
+                      min="0.01"
+                      max="100"
+                      step="0.01"
+                      placeholder="None"
+                      value={advanceDraft}
+                      onChange={(e) => setAdvanceDraft(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={handleSaveAdvance}
+                    disabled={
+                      savingAdvance ||
+                      advanceDraft.trim() === (po.advance?.percent ?? '')
+                    }
+                  >
+                    {savingAdvance ? 'Saving…' : 'Save advance'}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Leave blank to remove. Editable only while this PO is a
+                    draft.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {po.notes && (
           <Card className="mb-6">

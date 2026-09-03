@@ -25,6 +25,7 @@ describe('renderPurchaseOrderDocumentHtml', () => {
     notes: null,
     raisedByName: 'SCM User',
     totalAmount: '137000.00',
+    advance: null,
     lines: [
       {
         itemCode: 'RM-0001',
@@ -78,6 +79,23 @@ describe('renderPurchaseOrderDocumentHtml', () => {
     // Quantity padding from the Decimal column is trimmed, not printed.
     expect(html).toContain('>212<');
     expect(html).not.toContain('212.0000');
+  });
+
+  it('prints the advance as a payment term, and says nothing when there is none', () => {
+    const html = renderPurchaseOrderDocumentHtml(
+      data({ advance: { percent: '30.00', amount: '41100.00' } }),
+    );
+
+    // The percentage alone is not a term a supplier can act on — the rupee
+    // figure has to be on the document they are agreeing to.
+    expect(html).toContain('Payment terms');
+    expect(html).toContain('30.00%');
+    expect(html).toContain('41,100.00');
+    expect(html).toContain('before delivery');
+
+    expect(renderPurchaseOrderDocumentHtml(data())).not.toContain(
+      'Payment terms',
+    );
   });
 
   it("carries the buyer's GSTIN — a supplier cannot invoice without it", () => {

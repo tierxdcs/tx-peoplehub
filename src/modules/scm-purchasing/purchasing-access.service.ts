@@ -25,6 +25,25 @@ export class PurchasingAccessService {
     return vertical?.code === 'SCM';
   }
 
+  /** Hard-delete is available to every SCM vertical user and SUPER_ADMIN/CEO. */
+  async canDeletePurchaseOrders(user: AuthenticatedUser): Promise<boolean> {
+    if (this.isSuperAdmin(user)) return true;
+    if (!user.verticalId) return false;
+    const vertical = await this.prisma.vertical.findUnique({
+      where: { id: user.verticalId },
+      select: { code: true },
+    });
+    return vertical?.code === 'SCM';
+  }
+
+  async assertCanDeletePurchaseOrders(user: AuthenticatedUser): Promise<void> {
+    if (!(await this.canDeletePurchaseOrders(user))) {
+      throw new ForbiddenException(
+        'Only SCM vertical users or SUPER_ADMIN/CEO may delete purchase orders',
+      );
+    }
+  }
+
   /** Create / edit / issue / cancel a PO — SCM-vertical Manager+ or SUPER_ADMIN. */
   async assertCanManagePurchaseOrders(user: AuthenticatedUser): Promise<void> {
     if (this.isSuperAdmin(user)) return;

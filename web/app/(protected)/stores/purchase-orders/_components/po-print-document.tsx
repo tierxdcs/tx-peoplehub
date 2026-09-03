@@ -451,6 +451,31 @@ export function PurchaseOrderPrintDocument({
                 otherwise.
               </p>
 
+              {/* Advance payment terms — must match the server-rendered PDF in
+                  purchase-order-document.ts. Prefers the snapshot frozen at
+                  issue so the party reads the same figure Accounts was asked
+                  for. */}
+              {po.advance && (
+                <div
+                  style={{
+                    borderLeft: `3px solid ${ACCENT}`,
+                    padding: '8px 0 8px 10px',
+                    marginBottom: 24,
+                    fontSize: 11.5,
+                    color: '#111',
+                  }}
+                >
+                  <span style={{ fontWeight: 700, color: NAVY }}>
+                    Payment terms — advance:
+                  </span>{' '}
+                  {po.advance.percent}% of the order value,{' '}
+                  {formatINR(po.advance.amount ?? po.advance.indicativeAmount)}{' '}
+                  (exclusive of taxes), payable against this purchase order
+                  before delivery. The balance is payable against your tax
+                  invoice on receipt and acceptance of the goods.
+                </div>
+              )}
+
               {/* PO notes, if any */}
               {po.notes && (
                 <div style={{ marginBottom: 24 }}>

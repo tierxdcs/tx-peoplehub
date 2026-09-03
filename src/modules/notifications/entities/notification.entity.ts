@@ -11,6 +11,7 @@ export class NotificationEntity {
   @ApiProperty({ nullable: true }) relatedBomId!: string | null;
   @ApiProperty({ nullable: true }) relatedPlmTrackerId!: string | null;
   @ApiProperty({ nullable: true }) relatedPlmOrderId!: string | null;
+  @ApiProperty({ nullable: true }) relatedPurchaseOrderId!: string | null;
   @ApiProperty() message!: string;
   @ApiProperty() isRead!: boolean;
   @ApiProperty() createdAt!: string;

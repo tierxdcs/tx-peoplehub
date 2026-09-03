@@ -90,6 +90,13 @@ enum NotificationType {
   PLM_STAGE_ADVANCED
   PLM_PRODUCTION_UPDATE
   CUSTOMER_DELIVERY_SIGNOFF
+  /// The three legs of the PO advance-payment handoff: SCM issues a PO carrying
+  /// an advance commitment (Accounts is told to pay), and Accounts tells SCM the
+  /// outcome. A rejection is its own type because a silently refused advance is
+  /// the exact failure this handoff exists to prevent.
+  PO_ADVANCE_PAYMENT_REQUESTED
+  PO_ADVANCE_PAYMENT_PAID
+  PO_ADVANCE_PAYMENT_REJECTED
 }
 
 enum LeaveAccrualType {
@@ -3281,12 +3288,16 @@ model Notification {
   /// Deep-link target for PLM workflow notifications.
   relatedPlmTrackerId String?
   relatedPlmTracker   PlmTracker?      @relation(fields: [relatedPlmTrackerId], references: [id], onDelete: Cascade)
+  /// Deep-link target for the PO advance-payment handoff (Stores ↔ Accounts).
+  relatedPurchaseOrderId String?
+  relatedPurchaseOrder   PurchaseOrder? @relation(fields: [relatedPurchaseOrderId], references: [id], onDelete: Cascade)
   message             String
   isRead              Boolean          @default(false)
   createdAt           DateTime         @default(now())
 
   @@index([employeeId, isRead])
   @@index([relatedPlmTrackerId])
+  @@index([relatedPurchaseOrderId])
   @@map("notifications")
 }
 
@@ -4914,6 +4925,16 @@ model PurchaseOrder {
   /// Line-total snapshot used to select and preserve the submitted approval tier.
   approvalAmount Decimal? @db.Decimal(18, 2)
 
+  /// Advance the buyer commits to paying before delivery, as a percentage of the
+  /// pre-tax line total. Null means no advance. Editable only while DRAFT, and
+  /// only for a registered supplier/vendor — an advance to an ad-hoc party has no
+  /// AccountsPayablePayment to sit on (partyId is a required FK).
+  advancePercent Decimal? @db.Decimal(5, 2)
+  /// The rupee advance frozen at issue, when the request went to Accounts. Kept
+  /// as a snapshot (not recomputed) so the printed PO, the request Accounts
+  /// received, and the number on screen can never disagree.
+  advanceAmount  Decimal? @db.Decimal(18, 2)
+
   /// At most one of supplierId / vendorId is set (CHECK constraint in migration).
   supplierId String?
   supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: Restrict)
@@ -4953,6 +4974,11 @@ model PurchaseOrder {
   approvals         PurchaseOrderApproval[]
   goodsReceiptNotes GoodsReceiptNote[]
   apInvoices        AccountsPayableInvoice[]
+  /// Advance payment requests raised against this PO. A list rather than a single
+  /// link: a REJECTED or REVERSED advance must be re-raisable, which a unique
+  /// constraint would block. At most one is ever live — see issue().
+  advancePayments   AccountsPayablePayment[]
+  notifications     Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -6467,63 +6493,70 @@ enum ApPaymentStatus {
 }
 
 model AccountsPayableInvoice {
-  id                    String                       @id @default(uuid())
-  internalBillNumber    String                       @unique
-  partyType             PayablePartyType
-  supplierId            String?
-  supplier              Supplier?                    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  vendorId              String?
-  vendor                Vendor?                      @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  partyId               String
-  externalInvoiceNumber String
-  invoiceDate           DateTime
-  receivedDate          DateTime
-  dueDate               DateTime
-  purchaseOrderId       String?
-  purchaseOrder         PurchaseOrder?               @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
-  currencyCode          String                       @db.VarChar(3)
-  exchangeRateToInr     Decimal                      @default(1) @db.Decimal(18, 6)
-  supplierGstinSnapshot String?
-  taxableAmount         Decimal                      @db.Decimal(18, 2)
-  inputCgstAmount       Decimal                      @default(0) @db.Decimal(18, 2)
-  inputSgstAmount       Decimal                      @default(0) @db.Decimal(18, 2)
-  inputIgstAmount       Decimal                      @default(0) @db.Decimal(18, 2)
-  otherCharges          Decimal                      @default(0) @db.Decimal(18, 2)
-  tdsSectionCode        String?
-  tdsRatePercent        Decimal?                     @db.Decimal(5, 2)
-  tdsTaxableBase        Decimal?                     @db.Decimal(18, 2)
-  tdsAmount             Decimal                      @default(0) @db.Decimal(18, 2)
-  totalAmount           Decimal                      @db.Decimal(18, 2)
-  paidAmount            Decimal                      @default(0) @db.Decimal(18, 2)
-  outstandingAmount     Decimal                      @db.Decimal(18, 2)
-  status                ApInvoiceStatus              @default(DRAFT)
-  matchStatus           ThreeWayMatchStatus          @default(NOT_APPLICABLE)
-  matchDetails          Json?
-  matchOverrideReason   String?                      @db.Text
-  paymentHold           Boolean                      @default(false)
-  paymentHoldReason     String?                      @db.Text
-  itcStatus             GstItcStatus                 @default(PENDING_RECONCILIATION)
-  itcReconciliationNote String?                      @db.Text
-  itcReconciledAt       DateTime?
-  itcReconciledById     String?
-  itcReconciledBy       Employee?                    @relation("ApInvoiceItcReconciler", fields: [itcReconciledById], references: [id], onDelete: SetNull)
-  notes                 String?                      @db.Text
-  createdById           String
-  createdBy             Employee                     @relation("ApInvoiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  submittedById         String?
-  submittedBy           Employee?                    @relation("ApInvoiceSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
-  submittedAt           DateTime?
-  approvedById          String?
-  approvedBy            Employee?                    @relation("ApInvoiceApprover", fields: [approvedById], references: [id], onDelete: SetNull)
-  approvedAt            DateTime?
-  rejectionComment      String?                      @db.Text
-  journalEntryId        String?                      @unique
-  journalEntry          JournalEntry?                @relation("ApInvoiceJournal", fields: [journalEntryId], references: [id], onDelete: Restrict)
-  lines                 AccountsPayableInvoiceLine[]
-  paymentAllocations    ApPaymentAllocation[]
-  adjustmentNotes       FinanceAdjustmentNote[]
-  createdAt             DateTime                     @default(now())
-  updatedAt             DateTime                     @updatedAt
+  id                      String                       @id @default(uuid())
+  internalBillNumber      String                       @unique
+  partyType               PayablePartyType
+  supplierId              String?
+  supplier                Supplier?                    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  vendorId                String?
+  vendor                  Vendor?                      @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  partyId                 String
+  externalInvoiceNumber   String
+  /// Original supplier tax-invoice document stored privately in R2. The
+  /// upload is optional while drafting, but PO-linked invoices cannot be
+  /// submitted for approval until it has been attached.
+  invoiceDocumentKey      String?                      @unique
+  invoiceDocumentName     String?
+  invoiceDocumentMimeType String?
+  invoiceDocumentSize     Int?
+  invoiceDate             DateTime
+  receivedDate            DateTime
+  dueDate                 DateTime
+  purchaseOrderId         String?
+  purchaseOrder           PurchaseOrder?               @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  currencyCode            String                       @db.VarChar(3)
+  exchangeRateToInr       Decimal                      @default(1) @db.Decimal(18, 6)
+  supplierGstinSnapshot   String?
+  taxableAmount           Decimal                      @db.Decimal(18, 2)
+  inputCgstAmount         Decimal                      @default(0) @db.Decimal(18, 2)
+  inputSgstAmount         Decimal                      @default(0) @db.Decimal(18, 2)
+  inputIgstAmount         Decimal                      @default(0) @db.Decimal(18, 2)
+  otherCharges            Decimal                      @default(0) @db.Decimal(18, 2)
+  tdsSectionCode          String?
+  tdsRatePercent          Decimal?                     @db.Decimal(5, 2)
+  tdsTaxableBase          Decimal?                     @db.Decimal(18, 2)
+  tdsAmount               Decimal                      @default(0) @db.Decimal(18, 2)
+  totalAmount             Decimal                      @db.Decimal(18, 2)
+  paidAmount              Decimal                      @default(0) @db.Decimal(18, 2)
+  outstandingAmount       Decimal                      @db.Decimal(18, 2)
+  status                  ApInvoiceStatus              @default(DRAFT)
+  matchStatus             ThreeWayMatchStatus          @default(NOT_APPLICABLE)
+  matchDetails            Json?
+  matchOverrideReason     String?                      @db.Text
+  paymentHold             Boolean                      @default(false)
+  paymentHoldReason       String?                      @db.Text
+  itcStatus               GstItcStatus                 @default(PENDING_RECONCILIATION)
+  itcReconciliationNote   String?                      @db.Text
+  itcReconciledAt         DateTime?
+  itcReconciledById       String?
+  itcReconciledBy         Employee?                    @relation("ApInvoiceItcReconciler", fields: [itcReconciledById], references: [id], onDelete: SetNull)
+  notes                   String?                      @db.Text
+  createdById             String
+  createdBy               Employee                     @relation("ApInvoiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedById           String?
+  submittedBy             Employee?                    @relation("ApInvoiceSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt             DateTime?
+  approvedById            String?
+  approvedBy              Employee?                    @relation("ApInvoiceApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt              DateTime?
+  rejectionComment        String?                      @db.Text
+  journalEntryId          String?                      @unique
+  journalEntry            JournalEntry?                @relation("ApInvoiceJournal", fields: [journalEntryId], references: [id], onDelete: Restrict)
+  lines                   AccountsPayableInvoiceLine[]
+  paymentAllocations      ApPaymentAllocation[]
+  adjustmentNotes         FinanceAdjustmentNote[]
+  createdAt               DateTime                     @default(now())
+  updatedAt               DateTime                     @updatedAt
 
   @@unique([partyType, partyId, externalInvoiceNumber])
   @@index([partyType, partyId, dueDate, status])
@@ -6565,6 +6598,12 @@ model AccountsPayablePayment {
   vendorId          String?
   vendor            Vendor?                @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   partyId           String
+  /// Set when this payment is a PO advance raised by SCM at issue. It is what
+  /// makes an unallocated payment traceable back to the commitment that caused
+  /// it, and what lets the confirmation find its way back to the PO's raiser.
+  /// Restrict, not SetNull: a PO that moved real cash must not be deletable.
+  purchaseOrderId   String?
+  purchaseOrder     PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
   plannedDate       DateTime
   executedDate      DateTime?
   currencyCode      String                 @db.VarChar(3)
@@ -6591,6 +6630,7 @@ model AccountsPayablePayment {
   updatedAt         DateTime               @updatedAt
 
   @@index([partyType, partyId, plannedDate, status])
+  @@index([purchaseOrderId])
   @@map("accounts_payable_payments")
 }
 

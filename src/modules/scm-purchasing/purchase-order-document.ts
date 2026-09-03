@@ -55,6 +55,13 @@ export interface PurchaseOrderDocumentData {
   notes: string | null;
   raisedByName: string | null;
   totalAmount: string;
+  /**
+   * The advance the buyer commits to paying before delivery. Null when the order
+   * carries none. It is printed because this document is where the commitment is
+   * made to the party — a percentage agreed only in the ERP is not a term of the
+   * order. Both figures are pre-tax, matching `totalAmount`.
+   */
+  advance: { percent: string; amount: string } | null;
   lines: PurchaseOrderDocumentLine[];
   /**
    * Buyer identity from FinanceCompanySettings — authoritative for the legal
@@ -342,6 +349,19 @@ export function renderPurchaseOrderDocumentHtml(
     ? `<div style="margin-bottom:24px;">${kicker('Notes')}<div style="font-size:11px;color:#333;margin-top:10px;">${multiline(data.notes)}</div></div>`
     : '';
 
+  // Accent-ruled so it reads as a term of the order rather than a remark. Stated
+  // as pre-tax because that is the basis it was computed on; the party's invoice
+  // will carry the tax and Accounts settles the difference.
+  const paymentTerms = data.advance
+    ? `<div style="border-left:3px solid ${ACCENT};padding:8px 0 8px 10px;margin:0 0 24px;font-size:11.5px;color:#111;">` +
+      `<span style="font-weight:700;color:${NAVY};">Payment terms — advance:</span> ` +
+      `${escapeHtml(data.advance.percent)}% of the order value, ` +
+      `₹${escapeHtml(formatIndianAmount(data.advance.amount))} (exclusive of taxes), ` +
+      'payable against this purchase order before delivery. The balance is payable ' +
+      'against your tax invoice on receipt and acceptance of the goods.' +
+      '</div>'
+    : '';
+
   return [
     '<!doctype html><html><head><meta charset="utf-8" />',
     `<title>${escapeHtml(data.poNumber)}</title>`,
@@ -379,6 +399,7 @@ export function renderPurchaseOrderDocumentHtml(
 
     `<p style="font-size:10.5px;color:${MUTED};margin:0 0 24px;">Amount in words: ${escapeHtml(amountToIndianWords(data.totalAmount))}. Prices are exclusive of applicable taxes and duties unless stated otherwise.</p>`,
 
+    paymentTerms,
     notes,
     signatures(data),
 

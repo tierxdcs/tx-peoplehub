@@ -9,10 +9,20 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
+
+/**
+ * Shared so the create and edit DTOs cannot describe the same field two
+ * different ways in the generated API docs.
+ */
+const ADVANCE_PERCENT_DESCRIPTION =
+  'Advance payable before delivery, as a percentage (0.01–100) of the pre-tax ' +
+  'line total. Omit or send null for no advance. Registered supplier/vendor ' +
+  'only, and editable only while the PO is a DRAFT.';
 
 export class PurchaseOrderLineInputDto {
   @ApiPropertyOptional()
@@ -62,6 +72,12 @@ export class CreatePurchaseOrderDto {
   @IsDateString()
   expectedDeliveryDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
+  @ApiPropertyOptional({ description: ADVANCE_PERCENT_DESCRIPTION })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(100)
+  advancePercent?: number | null;
 
   @ApiProperty({ type: [PurchaseOrderLineInputDto] })
   @IsArray()
@@ -81,6 +97,12 @@ export class UpdatePurchaseOrderDto {
   @IsDateString()
   expectedDeliveryDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
+  @ApiPropertyOptional({ description: ADVANCE_PERCENT_DESCRIPTION })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(100)
+  advancePercent?: number | null;
   @ApiPropertyOptional({ type: [PurchaseOrderLineInputDto] })
   @IsOptional()
   @IsArray()

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -153,5 +154,14 @@ export class PurchaseOrderController {
   })
   cancel(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.cancel(id, user);
+  }
+
+  @Delete(':id')
+  @ApiOperation({
+    summary:
+      'Delete a PO except ISSUED/FULLY_RECEIVED (SCM vertical or SUPER_ADMIN/CEO)',
+  })
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.remove(id, user);
   }
 }

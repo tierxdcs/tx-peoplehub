@@ -218,6 +218,17 @@ export class PurchaseOrderEmailService {
         ? `${po.createdBy.firstName} ${po.createdBy.lastName}`.trim()
         : null,
       totalAmount: total.toFixed(2),
+      // Prefer the snapshot frozen at issue over a recomputed figure: the party
+      // must read the same rupee number the request to Accounts was raised for.
+      advance: po.advancePercent
+        ? {
+            percent: po.advancePercent.toFixed(2),
+            amount: (
+              po.advanceAmount ??
+              total.times(po.advancePercent).dividedBy(100).toDecimalPlaces(2)
+            ).toFixed(2),
+          }
+        : null,
       lines: po.lines.map((l) => ({
         itemCode: l.item?.itemCode ?? null,
         itemName: l.item?.name ?? l.adHocItemName ?? 'Ad-hoc item',

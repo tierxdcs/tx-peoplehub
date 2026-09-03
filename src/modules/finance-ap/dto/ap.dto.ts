@@ -90,6 +90,17 @@ export class CreateApInvoiceDto {
 export class ApApprovalDto {
   @ApiPropertyOptional() @IsOptional() @IsString() overrideReason?: string;
 }
+
+export class ApInvoiceDocumentUploadDto {
+  @ApiProperty() @IsString() @IsNotEmpty() fileName!: string;
+  @ApiProperty() @IsString() @IsNotEmpty() mimeType!: string;
+  @ApiProperty() @Type(() => Number) @IsNumber() @Min(1) sizeBytes!: number;
+}
+
+export class ApInvoiceDocumentConfirmDto {
+  @ApiProperty() @IsString() @IsNotEmpty() storageKey!: string;
+  @ApiProperty() @IsString() @IsNotEmpty() fileName!: string;
+}
 export class RejectApDto {
   @ApiProperty() @IsString() @IsNotEmpty() comment!: string;
 }

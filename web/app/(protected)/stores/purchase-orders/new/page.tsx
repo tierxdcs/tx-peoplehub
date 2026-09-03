@@ -116,6 +116,8 @@ export default function NewPurchaseOrderPage() {
   const [adHocPartyAddress, setAdHocPartyAddress] = useState('');
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
   const [notes, setNotes] = useState('');
+  // Kept as the raw string so a half-typed "3" doesn't get coerced mid-edit.
+  const [advancePercent, setAdvancePercent] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -173,6 +175,25 @@ export default function NewPurchaseOrderPage() {
     [lines],
   );
 
+  // An advance needs a registered party — an ad-hoc PO has no payables account
+  // for Accounts to pay it from, so the server rejects one outright.
+  const advanceAllowed = partnerType !== 'AD_HOC';
+  const advanceEntered = advanceAllowed && advancePercent.trim() !== '';
+  const advanceNumber = Number(advancePercent);
+  const advanceValid =
+    advanceEntered &&
+    Number.isFinite(advanceNumber) &&
+    advanceNumber > 0 &&
+    advanceNumber <= 100;
+  /**
+   * Preview only — the server recomputes this with Decimal arithmetic and
+   * freezes the result on the PO when it is issued. Shown so the buyer sees the
+   * rupee commitment before agreeing to a percentage.
+   */
+  const advanceAmount = advanceValid
+    ? Math.round(total * advanceNumber) / 100
+    : null;
+
   function updateLine(key: number, patch: Partial<LineDraft>) {
     setLines((prev) =>
       prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
@@ -197,7 +218,11 @@ export default function NewPurchaseOrderPage() {
   );
   const hasParty =
     partnerType === 'AD_HOC' ? !!adHocPartyName.trim() : !!partnerId;
-  const canSubmit = hasParty && validLines.length > 0 && !submitting;
+  const canSubmit =
+    hasParty &&
+    validLines.length > 0 &&
+    !(advanceEntered && !advanceValid) &&
+    !submitting;
 
   // What still blocks or would drop content — feeds the summary-rail card.
   // Mirrors the actual validation above (unit price is allowed to be blank/0).
@@ -221,8 +246,11 @@ export default function NewPurchaseOrderPage() {
       }
       if (!(Number(l.orderedQuantity) > 0)) out.push(`${n} qty`);
     });
+    if (advanceEntered && !advanceValid) {
+      out.push('Advance % must be between 0.01 and 100');
+    }
     return out;
-  }, [hasParty, partnerType, lines]);
+  }, [hasParty, partnerType, lines, advanceEntered, advanceValid]);
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -245,6 +273,7 @@ export default function NewPurchaseOrderPage() {
         ? { expectedDeliveryDate: new Date(expectedDeliveryDate).toISOString() }
         : {}),
       ...(notes ? { notes } : {}),
+      ...(advanceValid ? { advancePercent: advanceNumber } : {}),
       lines: validLines.map((l) => ({
         ...(l.source === 'CATALOG'
           ? { itemId: l.itemId }
@@ -665,6 +694,40 @@ export default function NewPurchaseOrderPage() {
                     onChange={(e) => setNotes(e.target.value)}
                   />
                 </Field>
+                <Field
+                  label="Advance %"
+                  htmlFor="advancePercent"
+                  hint={
+                    advanceAllowed
+                      ? 'Optional. Printed on the PO as a payment term, and sent to Accounts as a payment request when the PO is issued.'
+                      : 'Not available for an unlisted party — an advance needs a registered supplier or vendor.'
+                  }
+                >
+                  <Input
+                    id="advancePercent"
+                    type="number"
+                    inputMode="decimal"
+                    min="0.01"
+                    max="100"
+                    step="0.01"
+                    placeholder="e.g. 30"
+                    disabled={!advanceAllowed}
+                    value={advanceAllowed ? advancePercent : ''}
+                    onChange={(e) => setAdvancePercent(e.target.value)}
+                  />
+                  {advanceEntered &&
+                    (advanceValid ? (
+                      <p className="mt-1.5 text-[12px] text-black/50 dark:text-white/45">
+                        Advance {formatINR(advanceAmount, numberFormatStyle)} of{' '}
+                        {formatINR(total, numberFormatStyle)} — exclusive of
+                        taxes.
+                      </p>
+                    ) : (
+                      <p className="mt-1.5 text-[12px] text-destructive">
+                        Enter a percentage between 0.01 and 100.
+                      </p>
+                    ))}
+                </Field>
               </div>
             </SCard>
           </div>
@@ -679,6 +742,12 @@ export default function NewPurchaseOrderPage() {
                   label="Subtotal"
                   value={formatINR(total, numberFormatStyle)}
                 />
+                {advanceAmount !== null && (
+                  <SummaryRow
+                    label={`Advance (${advanceNumber}%)`}
+                    value={formatINR(advanceAmount, numberFormatStyle)}
+                  />
+                )}
                 <div className="flex items-baseline justify-between pt-3">
                   <span className="text-[12.5px] font-semibold">Total</span>
                   <span className="text-2xl font-bold tabular-nums tracking-[-1px]">

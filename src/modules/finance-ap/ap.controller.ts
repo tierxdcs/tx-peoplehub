@@ -8,6 +8,8 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { ApService } from './ap.service';
 import {
   ApApprovalDto,
+  ApInvoiceDocumentConfirmDto,
+  ApInvoiceDocumentUploadDto,
   CreateApInvoiceDto,
   CreateApPaymentDto,
   ExecutePaymentDto,
@@ -44,6 +46,46 @@ export class ApController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.ap.invoices(query, user);
+  }
+
+  @Get('ready-for-accounts')
+  readyForAccounts(@CurrentUser() user: AuthenticatedUser) {
+    return this.ap.readyForAccounts(user);
+  }
+
+  @Post('invoices/:id/document-upload-url')
+  invoiceDocumentUploadUrl(
+    @Param('id') id: string,
+    @Body() dto: ApInvoiceDocumentUploadDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ap.invoiceDocumentUploadUrl(id, dto, user);
+  }
+
+  @Post('invoices/:id/document-confirm')
+  confirmInvoiceDocument(
+    @Param('id') id: string,
+    @Body() dto: ApInvoiceDocumentConfirmDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ap.confirmInvoiceDocument(id, dto, user);
+  }
+
+  @Get('invoices/:id/document-download-url')
+  invoiceDocumentDownloadUrl(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ap.invoiceDocumentDownloadUrl(id, user);
+  }
+
+  @Get('ready-for-accounts/:purchaseOrderId/document/:kind')
+  handoffDocument(
+    @Param('purchaseOrderId') purchaseOrderId: string,
+    @Param('kind') kind: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ap.handoffDocumentUrl(purchaseOrderId, kind, user);
   }
 
   @Get('invoices/:id')

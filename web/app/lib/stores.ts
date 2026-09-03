@@ -82,6 +82,33 @@ export interface QualificationWarning {
   message: string;
 }
 
+/**
+ * The advance-payment leg of a PO. `status` is the underlying AP payment's own
+ * status — the payment IS the request, so there is nothing that could disagree
+ * with it about whether the party has been paid. Before the PO is issued no
+ * request exists yet, so `status` is null and the rupee figure lives in
+ * `indicativeAmount` (still moves when the lines change) rather than `amount`.
+ */
+export interface PurchaseOrderAdvance {
+  percent: string;
+  amount: string | null;
+  indicativeAmount: string | null;
+  paymentId: string | null;
+  paymentNumber: string | null;
+  status:
+    | 'DRAFT'
+    | 'PENDING_APPROVAL'
+    | 'REJECTED'
+    | 'APPROVED'
+    | 'EXECUTED'
+    | 'REVERSED'
+    | null;
+  plannedDate: string | null;
+  executedDate: string | null;
+  bankReference: string | null;
+  rejectionComment: string | null;
+}
+
 export interface PurchaseOrder {
   id: string;
   poNumber: string;
@@ -115,6 +142,8 @@ export interface PurchaseOrder {
   partyEmail: string | null;
   totalAmount: string;
   approvalAmount: string | null;
+  /** Null when the order carries no advance commitment. */
+  advance: PurchaseOrderAdvance | null;
   approvals: Array<{
     id: string;
     level: 'CSCO' | 'COO' | 'CEO';
@@ -129,6 +158,7 @@ export interface PurchaseOrder {
   qualificationWarning?: QualificationWarning | null;
   createdAt: string;
   updatedAt: string;
+  canDelete?: boolean;
 }
 
 export interface PurchaseOrderLineInput {
@@ -151,8 +181,20 @@ export interface CreatePurchaseOrderInput {
   orderDate?: string;
   expectedDeliveryDate?: string;
   notes?: string;
+  /**
+   * Advance payable before delivery, 0.01–100 as a percentage of the pre-tax
+   * line total. Registered supplier/vendor only — the server rejects it on an
+   * ad-hoc PO, which has no payables account to pay from.
+   */
+  advancePercent?: number | null;
   lines: PurchaseOrderLineInput[];
 }
+
+/**
+ * Edits to a DRAFT PO. Every field is optional; omitting one leaves it alone,
+ * and `lines` replaces the whole set when sent.
+ */
+export type UpdatePurchaseOrderInput = Partial<CreatePurchaseOrderInput>;
 
 export function listPurchaseOrders(
   opts: { status?: PurchaseOrderStatus } = {},
@@ -168,6 +210,17 @@ export function getPurchaseOrder(id: string) {
 export function createPurchaseOrder(input: CreatePurchaseOrderInput) {
   return apiFetch<PurchaseOrder>('/purchase-orders', {
     method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+/** DRAFT only — the server refuses an edit once the PO is a commitment. */
+export function updatePurchaseOrder(
+  id: string,
+  input: UpdatePurchaseOrderInput,
+) {
+  return apiFetch<PurchaseOrder>(`/purchase-orders/${id}`, {
+    method: 'PATCH',
     body: JSON.stringify(input),
   });
 }
@@ -201,6 +254,13 @@ export function cancelPurchaseOrder(id: string) {
   return apiFetch<PurchaseOrder>(`/purchase-orders/${id}/cancel`, {
     method: 'POST',
   });
+}
+
+export function deletePurchaseOrder(id: string) {
+  return apiFetch<{ id: string; poNumber: string; deleted: true }>(
+    `/purchase-orders/${id}`,
+    { method: 'DELETE' },
+  );
 }
 
 export function approveAdHocPurchaseOrder(id: string) {

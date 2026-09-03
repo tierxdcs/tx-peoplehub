@@ -31,6 +31,12 @@ type Payment = {
   status: string;
   supplier?: Partner;
   vendor?: Partner;
+  /**
+   * Set when SCM raised this payment as an advance on an issued purchase order.
+   * There is no invoice behind such a payment, so the PO number is the only
+   * thing that says what is being paid for.
+   */
+  purchaseOrder?: { id: string; poNumber: string } | null;
 };
 type Page<T> = { items: T[]; total: number };
 const PAGE_SIZE = 25;
@@ -195,7 +201,17 @@ export default function VendorPaymentsPage() {
             <TableBody>
               {payments.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="font-medium tabular-nums">{p.paymentNumber}</TableCell>
+                  <TableCell className="font-medium tabular-nums">
+                    {p.paymentNumber}
+                    {p.purchaseOrder && (
+                      <Link
+                        href={`/stores/purchase-orders/${p.purchaseOrder.id}`}
+                        className="mt-0.5 block text-xs font-normal text-muted-foreground underline-offset-2 hover:underline"
+                      >
+                        Advance on {p.purchaseOrder.poNumber}
+                      </Link>
+                    )}
+                  </TableCell>
                   <TableCell>{p.supplier?.companyName || p.vendor?.companyName}</TableCell>
                   <TableCell>{p.plannedDate.slice(0, 10)}</TableCell>
                   <TableCell className="tabular-nums">{formatINR(p.amount, numberFormatStyle)}</TableCell>

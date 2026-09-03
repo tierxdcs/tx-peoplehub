@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ClipboardList, Plus } from 'lucide-react';
+import { ClipboardList, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../../../lib/auth-context';
 import {
   listPurchaseOrders,
+  deletePurchaseOrder,
   type PurchaseOrder,
   type PurchaseOrderStatus,
 } from '../../../lib/stores';
@@ -24,6 +25,8 @@ import { RegisterToolbar } from '../../../components/ui/register-toolbar';
 import { RegisterPagination } from '../../../components/ui/register-pagination';
 import { useRegisterList } from '../../../lib/use-register-list';
 import { Skeleton } from '../../../components/ui/skeleton';
+import { useToast } from '../../../components/ui/toaster';
+import { useConfirm } from '../../../components/ui/confirm';
 import {
   Table,
   TableBody,
@@ -52,6 +55,8 @@ const STATUSES: PurchaseOrderStatus[] = [
  */
 export default function PurchaseOrdersPage() {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const { user } = useAuth();
   const { style: numberFormatStyle } = useNumberFormat();
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
@@ -89,6 +94,27 @@ export default function PurchaseOrdersPage() {
     (po) =>
       `${po.poNumber} ${po.status} ${po.supplierName ?? ''} ${po.vendorName ?? ''} ${po.adHocPartyName ?? ''}`,
   );
+
+  async function remove(po: PurchaseOrder) {
+    const accepted = await confirm({
+      title: 'Delete purchase order?',
+      description: `Permanently delete ${po.poNumber}? This cannot be undone.`,
+      confirmLabel: 'Delete PO',
+      destructive: true,
+    });
+    if (!accepted) return;
+    try {
+      await deletePurchaseOrder(po.id);
+      toast.success(`${po.poNumber} deleted`);
+      await load();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to delete purchase order',
+      );
+    }
+  }
 
   return (
     <PageContainer>
@@ -152,6 +178,7 @@ export default function PurchaseOrdersPage() {
                   <TableHead>Order Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Total Value</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -193,6 +220,20 @@ export default function PurchaseOrdersPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       {formatINR(po.totalAmount, numberFormatStyle)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {po.canDelete && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void remove(po);
+                          }}
+                        >
+                          <Trash2 className="size-4" /> Delete
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

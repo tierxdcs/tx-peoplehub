@@ -69,6 +69,15 @@ export function NotificationBell() {
     // does NOT piggyback on Vendor's handling.
     if (n.relatedPlmTrackerId) {
       router.push(`/plm/trackers/${encodeURIComponent(n.relatedPlmTrackerId)}`);
+    } else if (n.relatedPurchaseOrderId) {
+      // The advance-payment handoff points each side at the surface where it can
+      // act: Accounts is being asked to pay, so it lands in the payments queue;
+      // Stores is being told the outcome, so it lands back on the PO.
+      router.push(
+        n.type === 'PO_ADVANCE_PAYMENT_REQUESTED'
+          ? '/finance/ap/payments'
+          : `/stores/purchase-orders/${encodeURIComponent(n.relatedPurchaseOrderId)}`,
+      );
     } else if (n.type === 'VENDOR_QUESTIONNAIRE_SUBMITTED' && n.relatedVendorId) {
       router.push(`/scm/vendors/${n.relatedVendorId}`);
     } else if (

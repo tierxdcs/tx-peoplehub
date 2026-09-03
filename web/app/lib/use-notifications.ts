@@ -18,7 +18,10 @@ export type NotificationType =
   | 'PLM_DESIGN_REVIEW_REQUESTED'
   | 'PLM_DESIGN_REVIEW_DECIDED'
   | 'PLM_STAGE_ADVANCED'
-  | 'PLM_PRODUCTION_UPDATE';
+  | 'PLM_PRODUCTION_UPDATE'
+  | 'PO_ADVANCE_PAYMENT_REQUESTED'
+  | 'PO_ADVANCE_PAYMENT_PAID'
+  | 'PO_ADVANCE_PAYMENT_REJECTED';
 
 export interface AppNotification {
   id: string;
@@ -29,6 +32,7 @@ export interface AppNotification {
   relatedBomId: string | null;
   relatedPlmTrackerId: string | null;
   relatedPlmOrderId: string | null;
+  relatedPurchaseOrderId: string | null;
   message: string;
   isRead: boolean;
   createdAt: string;
