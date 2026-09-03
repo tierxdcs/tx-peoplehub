@@ -107,6 +107,7 @@ export class CreateSalesInvoiceDto {
   @IsNumber()
   roundOff?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() paymentTerms?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() narration?: string;
   @ApiProperty({ type: [InvoiceLineDto] })
   @IsArray()
   @ArrayMinSize(1)

@@ -5946,6 +5946,7 @@ model SalesInvoice {
   paidAmount                 Decimal                 @default(0) @db.Decimal(18, 2)
   outstandingAmount          Decimal                 @db.Decimal(18, 2)
   paymentTerms               String?
+  narration                  String?                 @db.Text
   createdById                String
   createdBy                  Employee                @relation("SalesInvoiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
   submittedById              String?

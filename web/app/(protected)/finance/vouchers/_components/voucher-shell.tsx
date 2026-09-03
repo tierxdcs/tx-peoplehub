@@ -42,6 +42,7 @@ export function VoucherShell({
   onSubmitForApproval,
   summary,
   sections,
+  voucherNumber,
   children,
 }: {
   title: string;
@@ -59,6 +60,8 @@ export function VoucherShell({
   summary?: ReactNode;
   /** Full-bleed cards between details and narration. */
   sections?: ReactNode;
+  /** Existing document number in edit mode; new vouchers remain Auto. */
+  voucherNumber?: string;
   children: ReactNode;
 }) {
   const actions = (
@@ -94,7 +97,7 @@ export function VoucherShell({
             <SCardTitle title="Voucher details" />
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <Field label="Voucher No.">
-                <Input value="Auto" disabled />
+                <Input value={voucherNumber ?? 'Auto'} disabled />
               </Field>
               <Field label="Date" required>
                 <Input
@@ -112,7 +115,12 @@ export function VoucherShell({
           <SCard className="px-5 py-[18px]">
             <SCardTitle title="Narration" />
             <div className="mt-4">
-              <Textarea rows={2} value={narration} onChange={(e) => onNarrationChange(e.target.value)} placeholder="Optional note" />
+              <Textarea
+                rows={2}
+                value={narration}
+                onChange={(e) => onNarrationChange(e.target.value)}
+                placeholder="Optional note"
+              />
             </div>
           </SCard>
         </div>
@@ -120,14 +128,22 @@ export function VoucherShell({
         <div className="flex flex-col gap-3.5 xl:sticky xl:top-[4.5rem]">
           {summary ?? (
             <VoucherSummary
-              rows={[{ label: 'Entry status', value: balanced ? 'Ready to submit' : 'Incomplete' }]}
+              rows={[
+                {
+                  label: 'Entry status',
+                  value: balanced ? 'Ready to submit' : 'Incomplete',
+                },
+              ]}
               totalLabel="Voucher"
               total={balanced ? 'Balanced' : 'Pending'}
             />
           )}
           <Badge
             variant={balanced ? 'success' : 'destructive'}
-            className={cn('w-full justify-center py-1.5', !balanced && 'animate-pulse')}
+            className={cn(
+              'w-full justify-center py-1.5',
+              !balanced && 'animate-pulse',
+            )}
           >
             {balanceLabel}
           </Badge>
@@ -153,14 +169,21 @@ export function VoucherSummary({
       <SCardTitle title={title} />
       <div className="mt-4 divide-y divide-border">
         {rows.map((row) => (
-          <div key={row.label} className="flex items-start justify-between gap-4 py-3 text-sm first:pt-0">
+          <div
+            key={row.label}
+            className="flex items-start justify-between gap-4 py-3 text-sm first:pt-0"
+          >
             <span className="text-muted-foreground">{row.label}</span>
-            <span className="text-right font-medium tabular-nums">{row.value}</span>
+            <span className="text-right font-medium tabular-nums">
+              {row.value}
+            </span>
           </div>
         ))}
         <div className="flex items-end justify-between gap-4 pt-4">
           <span className="font-semibold">{totalLabel}</span>
-          <span className="text-right text-2xl font-semibold tabular-nums">{total}</span>
+          <span className="text-right text-2xl font-semibold tabular-nums">
+            {total}
+          </span>
         </div>
       </div>
     </SCard>

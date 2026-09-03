@@ -55,33 +55,6 @@ interface Invoice {
   outstandingAmount: string;
   customer: { name: string };
   gstSubmissions: Array<{ id: string; status: string }>;
-  lines: InvoiceLine[];
-}
-
-interface InvoiceLine {
-  productId: string | null;
-  description: string;
-  hsnSacCode: string;
-  quantity: string;
-  unitOfMeasure: string;
-  unitPrice: string;
-  discountPercent: string;
-  cgstRate: string;
-  sgstRate: string;
-  igstRate: string;
-}
-
-interface EditableInvoice extends Invoice {
-  customerId: string;
-  orderId: string | null;
-  milestoneId: string | null;
-  customerPoReference: string | null;
-  exchangeRateToInr: string;
-  placeOfSupplyState: string;
-  placeOfSupplyStateCode: string;
-  otherCharges: string;
-  roundOff: string;
-  paymentTerms: string | null;
 }
 
 interface Page<T> {
@@ -118,7 +91,6 @@ export default function SalesInvoicesPage() {
   const [manualIrnInvoiceId, setManualIrnInvoiceId] = useState<string | null>(
     null,
   );
-  const [editing, setEditing] = useState<EditableInvoice | null>(null);
   const [customerId, setCustomerId] = useState(''),
     [invoiceDate, setInvoiceDate] = useState(
       new Date().toISOString().slice(0, 10),
@@ -156,101 +128,38 @@ export default function SalesInvoicesPage() {
     );
   }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function resetEditor() {
-    setEditing(null);
-    setDescription('');
-    setHsn('');
-    setQuantity('1');
-    setPrice('');
-    setGstRate(String(DEFAULT_GST_RATE));
-    setStateCode(COMPANY_GST_STATE_CODE);
-  }
-
-  async function startEditing(invoice: Invoice) {
-    try {
-      const detail = await apiFetch<EditableInvoice>(
-        `/finance/ar/invoices/${invoice.id}`,
-      );
-      const line = detail.lines[0];
-      if (!line) throw new Error('Voucher has no line items');
-      setEditing(detail);
-      setCustomerId(detail.customerId);
-      setInvoiceDate(detail.invoiceDate.slice(0, 10));
-      setDueDate(detail.dueDate.slice(0, 10));
-      setDescription(line.description);
-      setHsn(line.hsnSacCode);
-      setQuantity(String(line.quantity));
-      setPrice(String(line.unitPrice));
-      setGstRate(
-        String(
-          Number(line.igstRate) + Number(line.cgstRate) + Number(line.sgstRate),
-        ),
-      );
-      setStateCode(detail.placeOfSupplyStateCode);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (x) {
-      toast.error(x instanceof ApiError ? x.message : 'Failed to open voucher');
-    }
-  }
-
   async function create(e: FormEvent) {
     e.preventDefault();
     try {
-      const gst = splitGstRate(Number(gstRate), stateCode);
-      const editableLine = (line: InvoiceLine) => ({
-        productId: line.productId ?? undefined,
-        description: line.description,
-        hsnSacCode: line.hsnSacCode,
-        quantity: Number(line.quantity),
-        unitOfMeasure: line.unitOfMeasure,
-        unitPrice: Number(line.unitPrice),
-        discountPercent: Number(line.discountPercent),
-        cgstRate: Number(line.cgstRate),
-        sgstRate: Number(line.sgstRate),
-        igstRate: Number(line.igstRate),
+      await apiFetch('/finance/ar/invoices', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId,
+          invoiceDate,
+          dueDate,
+          currencyCode: 'INR',
+          placeOfSupplyState: state,
+          placeOfSupplyStateCode: stateCode,
+          lines: [
+            {
+              description,
+              hsnSacCode: hsn,
+              quantity: Number(quantity),
+              unitOfMeasure: 'NOS',
+              unitPrice: Number(price),
+              ...splitGstRate(Number(gstRate), stateCode),
+            },
+          ],
+        }),
       });
-      const primaryLine = {
-        ...(editing?.lines[0] ? editableLine(editing.lines[0]) : {}),
-        description,
-        hsnSacCode: hsn,
-        quantity: Number(quantity),
-        unitOfMeasure: editing?.lines[0]?.unitOfMeasure ?? 'NOS',
-        unitPrice: Number(price),
-        ...gst,
-      };
-      await apiFetch(
-        editing ? `/finance/ar/invoices/${editing.id}` : '/finance/ar/invoices',
-        {
-          method: editing ? 'PUT' : 'POST',
-          body: JSON.stringify({
-            customerId,
-            orderId: editing?.orderId ?? undefined,
-            milestoneId: editing?.milestoneId ?? undefined,
-            invoiceDate,
-            dueDate,
-            customerPoReference: editing?.customerPoReference ?? undefined,
-            currencyCode: editing?.currencyCode ?? 'INR',
-            exchangeRateToInr: editing
-              ? Number(editing.exchangeRateToInr)
-              : undefined,
-            placeOfSupplyState: state,
-            placeOfSupplyStateCode: stateCode,
-            otherCharges: editing ? Number(editing.otherCharges) : undefined,
-            roundOff: editing ? Number(editing.roundOff) : undefined,
-            paymentTerms: editing?.paymentTerms ?? undefined,
-            lines: editing
-              ? [primaryLine, ...editing.lines.slice(1).map(editableLine)]
-              : [primaryLine],
-          }),
-        },
-      );
-      toast.success(
-        editing ? 'Draft sales voucher updated' : 'Draft invoice created',
-      );
-      resetEditor();
+      setDescription('');
+      setPrice('');
+      toast.success('Draft invoice created');
       await load();
     } catch (x) {
-      toast.error(x instanceof ApiError ? x.message : 'Failed to save invoice');
+      toast.error(
+        x instanceof ApiError ? x.message : 'Failed to create invoice',
+      );
     }
   }
 
@@ -312,22 +221,6 @@ export default function SalesInvoicesPage() {
       />
       <div className="space-y-4 px-5 pb-7 pt-[18px] lg:px-7">
         <SCard className="px-5 py-[18px]">
-          {editing && (
-            <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm">
-              <span>
-                Editing <strong>{editing.invoiceNumber}</strong>. Only draft
-                vouchers can be changed.
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={resetEditor}
-              >
-                Cancel edit
-              </Button>
-            </div>
-          )}
           <form onSubmit={create} className="grid gap-3 md:grid-cols-4">
             <Select
               required
@@ -408,9 +301,7 @@ export default function SalesInvoicesPage() {
               className="tabular-nums"
               value={stateCode}
             />
-            <Button type="submit">
-              {editing ? 'Save changes' : 'Create draft'}
-            </Button>
+            <Button type="submit">Create draft</Button>
           </form>
         </SCard>
         <SCard className="overflow-hidden">
@@ -459,13 +350,14 @@ export default function SalesInvoicesPage() {
                         View
                       </Link>
                       {i.status === 'DRAFT' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => startEditing(i)}
+                        <Link
+                          className={cn(
+                            buttonVariants({ size: 'sm', variant: 'outline' }),
+                          )}
+                          href={`/finance/vouchers/sales/new?edit=${i.id}`}
                         >
                           Edit
-                        </Button>
+                        </Link>
                       )}
                       {(i.status === 'DRAFT' || i.status === 'REJECTED') && (
                         <Button

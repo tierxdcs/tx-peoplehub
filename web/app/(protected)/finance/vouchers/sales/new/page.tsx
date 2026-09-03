@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Trash2 } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../../lib/api';
 import { formatINR } from '../../../../../lib/sales';
@@ -49,6 +49,11 @@ interface OrderCustomer {
   gstin: string | null;
 }
 
+interface CustomerReference {
+  id: string;
+  name: string;
+}
+
 interface OrderReference {
   id: string;
   orderNumber: string;
@@ -90,6 +95,33 @@ interface VoucherLine {
   discountPercent: string;
 }
 
+interface EditableSalesInvoice {
+  id: string;
+  invoiceNumber: string;
+  status: string;
+  customerId: string;
+  orderId: string | null;
+  invoiceDate: string;
+  dueDate: string;
+  customerPoReference: string | null;
+  currencyCode: string;
+  placeOfSupplyStateCode: string;
+  narration: string | null;
+  lines: Array<{
+    id: string;
+    productId: string | null;
+    description: string;
+    hsnSacCode: string;
+    quantity: string;
+    unitOfMeasure: string;
+    unitPrice: string;
+    discountPercent: string;
+    igstRate: string;
+    cgstRate: string;
+    sgstRate: string;
+  }>;
+}
+
 /**
  * The name and description an invoice line must carry, taken from the order
  * line: Sales' customer-facing override wins over the internal master wording,
@@ -127,9 +159,12 @@ function lineAmounts(line: VoucherLine) {
  */
 export default function NewSalesVoucherPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get('edit');
   const toast = useToast();
   const { style: numberFormatStyle } = useNumberFormat();
   const [orders, setOrders] = useState<OrderReference[]>([]);
+  const [customers, setCustomers] = useState<CustomerReference[]>([]);
   const [orderId, setOrderId] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -152,10 +187,14 @@ export default function NewSalesVoucherPage() {
   const [customerPoReference, setCustomerPoReference] = useState('');
   const [narration, setNarration] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [editing, setEditing] = useState<EditableSalesInvoice | null>(null);
 
   useEffect(() => {
-    apiFetch<OrderReference[]>('/finance/ar/reference/orders')
-      .then((rows) =>
+    Promise.all([
+      apiFetch<OrderReference[]>('/finance/ar/reference/orders'),
+      apiFetch<CustomerReference[]>('/finance/ar/reference/customers'),
+    ])
+      .then(([rows, customerRows]) => {
         setOrders(
           rows.filter(
             (order) =>
@@ -163,11 +202,62 @@ export default function NewSalesVoucherPage() {
               order.status !== 'CANCELLED' &&
               !!order.customerId,
           ),
-        ),
-      )
+        );
+        setCustomers(customerRows);
+      })
       .catch(() => toast.error('Failed to load customer orders'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!editId) return;
+    apiFetch<EditableSalesInvoice>(`/finance/ar/invoices/${editId}`)
+      .then((invoice) => {
+        if (invoice.status !== 'DRAFT') {
+          toast.error('Only draft sales vouchers can be edited');
+          router.replace('/finance/ar/invoices');
+          return;
+        }
+        const firstLine = invoice.lines[0];
+        const splitDescription = (description: string) => {
+          const [name, ...rest] = description.split('\n');
+          return { name, description: rest.join('\n') };
+        };
+        setEditing(invoice);
+        setOrderId(invoice.orderId ?? '');
+        setCustomerId(invoice.customerId);
+        setDate(invoice.invoiceDate.slice(0, 10));
+        setDueDate(invoice.dueDate.slice(0, 10));
+        setCustomerPoReference(invoice.customerPoReference ?? '');
+        setNarration(invoice.narration ?? '');
+        setStateCode(invoice.placeOfSupplyStateCode);
+        setIgstRate(String(firstLine?.igstRate ?? 0));
+        setCgstRate(String(firstLine?.cgstRate ?? 0));
+        setSgstRate(String(firstLine?.sgstRate ?? 0));
+        setLines(
+          invoice.lines.map((line) => {
+            const wording = splitDescription(line.description);
+            return {
+              id: line.id,
+              productId: line.productId,
+              productName: wording.name,
+              productDescription: wording.description,
+              hsnSacCode: line.hsnSacCode,
+              quantity: String(line.quantity),
+              unitOfMeasure: line.unitOfMeasure,
+              unitPrice: String(line.unitPrice),
+              discountPercent: String(line.discountPercent),
+            };
+          }),
+        );
+      })
+      .catch((error) => {
+        toast.error(
+          error instanceof ApiError ? error.message : 'Failed to load voucher',
+        );
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId]);
 
   const amounts = lines.map(lineAmounts);
   const subtotal = amounts.reduce((sum, line) => sum + line.gross, 0);
@@ -207,7 +297,7 @@ export default function NewSalesVoucherPage() {
       Number(line.discountPercent) <= 100,
   );
   const balanced =
-    !!orderId &&
+    (!!orderId || (!!editing && !!customerId)) &&
     !!customerId &&
     lines.length > 0 &&
     linesValid &&
@@ -278,6 +368,8 @@ export default function NewSalesVoucherPage() {
     );
   }
 
+  const orderDerived = !!orderId;
+
   async function create(submit: boolean) {
     if (!balanced) {
       toast.error('Fill in the party and line details before saving.');
@@ -285,44 +377,48 @@ export default function NewSalesVoucherPage() {
     }
     setSubmitting(true);
     try {
-      const invoice = await apiFetch<{ id: string }>('/finance/ar/invoices', {
-        method: 'POST',
-        body: JSON.stringify({
-          customerId,
-          orderId,
-          invoiceDate: date,
-          dueDate,
-          // Omitted when blank so the column stays NULL rather than holding an
-          // empty string — every reader renders NULL as an em dash.
-          customerPoReference: customerPoReference.trim() || undefined,
-          currencyCode: 'INR',
-          placeOfSupplyState: state,
-          placeOfSupplyStateCode: stateCode,
-          lines: lines.map((line) => ({
-            productId: line.productId ?? undefined,
-            // One `description` column holds both: the name first, the
-            // description on the next line. Every renderer (voucher, invoice
-            // detail, printed tax invoice) preserves that newline.
-            description: [
-              line.productName.trim(),
-              line.productDescription.trim(),
-            ]
-              .filter(Boolean)
-              .join('\n'),
-            hsnSacCode: line.hsnSacCode.trim(),
-            quantity: Number(line.quantity),
-            unitOfMeasure: line.unitOfMeasure.trim(),
-            unitPrice: Number(line.unitPrice),
-            discountPercent: Number(line.discountPercent) || 0,
-            // The current invoice API stores rates on its line records. The
-            // voucher exposes one invoice-level selection and applies that
-            // same selection uniformly to every persisted line.
-            igstRate: numericIgstRate,
-            cgstRate: numericCgstRate,
-            sgstRate: numericSgstRate,
-          })),
-        }),
-      });
+      const invoice = await apiFetch<{ id: string }>(
+        editing ? `/finance/ar/invoices/${editing.id}` : '/finance/ar/invoices',
+        {
+          method: editing ? 'PUT' : 'POST',
+          body: JSON.stringify({
+            customerId,
+            orderId: orderId || undefined,
+            invoiceDate: date,
+            dueDate,
+            // Omitted when blank so the column stays NULL rather than holding an
+            // empty string — every reader renders NULL as an em dash.
+            customerPoReference: customerPoReference.trim() || undefined,
+            narration: narration.trim() || undefined,
+            currencyCode: 'INR',
+            placeOfSupplyState: state,
+            placeOfSupplyStateCode: stateCode,
+            lines: lines.map((line) => ({
+              productId: line.productId ?? undefined,
+              // One `description` column holds both: the name first, the
+              // description on the next line. Every renderer (voucher, invoice
+              // detail, printed tax invoice) preserves that newline.
+              description: [
+                line.productName.trim(),
+                line.productDescription.trim(),
+              ]
+                .filter(Boolean)
+                .join('\n'),
+              hsnSacCode: line.hsnSacCode.trim(),
+              quantity: Number(line.quantity),
+              unitOfMeasure: line.unitOfMeasure.trim(),
+              unitPrice: Number(line.unitPrice),
+              discountPercent: Number(line.discountPercent) || 0,
+              // The current invoice API stores rates on its line records. The
+              // voucher exposes one invoice-level selection and applies that
+              // same selection uniformly to every persisted line.
+              igstRate: numericIgstRate,
+              cgstRate: numericCgstRate,
+              sgstRate: numericSgstRate,
+            })),
+          }),
+        },
+      );
       if (submit) {
         await apiFetch(`/finance/ar/invoices/${invoice.id}/submit`, {
           method: 'POST',
@@ -331,12 +427,14 @@ export default function NewSalesVoucherPage() {
       toast.success(
         submit
           ? 'Sales voucher submitted for approval'
-          : 'Sales voucher saved as draft',
+          : editing
+            ? 'Draft sales voucher updated'
+            : 'Sales voucher saved as draft',
       );
       router.push('/finance/ar/invoices');
     } catch (e) {
       toast.error(
-        e instanceof ApiError ? e.message : 'Failed to create sales voucher',
+        e instanceof ApiError ? e.message : 'Failed to save sales voucher',
       );
     } finally {
       setSubmitting(false);
@@ -346,7 +444,12 @@ export default function NewSalesVoucherPage() {
   return (
     <VoucherShell
       title="Sales Voucher"
-      description="Creates a Sales Invoice — the same document the register page creates"
+      description={
+        editing
+          ? `Editing ${editing.invoiceNumber} — generated and order-derived fields remain locked`
+          : 'Creates a Sales Invoice — the same document the register page creates'
+      }
+      voucherNumber={editing?.invoiceNumber}
       date={date}
       onDateChange={setDate}
       narration={narration}
@@ -434,19 +537,46 @@ export default function NewSalesVoucherPage() {
                     <span className="pt-2 text-[11.5px] font-semibold tabular-nums text-black/40 dark:text-white/35">
                       {String(index + 1).padStart(2, '0')}
                     </span>
-                    {/* Read-only: the name and description are the order's
-                        wording (Sales' customer-facing override when set), not
-                        something Accounts retypes per invoice. */}
-                    <div className="min-w-0 py-1.5">
-                      <div className="text-[13px] font-semibold leading-snug">
-                        {line.productName}
-                      </div>
-                      {line.productDescription && (
-                        <div className="mt-1 whitespace-pre-line text-[12px] leading-normal text-black/55 dark:text-white/50">
-                          {line.productDescription}
+                    {orderDerived ? (
+                      /* Order wording is auto-populated and remains locked. */
+                      <div className="min-w-0 py-1.5">
+                        <div className="text-[13px] font-semibold leading-snug">
+                          {line.productName}
                         </div>
-                      )}
-                    </div>
+                        {line.productDescription && (
+                          <div className="mt-1 whitespace-pre-line text-[12px] leading-normal text-black/55 dark:text-white/50">
+                            {line.productDescription}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Input
+                          aria-label="Product name"
+                          value={line.productName}
+                          onChange={(event) =>
+                            updateLine(
+                              line.id,
+                              'productName',
+                              event.target.value,
+                            )
+                          }
+                          placeholder="Product or service"
+                        />
+                        <Input
+                          aria-label="Description"
+                          value={line.productDescription}
+                          onChange={(event) =>
+                            updateLine(
+                              line.id,
+                              'productDescription',
+                              event.target.value,
+                            )
+                          }
+                          placeholder="Description"
+                        />
+                      </div>
+                    )}
                     <Input
                       aria-label="HSN/SAC"
                       value={line.hsnSacCode}
@@ -582,7 +712,7 @@ export default function NewSalesVoucherPage() {
         </>
       }
     >
-      <Field label="Order ID" required>
+      <Field label="Order ID" required={!editing}>
         <PartyPicker
           options={orders.map((order) => ({
             id: order.id,
@@ -593,6 +723,11 @@ export default function NewSalesVoucherPage() {
           onChange={selectOrder}
           placeholder="Search order ID or customer…"
         />
+        {editing && !orderId && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            This draft was created without an order.
+          </p>
+        )}
       </Field>
       <Field label="Due Date" required>
         <Input
@@ -602,13 +737,27 @@ export default function NewSalesVoucherPage() {
         />
       </Field>
       <Field label="Party (Customer)">
-        <Input
-          readOnly
-          value={
-            orders.find((order) => order.id === orderId)?.customer?.name ?? ''
-          }
-          placeholder="Selected automatically from the order"
-        />
+        {orderDerived ? (
+          <Input
+            readOnly
+            value={
+              orders.find((order) => order.id === orderId)?.customer?.name ?? ''
+            }
+            placeholder="Selected automatically from the order"
+          />
+        ) : (
+          <Select
+            required
+            value={customerId}
+            onChange={(event) => setCustomerId(event.target.value)}
+          >
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>
+                {customer.name}
+              </option>
+            ))}
+          </Select>
+        )}
       </Field>
       <Field
         label="Customer PO Reference"
