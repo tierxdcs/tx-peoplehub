@@ -109,6 +109,29 @@ export interface PurchaseOrderAdvance {
   rejectionComment: string | null;
 }
 
+/**
+ * GST on the order: order-level rates applied once to the summed line total, the
+ * same model the Sales Voucher uses on the outward side. Always present — all
+ * zeroes mean the order carries no tax line, which is how every order raised
+ * before GST reached the PO reads.
+ *
+ * `stateCode` is the SUPPLIER's registration state, because on an inward supply
+ * that is what decides the split: our own state is intra-state (CGST + SGST),
+ * anywhere else is inter-state (IGST).
+ */
+export interface PurchaseOrderGst {
+  stateCode: string;
+  stateName: string;
+  intraState: boolean;
+  igstRate: string;
+  cgstRate: string;
+  sgstRate: string;
+  igstAmount: string;
+  cgstAmount: string;
+  sgstAmount: string;
+  totalTax: string;
+}
+
 export interface PurchaseOrder {
   id: string;
   poNumber: string;
@@ -120,6 +143,9 @@ export interface PurchaseOrder {
   adHocPartyName: string | null;
   adHocContactInfo: string | null;
   adHocPartyAddress: string | null;
+  partyAddress: string | null;
+  partyContactInfo: string | null;
+  partyGstin: string | null;
   ceoApprovedById: string | null;
   ceoApprovedAt: string | null;
   rejectedById: string | null;
@@ -140,7 +166,14 @@ export interface PurchaseOrder {
    * registered email — the dialog then has to ask for one.
    */
   partyEmail: string | null;
+  /**
+   * Sum of the line totals — the taxable value. Deliberately pre-tax: it is the
+   * basis for the approval tier, the advance and AP three-way matching.
+   */
   totalAmount: string;
+  gst: PurchaseOrderGst;
+  /** totalAmount + GST — what the party will invoice. */
+  grandTotal: string;
   approvalAmount: string | null;
   /** Null when the order carries no advance commitment. */
   advance: PurchaseOrderAdvance | null;
@@ -187,6 +220,20 @@ export interface CreatePurchaseOrderInput {
    * ad-hoc PO, which has no payables account to pay from.
    */
   advancePercent?: number | null;
+  /**
+   * The supplier's two-digit GST state code. Omitted, the server takes it from
+   * the party's GSTIN — send it only to override that (an SEZ or import supply
+   * that does not follow the registration).
+   */
+  gstStateCode?: string;
+  /**
+   * Order-level GST percentages, 0–100, applied once to the summed line total.
+   * Omitted rates stay zero: the server never assumes a slab, so it is this form
+   * that proposes 18%.
+   */
+  igstRate?: number;
+  cgstRate?: number;
+  sgstRate?: number;
   lines: PurchaseOrderLineInput[];
 }
 
@@ -194,7 +241,22 @@ export interface CreatePurchaseOrderInput {
  * Edits to a DRAFT PO. Every field is optional; omitting one leaves it alone,
  * and `lines` replaces the whole set when sent.
  */
-export type UpdatePurchaseOrderInput = Partial<CreatePurchaseOrderInput>;
+export type UpdatePurchaseOrderInput = Omit<
+  Partial<CreatePurchaseOrderInput>,
+  | 'supplierId'
+  | 'vendorId'
+  | 'adHocPartyName'
+  | 'adHocContactInfo'
+  | 'adHocPartyAddress'
+  | 'expectedDeliveryDate'
+> & {
+  supplierId?: string | null;
+  vendorId?: string | null;
+  adHocPartyName?: string | null;
+  adHocContactInfo?: string | null;
+  adHocPartyAddress?: string | null;
+  expectedDeliveryDate?: string | null;
+};
 
 export function listPurchaseOrders(
   opts: { status?: PurchaseOrderStatus } = {},

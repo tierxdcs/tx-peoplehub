@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma, PurchaseOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -18,6 +22,7 @@ import {
   renderPurchaseOrderDocumentHtml,
   type PurchaseOrderDocumentData,
 } from './purchase-order-document';
+import { computePurchaseOrderGst } from './purchase-order-gst';
 
 /**
  * Statuses a PO may be emailed in. A DRAFT is not yet an order and a
@@ -32,8 +37,26 @@ const SENDABLE: PurchaseOrderStatus[] = [
 ];
 
 const PO_INCLUDE = {
-  supplier: { select: { companyName: true, contactEmail: true } },
-  vendor: { select: { companyName: true, contactEmail: true } },
+  supplier: {
+    select: {
+      companyName: true,
+      contactEmail: true,
+      contactPhone: true,
+      contactPersonName: true,
+      registeredAddress: true,
+      gstin: true,
+    },
+  },
+  vendor: {
+    select: {
+      companyName: true,
+      contactEmail: true,
+      contactPhone: true,
+      contactPersonName: true,
+      registeredAddress: true,
+      gstin: true,
+    },
+  },
   createdBy: { select: { firstName: true, lastName: true } },
   lines: {
     orderBy: { sequence: 'asc' as const },
@@ -120,7 +143,8 @@ export class PurchaseOrderEmailService {
       orderDate: po.orderDate,
       expectedDeliveryDate: po.expectedDeliveryDate,
       lineCount: po.lines.length,
-      totalAmountFormatted: formatIndianAmount(data.totalAmount),
+      // The payable figure, so the covering email agrees with the PDF's total.
+      totalAmountFormatted: formatIndianAmount(data.grandTotal),
       attachmentFileName: fileName,
       organisationName,
       note: dto.note,
@@ -163,7 +187,9 @@ export class PurchaseOrderEmailService {
     const explicit = override?.trim();
     if (explicit) {
       if (!isValidEmailAddress(explicit)) {
-        throw new BadRequestException(`"${explicit}" is not a valid email address`);
+        throw new BadRequestException(
+          `"${explicit}" is not a valid email address`,
+        );
       }
       return explicit;
     }
@@ -197,6 +223,13 @@ export class PurchaseOrderEmailService {
       (sum, l) => sum.plus(l.lineTotal),
       new Prisma.Decimal(0),
     );
+    // Same helper the PO entity uses, so the emailed PDF and the figures on the
+    // detail page can never disagree about the tax.
+    const gstBreakdown = computePurchaseOrderGst(total, po.gstStateCode, {
+      igstRate: po.gstIgstRate,
+      cgstRate: po.gstCgstRate,
+      sgstRate: po.gstSgstRate,
+    });
     return {
       poNumber: po.poNumber,
       orderDate: po.orderDate,
@@ -211,13 +244,35 @@ export class PurchaseOrderEmailService {
         po.vendor?.companyName ??
         po.adHocPartyName ??
         '—',
-      partyContactInfo: po.adHocContactInfo,
-      partyAddress: po.adHocPartyAddress,
+      partyContactInfo:
+        [
+          po.supplier?.contactPersonName ?? po.vendor?.contactPersonName,
+          po.supplier?.contactEmail ?? po.vendor?.contactEmail,
+          po.supplier?.contactPhone ?? po.vendor?.contactPhone,
+        ]
+          .filter(Boolean)
+          .join(' · ') || po.adHocContactInfo,
+      partyAddress:
+        po.supplier?.registeredAddress ??
+        po.vendor?.registeredAddress ??
+        po.adHocPartyAddress,
+      partyGstin: po.supplier?.gstin ?? po.vendor?.gstin ?? null,
       notes: po.notes,
       raisedByName: po.createdBy
         ? `${po.createdBy.firstName} ${po.createdBy.lastName}`.trim()
         : null,
       totalAmount: total.toFixed(2),
+      gst: {
+        stateName: gstBreakdown.stateName,
+        igstRate: gstBreakdown.igstRate.toFixed(2),
+        cgstRate: gstBreakdown.cgstRate.toFixed(2),
+        sgstRate: gstBreakdown.sgstRate.toFixed(2),
+        igstAmount: gstBreakdown.igstAmount.toFixed(2),
+        cgstAmount: gstBreakdown.cgstAmount.toFixed(2),
+        sgstAmount: gstBreakdown.sgstAmount.toFixed(2),
+        totalTax: gstBreakdown.totalTax.toFixed(2),
+      },
+      grandTotal: gstBreakdown.grandTotal.toFixed(2),
       // Prefer the snapshot frozen at issue over a recomputed figure: the party
       // must read the same rupee number the request to Accounts was raised for.
       advance: po.advancePercent

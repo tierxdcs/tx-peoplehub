@@ -20,7 +20,12 @@ import {
 } from '../../../../lib/scm';
 import { inviteEmailMessage } from '../../../../lib/invite-email';
 import { PageContainer } from '../../../../components/ui/page-container';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '../../../../components/ui/card';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Skeleton } from '../../../../components/ui/skeleton';
@@ -98,7 +103,9 @@ export default function VendorDetailPage() {
       setInvitePassword('');
       toast.success('Invite link generated.');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to generate invite.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to generate invite.',
+      );
     } finally {
       setBusy(false);
     }
@@ -127,7 +134,9 @@ export default function VendorDetailPage() {
       if (message.tone === 'success') toast.success(message.text);
       else toast.toast({ title: 'Email not sent', description: message.text });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to send the email.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to send the email.',
+      );
     } finally {
       setEmailing(false);
     }
@@ -172,7 +181,9 @@ export default function VendorDetailPage() {
       setInvite(null);
       toast.success('New revision created.');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to create revision.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to create revision.',
+      );
     }
   }
 
@@ -190,9 +201,13 @@ export default function VendorDetailPage() {
     try {
       await clearAuditClassificationOverride(id, audit.id);
       await load();
-      toast.success('Override cleared — reverted to the computed classification.');
+      toast.success(
+        'Override cleared — reverted to the computed classification.',
+      );
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to clear override.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to clear override.',
+      );
     }
   }
 
@@ -251,7 +266,10 @@ export default function VendorDetailPage() {
           <CardTitle>Company Information</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-x-8 gap-y-2 pt-0 text-sm sm:grid-cols-2">
-          <Info label="Registered address" value={vendor.registeredAddress ?? '—'} />
+          <Info
+            label="Registered address"
+            value={vendor.registeredAddress ?? '—'}
+          />
           <Info label="Factory address" value={vendor.factoryAddress ?? '—'} />
           <div>
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -275,15 +293,28 @@ export default function VendorDetailPage() {
               )}
             </div>
           </div>
-          <Info label="Year established" value={vendor.yearEstablished ?? '—'} />
+          <Info
+            label="Year established"
+            value={vendor.yearEstablished ?? '—'}
+          />
           <Info label="Employees" value={vendor.numberOfEmployees ?? '—'} />
           <Info label="Annual turnover" value={vendor.annualTurnover ?? '—'} />
-          <Info label="MSME / UDYAM" value={vendor.msmeUdyamCertificate ?? '—'} />
+          <Info
+            label="MSME / UDYAM"
+            value={vendor.msmeUdyamCertificate ?? '—'}
+          />
+          <Info label="GSTIN" value={vendor.gstin ?? '—'} />
           <Info
             label="Contact"
-            value={joinParts([vendor.contactPersonName, vendor.contactPersonDesignation])}
+            value={joinParts([
+              vendor.contactPersonName,
+              vendor.contactPersonDesignation,
+            ])}
           />
-          <Info label="Email / phone" value={joinParts([vendor.contactEmail, vendor.contactPhone])} />
+          <Info
+            label="Email / phone"
+            value={joinParts([vendor.contactEmail, vendor.contactPhone])}
+          />
           <Info label="Website" value={vendor.website ?? '—'} />
         </CardContent>
       </Card>
@@ -305,7 +336,9 @@ export default function VendorDetailPage() {
             <TableBody>
               {vendor.questionnaires.map((q) => (
                 <TableRow key={q.id}>
-                  <TableCell className="font-medium">Rev {q.revisionNumber}</TableCell>
+                  <TableCell className="font-medium">
+                    Rev {q.revisionNumber}
+                  </TableCell>
                   <TableCell>
                     <StatusBadge value={q.status} />
                   </TableCell>
@@ -326,12 +359,18 @@ export default function VendorDetailPage() {
               {invite && !invite.revokedAt ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <Input readOnly value={publicUrl(invite.token)} className="h-8" />
+                    <Input
+                      readOnly
+                      value={publicUrl(invite.token)}
+                      className="h-8"
+                    />
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        void navigator.clipboard?.writeText(publicUrl(invite.token));
+                        void navigator.clipboard?.writeText(
+                          publicUrl(invite.token),
+                        );
                         toast.success('Link copied.');
                       }}
                     >
@@ -344,13 +383,18 @@ export default function VendorDetailPage() {
                     >
                       {emailing ? 'Sending…' : 'Email to vendor'}
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => revoke(invite.id)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => revoke(invite.id)}
+                    >
                       Revoke
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Expires {new Date(invite.expiresAt).toLocaleDateString()} (14-day
-                    default){invite.hasPassword ? ' · password-protected' : ''}.{' '}
+                    Expires {new Date(invite.expiresAt).toLocaleDateString()}{' '}
+                    (14-day default)
+                    {invite.hasPassword ? ' · password-protected' : ''}.{' '}
                     {vendor.contactEmail
                       ? `Emails go to ${vendor.contactEmail}.`
                       : 'Add a contact email to send it from here, or copy the link.'}
@@ -404,7 +448,11 @@ export default function VendorDetailPage() {
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle>Audits</CardTitle>
           {canManage && latestQuestionnaire?.status === 'SUBMITTED' && (
-            <Button size="sm" variant="outline" onClick={() => setAuditing(true)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAuditing(true)}
+            >
               Create Audit
             </Button>
           )}
@@ -422,16 +470,26 @@ export default function VendorDetailPage() {
                   <TableHead>Core competency</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead>Classification</TableHead>
-                  {canOverride && <TableHead className="text-right">Override</TableHead>}
+                  {canOverride && (
+                    <TableHead className="text-right">Override</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {vendor.audits.map((a) => (
                   <TableRow key={a.id}>
-                    <TableCell>{new Date(a.auditDate).toLocaleDateString()}</TableCell>
-                    <TableCell>{a.auditType === 'PHYSICAL' ? 'Physical' : 'Virtual'}</TableCell>
+                    <TableCell>
+                      {new Date(a.auditDate).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      {a.auditType === 'PHYSICAL' ? 'Physical' : 'Virtual'}
+                    </TableCell>
                     <TableCell>{a.auditorName ?? '—'}</TableCell>
-                    <TableCell>{a.coreCompetency ? VENDOR_CORE_COMPETENCY_LABEL[a.coreCompetency] : '—'}</TableCell>
+                    <TableCell>
+                      {a.coreCompetency
+                        ? VENDOR_CORE_COMPETENCY_LABEL[a.coreCompetency]
+                        : '—'}
+                    </TableCell>
                     <TableCell className="text-right font-medium">
                       {a.totalScore} / 100
                     </TableCell>

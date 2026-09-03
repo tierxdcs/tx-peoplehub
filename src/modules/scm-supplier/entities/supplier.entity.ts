@@ -16,6 +16,7 @@ export class SupplierEntity {
   @ApiProperty({ nullable: true }) numberOfEmployees!: string | null;
   @ApiProperty({ nullable: true }) annualTurnover!: string | null;
   @ApiProperty({ nullable: true }) msmeUdyamCertificate!: string | null;
+  @ApiProperty({ nullable: true }) gstin!: string | null;
   @ApiProperty({ nullable: true }) contactPersonName!: string | null;
   @ApiProperty({ nullable: true }) contactPersonDesignation!: string | null;
   @ApiProperty() contactEmail!: string;
@@ -62,6 +63,7 @@ export class SupplierCompanyInfoEntity {
   @ApiProperty({ nullable: true }) numberOfEmployees!: string | null;
   @ApiProperty({ nullable: true }) annualTurnover!: string | null;
   @ApiProperty({ nullable: true }) msmeUdyamCertificate!: string | null;
+  @ApiProperty({ nullable: true }) gstin!: string | null;
   @ApiProperty({ nullable: true }) contactPersonName!: string | null;
   @ApiProperty({ nullable: true }) contactPersonDesignation!: string | null;
   @ApiProperty({ nullable: true }) contactPhone!: string | null;

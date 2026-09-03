@@ -30,10 +30,7 @@ export type AuditType = 'PHYSICAL' | 'VIRTUAL';
 /** How a questionnaire reached SUBMITTED. Null until submitted. */
 export type FilledBy = 'EXTERNAL_SUPPLIER' | 'INTERNAL_STAFF';
 export type SupplierClassification =
-  | 'APPROVED_PREFERRED'
-  | 'APPROVED'
-  | 'CONDITIONALLY_APPROVED'
-  | 'NOT_APPROVED';
+  'APPROVED_PREFERRED' | 'APPROVED' | 'CONDITIONALLY_APPROVED' | 'NOT_APPROVED';
 
 export interface Supplier {
   id: string;
@@ -44,6 +41,7 @@ export interface Supplier {
   numberOfEmployees: string | null;
   annualTurnover: string | null;
   msmeUdyamCertificate: string | null;
+  gstin: string | null;
   contactPersonName: string | null;
   contactPersonDesignation: string | null;
   contactEmail: string;
@@ -99,6 +97,7 @@ export interface SupplierCompanyInfo {
   numberOfEmployees: string | null;
   annualTurnover: string | null;
   msmeUdyamCertificate: string | null;
+  gstin: string | null;
   contactPersonName: string | null;
   contactPersonDesignation: string | null;
   contactPhone: string | null;
@@ -192,6 +191,7 @@ export interface CreateSupplierInput {
   numberOfEmployees?: string;
   annualTurnover?: string;
   msmeUdyamCertificate?: string;
+  gstin?: string;
   contactPersonName?: string;
   contactPersonDesignation?: string;
   contactPhone?: string;
@@ -274,7 +274,11 @@ export function internalCertUploadUrl(
   questionnaireId: string,
   input: { name: string; mimeType: string; sizeBytes: number },
 ) {
-  return apiFetch<{ storageKey: string; uploadUrl: string; expiresInSeconds: number }>(
+  return apiFetch<{
+    storageKey: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+  }>(
     `/suppliers/questionnaires/${questionnaireId}/internal-fill/certificate-upload-url`,
     { method: 'POST', body: JSON.stringify(input) },
   );
@@ -397,7 +401,10 @@ export function classify(total: number): {
   label: string;
 } {
   if (total >= 90)
-    return { classification: 'APPROVED_PREFERRED', label: 'Approved (Preferred Supplier)' };
+    return {
+      classification: 'APPROVED_PREFERRED',
+      label: 'Approved (Preferred Supplier)',
+    };
   if (total >= 80) return { classification: 'APPROVED', label: 'Approved' };
   if (total >= 70)
     return {
@@ -439,7 +446,12 @@ async function publicPost<T>(
       body: JSON.stringify(body),
     });
   } catch {
-    return { ok: false, status: 0, message: 'Network error', passwordRequired: false };
+    return {
+      ok: false,
+      status: 0,
+      message: 'Network error',
+      passwordRequired: false,
+    };
   }
   let parsed: { success?: boolean; data?: T; message?: string } = {};
   try {
@@ -495,7 +507,11 @@ export function publicCertUploadUrl(
   input: { name: string; mimeType: string; sizeBytes: number },
   password?: string,
 ) {
-  return publicPost<{ storageKey: string; uploadUrl: string; expiresInSeconds: number }>(
+  return publicPost<{
+    storageKey: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+  }>(
     `/public/supplier-questionnaire/${encodeURIComponent(token)}/certificate-upload-url`,
     { ...input, password },
   );

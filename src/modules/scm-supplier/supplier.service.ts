@@ -71,6 +71,7 @@ type SupplierCompanyInfo = {
   numberOfEmployees: string | null;
   annualTurnover: string | null;
   msmeUdyamCertificate: string | null;
+  gstin: string | null;
   contactPersonName: string | null;
   contactPersonDesignation: string | null;
   contactPhone: string | null;
@@ -132,6 +133,7 @@ export class SupplierService {
           numberOfEmployees: dto.numberOfEmployees ?? null,
           annualTurnover: dto.annualTurnover ?? null,
           msmeUdyamCertificate: dto.msmeUdyamCertificate ?? null,
+          gstin: dto.gstin?.toUpperCase() ?? null,
           contactPersonName: dto.contactPersonName ?? null,
           contactPersonDesignation: dto.contactPersonDesignation ?? null,
           contactEmail: dto.contactEmail,
@@ -866,6 +868,7 @@ export class SupplierService {
     numberOfEmployees: string | null;
     annualTurnover: string | null;
     msmeUdyamCertificate: string | null;
+    gstin: string | null;
     contactPersonName: string | null;
     contactPersonDesignation: string | null;
     contactEmail: string;
@@ -902,6 +905,8 @@ export class SupplierService {
       data.annualTurnover = info.annualTurnover;
     if (info.msmeUdyamCertificate !== undefined)
       data.msmeUdyamCertificate = info.msmeUdyamCertificate;
+    if (info.gstin !== undefined)
+      data.gstin = info.gstin.trim() ? info.gstin.toUpperCase() : null;
     if (info.contactPersonName !== undefined)
       data.contactPersonName = info.contactPersonName;
     if (info.contactPersonDesignation !== undefined)
@@ -922,6 +927,7 @@ export class SupplierService {
       numberOfEmployees: s.numberOfEmployees,
       annualTurnover: s.annualTurnover,
       msmeUdyamCertificate: s.msmeUdyamCertificate,
+      gstin: s.gstin,
       contactPersonName: s.contactPersonName,
       contactPersonDesignation: s.contactPersonDesignation,
       contactPhone: s.contactPhone,

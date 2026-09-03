@@ -28,7 +28,7 @@ import { RegisterPagination } from '../../../../components/ui/register-paginatio
 import { serverPageCount } from '../../../../lib/server-pagination';
 import { uploadToPresignedUrl } from '../../../../lib/vault-api';
 
-type Partner = { id: string; companyName: string };
+type Partner = { id: string; companyName: string; gstin: string | null };
 type PoLine = {
   id: string;
   unitPrice: string;
@@ -109,7 +109,8 @@ export default function VendorInvoicesPage() {
   const [invoicePdf, setInvoicePdf] = useState<File | null>(null);
   const selectedPo = pos.find((p) => p.id === poId),
     selectedLine = selectedPo?.lines.find((l) => l.id === poLineId),
-    partners = partyType === 'SUPPLIER' ? suppliers : vendors;
+    partners = partyType === 'SUPPLIER' ? suppliers : vendors,
+    selectedPartner = partners.find((partner) => partner.id === partyId);
   const load = () =>
     Promise.all([
       apiFetch<{ suppliers: Partner[]; vendors: Partner[] }>(
@@ -388,6 +389,13 @@ export default function VendorInvoicesPage() {
                 </option>
               ))}
             </Select>
+            <Input
+              readOnly
+              aria-label="GSTIN from partner master"
+              value={selectedPartner?.gstin ?? ''}
+              placeholder="GSTIN not recorded on partner master"
+              title="Automatically populated from Vendor/Supplier onboarding"
+            />
             <Input
               required
               placeholder="Supplier invoice number"

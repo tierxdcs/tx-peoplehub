@@ -1,18 +1,30 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../../lib/api';
 import {
   createPurchaseOrder,
+  getPurchaseOrder,
   isQualifiedStatus,
+  updatePurchaseOrder,
   type CreatePurchaseOrderInput,
 } from '../../../../lib/stores';
 import { listSuppliers, type Supplier } from '../../../../lib/scm-supplier';
 import { listVendors, type Vendor } from '../../../../lib/scm';
 import { listItems, type Item } from '../../../../lib/scm-item-master';
 import { formatINR } from '../../../../lib/sales';
+import {
+  COMPANY_GST_STATE_CODE,
+  DEFAULT_GST_RATE,
+  GST_STATES,
+  gstSplitWarning,
+  gstStateByCode,
+  gstStateCodeFromGstin,
+  isIntraStateSupply,
+  splitGstRate,
+} from '../../../../lib/gst-states';
 import { useNumberFormat } from '../../../../lib/number-format-context';
 import { humanizeEnum } from '../../../../lib/status';
 import { Input } from '../../../../components/ui/input';
@@ -80,6 +92,16 @@ const COMMON_UNITS = [
 ];
 const OTHER_UNIT = '__OTHER__';
 
+const COMPANY_STATE_NAME = gstStateByCode(COMPANY_GST_STATE_CODE)?.name ?? '';
+
+/**
+ * A new order opens at the standard slab, split for our own state until a party
+ * with a GSTIN elsewhere is chosen. The server never assumes a slab — an omitted
+ * rate stays zero there — so proposing 18% is this form's job, exactly as it is
+ * the Sales Voucher's.
+ */
+const INITIAL_GST = splitGstRate(DEFAULT_GST_RATE, COMPANY_GST_STATE_CODE);
+
 function emptyLine(source: LineDraft['source'] = 'CATALOG'): LineDraft {
   return {
     key: lineKeySeq++,
@@ -101,6 +123,8 @@ const LINE_GRID =
 
 export default function NewPurchaseOrderPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get('edit');
   const toast = useToast();
   const { style: numberFormatStyle } = useNumberFormat();
 
@@ -118,8 +142,21 @@ export default function NewPurchaseOrderPage() {
   const [notes, setNotes] = useState('');
   // Kept as the raw string so a half-typed "3" doesn't get coerced mid-edit.
   const [advancePercent, setAdvancePercent] = useState('');
+  // GST is order-level: these rates apply once to the summed line total. Kept as
+  // strings for the same reason as the advance — a half-typed rate must survive.
+  const [gstStateCode, setGstStateCode] = useState(COMPANY_GST_STATE_CODE);
+  const [igstRate, setIgstRate] = useState(String(INITIAL_GST.igstRate));
+  const [cgstRate, setCgstRate] = useState(String(INITIAL_GST.cgstRate));
+  const [sgstRate, setSgstRate] = useState(String(INITIAL_GST.sgstRate));
+  /**
+   * The party the tax was last seeded from. Seeding once per party change lets
+   * the split follow the supplier's registration automatically without ever
+   * overwriting a state the buyer picked by hand afterwards.
+   */
+  const [gstSeededFor, setGstSeededFor] = useState<string | null>(null);
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
+  const [editingNumber, setEditingNumber] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -140,6 +177,66 @@ export default function NewPurchaseOrderPage() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!editId) return;
+    getPurchaseOrder(editId)
+      .then((po) => {
+        if (po.status !== 'DRAFT') {
+          toast.error('Only draft purchase orders can be edited.');
+          router.replace(`/stores/purchase-orders/${po.id}`);
+          return;
+        }
+        setEditingNumber(po.poNumber);
+        if (po.supplierId) {
+          setPartnerType('SUPPLIER');
+          setPartnerId(po.supplierId);
+        } else if (po.vendorId) {
+          setPartnerType('VENDOR');
+          setPartnerId(po.vendorId);
+        } else {
+          setPartnerType('AD_HOC');
+          setPartnerId('');
+        }
+        setAdHocPartyName(po.adHocPartyName ?? '');
+        setAdHocContactInfo(po.adHocContactInfo ?? '');
+        setAdHocPartyAddress(po.adHocPartyAddress ?? '');
+        setExpectedDeliveryDate(po.expectedDeliveryDate?.slice(0, 10) ?? '');
+        setNotes(po.notes ?? '');
+        setAdvancePercent(po.advance?.percent ?? '');
+        setGstStateCode(po.gst.stateCode);
+        setIgstRate(po.gst.igstRate);
+        setCgstRate(po.gst.cgstRate);
+        setSgstRate(po.gst.sgstRate);
+        // Treat the saved tax as already seeded from this party: it may be a
+        // deliberate override (an SEZ or import supply), and re-deriving it from
+        // the GSTIN on load would quietly discard that.
+        setGstSeededFor(po.supplierId ?? po.vendorId ?? 'AD_HOC');
+        setLines(
+          po.lines.map((line) => {
+            const catalog = !!line.itemId;
+            return {
+              key: lineKeySeq++,
+              source: catalog ? 'CATALOG' : 'FREE_TEXT',
+              itemId: line.itemId ?? '',
+              adHocItemName: catalog ? '' : line.itemName,
+              adHocDescription: line.adHocDescription ?? '',
+              unitOfMeasure: line.unitOfMeasure,
+              customUnit:
+                !catalog && !COMMON_UNITS.includes(line.unitOfMeasure),
+              orderedQuantity: line.orderedQuantity,
+              unitPrice: line.unitPrice,
+            };
+          }),
+        );
+      })
+      .catch((error) =>
+        toast.error(
+          error instanceof ApiError ? error.message : 'Failed to load PO.',
+        ),
+      );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId]);
 
   const partners = useMemo(
     () =>
@@ -174,6 +271,61 @@ export default function NewPurchaseOrderPage() {
       }, 0),
     [lines],
   );
+
+  // ── GST ───────────────────────────────────────────────────────────────
+  // On a purchase the SUPPLIER's registration decides the split, not ours: a
+  // Karnataka supplier is an intra-state supply (CGST + SGST), one anywhere else
+  // is inter-state (IGST). Mirror image of the Sales Voucher, where the
+  // customer's place of supply decides it.
+  const numericIgstRate = Number(igstRate) || 0;
+  const numericCgstRate = Number(cgstRate) || 0;
+  const numericSgstRate = Number(sgstRate) || 0;
+  const totalGstRate = numericIgstRate + numericCgstRate + numericSgstRate;
+  const gstAmount = (total * totalGstRate) / 100;
+  const grandTotal = total + gstAmount;
+  const gstStateName = gstStateByCode(gstStateCode)?.name ?? '';
+  const intraState = isIntraStateSupply(gstStateCode);
+  const gstWarning = gstSplitWarning(gstStateCode, {
+    igstRate: numericIgstRate,
+    cgstRate: numericCgstRate,
+    sgstRate: numericSgstRate,
+  });
+  const gstRatesValid = [
+    numericIgstRate,
+    numericCgstRate,
+    numericSgstRate,
+  ].every((rate) => Number.isFinite(rate) && rate >= 0 && rate <= 100);
+
+  /**
+   * Re-split the SAME total rate for a new state. Taking the total rather than a
+   * fixed 18 means a buyer who has chosen a 5%, 12% or 28% slab keeps that slab
+   * when the state changes — only the split moves.
+   */
+  const applyGstState = useCallback((code: string, totalRate: number) => {
+    const split = splitGstRate(totalRate, code);
+    setGstStateCode(code);
+    setIgstRate(String(split.igstRate));
+    setCgstRate(String(split.cgstRate));
+    setSgstRate(String(split.sgstRate));
+  }, []);
+
+  // Seed the state from the chosen party's own GSTIN, so picking a Tamil Nadu
+  // vendor moves 9 + 9 onto IGST 18 without the buyer having to know that. A
+  // party with no GSTIN on record leaves the state alone rather than guessing.
+  const partnerKey = partnerType === 'AD_HOC' ? 'AD_HOC' : partnerId;
+  useEffect(() => {
+    if (!partnerKey || gstSeededFor === partnerKey) return;
+    setGstSeededFor(partnerKey);
+    const code = gstStateCodeFromGstin(selectedPartner?.gstin);
+    if (code && code !== gstStateCode) applyGstState(code, totalGstRate);
+  }, [
+    partnerKey,
+    gstSeededFor,
+    selectedPartner,
+    gstStateCode,
+    totalGstRate,
+    applyGstState,
+  ]);
 
   // An advance needs a registered party — an ad-hoc PO has no payables account
   // for Accounts to pay it from, so the server rejects one outright.
@@ -222,6 +374,7 @@ export default function NewPurchaseOrderPage() {
     hasParty &&
     validLines.length > 0 &&
     !(advanceEntered && !advanceValid) &&
+    gstRatesValid &&
     !submitting;
 
   // What still blocks or would drop content — feeds the summary-rail card.
@@ -249,8 +402,16 @@ export default function NewPurchaseOrderPage() {
     if (advanceEntered && !advanceValid) {
       out.push('Advance % must be between 0.01 and 100');
     }
+    if (!gstRatesValid) out.push('GST rates must each be between 0 and 100');
     return out;
-  }, [hasParty, partnerType, lines, advanceEntered, advanceValid]);
+  }, [
+    hasParty,
+    partnerType,
+    lines,
+    advanceEntered,
+    advanceValid,
+    gstRatesValid,
+  ]);
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -274,6 +435,12 @@ export default function NewPurchaseOrderPage() {
         : {}),
       ...(notes ? { notes } : {}),
       ...(advanceValid ? { advancePercent: advanceNumber } : {}),
+      // Always sent, including zeroes: a buyer who clears the tax is asserting
+      // the order carries none, which is different from not saying.
+      gstStateCode,
+      igstRate: numericIgstRate,
+      cgstRate: numericCgstRate,
+      sgstRate: numericSgstRate,
       lines: validLines.map((l) => ({
         ...(l.source === 'CATALOG'
           ? { itemId: l.itemId }
@@ -289,20 +456,41 @@ export default function NewPurchaseOrderPage() {
       })),
     };
     try {
-      const po = await createPurchaseOrder(input);
+      const po = editId
+        ? await updatePurchaseOrder(editId, {
+            ...input,
+            supplierId: partnerType === 'SUPPLIER' ? partnerId : null,
+            vendorId: partnerType === 'VENDOR' ? partnerId : null,
+            adHocPartyName:
+              partnerType === 'AD_HOC' ? adHocPartyName.trim() : null,
+            adHocContactInfo:
+              partnerType === 'AD_HOC' ? adHocContactInfo.trim() || null : null,
+            adHocPartyAddress:
+              partnerType === 'AD_HOC'
+                ? adHocPartyAddress.trim() || null
+                : null,
+            advancePercent: advanceValid ? advanceNumber : null,
+            expectedDeliveryDate: expectedDeliveryDate
+              ? new Date(expectedDeliveryDate).toISOString()
+              : null,
+            notes,
+          })
+        : await createPurchaseOrder(input);
       if (po.qualificationWarning) {
         toast.success(
           `PO ${po.poNumber} created — note: ${po.qualificationWarning.message}`,
           'Created with warning',
         );
       } else {
-        toast.success(`Purchase order ${po.poNumber} saved as draft`);
+        toast.success(
+          editId
+            ? `Purchase order ${po.poNumber} updated`
+            : `Purchase order ${po.poNumber} saved as draft`,
+        );
       }
       router.push(`/stores/purchase-orders/${po.id}`);
     } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : 'Failed to create PO',
-      );
+      toast.error(err instanceof ApiError ? err.message : 'Failed to save PO');
       setSubmitting(false);
     }
   }
@@ -312,7 +500,7 @@ export default function NewPurchaseOrderPage() {
       <SignalHeader
         backHref="/stores/purchase-orders"
         backLabel="Purchase Orders"
-        title="New Purchase Order"
+        title={editingNumber ? `Edit ${editingNumber}` : 'New Purchase Order'}
         chip={
           <SignalChip>
             {partnerType === 'AD_HOC' ? 'Draft · exception' : 'Draft'}
@@ -333,7 +521,11 @@ export default function NewPurchaseOrderPage() {
               disabled={!canSubmit}
               className={SIGNAL_BTN_PRIMARY}
             >
-              {submitting ? 'Creating…' : 'Create Purchase Order'}
+              {submitting
+                ? 'Saving…'
+                : editId
+                  ? 'Save Changes'
+                  : 'Create Purchase Order'}
             </button>
           </>
         }
@@ -671,6 +863,107 @@ export default function NewPurchaseOrderPage() {
               </div>
             </SCard>
 
+            {/* GST — order-level rates applied once to the summed line total */}
+            <SCard className="px-5 py-[18px]">
+              <SCardTitle
+                title="GST"
+                subtitle="Printed on the purchase order and matched against the supplier's invoice"
+              />
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <Field
+                  label="Supplier's GST State (Place of Supply)"
+                  htmlFor="gstStateCode"
+                  hint={
+                    intraState
+                      ? `${COMPANY_STATE_NAME} is our own state — intra-state purchase, taxed CGST + SGST.`
+                      : `Outside ${COMPANY_STATE_NAME} — inter-state purchase, taxed IGST.`
+                  }
+                >
+                  <Select
+                    id="gstStateCode"
+                    value={gstStateCode}
+                    onChange={(e) =>
+                      applyGstState(e.target.value, totalGstRate)
+                    }
+                  >
+                    {GST_STATES.map((s) => (
+                      <option key={s.code} value={s.code}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field
+                  label="State Code"
+                  hint="Taken from the supplier's GSTIN when they have one on record."
+                >
+                  <Input
+                    readOnly
+                    className="tabular-nums"
+                    value={gstStateCode}
+                  />
+                </Field>
+              </div>
+              <p className="mt-3 text-[12px] text-black/50 dark:text-white/45">
+                These rates apply once to the combined line total of{' '}
+                {formatINR(total, numberFormatStyle)}. Changing the state
+                re-splits the same total rate — edit a rate below to use a
+                different slab, or clear all three for an order that carries no
+                tax.
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <Field label="IGST %" htmlFor="igstRate">
+                  <Input
+                    id="igstRate"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    className="text-right tabular-nums"
+                    value={igstRate}
+                    onChange={(e) => setIgstRate(e.target.value)}
+                  />
+                </Field>
+                <Field label="CGST %" htmlFor="cgstRate">
+                  <Input
+                    id="cgstRate"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    className="text-right tabular-nums"
+                    value={cgstRate}
+                    onChange={(e) => setCgstRate(e.target.value)}
+                  />
+                </Field>
+                <Field label="SGST %" htmlFor="sgstRate">
+                  <Input
+                    id="sgstRate"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    className="text-right tabular-nums"
+                    value={sgstRate}
+                    onChange={(e) => setSgstRate(e.target.value)}
+                  />
+                </Field>
+              </div>
+              {!gstRatesValid && (
+                <p className="mt-2 text-[12px] text-destructive">
+                  Each rate must be between 0 and 100.
+                </p>
+              )}
+              {gstWarning && (
+                <Callout>
+                  {gstWarning} You can still save if this is intentional.
+                </Callout>
+              )}
+            </SCard>
+
             {/* Details */}
             <SCard className="px-5 py-[18px]">
               <span className="text-[14px] font-bold">Details</span>
@@ -739,19 +1032,23 @@ export default function NewPurchaseOrderPage() {
               <div className="mt-3.5 flex flex-col">
                 <SummaryRow label="Lines" value={String(lines.length)} />
                 <SummaryRow
-                  label="Subtotal"
+                  label="Taxable value"
                   value={formatINR(total, numberFormatStyle)}
+                />
+                <SummaryRow
+                  label={`GST (${totalGstRate}%)`}
+                  value={formatINR(gstAmount, numberFormatStyle)}
                 />
                 {advanceAmount !== null && (
                   <SummaryRow
-                    label={`Advance (${advanceNumber}%)`}
+                    label={`Advance (${advanceNumber}% of taxable)`}
                     value={formatINR(advanceAmount, numberFormatStyle)}
                   />
                 )}
                 <div className="flex items-baseline justify-between pt-3">
                   <span className="text-[12.5px] font-semibold">Total</span>
                   <span className="text-2xl font-bold tabular-nums tracking-[-1px]">
-                    {formatINR(total, numberFormatStyle)}
+                    {formatINR(grandTotal, numberFormatStyle)}
                   </span>
                 </div>
               </div>

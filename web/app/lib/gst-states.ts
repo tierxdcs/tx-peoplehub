@@ -68,6 +68,22 @@ export function gstStateByCode(code: string): GstState | undefined {
   return GST_STATES.find((s) => s.code === code);
 }
 
+/**
+ * The state a GSTIN is registered in: the first two digits ARE the statutory
+ * state code (33GSPTN0000A1Z5 is Tamil Nadu). Null when there is no GSTIN on
+ * record or the prefix is not a state — an unregistered party is a real case, and
+ * guessing a state for one would put the wrong tax on the document.
+ *
+ * The server's copy of this lives in `src/modules/scm-purchasing/
+ * purchase-order-gst.ts`, which is what actually validates a purchase order.
+ */
+export function gstStateCodeFromGstin(
+  gstin: string | null | undefined,
+): string | null {
+  const prefix = gstin?.trim().slice(0, 2) ?? '';
+  return prefix.length === 2 && gstStateByCode(prefix) ? prefix : null;
+}
+
 export function gstStateByName(name: string): GstState | undefined {
   return GST_STATES.find(
     (s) => s.name.toLowerCase() === name.trim().toLowerCase(),

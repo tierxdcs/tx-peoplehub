@@ -24,6 +24,21 @@ const ADVANCE_PERCENT_DESCRIPTION =
   'line total. Omit or send null for no advance. Registered supplier/vendor ' +
   'only, and editable only while the PO is a DRAFT.';
 
+const GST_STATE_CODE_DESCRIPTION =
+  "The supplier's two-digit GST state code. Defaults to the state in the " +
+  "party's GSTIN, or the company's own state when the party has none. Decides " +
+  "the split: the company's state is intra-state (CGST + SGST), anywhere else " +
+  'is inter-state (IGST).';
+
+/**
+ * GST rates are order-level, applied once to the summed line total — the same
+ * shape the Sales Voucher posts. They are NOT defaulted server-side: a tax rate
+ * is an assertion about the supply, so an omitted rate stays zero and the form
+ * is what proposes the 18% slab.
+ */
+const GST_RATE_DESCRIPTION = (tax: string) =>
+  `${tax} %, 0–100, applied once to the summed line total.`;
+
 export class PurchaseOrderLineInputDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -79,6 +94,29 @@ export class CreatePurchaseOrderDto {
   @Max(100)
   advancePercent?: number | null;
 
+  @ApiPropertyOptional({ description: GST_STATE_CODE_DESCRIPTION })
+  @IsOptional()
+  @IsString()
+  gstStateCode?: string;
+  @ApiPropertyOptional({ description: GST_RATE_DESCRIPTION('IGST') })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  igstRate?: number;
+  @ApiPropertyOptional({ description: GST_RATE_DESCRIPTION('CGST') })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  cgstRate?: number;
+  @ApiPropertyOptional({ description: GST_RATE_DESCRIPTION('SGST') })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  sgstRate?: number;
+
   @ApiProperty({ type: [PurchaseOrderLineInputDto] })
   @IsArray()
   @ValidateNested({ each: true })
@@ -89,13 +127,31 @@ export class CreatePurchaseOrderDto {
 
 /** Edit a DRAFT PO. Sending `lines` full-replaces the line set. */
 export class UpdatePurchaseOrderDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() supplierId?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() vendorId?: string;
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  supplierId?: string | null;
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  vendorId?: string | null;
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  adHocPartyName?: string | null;
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  adHocContactInfo?: string | null;
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  adHocPartyAddress?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsDateString() orderDate?: string;
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsDateString()
-  expectedDeliveryDate?: string;
+  expectedDeliveryDate?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
   @ApiPropertyOptional({ description: ADVANCE_PERCENT_DESCRIPTION })
   @IsOptional()
@@ -103,6 +159,28 @@ export class UpdatePurchaseOrderDto {
   @Min(0.01)
   @Max(100)
   advancePercent?: number | null;
+  @ApiPropertyOptional({ description: GST_STATE_CODE_DESCRIPTION })
+  @IsOptional()
+  @IsString()
+  gstStateCode?: string;
+  @ApiPropertyOptional({ description: GST_RATE_DESCRIPTION('IGST') })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  igstRate?: number;
+  @ApiPropertyOptional({ description: GST_RATE_DESCRIPTION('CGST') })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  cgstRate?: number;
+  @ApiPropertyOptional({ description: GST_RATE_DESCRIPTION('SGST') })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  sgstRate?: number;
   @ApiPropertyOptional({ type: [PurchaseOrderLineInputDto] })
   @IsOptional()
   @IsArray()

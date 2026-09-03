@@ -34,9 +34,24 @@ import {
 import {
   PurchaseOrderAdvanceEntity,
   PurchaseOrderEntity,
+  PurchaseOrderGstEntity,
   PurchaseOrderLineEntity,
   QualificationWarningEntity,
 } from './entities/purchase-order.entity';
+import {
+  computePurchaseOrderGst,
+  gstStateCodeFromGstin,
+  normaliseGstStateCode,
+} from './purchase-order-gst';
+import { gstStateByCode } from '../finance-ar/gst-states';
+
+/** The GST columns a create/edit writes; omitted rates are left untouched. */
+interface PurchaseOrderGstWrite {
+  gstStateCode: string;
+  gstIgstRate?: number;
+  gstCgstRate?: number;
+  gstSgstRate?: number;
+}
 
 /** Supplier/Vendor states that count as "qualified" (no warning). */
 const QUALIFIED_SUPPLIER: SupplierStatus[] = [
@@ -51,8 +66,28 @@ const QUALIFIED_VENDOR: VendorStatus[] = [
 const PO_INCLUDE = {
   // contactEmail is here for the entity's `partyEmail` — the address the
   // "Email to Supplier" action would send to, shown before the user commits.
-  supplier: { select: { companyName: true, status: true, contactEmail: true } },
-  vendor: { select: { companyName: true, status: true, contactEmail: true } },
+  supplier: {
+    select: {
+      companyName: true,
+      status: true,
+      contactEmail: true,
+      contactPhone: true,
+      contactPersonName: true,
+      registeredAddress: true,
+      gstin: true,
+    },
+  },
+  vendor: {
+    select: {
+      companyName: true,
+      status: true,
+      contactEmail: true,
+      contactPhone: true,
+      contactPersonName: true,
+      registeredAddress: true,
+      gstin: true,
+    },
+  },
   createdBy: { select: { firstName: true, lastName: true } },
   approvals: {
     orderBy: { sequence: 'asc' as const },
@@ -201,6 +236,12 @@ export class PurchaseOrderService {
       dto.vendorId,
     );
     const lines = await this.buildLineData(dto.lines, isAdHoc);
+    const gst = await this.resolveGstData(
+      dto,
+      dto.supplierId,
+      dto.vendorId,
+      null,
+    );
 
     const created = await this.prisma.$transaction(async (tx) => {
       const poNumber = await this.numbering.nextNumber(
@@ -228,6 +269,7 @@ export class PurchaseOrderService {
             : null,
           notes: dto.notes ?? null,
           advancePercent: dto.advancePercent ?? null,
+          ...gst,
           createdById: user.id,
           lines: { create: lines },
         },
@@ -266,6 +308,14 @@ export class PurchaseOrderService {
     );
 
     const isAdHoc = !nextSupplierId && !nextVendorId;
+    const nextAdHocPartyName =
+      dto.adHocPartyName !== undefined
+        ? dto.adHocPartyName?.trim() || ''
+        : po.adHocPartyName?.trim() || '';
+    if (isAdHoc && !nextAdHocPartyName)
+      throw new BadRequestException(
+        'Party name is required for an ad-hoc purchase order',
+      );
     // Validate the advance that will *result* from this edit, not just the one
     // sent: switching an advance-carrying PO to an ad-hoc party would otherwise
     // leave a commitment with no payables account to pay it from.
@@ -275,6 +325,18 @@ export class PurchaseOrderService {
     const lineData = dto.lines
       ? await this.buildLineData(dto.lines, isAdHoc)
       : undefined;
+    // A changed party can change the tax: re-derive the state from the new
+    // party's GSTIN unless this edit states one. The rates are left as they were
+    // — moving CGST/SGST to IGST silently would change what the party is asked to
+    // invoice, so the mismatch is surfaced on the form instead.
+    const partnerChanged =
+      nextSupplierId !== po.supplierId || nextVendorId !== po.vendorId;
+    const gst = await this.resolveGstData(
+      dto,
+      nextSupplierId,
+      nextVendorId,
+      partnerChanged ? null : po.gstStateCode,
+    );
 
     await this.prisma.purchaseOrder.update({
       where: { id },
@@ -282,6 +344,17 @@ export class PurchaseOrderService {
         // Setting one partner clears the other (a PO always has exactly one).
         supplierId: nextSupplierId ?? null,
         vendorId: nextVendorId ?? null,
+        adHocPartyName: isAdHoc ? nextAdHocPartyName : null,
+        adHocContactInfo: isAdHoc
+          ? dto.adHocContactInfo !== undefined
+            ? dto.adHocContactInfo?.trim() || null
+            : po.adHocContactInfo
+          : null,
+        adHocPartyAddress: isAdHoc
+          ? dto.adHocPartyAddress !== undefined
+            ? dto.adHocPartyAddress?.trim() || null
+            : po.adHocPartyAddress
+          : null,
         ...(dto.orderDate !== undefined
           ? { orderDate: dto.orderDate ? new Date(dto.orderDate) : new Date() }
           : {}),
@@ -296,6 +369,7 @@ export class PurchaseOrderService {
         ...(dto.advancePercent !== undefined
           ? { advancePercent: dto.advancePercent }
           : {}),
+        ...gst,
         ...(lineData ? { lines: { deleteMany: {}, create: lineData } } : {}),
       },
     });
@@ -872,6 +946,75 @@ export class PurchaseOrderService {
   }
 
   /**
+   * The GST columns an create/edit should write. Rates are taken as sent and are
+   * never defaulted to a slab here — a tax rate is an assertion about the supply,
+   * so an omitted rate stays as it was (zero on a new order) and the form is what
+   * proposes 18%. Only the *state* is defaulted, from the party's GSTIN, because
+   * that is a fact on record rather than a judgement.
+   */
+  private async resolveGstData(
+    dto: CreatePurchaseOrderDto | UpdatePurchaseOrderDto,
+    supplierId: string | null | undefined,
+    vendorId: string | null | undefined,
+    existingStateCode: string | null,
+  ): Promise<PurchaseOrderGstWrite> {
+    for (const [label, rate] of [
+      ['IGST', dto.igstRate],
+      ['CGST', dto.cgstRate],
+      ['SGST', dto.sgstRate],
+    ] as const) {
+      if (rate !== undefined && (rate < 0 || rate > 100)) {
+        throw new BadRequestException(
+          `${label} rate must be between 0 and 100`,
+        );
+      }
+    }
+    if (dto.gstStateCode !== undefined && !gstStateByCode(dto.gstStateCode)) {
+      throw new BadRequestException(
+        `"${dto.gstStateCode}" is not a GST state code`,
+      );
+    }
+    const stateCode =
+      dto.gstStateCode !== undefined
+        ? normaliseGstStateCode(dto.gstStateCode)
+        : (existingStateCode ??
+          (await this.partyGstStateCode(supplierId, vendorId)));
+    return {
+      gstStateCode: stateCode,
+      ...(dto.igstRate !== undefined ? { gstIgstRate: dto.igstRate } : {}),
+      ...(dto.cgstRate !== undefined ? { gstCgstRate: dto.cgstRate } : {}),
+      ...(dto.sgstRate !== undefined ? { gstSgstRate: dto.sgstRate } : {}),
+    };
+  }
+
+  /**
+   * The state to open a new order at: the one in the party's GSTIN, falling back
+   * to the company's own state. An unregistered or ad-hoc party has no GSTIN, and
+   * assuming a distant state for one would put IGST on a local purchase.
+   */
+  private async partyGstStateCode(
+    supplierId: string | null | undefined,
+    vendorId: string | null | undefined,
+  ): Promise<string> {
+    const gstin = supplierId
+      ? (
+          await this.prisma.supplier.findUnique({
+            where: { id: supplierId },
+            select: { gstin: true },
+          })
+        )?.gstin
+      : vendorId
+        ? (
+            await this.prisma.vendor.findUnique({
+              where: { id: vendorId },
+              select: { gstin: true },
+            })
+          )?.gstin
+        : null;
+    return normaliseGstStateCode(gstStateCodeFromGstin(gstin));
+  }
+
+  /**
    * Validate items exist + active, snapshot the UoM, and compute lineTotal
    * (orderedQuantity × unitPrice). Returns Prisma create rows.
    */
@@ -940,6 +1083,11 @@ export class PurchaseOrderService {
       (sum, l) => sum.plus(l.lineTotal),
       new Prisma.Decimal(0),
     );
+    const gst = computePurchaseOrderGst(total, po.gstStateCode, {
+      igstRate: po.gstIgstRate,
+      cgstRate: po.gstCgstRate,
+      sgstRate: po.gstSgstRate,
+    });
     return new PurchaseOrderEntity({
       id: po.id,
       poNumber: po.poNumber,
@@ -951,6 +1099,19 @@ export class PurchaseOrderService {
       adHocPartyName: po.adHocPartyName,
       adHocContactInfo: po.adHocContactInfo,
       adHocPartyAddress: po.adHocPartyAddress,
+      partyAddress:
+        po.supplier?.registeredAddress ??
+        po.vendor?.registeredAddress ??
+        po.adHocPartyAddress,
+      partyContactInfo:
+        [
+          po.supplier?.contactPersonName ?? po.vendor?.contactPersonName,
+          po.supplier?.contactEmail ?? po.vendor?.contactEmail,
+          po.supplier?.contactPhone ?? po.vendor?.contactPhone,
+        ]
+          .filter(Boolean)
+          .join(' · ') || po.adHocContactInfo,
+      partyGstin: po.supplier?.gstin ?? po.vendor?.gstin ?? null,
       ceoApprovedById: po.ceoApprovedById,
       ceoApprovedAt: po.ceoApprovedAt?.toISOString() ?? null,
       rejectedById: po.rejectedById,
@@ -971,6 +1132,19 @@ export class PurchaseOrderService {
       lastEmailedTo: po.lastEmailedTo,
       partyEmail: po.supplier?.contactEmail ?? po.vendor?.contactEmail ?? null,
       totalAmount: total.toFixed(2),
+      gst: new PurchaseOrderGstEntity({
+        stateCode: gst.stateCode,
+        stateName: gst.stateName,
+        intraState: gst.intraState,
+        igstRate: gst.igstRate.toFixed(2),
+        cgstRate: gst.cgstRate.toFixed(2),
+        sgstRate: gst.sgstRate.toFixed(2),
+        igstAmount: gst.igstAmount.toFixed(2),
+        cgstAmount: gst.cgstAmount.toFixed(2),
+        sgstAmount: gst.sgstAmount.toFixed(2),
+        totalTax: gst.totalTax.toFixed(2),
+      }),
+      grandTotal: gst.grandTotal.toFixed(2),
       approvalAmount: po.approvalAmount?.toFixed(2) ?? null,
       advance: this.toAdvanceEntity(po, total),
       approvals: po.approvals.map((approval) => ({

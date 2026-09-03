@@ -44,7 +44,8 @@ export default function PublicSupplierQuestionnairePage() {
   const [needsPassword, setNeedsPassword] = useState(false);
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [questionnaire, setQuestionnaire] = useState<SupplierQuestionnaire | null>(null);
+  const [questionnaire, setQuestionnaire] =
+    useState<SupplierQuestionnaire | null>(null);
   const [form, setForm] = useState<FormState>({});
   const [companyInfo, setCompanyInfo] = useState<PublicCompanyInfo>({});
   const [certs, setCerts] = useState<CertificateFile[]>([]);
@@ -66,6 +67,7 @@ export default function PublicSupplierQuestionnairePage() {
       numberOfEmployees: q.companyInfo.numberOfEmployees ?? '',
       annualTurnover: q.companyInfo.annualTurnover ?? '',
       msmeUdyamCertificate: q.companyInfo.msmeUdyamCertificate ?? '',
+      gstin: q.companyInfo.gstin ?? '',
       contactPersonName: q.companyInfo.contactPersonName ?? '',
       contactPersonDesignation: q.companyInfo.contactPersonDesignation ?? '',
       contactPhone: q.companyInfo.contactPhone ?? '',
@@ -109,27 +111,45 @@ export default function PublicSupplierQuestionnairePage() {
   }, [resolve]);
 
   function setField(section: SectionKey, key: string, value: unknown) {
-    setForm((f) => ({ ...f, [section]: { ...(f[section] ?? {}), [key]: value } }));
+    setForm((f) => ({
+      ...f,
+      [section]: { ...(f[section] ?? {}), [key]: value },
+    }));
   }
 
   async function save() {
     setSaving(true);
     setBanner(null);
-    const res = await savePublicQuestionnaire(token, form, pwRef.current, companyInfo);
+    const res = await savePublicQuestionnaire(
+      token,
+      form,
+      pwRef.current,
+      companyInfo,
+    );
     setSaving(false);
-    if (res.ok) setBanner('Progress saved. You can close this and resume later via the same link.');
+    if (res.ok)
+      setBanner(
+        'Progress saved. You can close this and resume later via the same link.',
+      );
     else setBanner(res.message);
   }
 
   async function submit() {
     const declared = (form.declaration ?? {}) as SectionState;
     if (!declared.certified) {
-      setBanner('Please tick the certification checkbox in the Declaration section before submitting.');
+      setBanner(
+        'Please tick the certification checkbox in the Declaration section before submitting.',
+      );
       return;
     }
     setSaving(true);
     setBanner(null);
-    const res = await submitPublicQuestionnaire(token, form, pwRef.current, companyInfo);
+    const res = await submitPublicQuestionnaire(
+      token,
+      form,
+      pwRef.current,
+      companyInfo,
+    );
     setSaving(false);
     if (res.ok) {
       setSubmitted(true);
@@ -143,7 +163,11 @@ export default function PublicSupplierQuestionnairePage() {
     setBanner(null);
     const presign = await publicCertUploadUrl(
       token,
-      { name: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: file.size },
+      {
+        name: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+      },
       pwRef.current,
     );
     if (!presign.ok) {
@@ -168,7 +192,11 @@ export default function PublicSupplierQuestionnairePage() {
 
   // ── Render states ──────────────────────────────────────────────────
   if (loading) {
-    return <Shell><p style={{ color: '#6b7280' }}>Loading…</p></Shell>;
+    return (
+      <Shell>
+        <p style={{ color: '#6b7280' }}>Loading…</p>
+      </Shell>
+    );
   }
   if (errorMsg) {
     return (
@@ -216,7 +244,9 @@ export default function PublicSupplierQuestionnairePage() {
     return (
       <Shell>
         <div style={{ padding: 24, textAlign: 'center' }}>
-          <h2 style={{ color: INK }}>Thank you — your submission has been received.</h2>
+          <h2 style={{ color: INK }}>
+            Thank you — your submission has been received.
+          </h2>
           <p style={{ color: '#6b7280' }}>
             Your supplier self-assessment questionnaire has been submitted to
             Phaze Dynamics and is now locked. No further changes are needed.
@@ -225,20 +255,44 @@ export default function PublicSupplierQuestionnairePage() {
       </Shell>
     );
   }
-  if (!questionnaire) return <Shell><p>Not available.</p></Shell>;
+  if (!questionnaire)
+    return (
+      <Shell>
+        <p>Not available.</p>
+      </Shell>
+    );
 
   // ── The form ───────────────────────────────────────────────────────
   return (
     <Shell>
-      <p style={{ margin: '0 0 20px', padding: '12px 16px', background: '#f8f8f9', borderLeft: `4px solid ${ACCENT}`, fontSize: 14, color: '#374151' }}>
+      <p
+        style={{
+          margin: '0 0 20px',
+          padding: '12px 16px',
+          background: '#f8f8f9',
+          borderLeft: `4px solid ${ACCENT}`,
+          fontSize: 14,
+          color: '#374151',
+        }}
+      >
         Please complete all sections that are relevant to your business. If a
-        section or question does not apply, leave it blank. Use <strong>Save
-        Progress</strong> at any time — you can close this page and resume later
-        via the same link.
+        section or question does not apply, leave it blank. Use{' '}
+        <strong>Save Progress</strong> at any time — you can close this page and
+        resume later via the same link.
       </p>
 
       {banner && (
-        <p style={{ margin: '0 0 16px', padding: '10px 14px', background: '#fff7ec', border: '1px solid #f1d9b0', borderRadius: 4, fontSize: 13.5, color: '#92400e' }}>
+        <p
+          style={{
+            margin: '0 0 16px',
+            padding: '10px 14px',
+            background: '#fff7ec',
+            border: '1px solid #f1d9b0',
+            borderRadius: 4,
+            fontSize: 13.5,
+            color: '#92400e',
+          }}
+        >
           {banner}
         </p>
       )}
@@ -253,7 +307,14 @@ export default function PublicSupplierQuestionnairePage() {
       />
 
       {/* Actions */}
-      <div style={{ display: 'flex', gap: 12, marginTop: 28, justifyContent: 'flex-end' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 12,
+          marginTop: 28,
+          justifyContent: 'flex-end',
+        }}
+      >
         <button onClick={save} disabled={saving} style={btnSecondary}>
           {saving ? 'Saving…' : 'Save Progress'}
         </button>
@@ -268,17 +329,49 @@ export default function PublicSupplierQuestionnairePage() {
 // ── Layout shell (standalone document look) ──────────────────────────
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main style={{ background: '#eef0f3', minHeight: '100vh', padding: '24px 0 60px' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.08)' }}>
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '28px 40px 20px', borderBottom: `3px solid ${INK}` }}>
+    <main
+      style={{
+        background: '#eef0f3',
+        minHeight: '100vh',
+        padding: '24px 0 60px',
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 860,
+          margin: '0 auto',
+          background: '#fff',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+        }}
+      >
+        <header
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '28px 40px 20px',
+            borderBottom: `3px solid ${INK}`,
+          }}
+        >
           {COMPANY.logoPath ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={COMPANY.logoPath} alt={COMPANY.name} style={{ height: 46 }} />
+            <img
+              src={COMPANY.logoPath}
+              alt={COMPANY.name}
+              style={{ height: 46 }}
+            />
           ) : (
             <strong style={{ fontSize: 20, color: INK }}>{COMPANY.name}</strong>
           )}
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 12, letterSpacing: '0.06em', color: '#6b7280', textTransform: 'uppercase' }}>
+            <div
+              style={{
+                fontSize: 12,
+                letterSpacing: '0.06em',
+                color: '#6b7280',
+                textTransform: 'uppercase',
+              }}
+            >
               {COMPANY.legalEntityName}
             </div>
             <h1 style={{ fontSize: 20, margin: '4px 0 0', color: INK }}>
@@ -287,7 +380,14 @@ function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <div style={{ padding: '20px 40px 40px' }}>{children}</div>
-        <footer style={{ textAlign: 'center', fontSize: 11.5, color: '#6b7280', padding: '20px 40px 34px' }}>
+        <footer
+          style={{
+            textAlign: 'center',
+            fontSize: 11.5,
+            color: '#6b7280',
+            padding: '20px 40px 34px',
+          }}
+        >
           {COMPANY.legalEntityName} — Supplier Self-Assessment Questionnaire ·{' '}
           {COMPANY.confidentialityLine}
         </footer>

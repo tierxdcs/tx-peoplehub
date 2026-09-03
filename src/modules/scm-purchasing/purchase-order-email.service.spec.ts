@@ -60,6 +60,11 @@ describe('PurchaseOrderEmailService.emailToParty', () => {
     createdBy: { firstName: 'SCM', lastName: 'User' },
     lastEmailedAt: null,
     lastEmailedTo: null,
+    // The GST column defaults — no tax line on the order.
+    gstStateCode: '29',
+    gstIgstRate: new Prisma.Decimal(0),
+    gstCgstRate: new Prisma.Decimal(0),
+    gstSgstRate: new Prisma.Decimal(0),
     lines: [line()],
     ...overrides,
   });
@@ -239,9 +244,9 @@ describe('PurchaseOrderEmailService.emailToParty', () => {
     it('prefers an explicit override over the address on record', async () => {
       await run({ to: '  purchase@acme.test ' });
       expect(email.send.mock.calls[0][0].to).toBe('purchase@acme.test');
-      expect(prisma.purchaseOrder.update.mock.calls[0][0].data.lastEmailedTo).toBe(
-        'purchase@acme.test',
-      );
+      expect(
+        prisma.purchaseOrder.update.mock.calls[0][0].data.lastEmailedTo,
+      ).toBe('purchase@acme.test');
     });
 
     it('rejects an override that is not an address', async () => {
@@ -284,7 +289,9 @@ describe('PurchaseOrderEmailService.emailToParty', () => {
         }),
       );
 
-      await expect(run()).rejects.toThrow(/ad-hoc party has no registered email/);
+      await expect(run()).rejects.toThrow(
+        /ad-hoc party has no registered email/,
+      );
       expect(email.send).not.toHaveBeenCalled();
 
       // …and sends once the buyer supplies one.
@@ -295,7 +302,10 @@ describe('PurchaseOrderEmailService.emailToParty', () => {
     it('reports a partner with a blank or malformed address on record', async () => {
       prisma.purchaseOrder.findUnique.mockResolvedValue(
         poRow({
-          supplier: { companyName: 'Acme Precision Pvt Ltd', contactEmail: '  ' },
+          supplier: {
+            companyName: 'Acme Precision Pvt Ltd',
+            contactEmail: '  ',
+          },
         }),
       );
       await expect(run()).rejects.toThrow(/no contact email on record/);

@@ -38,7 +38,10 @@ export type VendorCoreCompetency =
   | 'SYSTEM_INTEGRATION'
   | 'OTHER';
 
-export const VENDOR_CORE_COMPETENCY_LABEL: Record<VendorCoreCompetency, string> = {
+export const VENDOR_CORE_COMPETENCY_LABEL: Record<
+  VendorCoreCompetency,
+  string
+> = {
   SHEET_METAL: 'Sheet Metal',
   FABRICATION: 'Fabrication',
   PDU_MANUFACTURER: 'PDU Manufacturer',
@@ -52,10 +55,7 @@ export const VENDOR_CORE_COMPETENCY_LABEL: Record<VendorCoreCompetency, string> 
   OTHER: 'Other',
 };
 export type VendorClassification =
-  | 'APPROVED_PREFERRED'
-  | 'APPROVED'
-  | 'CONDITIONALLY_APPROVED'
-  | 'NOT_APPROVED';
+  'APPROVED_PREFERRED' | 'APPROVED' | 'CONDITIONALLY_APPROVED' | 'NOT_APPROVED';
 
 export interface Vendor {
   id: string;
@@ -66,6 +66,7 @@ export interface Vendor {
   numberOfEmployees: string | null;
   annualTurnover: string | null;
   msmeUdyamCertificate: string | null;
+  gstin: string | null;
   contactPersonName: string | null;
   contactPersonDesignation: string | null;
   contactEmail: string;
@@ -127,6 +128,7 @@ export interface VendorCompanyInfo {
   numberOfEmployees: string | null;
   annualTurnover: string | null;
   msmeUdyamCertificate: string | null;
+  gstin: string | null;
   contactPersonName: string | null;
   contactPersonDesignation: string | null;
   contactPhone: string | null;
@@ -220,6 +222,7 @@ export interface CreateVendorInput {
   numberOfEmployees?: string;
   annualTurnover?: string;
   msmeUdyamCertificate?: string;
+  gstin?: string;
   contactPersonName?: string;
   contactPersonDesignation?: string;
   contactPhone?: string;
@@ -262,10 +265,9 @@ export function updateVendorCoreCompetency(
 }
 
 export function createQuestionnaireRevision(vendorId: string) {
-  return apiFetch<VendorQuestionnaire>(
-    `/vendors/${vendorId}/questionnaires`,
-    { method: 'POST' },
-  );
+  return apiFetch<VendorQuestionnaire>(`/vendors/${vendorId}/questionnaires`, {
+    method: 'POST',
+  });
 }
 
 export function createNdaTemplateUploadUrl(file: File) {
@@ -455,7 +457,10 @@ export function classify(total: number): {
   label: string;
 } {
   if (total >= 90)
-    return { classification: 'APPROVED_PREFERRED', label: 'Approved (Preferred Vendor)' };
+    return {
+      classification: 'APPROVED_PREFERRED',
+      label: 'Approved (Preferred Vendor)',
+    };
   if (total >= 80) return { classification: 'APPROVED', label: 'Approved' };
   if (total >= 70)
     return {
@@ -497,7 +502,12 @@ async function publicPost<T>(
       body: JSON.stringify(body),
     });
   } catch {
-    return { ok: false, status: 0, message: 'Network error', passwordRequired: false };
+    return {
+      ok: false,
+      status: 0,
+      message: 'Network error',
+      passwordRequired: false,
+    };
   }
   let parsed: { success?: boolean; data?: T; message?: string } = {};
   try {
@@ -553,7 +563,11 @@ export function publicCertUploadUrl(
   input: { name: string; mimeType: string; sizeBytes: number },
   password?: string,
 ) {
-  return publicPost<{ storageKey: string; uploadUrl: string; expiresInSeconds: number }>(
+  return publicPost<{
+    storageKey: string;
+    uploadUrl: string;
+    expiresInSeconds: number;
+  }>(
     `/public/vendor-questionnaire/${encodeURIComponent(token)}/certificate-upload-url`,
     { ...input, password },
   );

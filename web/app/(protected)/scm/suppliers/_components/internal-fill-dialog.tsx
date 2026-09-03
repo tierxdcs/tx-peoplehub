@@ -52,12 +52,14 @@ export function InternalFillDialog({
   // Seed from any previously-saved section data (staff may resume a draft).
   const [form, setForm] = useState<FormState>(() => {
     const seeded: FormState = {};
-    (Object.keys(questionnaire) as (keyof SupplierQuestionnaire)[]).forEach((k) => {
-      const v = questionnaire[k];
-      if (v && typeof v === 'object' && !Array.isArray(v)) {
-        seeded[k as SectionKey] = v as SectionState;
-      }
-    });
+    (Object.keys(questionnaire) as (keyof SupplierQuestionnaire)[]).forEach(
+      (k) => {
+        const v = questionnaire[k];
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          seeded[k as SectionKey] = v as SectionState;
+        }
+      },
+    );
     return seeded;
   });
   const [companyInfo, setCompanyInfo] = useState<PublicCompanyInfo>({
@@ -67,8 +69,10 @@ export function InternalFillDialog({
     numberOfEmployees: questionnaire.companyInfo.numberOfEmployees ?? '',
     annualTurnover: questionnaire.companyInfo.annualTurnover ?? '',
     msmeUdyamCertificate: questionnaire.companyInfo.msmeUdyamCertificate ?? '',
+    gstin: questionnaire.companyInfo.gstin ?? '',
     contactPersonName: questionnaire.companyInfo.contactPersonName ?? '',
-    contactPersonDesignation: questionnaire.companyInfo.contactPersonDesignation ?? '',
+    contactPersonDesignation:
+      questionnaire.companyInfo.contactPersonDesignation ?? '',
     contactPhone: questionnaire.companyInfo.contactPhone ?? '',
     website: questionnaire.companyInfo.website ?? '',
   });
@@ -79,7 +83,10 @@ export function InternalFillDialog({
   const [banner, setBanner] = useState<string | null>(null);
 
   function setField(section: SectionKey, key: string, value: unknown) {
-    setForm((f) => ({ ...f, [section]: { ...(f[section] ?? {}), [key]: value } }));
+    setForm((f) => ({
+      ...f,
+      [section]: { ...(f[section] ?? {}), [key]: value },
+    }));
   }
 
   function setCompanyInfoField(key: keyof PublicCompanyInfo, value: string) {
@@ -137,7 +144,11 @@ export function InternalFillDialog({
       setCerts((c) => [...c, confirmed]);
     } catch (err) {
       // Surfaces Vault's actual guardrail message (blocked extension / too big).
-      setBanner(err instanceof ApiError ? err.message : 'Upload failed. Please try again.');
+      setBanner(
+        err instanceof ApiError
+          ? err.message
+          : 'Upload failed. Please try again.',
+      );
     }
   }
 
@@ -145,7 +156,9 @@ export function InternalFillDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Fill Internally — Rev {questionnaire.revisionNumber}</DialogTitle>
+          <DialogTitle>
+            Fill Internally — Rev {questionnaire.revisionNumber}
+          </DialogTitle>
           <DialogDescription>
             Enter the supplier’s answers on their behalf. Every field is
             optional. Uploaded certificates use the same rules as the supplier

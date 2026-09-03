@@ -57,17 +57,33 @@ const EXPORT_FIELDS: [string, string][] = [
   ['exportYears', 'Years of Export Experience'],
 ];
 const MFG_CAPABILITY_ROWS = [
-  'Laser Cutting', 'CNC Punching', 'CNC Bending', 'Robotic Welding', 'TIG Welding',
-  'MIG Welding', 'Spot Welding', 'Powder Coating', 'Assembly Line', 'FAT Area',
+  'Laser Cutting',
+  'CNC Punching',
+  'CNC Bending',
+  'Robotic Welding',
+  'TIG Welding',
+  'MIG Welding',
+  'Spot Welding',
+  'Powder Coating',
+  'Assembly Line',
+  'FAT Area',
 ];
-const EQUIPMENT_COLUMNS = ['Machine Name', 'Manufacturer', 'Model', 'Capacity', 'Year Installed'];
+const EQUIPMENT_COLUMNS = [
+  'Machine Name',
+  'Manufacturer',
+  'Model',
+  'Capacity',
+  'Year Installed',
+];
 const PRODUCTION_FIELDS: [string, string][] = [
   ['maxMonthly', 'Maximum Monthly Production'],
   ['utilization', 'Current Utilization'],
   ['additionalCapacity', 'Additional Capacity Available'],
   ['leadTime', 'Lead Time'],
 ];
-const ENGINEERING_FIELDS: [string, string][] = [['teamSize', 'Engineering Team Size']];
+const ENGINEERING_FIELDS: [string, string][] = [
+  ['teamSize', 'Engineering Team Size'],
+];
 const SUPPLY_CHAIN_FIELDS: [string, string][] = [
   ['rawMaterialSuppliers', 'Raw Material Suppliers'],
   ['approvedVendorList', 'Approved Vendor List'],
@@ -160,66 +176,119 @@ function collectQuestionnaireErrors(
   ndaRequired: boolean,
 ): FieldError[] {
   const errors: FieldError[] = [];
-  const add = (anchor: string, message: string) => errors.push({ anchor, message });
+  const add = (anchor: string, message: string) =>
+    errors.push({ anchor, message });
   const t = (v: unknown) => typeof v === 'string' && v.trim().length > 0;
   const sec = (s: SectionKey) => (form[s] ?? {}) as SectionState;
   const arr = (v: unknown) => (Array.isArray(v) ? (v as unknown[]) : []);
-  const fields = (anchor: string, prefix: string, state: SectionState, defs: [string, string][]) =>
-    defs.forEach(([k, label]) => { if (!t(state[k])) add(anchor, `${prefix} — ${label}`); });
+  const fields = (
+    anchor: string,
+    prefix: string,
+    state: SectionState,
+    defs: [string, string][],
+  ) =>
+    defs.forEach(([k, label]) => {
+      if (!t(state[k])) add(anchor, `${prefix} — ${label}`);
+    });
 
-  if (ndaRequired && !signedNdaUploaded) add('sec-nda', 'Non-Disclosure Agreement — upload the signed NDA');
+  if (ndaRequired && !signedNdaUploaded)
+    add('sec-nda', 'Non-Disclosure Agreement — upload the signed NDA');
 
-  COMPANY_FIELDS.forEach(([k, label]) => { if (!t(companyInfo[k])) add('sec-1', `Company Information — ${label}`); });
+  COMPANY_FIELDS.forEach(([k, label]) => {
+    if (!t(companyInfo[k])) add('sec-1', `Company Information — ${label}`);
+  });
 
   const bp = sec('businessProfile');
-  if (arr(bp.companyType).length === 0) add('sec-2', 'Business Profile — Company Type');
-  if (arr(bp.manufacturingArea).length === 0) add('sec-2', 'Business Profile — Manufacturing Area');
-  if (!arr(bp.majorCustomers).some(t)) add('sec-2', 'Business Profile — Major Customers');
+  if (arr(bp.companyType).length === 0)
+    add('sec-2', 'Business Profile — Company Type');
+  if (arr(bp.manufacturingArea).length === 0)
+    add('sec-2', 'Business Profile — Manufacturing Area');
+  if (!arr(bp.majorCustomers).some(t))
+    add('sec-2', 'Business Profile — Major Customers');
   fields('sec-2', 'Business Profile', bp, EXPORT_FIELDS);
 
-  const caps = (sec('manufacturingCapability').capabilities as CapabilityValue) ?? {};
+  const caps =
+    (sec('manufacturingCapability').capabilities as CapabilityValue) ?? {};
   MFG_CAPABILITY_ROWS.forEach((row) => {
     const raw = caps[row];
-    const cell: CapabilityCell = typeof raw === 'string' ? { available: raw } : (raw ?? {});
-    if (cell.available !== 'yes' && cell.available !== 'no') add('sec-3', `Manufacturing Capability — ${row} (Yes/No)`);
-    else if (cell.available === 'yes' && !t(cell.count)) add('sec-3', `Manufacturing Capability — ${row} quantity`);
+    const cell: CapabilityCell =
+      typeof raw === 'string' ? { available: raw } : (raw ?? {});
+    if (cell.available !== 'yes' && cell.available !== 'no')
+      add('sec-3', `Manufacturing Capability — ${row} (Yes/No)`);
+    else if (cell.available === 'yes' && !t(cell.count))
+      add('sec-3', `Manufacturing Capability — ${row} quantity`);
   });
 
   const machines = arr(sec('equipmentDetails').machines) as string[][];
-  const hasCompleteRow = machines.some((r) => EQUIPMENT_COLUMNS.every((_, i) => t(r?.[i])));
-  if (!hasCompleteRow) add('sec-4', 'Equipment Details — complete at least one machine row');
+  const hasCompleteRow = machines.some((r) =>
+    EQUIPMENT_COLUMNS.every((_, i) => t(r?.[i])),
+  );
+  if (!hasCompleteRow)
+    add('sec-4', 'Equipment Details — complete at least one machine row');
 
-  fields('sec-5', 'Production Capacity', sec('productionCapacity'), PRODUCTION_FIELDS);
+  fields(
+    'sec-5',
+    'Production Capacity',
+    sec('productionCapacity'),
+    PRODUCTION_FIELDS,
+  );
 
   const qm = sec('qualityManagement');
-  if (arr(qm.certifications).length === 0) add('sec-6', 'Quality Management — Certifications');
-  if (arr(qm.inspectionEquipment).length === 0) add('sec-6', 'Quality Management — Inspection Equipment');
+  if (arr(qm.certifications).length === 0)
+    add('sec-6', 'Quality Management — Certifications');
+  if (arr(qm.inspectionEquipment).length === 0)
+    add('sec-6', 'Quality Management — Inspection Equipment');
 
   const eng = sec('engineeringCapability');
-  if (arr(eng.designSoftware).length === 0) add('sec-7', 'Engineering Capability — Design Software');
+  if (arr(eng.designSoftware).length === 0)
+    add('sec-7', 'Engineering Capability — Design Software');
   fields('sec-7', 'Engineering Capability', eng, ENGINEERING_FIELDS);
 
   fields('sec-8', 'Supply Chain', sec('supplyChain'), SUPPLY_CHAIN_FIELDS);
 
-  if (arr(sec('traceability').traceable).length === 0) add('sec-9', 'Traceability — select at least one');
+  if (arr(sec('traceability').traceable).length === 0)
+    add('sec-9', 'Traceability — select at least one');
 
   fields('sec-10', 'Logistics', sec('logistics'), LOGISTICS_FIELDS);
-  fields('sec-11', 'Sustainability', sec('sustainability'), SUSTAINABILITY_FIELDS);
-  fields('sec-12', 'Information Security', sec('informationSecurity'), INFOSEC_FIELDS);
-  fields('sec-13', 'Business Continuity', sec('businessContinuity'), CONTINUITY_FIELDS);
+  fields(
+    'sec-11',
+    'Sustainability',
+    sec('sustainability'),
+    SUSTAINABILITY_FIELDS,
+  );
+  fields(
+    'sec-12',
+    'Information Security',
+    sec('informationSecurity'),
+    INFOSEC_FIELDS,
+  );
+  fields(
+    'sec-13',
+    'Business Continuity',
+    sec('businessContinuity'),
+    CONTINUITY_FIELDS,
+  );
   fields('sec-14', 'EHS', sec('ehs'), EHS_FIELDS);
-  fields('sec-15', 'Financial Information', sec('financialInformation'), FINANCIAL_FIELDS);
+  fields(
+    'sec-15',
+    'Financial Information',
+    sec('financialInformation'),
+    FINANCIAL_FIELDS,
+  );
   fields('sec-16', 'Customer Support', sec('customerSupport'), SUPPORT_FIELDS);
   fields('sec-17', 'Compliance', sec('compliance'), COMPLIANCE_FIELDS);
 
   const refs = sec('references') as Record<string, Record<string, string>>;
   [0, 1, 2].forEach((i) => {
     const ref = refs[`ref${i}`] ?? {};
-    REFERENCE_FIELDS.forEach(([k, label]) => { if (!t(ref[k])) add('sec-18', `Reference ${i + 1} — ${label}`); });
+    REFERENCE_FIELDS.forEach(([k, label]) => {
+      if (!t(ref[k])) add('sec-18', `Reference ${i + 1} — ${label}`);
+    });
   });
 
   const decl = sec('declaration');
-  if (!decl.certified) add('sec-19', 'Declaration — tick the certification checkbox');
+  if (!decl.certified)
+    add('sec-19', 'Declaration — tick the certification checkbox');
   fields('sec-19', 'Declaration', decl, DECLARATION_FIELDS);
 
   return errors;
@@ -232,7 +301,8 @@ export default function PublicVsaqPage() {
   const [needsPassword, setNeedsPassword] = useState(false);
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [questionnaire, setQuestionnaire] = useState<VendorQuestionnaire | null>(null);
+  const [questionnaire, setQuestionnaire] =
+    useState<VendorQuestionnaire | null>(null);
   const [form, setForm] = useState<FormState>({});
   const [companyInfo, setCompanyInfo] = useState<PublicCompanyInfo>({});
   const [certs, setCerts] = useState<CertificateFile[]>([]);
@@ -257,6 +327,7 @@ export default function PublicVsaqPage() {
       numberOfEmployees: q.companyInfo.numberOfEmployees ?? '',
       annualTurnover: q.companyInfo.annualTurnover ?? '',
       msmeUdyamCertificate: q.companyInfo.msmeUdyamCertificate ?? '',
+      gstin: q.companyInfo.gstin ?? '',
       contactPersonName: q.companyInfo.contactPersonName ?? '',
       contactPersonDesignation: q.companyInfo.contactPersonDesignation ?? '',
       contactPhone: q.companyInfo.contactPhone ?? '',
@@ -300,15 +371,26 @@ export default function PublicVsaqPage() {
   }, [resolve]);
 
   function setField(section: SectionKey, key: string, value: unknown) {
-    setForm((f) => ({ ...f, [section]: { ...(f[section] ?? {}), [key]: value } }));
+    setForm((f) => ({
+      ...f,
+      [section]: { ...(f[section] ?? {}), [key]: value },
+    }));
   }
 
   async function save() {
     setSaving(true);
     setBanner(null);
-    const res = await savePublicQuestionnaire(token, form, pwRef.current, companyInfo);
+    const res = await savePublicQuestionnaire(
+      token,
+      form,
+      pwRef.current,
+      companyInfo,
+    );
     setSaving(false);
-    if (res.ok) setBanner('Progress saved. You can close this and resume later via the same link.');
+    if (res.ok)
+      setBanner(
+        'Progress saved. You can close this and resume later via the same link.',
+      );
     else setBanner(res.message);
   }
 
@@ -339,7 +421,12 @@ export default function PublicVsaqPage() {
     }
     setSaving(true);
     setBanner(null);
-    const res = await submitPublicQuestionnaire(token, form, pwRef.current, companyInfo);
+    const res = await submitPublicQuestionnaire(
+      token,
+      form,
+      pwRef.current,
+      companyInfo,
+    );
     setSaving(false);
     if (res.ok) {
       setSubmitted(true);
@@ -355,7 +442,11 @@ export default function PublicVsaqPage() {
     setBanner(null);
     const presign = await publicCertUploadUrl(
       token,
-      { name: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: file.size },
+      {
+        name: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+      },
       pwRef.current,
     );
     if (!presign.ok) {
@@ -425,7 +516,11 @@ export default function PublicVsaqPage() {
 
   // ── Render states ──────────────────────────────────────────────────
   if (loading) {
-    return <Shell><p style={{ color: '#6b7280' }}>Loading…</p></Shell>;
+    return (
+      <Shell>
+        <p style={{ color: '#6b7280' }}>Loading…</p>
+      </Shell>
+    );
   }
   if (errorMsg) {
     return (
@@ -473,33 +568,59 @@ export default function PublicVsaqPage() {
     return (
       <Shell>
         <div style={{ padding: 24, textAlign: 'center' }}>
-          <h2 style={{ color: INK }}>Thank you — your submission has been received.</h2>
+          <h2 style={{ color: INK }}>
+            Thank you — your submission has been received.
+          </h2>
           <p style={{ color: '#6b7280' }}>
-            Your vendor self-assessment questionnaire has been submitted to Phaze
-            Dynamics and is now locked. No further changes are needed.
+            Your vendor self-assessment questionnaire has been submitted to
+            Phaze Dynamics and is now locked. No further changes are needed.
           </p>
         </div>
       </Shell>
     );
   }
-  if (!questionnaire) return <Shell><p>Not available.</p></Shell>;
+  if (!questionnaire)
+    return (
+      <Shell>
+        <p>Not available.</p>
+      </Shell>
+    );
 
   // ── The form ───────────────────────────────────────────────────────
   const g = (s: SectionKey) => (form[s] ?? {}) as SectionState;
 
   return (
     <Shell>
-      <p style={{ margin: '0 0 20px', padding: '12px 16px', background: '#f8f8f9', borderLeft: `4px solid ${ACCENT}`, fontSize: 14, color: '#374151' }}>
+      <p
+        style={{
+          margin: '0 0 20px',
+          padding: '12px 16px',
+          background: '#f8f8f9',
+          borderLeft: `4px solid ${ACCENT}`,
+          fontSize: 14,
+          color: '#374151',
+        }}
+      >
         <strong>All fields are required.</strong> Please complete every section
         below — the questionnaire cannot be submitted until it is filled in
-        full. If something does not apply to your business, enter{' '}
-        <em>“N/A”</em> rather than leaving it blank. Use <strong>Save
-        Progress</strong> at any time — you can close this page and resume later
-        via the same link.
+        full. If something does not apply to your business, enter <em>“N/A”</em>{' '}
+        rather than leaving it blank. Use <strong>Save Progress</strong> at any
+        time — you can close this page and resume later via the same link.
       </p>
 
       {banner && (
-        <p style={{ margin: '0 0 16px', padding: '10px 14px', background: '#fff7ec', border: '1px solid #f1d9b0', borderRadius: 4, fontSize: 13.5, color: '#92400e', whiteSpace: 'pre-line' }}>
+        <p
+          style={{
+            margin: '0 0 16px',
+            padding: '10px 14px',
+            background: '#fff7ec',
+            border: '1px solid #f1d9b0',
+            borderRadius: 4,
+            fontSize: 13.5,
+            color: '#92400e',
+            whiteSpace: 'pre-line',
+          }}
+        >
           {banner}
         </p>
       )}
@@ -524,8 +645,19 @@ export default function PublicVsaqPage() {
             ? ' A signed NDA is mandatory for this first questionnaire submission.'
             : ' Your NDA was collected during the initial onboarding revision.'}
         </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-          <button type="button" onClick={() => void downloadNdaTemplate()} style={btnPrimary}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 10,
+            alignItems: 'center',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => void downloadNdaTemplate()}
+            style={btnPrimary}
+          >
             Download NDA Template
           </button>
           {questionnaire.ndaRequired && !signedNdaUploaded && (
@@ -595,6 +727,11 @@ export default function PublicVsaqPage() {
           onChange={(v) => setCompanyInfoField('msmeUdyamCertificate', v)}
         />
         <FieldRow
+          label="GSTIN"
+          value={companyInfo.gstin ?? ''}
+          onChange={(v) => setCompanyInfoField('gstin', v.toUpperCase())}
+        />
+        <FieldRow
           label="Contact Person Name"
           value={companyInfo.contactPersonName ?? ''}
           onChange={(v) => setCompanyInfoField('contactPersonName', v)}
@@ -620,13 +757,29 @@ export default function PublicVsaqPage() {
       <Section n="2" title="Business Profile">
         <H3>Company Type</H3>
         <CheckGrid
-          options={['Manufacturer', 'OEM', 'Contract Manufacturer', 'Distributor', 'Service Provider', 'System Integrator']}
+          options={[
+            'Manufacturer',
+            'OEM',
+            'Contract Manufacturer',
+            'Distributor',
+            'Service Provider',
+            'System Integrator',
+          ]}
           selected={(g('businessProfile').companyType as string[]) ?? []}
           onChange={(v) => setField('businessProfile', 'companyType', v)}
         />
         <H3>Manufacturing Area</H3>
         <CheckGrid
-          options={['Sheet Metal', 'CNC Machining', 'Powder Coating', 'Welding', 'Assembly', 'Electrical Assembly', 'Injection Molding', 'Packaging']}
+          options={[
+            'Sheet Metal',
+            'CNC Machining',
+            'Powder Coating',
+            'Welding',
+            'Assembly',
+            'Electrical Assembly',
+            'Injection Molding',
+            'Packaging',
+          ]}
           selected={(g('businessProfile').manufacturingArea as string[]) ?? []}
           onChange={(v) => setField('businessProfile', 'manufacturingArea', v)}
         />
@@ -652,17 +805,42 @@ export default function PublicVsaqPage() {
       {/* 3. Manufacturing Capability — yes/no grid */}
       <Section n="3" title="Manufacturing Capability">
         <YesNoGrid
-          rows={['Laser Cutting', 'CNC Punching', 'CNC Bending', 'Robotic Welding', 'TIG Welding', 'MIG Welding', 'Spot Welding', 'Powder Coating', 'Assembly Line', 'FAT Area']}
-          value={(g('manufacturingCapability').capabilities as CapabilityValue) ?? {}}
-          onChange={(v) => setField('manufacturingCapability', 'capabilities', v)}
+          rows={[
+            'Laser Cutting',
+            'CNC Punching',
+            'CNC Bending',
+            'Robotic Welding',
+            'TIG Welding',
+            'MIG Welding',
+            'Spot Welding',
+            'Powder Coating',
+            'Assembly Line',
+            'FAT Area',
+          ]}
+          value={
+            (g('manufacturingCapability').capabilities as CapabilityValue) ?? {}
+          }
+          onChange={(v) =>
+            setField('manufacturingCapability', 'capabilities', v)
+          }
         />
       </Section>
 
       {/* 4. Equipment Details — table */}
       <Section n="4" title="Equipment Details">
         <GridTable
-          columns={['Machine Name', 'Manufacturer', 'Model', 'Capacity', 'Year Installed']}
-          value={(g('equipmentDetails').machines as string[][]) ?? [['', '', '', '', '']]}
+          columns={[
+            'Machine Name',
+            'Manufacturer',
+            'Model',
+            'Capacity',
+            'Year Installed',
+          ]}
+          value={
+            (g('equipmentDetails').machines as string[][]) ?? [
+              ['', '', '', '', ''],
+            ]
+          }
           onChange={(v) => setField('equipmentDetails', 'machines', v)}
         />
       </Section>
@@ -686,22 +864,46 @@ export default function PublicVsaqPage() {
       <Section n="6" title="Quality Management">
         <H3>Certifications</H3>
         <CheckGrid
-          options={['ISO 9001', 'ISO 14001', 'ISO 45001', 'ISO 27001', 'IATF 16949', 'VDA', 'CE', 'UL']}
+          options={[
+            'ISO 9001',
+            'ISO 14001',
+            'ISO 45001',
+            'ISO 27001',
+            'IATF 16949',
+            'VDA',
+            'CE',
+            'UL',
+          ]}
           selected={(g('qualityManagement').certifications as string[]) ?? []}
           onChange={(v) => setField('qualityManagement', 'certifications', v)}
         />
         {/* Per-certification document upload: one row per ticked certification. */}
         <CertUploads
-          certifications={(g('qualityManagement').certifications as string[]) ?? []}
+          certifications={
+            (g('qualityManagement').certifications as string[]) ?? []
+          }
           files={certs}
           disabled={submitted}
           onUpload={uploadCert}
         />
         <H3>Inspection Equipment</H3>
         <CheckGrid
-          options={['CMM', 'Height Gauge', 'Surface Plate', 'Vernier', 'Micrometer', 'Salt Spray', 'Coating Thickness Gauge', 'Torque Calibration']}
-          selected={(g('qualityManagement').inspectionEquipment as string[]) ?? []}
-          onChange={(v) => setField('qualityManagement', 'inspectionEquipment', v)}
+          options={[
+            'CMM',
+            'Height Gauge',
+            'Surface Plate',
+            'Vernier',
+            'Micrometer',
+            'Salt Spray',
+            'Coating Thickness Gauge',
+            'Torque Calibration',
+          ]}
+          selected={
+            (g('qualityManagement').inspectionEquipment as string[]) ?? []
+          }
+          onChange={(v) =>
+            setField('qualityManagement', 'inspectionEquipment', v)
+          }
         />
       </Section>
 
@@ -710,8 +912,12 @@ export default function PublicVsaqPage() {
         <H3>Design Software Available</H3>
         <CheckGrid
           options={['AutoCAD', 'SolidWorks', 'Creo', 'CATIA', 'Inventor', 'NX']}
-          selected={(g('engineeringCapability').designSoftware as string[]) ?? []}
-          onChange={(v) => setField('engineeringCapability', 'designSoftware', v)}
+          selected={
+            (g('engineeringCapability').designSoftware as string[]) ?? []
+          }
+          onChange={(v) =>
+            setField('engineeringCapability', 'designSoftware', v)
+          }
         />
         <FieldRows
           section="engineeringCapability"
@@ -740,7 +946,14 @@ export default function PublicVsaqPage() {
       {/* 9. Traceability */}
       <Section n="9" title="Traceability">
         <CheckGrid
-          options={['Raw Material', 'Batch Number', 'Heat Number', 'Operator', 'Inspection Records', 'Calibration Records']}
+          options={[
+            'Raw Material',
+            'Batch Number',
+            'Heat Number',
+            'Operator',
+            'Inspection Records',
+            'Calibration Records',
+          ]}
           selected={(g('traceability').traceable as string[]) ?? []}
           onChange={(v) => setField('traceability', 'traceable', v)}
         />
@@ -879,15 +1092,38 @@ export default function PublicVsaqPage() {
       {/* 18. References */}
       <Section n="18" title="References">
         {[0, 1, 2].map((i) => (
-          <div key={i} style={{ padding: '12px 14px', background: '#f8f8f9', borderRadius: 4, marginBottom: 12 }}>
+          <div
+            key={i}
+            style={{
+              padding: '12px 14px',
+              background: '#f8f8f9',
+              borderRadius: 4,
+              marginBottom: 12,
+            }}
+          >
             <H4>{`Reference ${i + 1}`}</H4>
-            {(['company', 'contact', 'phoneEmail', 'relationship'] as const).map((f) => (
+            {(
+              ['company', 'contact', 'phoneEmail', 'relationship'] as const
+            ).map((f) => (
               <FieldRow
                 key={f}
-                label={{ company: 'Company Name', contact: 'Contact Person', phoneEmail: 'Phone / Email', relationship: 'Relationship / Products Supplied' }[f]}
-                value={((g('references')[`ref${i}`] as Record<string, string>) ?? {})[f] ?? ''}
+                label={
+                  {
+                    company: 'Company Name',
+                    contact: 'Contact Person',
+                    phoneEmail: 'Phone / Email',
+                    relationship: 'Relationship / Products Supplied',
+                  }[f]
+                }
+                value={
+                  ((g('references')[`ref${i}`] as Record<string, string>) ??
+                    {})[f] ?? ''
+                }
                 onChange={(val) => {
-                  const refs = (g('references') as Record<string, Record<string, string>>);
+                  const refs = g('references') as Record<
+                    string,
+                    Record<string, string>
+                  >;
                   const cur = refs[`ref${i}`] ?? {};
                   setField('references', `ref${i}`, { ...cur, [f]: val });
                 }}
@@ -903,11 +1139,21 @@ export default function PublicVsaqPage() {
           We certify that the information provided in this questionnaire is true
           and accurate to the best of our knowledge.
         </p>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, margin: '10px 0' }}>
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 14,
+            margin: '10px 0',
+          }}
+        >
           <input
             type="checkbox"
             checked={!!g('declaration').certified}
-            onChange={(e) => setField('declaration', 'certified', e.target.checked)}
+            onChange={(e) =>
+              setField('declaration', 'certified', e.target.checked)
+            }
           />
           I certify the above.
         </label>
@@ -924,7 +1170,14 @@ export default function PublicVsaqPage() {
       </Section>
 
       {/* Actions */}
-      <div style={{ display: 'flex', gap: 12, marginTop: 28, justifyContent: 'flex-end' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 12,
+          marginTop: 28,
+          justifyContent: 'flex-end',
+        }}
+      >
         <button onClick={save} disabled={saving} style={btnSecondary}>
           {saving ? 'Saving…' : 'Save Progress'}
         </button>
@@ -939,17 +1192,49 @@ export default function PublicVsaqPage() {
 // ── Layout shell (standalone document look) ──────────────────────────
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main style={{ background: '#eef0f3', minHeight: '100vh', padding: '24px 0 60px' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.08)' }}>
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '28px 40px 20px', borderBottom: `3px solid ${INK}` }}>
+    <main
+      style={{
+        background: '#eef0f3',
+        minHeight: '100vh',
+        padding: '24px 0 60px',
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 860,
+          margin: '0 auto',
+          background: '#fff',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+        }}
+      >
+        <header
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '28px 40px 20px',
+            borderBottom: `3px solid ${INK}`,
+          }}
+        >
           {COMPANY.logoPath ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={COMPANY.logoPath} alt={COMPANY.name} style={{ height: 46 }} />
+            <img
+              src={COMPANY.logoPath}
+              alt={COMPANY.name}
+              style={{ height: 46 }}
+            />
           ) : (
             <strong style={{ fontSize: 20, color: INK }}>{COMPANY.name}</strong>
           )}
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 12, letterSpacing: '0.06em', color: '#6b7280', textTransform: 'uppercase' }}>
+            <div
+              style={{
+                fontSize: 12,
+                letterSpacing: '0.06em',
+                color: '#6b7280',
+                textTransform: 'uppercase',
+              }}
+            >
               {COMPANY.legalEntityName}
             </div>
             <h1 style={{ fontSize: 20, margin: '4px 0 0', color: INK }}>
@@ -958,7 +1243,14 @@ function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <div style={{ padding: '20px 40px 40px' }}>{children}</div>
-        <footer style={{ textAlign: 'center', fontSize: 11.5, color: '#6b7280', padding: '20px 40px 34px' }}>
+        <footer
+          style={{
+            textAlign: 'center',
+            fontSize: 11.5,
+            color: '#6b7280',
+            padding: '20px 40px 34px',
+          }}
+        >
           {COMPANY.legalEntityName} — Vendor Self-Assessment Questionnaire ·{' '}
           {COMPANY.confidentialityLine}
         </footer>
@@ -997,11 +1289,29 @@ const btnSecondary: React.CSSProperties = {
   cursor: 'pointer',
 };
 
-function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
+function Section({
+  n,
+  title,
+  children,
+}: {
+  n: string;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <section id={`sec-${n}`} style={{ marginTop: 30, scrollMarginTop: 16 }}>
-      <h2 style={{ fontSize: 16, margin: '0 0 14px', paddingBottom: 8, borderBottom: `2px solid ${INK}`, color: INK }}>
-        <span style={{ color: ACCENT, fontWeight: 700, marginRight: 6 }}>{n}</span>
+      <h2
+        style={{
+          fontSize: 16,
+          margin: '0 0 14px',
+          paddingBottom: 8,
+          borderBottom: `2px solid ${INK}`,
+          color: INK,
+        }}
+      >
+        <span style={{ color: ACCENT, fontWeight: 700, marginRight: 6 }}>
+          {n}
+        </span>
         {title}
       </h2>
       {children}
@@ -1025,7 +1335,11 @@ function Req() {
   );
 }
 function H4({ children }: { children: React.ReactNode }) {
-  return <h4 style={{ fontSize: 13, margin: '0 0 8px', color: '#6b7280' }}>{children}</h4>;
+  return (
+    <h4 style={{ fontSize: 13, margin: '0 0 8px', color: '#6b7280' }}>
+      {children}
+    </h4>
+  );
 }
 
 function CheckGrid({
@@ -1038,14 +1352,35 @@ function CheckGrid({
   onChange: (v: string[]) => void;
 }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 26px', marginBottom: 6 }}>
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '8px 26px',
+        marginBottom: 6,
+      }}
+    >
       {options.map((o) => (
-        <label key={o} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: '#374151', minWidth: 150 }}>
+        <label
+          key={o}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 13.5,
+            color: '#374151',
+            minWidth: 150,
+          }}
+        >
           <input
             type="checkbox"
             checked={selected.includes(o)}
             onChange={(e) =>
-              onChange(e.target.checked ? [...selected, o] : selected.filter((x) => x !== o))
+              onChange(
+                e.target.checked
+                  ? [...selected, o]
+                  : selected.filter((x) => x !== o),
+              )
             }
           />
           {o}
@@ -1132,7 +1467,14 @@ function CertUploads({
                 />
               </div>
               {uploaded.length > 0 && (
-                <ul style={{ fontSize: 13, color: '#374151', margin: '6px 0 0', paddingLeft: 18 }}>
+                <ul
+                  style={{
+                    fontSize: 13,
+                    color: '#374151',
+                    margin: '6px 0 0',
+                    paddingLeft: 18,
+                  }}
+                >
                   {uploaded.map((c) => (
                     <li key={c.storageKey}>{c.name}</li>
                   ))}
@@ -1175,9 +1517,16 @@ function YesNoGrid({
     next[r] = { ...cell(r), ...patch };
     onChange(next);
   };
-  const th: React.CSSProperties = { background: INK, color: '#fff', fontSize: 12.5, padding: '8px 10px' };
+  const th: React.CSSProperties = {
+    background: INK,
+    color: '#fff',
+    fontSize: 12.5,
+    padding: '8px 10px',
+  };
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6 }}>
+    <table
+      style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6 }}
+    >
       <thead>
         <tr>
           <th style={{ ...th, textAlign: 'left' }}>Capability</th>
@@ -1192,19 +1541,45 @@ function YesNoGrid({
           const available = c.available === 'yes';
           return (
             <tr key={r}>
-              <td style={{ padding: '6px 8px', borderBottom: '1px solid #d8dbe2', fontSize: 13.5 }}>{r}</td>
+              <td
+                style={{
+                  padding: '6px 8px',
+                  borderBottom: '1px solid #d8dbe2',
+                  fontSize: 13.5,
+                }}
+              >
+                {r}
+              </td>
               {['yes', 'no'].map((opt) => (
-                <td key={opt} style={{ textAlign: 'center', borderBottom: '1px solid #d8dbe2' }}>
+                <td
+                  key={opt}
+                  style={{
+                    textAlign: 'center',
+                    borderBottom: '1px solid #d8dbe2',
+                  }}
+                >
                   <input
                     type="radio"
                     name={`ynr-${r}`}
                     checked={c.available === opt}
                     // Clearing availability to "no" also clears any count.
-                    onChange={() => update(r, opt === 'yes' ? { available: opt } : { available: opt, count: '' })}
+                    onChange={() =>
+                      update(
+                        r,
+                        opt === 'yes'
+                          ? { available: opt }
+                          : { available: opt, count: '' },
+                      )
+                    }
                   />
                 </td>
               ))}
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #d8dbe2' }}>
+              <td
+                style={{
+                  padding: '4px 8px',
+                  borderBottom: '1px solid #d8dbe2',
+                }}
+              >
                 <input
                   type="number"
                   min={0}
@@ -1235,11 +1610,24 @@ function GridTable({
 }) {
   return (
     <div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6 }}>
+      <table
+        style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6 }}
+      >
         <thead>
           <tr>
             {columns.map((c) => (
-              <th key={c} style={{ background: INK, color: '#fff', fontSize: 12.5, padding: '8px 10px', textAlign: 'left' }}>{c}</th>
+              <th
+                key={c}
+                style={{
+                  background: INK,
+                  color: '#fff',
+                  fontSize: 12.5,
+                  padding: '8px 10px',
+                  textAlign: 'left',
+                }}
+              >
+                {c}
+              </th>
             ))}
           </tr>
         </thead>
@@ -1247,7 +1635,10 @@ function GridTable({
           {value.map((row, ri) => (
             <tr key={ri}>
               {columns.map((_, ci) => (
-                <td key={ci} style={{ padding: '4px', borderBottom: '1px solid #d8dbe2' }}>
+                <td
+                  key={ci}
+                  style={{ padding: '4px', borderBottom: '1px solid #d8dbe2' }}
+                >
                   <input
                     style={inputStyle}
                     value={row[ci] ?? ''}
@@ -1309,14 +1700,34 @@ function DynamicList({
   );
 }
 
-function FieldRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function FieldRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '5px 0', borderBottom: '1px solid #d8dbe2' }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '5px 0',
+        borderBottom: '1px solid #d8dbe2',
+      }}
+    >
       <span style={{ width: '40%', fontSize: 13.5, color: '#374151' }}>
         {label}
         <Req />
       </span>
-      <input style={inputStyle} value={value} onChange={(e) => onChange(e.target.value)} />
+      <input
+        style={inputStyle}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </div>
   );
 }

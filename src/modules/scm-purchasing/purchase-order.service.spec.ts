@@ -46,6 +46,12 @@ function poRow(overrides: Record<string, unknown> = {}) {
     advancePercent: null,
     advanceAmount: null,
     advancePayments: [],
+    // The column defaults: an order with no tax line, which is how every order
+    // raised before GST reached the PO reads.
+    gstStateCode: '29',
+    gstIgstRate: new Prisma.Decimal(0),
+    gstCgstRate: new Prisma.Decimal(0),
+    gstSgstRate: new Prisma.Decimal(0),
     approvals: [],
     lastEmailedAt: null,
     lastEmailedTo: null,
@@ -584,5 +590,238 @@ describe('PurchaseOrderService advance payment', () => {
       paymentNumber: null,
       status: null,
     });
+  });
+});
+
+/**
+ * GST on the order. Three properties matter and the rest is arithmetic covered in
+ * purchase-order-gst.spec.ts:
+ *
+ * 1. `totalAmount` stays PRE-TAX. It is the approval tier's basis, the advance's
+ *    basis and what AP three-way matches against — folding tax into it would
+ *    silently re-tier approvals and restate every advance.
+ * 2. The state is defaulted from the party's own GSTIN, never guessed, and
+ *    re-derived when the party changes.
+ * 3. A rate the form should not have been able to send is refused rather than
+ *    stored, because the PDF that goes to the supplier is generated from it.
+ */
+describe('PurchaseOrderService GST', () => {
+  const scm = {
+    id: 'scm-1',
+    email: 'scm@example.com',
+    role: Role.MANAGER,
+    verticalId: 'v-scm',
+  };
+
+  function setup(rows: unknown[], gstin: string | null = '29AARCP3898H1ZG') {
+    const tx = {
+      purchaseOrder: { create: jest.fn().mockResolvedValue({ id: 'po-1' }) },
+    };
+    const prisma = {
+      purchaseOrder: {
+        findUnique: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(rows.shift())),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      supplier: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'sup-1',
+          companyName: 'Acme Precision Pvt Ltd',
+          status: 'APPROVED',
+          gstin,
+        }),
+      },
+      vendor: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'ven-1',
+          companyName: 'Tamil Fabricators',
+          status: 'APPROVED',
+          gstin: '33GSPTN0000A1Z5',
+        }),
+      },
+      item: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { id: 'item-1', isActive: true, baseUnitOfMeasure: 'NOS' },
+          ]),
+      },
+      $transaction: jest.fn().mockImplementation((fn) => fn(tx)),
+    };
+    const service = new PurchaseOrderService(
+      prisma as never,
+      { assertCanManagePurchaseOrders: jest.fn() } as never,
+      { nextNumber: jest.fn().mockResolvedValue('PO-2026-0001') } as never,
+      {} as never,
+      {} as never,
+    );
+    return { service, prisma, tx };
+  }
+
+  it('leaves totalAmount pre-tax and reports the payable figure separately', async () => {
+    const { service } = setup([
+      poRow({
+        status: PurchaseOrderStatus.DRAFT,
+        supplierId: 'sup-1',
+        gstCgstRate: new Prisma.Decimal('9.00'),
+        gstSgstRate: new Prisma.Decimal('9.00'),
+        lines: [
+          {
+            id: 'pol-1',
+            itemId: null,
+            item: null,
+            adHocItemName: 'Fabricated frame',
+            adHocDescription: null,
+            orderedQuantity: new Prisma.Decimal(1),
+            unitPrice: new Prisma.Decimal('137000.0000'),
+            unitOfMeasure: 'NOS',
+            lineTotal: new Prisma.Decimal('137000.0000'),
+            notes: null,
+            sequence: 0,
+          },
+        ],
+      }),
+    ]);
+
+    const entity = await service.get('po-1');
+
+    expect(entity.totalAmount).toBe('137000.00');
+    expect(entity.grandTotal).toBe('161660.00');
+    expect(entity.gst).toMatchObject({
+      stateCode: '29',
+      stateName: 'Karnataka',
+      intraState: true,
+      cgstAmount: '12330.00',
+      sgstAmount: '12330.00',
+      igstAmount: '0.00',
+      totalTax: '24660.00',
+    });
+  });
+
+  it("opens a new order at the supplier's own GST state", async () => {
+    const { service, tx } = setup([
+      poRow({ status: PurchaseOrderStatus.DRAFT, supplierId: 'sup-1' }),
+    ]);
+
+    await service.create(
+      {
+        supplierId: 'sup-1',
+        cgstRate: 9,
+        sgstRate: 9,
+        lines: [{ itemId: 'item-1', orderedQuantity: 1, unitPrice: 1000 }],
+      } as never,
+      scm,
+    );
+
+    expect(tx.purchaseOrder.create.mock.calls[0][0].data).toMatchObject({
+      gstStateCode: '29',
+      gstCgstRate: 9,
+      gstSgstRate: 9,
+    });
+  });
+
+  it('never invents a state for a party with no GSTIN on record', async () => {
+    // Assuming a distant state for an unregistered supplier would put IGST on a
+    // local purchase; falling back to our own state at least keeps it local.
+    const { service, tx } = setup(
+      [poRow({ status: PurchaseOrderStatus.DRAFT, supplierId: 'sup-1' })],
+      null,
+    );
+
+    await service.create(
+      {
+        supplierId: 'sup-1',
+        lines: [{ itemId: 'item-1', orderedQuantity: 1, unitPrice: 1000 }],
+      } as never,
+      scm,
+    );
+
+    const { data } = tx.purchaseOrder.create.mock.calls[0][0];
+    expect(data.gstStateCode).toBe('29');
+    // …and no rate is defaulted server-side: a tax rate is an assertion about
+    // the supply, which the form makes, not the service.
+    expect(data.gstCgstRate).toBeUndefined();
+    expect(data.gstIgstRate).toBeUndefined();
+  });
+
+  it('re-derives the state when the edit changes the party', async () => {
+    const { service, prisma } = setup([
+      poRow({
+        status: PurchaseOrderStatus.DRAFT,
+        supplierId: 'sup-1',
+        gstStateCode: '29',
+        gstCgstRate: new Prisma.Decimal('9.00'),
+        gstSgstRate: new Prisma.Decimal('9.00'),
+      }),
+      poRow({ status: PurchaseOrderStatus.DRAFT, vendorId: 'ven-1' }),
+    ]);
+
+    await service.update(
+      'po-1',
+      { supplierId: null, vendorId: 'ven-1' } as never,
+      scm,
+    );
+
+    // The Tamil Nadu vendor makes this an inter-state supply, but the rates are
+    // left alone — moving CGST/SGST onto IGST silently would change what the
+    // party is asked to invoice, so the form surfaces the mismatch instead.
+    const { data } = prisma.purchaseOrder.update.mock.calls[0][0];
+    expect(data.gstStateCode).toBe('33');
+    expect(data.gstCgstRate).toBeUndefined();
+    expect(data.gstSgstRate).toBeUndefined();
+  });
+
+  it('keeps the state across an edit that does not change the party', async () => {
+    const { service, prisma } = setup([
+      poRow({
+        status: PurchaseOrderStatus.DRAFT,
+        supplierId: 'sup-1',
+        gstStateCode: '33',
+      }),
+      poRow({ status: PurchaseOrderStatus.DRAFT, supplierId: 'sup-1' }),
+    ]);
+
+    await service.update('po-1', { notes: 'Revised' } as never, scm);
+
+    // A state chosen by hand (an SEZ or import supply that does not follow the
+    // registration) must survive an unrelated edit.
+    expect(prisma.purchaseOrder.update.mock.calls[0][0].data.gstStateCode).toBe(
+      '33',
+    );
+  });
+
+  it.each([
+    ['igstRate', -1],
+    ['cgstRate', 101],
+    ['sgstRate', 200],
+  ])('refuses an out-of-range %s', async (field, rate) => {
+    const { service, tx } = setup([]);
+    await expect(
+      service.create(
+        {
+          supplierId: 'sup-1',
+          [field]: rate,
+          lines: [{ itemId: 'item-1', orderedQuantity: 1, unitPrice: 1000 }],
+        } as never,
+        scm,
+      ),
+    ).rejects.toThrow('must be between 0 and 100');
+    expect(tx.purchaseOrder.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a state code that is not a state', async () => {
+    const { service, tx } = setup([]);
+    await expect(
+      service.create(
+        {
+          supplierId: 'sup-1',
+          gstStateCode: '99',
+          lines: [{ itemId: 'item-1', orderedQuantity: 1, unitPrice: 1000 }],
+        } as never,
+        scm,
+      ),
+    ).rejects.toThrow('is not a GST state code');
+    expect(tx.purchaseOrder.create).not.toHaveBeenCalled();
   });
 });

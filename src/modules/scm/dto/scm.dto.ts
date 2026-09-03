@@ -17,6 +17,7 @@ import {
   Max,
   Min,
   MinLength,
+  Matches,
   ValidateNested,
 } from 'class-validator';
 import { CLASSIFICATION_STATUSES } from '../vendor-scoring';
@@ -63,6 +64,13 @@ export class CreateVendorDto {
   @IsOptional()
   @IsString()
   msmeUdyamCertificate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Matches(/^(?:|[0-9]{2}[A-Z0-9]{13})$/i, {
+    message: 'GSTIN must be a valid 15-character GST number',
+  })
+  gstin?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -137,6 +145,12 @@ export class PublicCompanyInfoDto {
   @IsOptional()
   @IsString()
   msmeUdyamCertificate?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Matches(/^(?:|[0-9]{2}[A-Z0-9]{13})$/i, {
+    message: 'GSTIN must be a valid 15-character GST number',
+  })
+  gstin?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() contactPersonName?: string;
   @ApiPropertyOptional()
   @IsOptional()

@@ -8,6 +8,7 @@ import {
   formatIndianAmount,
   trimDecimal,
 } from '../../common/utils/indian-money.util';
+import { PURCHASE_ORDER_TERMS } from './purchase-order-terms';
 
 /**
  * Server-side HTML for the supplier-facing Purchase Order, rendered to PDF by
@@ -52,9 +53,29 @@ export interface PurchaseOrderDocumentData {
   /** Free-text contact/address block, shown for an ad-hoc party. */
   partyContactInfo: string | null;
   partyAddress: string | null;
+  /** GST registration from the Vendor/Supplier master. */
+  partyGstin?: string | null;
   notes: string | null;
   raisedByName: string | null;
+  /** Sum of the line totals — the taxable value, before GST. */
   totalAmount: string;
+  /**
+   * GST on the order, as decimal strings. Zero rates mean the order carries no
+   * tax line and the summary collapses back to a single total, which is how every
+   * order raised before GST was added to the PO prints.
+   */
+  gst: {
+    stateName: string;
+    igstRate: string;
+    cgstRate: string;
+    sgstRate: string;
+    igstAmount: string;
+    cgstAmount: string;
+    sgstAmount: string;
+    totalTax: string;
+  };
+  /** totalAmount + GST — the figure the party will invoice for. */
+  grandTotal: string;
   /**
    * The advance the buyer commits to paying before delivery. Null when the order
    * carries none. It is printed because this document is where the commitment is
@@ -227,6 +248,9 @@ function partiesTable(data: PurchaseOrderDocumentData): string {
     data.partyAddress
       ? `<div style="margin-top:3px;color:#333;">${multiline(data.partyAddress)}</div>`
       : '',
+    data.partyGstin
+      ? `<div style="margin-top:3px;color:${MUTED};">GSTIN: ${escapeHtml(data.partyGstin)}</div>`
+      : '',
   ].join('');
   const us = [
     heading('Ship To', 'right'),
@@ -281,10 +305,30 @@ function linesTable(data: PurchaseOrderDocumentData): string {
     })
     .join('');
 
+  // Subtotal, each applicable tax, then the payable total. A zero-rated tax is
+  // omitted rather than printed as 0.00: a supplier reading "IGST 0.00" on an
+  // intra-state order would reasonably ask which of the two lines is the mistake.
+  const taxRow = (label: string, rate: string, amount: string) =>
+    Number(rate) === 0
+      ? ''
+      : '<tr style="page-break-inside:avoid;break-inside:avoid;">' +
+        `<td colspan="6" style="padding:6px 8px;text-align:right;color:${MUTED};font-size:10.5px;white-space:nowrap;">${escapeHtml(label)} @ ${escapeHtml(trimDecimal(rate))}%</td>` +
+        `<td style="padding:6px 8px;text-align:right;font-size:10.5px;white-space:nowrap;">${escapeHtml(formatIndianAmount(amount))}</td>` +
+        '</tr>';
+  const taxes =
+    taxRow('CGST', data.gst.cgstRate, data.gst.cgstAmount) +
+    taxRow('SGST', data.gst.sgstRate, data.gst.sgstAmount) +
+    taxRow('IGST', data.gst.igstRate, data.gst.igstAmount);
+  const taxable = taxes
+    ? '<tr style="page-break-inside:avoid;break-inside:avoid;">' +
+      `<td colspan="6" style="padding:9px 8px 6px;text-align:right;font-weight:700;color:${NAVY};font-size:10.5px;white-space:nowrap;">Taxable Value (INR)</td>` +
+      `<td style="padding:9px 8px 6px;text-align:right;font-weight:700;font-size:10.5px;white-space:nowrap;">${escapeHtml(formatIndianAmount(data.totalAmount))}</td>` +
+      '</tr>'
+    : '';
   const total =
     '<tr style="background:#eef1f4;page-break-inside:avoid;break-inside:avoid;">' +
     `<td colspan="6" style="padding:9px 8px;text-align:right;font-weight:700;color:${NAVY};font-size:11px;letter-spacing:0.04em;white-space:nowrap;">TOTAL VALUE (INR)</td>` +
-    `<td style="padding:9px 8px;text-align:right;font-weight:800;color:${NAVY};font-size:12px;white-space:nowrap;">${escapeHtml(formatIndianAmount(data.totalAmount))}</td>` +
+    `<td style="padding:9px 8px;text-align:right;font-weight:800;color:${NAVY};font-size:12px;white-space:nowrap;">${escapeHtml(formatIndianAmount(data.grandTotal))}</td>` +
     '</tr>';
 
   return [
@@ -298,9 +342,25 @@ function linesTable(data: PurchaseOrderDocumentData): string {
     th('Unit Price (INR)', '14%', true),
     th('Total (INR)', '16%', true),
     '</tr></thead>',
-    `<tbody>${body}${total}</tbody>`,
+    `<tbody>${body}${taxable}${taxes}${total}</tbody>`,
     '</table>',
   ].join('');
+}
+
+/**
+ * The sentence after the amount in words. A GST-bearing order says so and names
+ * the state the split was decided by, so a supplier can see at a glance whether
+ * the order treats them as intra- or inter-state. An order with no GST keeps the
+ * long-standing tax-exclusive caveat.
+ */
+function taxCaption(data: PurchaseOrderDocumentData): string {
+  if (Number(data.gst.totalTax) === 0) {
+    return 'Prices are exclusive of applicable taxes and duties unless stated otherwise.';
+  }
+  const state = data.gst.stateName
+    ? ` Place of supply: ${data.gst.stateName}.`
+    : '';
+  return `Inclusive of GST as shown above.${state} Other taxes and duties, if any, are excluded unless stated otherwise.`;
 }
 
 /** Authorised-signatory / supplier-acknowledgement blocks, side by side. */
@@ -334,6 +394,44 @@ function signatures(data: PurchaseOrderDocumentData): string {
     ) +
     '</tr></table>'
   );
+}
+
+/**
+ * The terms and conditions annexure, forced onto a fresh sheet.
+ *
+ * It lives inside the same `<tbody>` cell as the rest of the body, which is what
+ * makes it inherit the running letterhead, the address footer and the page
+ * counter — a detached annexure with no letterhead is not obviously part of the
+ * order. The PO number is repeated in the heading for the same reason: a page
+ * that gets separated from the order must still say which order it belongs to.
+ *
+ * Each clause is break-inside:avoid so a clause never splits across the page
+ * boundary, while the list as a whole is free to flow onto a third sheet.
+ */
+function termsPage(data: PurchaseOrderDocumentData): string {
+  if (PURCHASE_ORDER_TERMS.length === 0) return '';
+  const clauses = PURCHASE_ORDER_TERMS.map(
+    (clause, index) =>
+      '<tr style="page-break-inside:avoid;break-inside:avoid;">' +
+      `<td style="width:22px;vertical-align:top;padding:0 0 9px;font-size:11px;font-weight:700;color:${NAVY};">${index + 1}.</td>` +
+      '<td style="vertical-align:top;padding:0 0 9px;font-size:11px;color:#111;">' +
+      `<span style="font-weight:700;color:${NAVY};">${escapeHtml(clause.label)}:</span> ` +
+      escapeHtml(clause.text) +
+      '</td></tr>',
+  ).join('');
+  return [
+    '<div style="page-break-before:always;break-before:page;padding-top:18px;">',
+    kicker('Terms and Conditions'),
+    `<div style="font-size:11px;color:${MUTED};margin:8px 0 16px;">Annexure to ${escapeHtml(data.poNumber)} — these terms form an integral part of this purchase order.</div>`,
+    '<table style="width:100%;border-collapse:collapse;">',
+    `<tbody>${clauses}</tbody>`,
+    '</table>',
+    `<div style="border-top:1px solid ${RULE};margin-top:14px;padding-top:8px;font-size:10.5px;color:${MUTED};">`,
+    'Acceptance of this purchase order, or commencement of supply against it, ',
+    'constitutes acceptance of the terms and conditions stated above.',
+    '</div>',
+    '</div>',
+  ].join('');
 }
 
 /**
@@ -397,13 +495,20 @@ export function renderPurchaseOrderDocumentHtml(
     kicker('Order Details'),
     linesTable(data),
 
-    `<p style="font-size:10.5px;color:${MUTED};margin:0 0 24px;">Amount in words: ${escapeHtml(amountToIndianWords(data.totalAmount))}. Prices are exclusive of applicable taxes and duties unless stated otherwise.</p>`,
+    // Words spell out the payable total, and the tax caption states what the
+    // figure already includes. Keeping the old "exclusive of applicable taxes"
+    // line on a GST-bearing order would contradict the table above it.
+    `<p style="font-size:10.5px;color:${MUTED};margin:0 0 24px;">Amount in words: ${escapeHtml(amountToIndianWords(data.grandTotal))}. ${escapeHtml(taxCaption(data))}</p>`,
 
     paymentTerms,
     notes,
     signatures(data),
 
     `<div style="font-size:11px;color:${MUTED};">This purchase order was generated on ${escapeHtml(day(data.generatedOn))} by ${escapeHtml(data.buyer.legalName)}.</div>`,
+
+    // Last, so page 1 stays the commercial order exactly as before and the terms
+    // are a clearly separate annexure.
+    termsPage(data),
 
     '</td></tr></tbody></table></body></html>',
   ].join('');

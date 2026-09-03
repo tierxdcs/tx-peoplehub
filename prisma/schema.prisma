@@ -3723,6 +3723,7 @@ model Vendor {
   numberOfEmployees        String?
   annualTurnover           String?
   msmeUdyamCertificate     String?
+  gstin                    String?                  @unique
   contactPersonName        String?
   contactPersonDesignation String?
   contactEmail             String
@@ -3922,6 +3923,7 @@ model Supplier {
   numberOfEmployees        String?
   annualTurnover           String?
   msmeUdyamCertificate     String?
+  gstin                    String?                  @unique
   contactPersonName        String?
   contactPersonDesignation String?
   contactEmail             String
@@ -4945,6 +4947,19 @@ model PurchaseOrder {
   /// as a snapshot (not recomputed) so the printed PO, the request Accounts
   /// received, and the number on screen can never disagree.
   advanceAmount  Decimal? @db.Decimal(18, 2)
+
+  /// GST on this order: order-level rates applied once to the summed line total,
+  /// the same model the Sales Voucher uses for a sales invoice. `gstStateCode` is
+  /// the supplier's GST state — a purchase from within the company's own state is
+  /// intra-state and carries CGST + SGST, from outside it is inter-state and the
+  /// whole rate sits on IGST. Defaulted from the party's GSTIN prefix, then
+  /// overridable, because a handful of supplies (SEZ, imports) do not follow the
+  /// registration. Rates default to zero, which is what every order raised before
+  /// GST was added to the PO should keep: those were placed without a tax line.
+  gstStateCode String  @default("29")
+  gstIgstRate  Decimal @default(0) @db.Decimal(5, 2)
+  gstCgstRate  Decimal @default(0) @db.Decimal(5, 2)
+  gstSgstRate  Decimal @default(0) @db.Decimal(5, 2)
 
   /// At most one of supplierId / vendorId is set (CHECK constraint in migration).
   supplierId String?

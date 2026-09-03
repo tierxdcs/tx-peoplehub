@@ -281,6 +281,9 @@ export class ApService {
     const currency = this.currency(dto.currencyCode, dto.exchangeRateToInr);
     const party = this.party(dto.supplierId, dto.vendorId);
     await this.assertParty(party);
+    const masterParty = dto.supplierId
+      ? await this.prisma.supplier.findUnique({ where: { id: dto.supplierId } })
+      : await this.prisma.vendor.findUnique({ where: { id: dto.vendorId! } });
     const duplicate = await this.prisma.accountsPayableInvoice.findFirst({
       where: {
         partyType: party.type,
@@ -426,7 +429,8 @@ export class ApService {
           purchaseOrderId: dto.purchaseOrderId,
           currencyCode: currency,
           exchangeRateToInr: dto.exchangeRateToInr ?? 1,
-          supplierGstinSnapshot: dto.supplierGstin,
+          supplierGstinSnapshot:
+            dto.supplierGstin?.toUpperCase() ?? masterParty?.gstin ?? null,
           taxableAmount: taxable,
           inputCgstAmount: cgst,
           inputSgstAmount: sgst,

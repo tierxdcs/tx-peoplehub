@@ -2,6 +2,7 @@ import { COMPANY } from '../../../../lib/theme';
 import { formatINR } from '../../../../lib/sales';
 import { amountToIndianWords } from '../../../../lib/indian-number-words';
 import { dateOnlyStr } from '../../../../lib/date';
+import { PURCHASE_ORDER_TERMS } from '../../../../lib/purchase-order-terms';
 import type { PurchaseOrder } from '../../../../lib/stores';
 
 /** Palette — shared with the Techno-Commercial Proposal for a consistent look. */
@@ -62,7 +63,9 @@ function PageHeader() {
               style={{ height: 52, width: 'auto', objectFit: 'contain' }}
             />
           ) : (
-            <span style={{ fontSize: 22, fontWeight: 800 }}>{COMPANY.name}</span>
+            <span style={{ fontSize: 22, fontWeight: 800 }}>
+              {COMPANY.name}
+            </span>
           )}
         </div>
         <div style={{ textAlign: 'right', fontSize: 11, color: MUTED }}>
@@ -79,7 +82,14 @@ function PageHeader() {
               gap: 6,
             }}
           >
-            <span style={{ width: 8, height: 8, background: ACCENT, display: 'inline-block' }} />
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                background: ACCENT,
+                display: 'inline-block',
+              }}
+            />
             Get in touch
           </div>
           <div style={{ marginTop: 3 }}>{COMPANY.contactEmail}</div>
@@ -126,7 +136,9 @@ function PageFooter() {
           }}
         />
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 24 }}>
+      <div
+        style={{ display: 'flex', justifyContent: 'space-between', gap: 24 }}
+      >
         <div style={{ fontSize: 9, color: MUTED, maxWidth: '55%' }}>
           <div
             style={{
@@ -190,8 +202,13 @@ export function PurchaseOrderPrintDocument({
   /** Pre-formatted YYYY-MM-DD; passed in so render stays deterministic. */
   generatedOn: string;
 }) {
-  const supplierName = po.supplierName ?? po.vendorName ?? po.adHocPartyName ?? '—';
-  const supplierKind = po.supplierId ? 'Supplier' : po.vendorId ? 'Vendor' : 'Ad-hoc Party';
+  const supplierName =
+    po.supplierName ?? po.vendorName ?? po.adHocPartyName ?? '—';
+  const supplierKind = po.supplierId
+    ? 'Supplier'
+    : po.vendorId
+      ? 'Vendor'
+      : 'Ad-hoc Party';
   const lines = po.lines ?? [];
 
   const th: React.CSSProperties = {
@@ -213,6 +230,33 @@ export function PurchaseOrderPrintDocument({
   const tdR: React.CSSProperties = {
     ...td,
     textAlign: 'right',
+    whiteSpace: 'nowrap',
+  };
+
+  /**
+   * GST rows between the lines and the total — must match the server-rendered
+   * PDF in purchase-order-document.ts. A zero-rated tax prints no row at all
+   * rather than a misleading "0.00", so an order raised before GST reached the
+   * PO still prints exactly as it did.
+   */
+  const taxes = (
+    [
+      ['CGST', po.gst.cgstRate, po.gst.cgstAmount],
+      ['SGST', po.gst.sgstRate, po.gst.sgstAmount],
+      ['IGST', po.gst.igstRate, po.gst.igstAmount],
+    ] as const
+  ).filter(([, rate]) => Number(rate) !== 0);
+  const taxLabelStyle: React.CSSProperties = {
+    padding: '6px 8px',
+    textAlign: 'right',
+    color: MUTED,
+    fontSize: 10.5,
+    whiteSpace: 'nowrap',
+  };
+  const taxAmountStyle: React.CSSProperties = {
+    padding: '6px 8px',
+    textAlign: 'right',
+    fontSize: 10.5,
     whiteSpace: 'nowrap',
   };
 
@@ -285,7 +329,13 @@ export function PurchaseOrderPrintDocument({
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ color: MUTED, paddingRight: 14, paddingTop: 4 }}>
+                      <td
+                        style={{
+                          color: MUTED,
+                          paddingRight: 14,
+                          paddingTop: 4,
+                        }}
+                      >
                         Order Date
                       </td>
                       <td
@@ -299,7 +349,13 @@ export function PurchaseOrderPrintDocument({
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ color: MUTED, paddingRight: 14, paddingTop: 4 }}>
+                      <td
+                        style={{
+                          color: MUTED,
+                          paddingRight: 14,
+                          paddingTop: 4,
+                        }}
+                      >
                         Expected Delivery
                       </td>
                       <td
@@ -328,31 +384,74 @@ export function PurchaseOrderPrintDocument({
                 }}
               >
                 <div style={{ fontSize: 12 }}>
-                  <div style={{ color: ACCENT, fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+                  <div
+                    style={{
+                      color: ACCENT,
+                      fontWeight: 700,
+                      fontSize: 10,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      marginBottom: 6,
+                    }}
+                  >
                     {supplierKind}
                   </div>
                   <div style={{ fontWeight: 700 }}>M/s. {supplierName}</div>
-                  {po.adHocContactInfo && (
-                    <div style={{ marginTop: 3, color: '#333', whiteSpace: 'pre-line' }}>
-                      {po.adHocContactInfo}
+                  {po.partyContactInfo && (
+                    <div
+                      style={{
+                        marginTop: 3,
+                        color: '#333',
+                        whiteSpace: 'pre-line',
+                      }}
+                    >
+                      {po.partyContactInfo}
                     </div>
                   )}
-                  {po.adHocPartyAddress && (
-                    <div style={{ marginTop: 3, color: '#333', whiteSpace: 'pre-line' }}>
-                      {po.adHocPartyAddress}
+                  {po.partyAddress && (
+                    <div
+                      style={{
+                        marginTop: 3,
+                        color: '#333',
+                        whiteSpace: 'pre-line',
+                      }}
+                    >
+                      {po.partyAddress}
+                    </div>
+                  )}
+                  {po.partyGstin && (
+                    <div style={{ marginTop: 3, color: MUTED }}>
+                      GSTIN: {po.partyGstin}
                     </div>
                   )}
                 </div>
                 <div style={{ fontSize: 12, textAlign: 'right' }}>
-                  <div style={{ color: ACCENT, fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+                  <div
+                    style={{
+                      color: ACCENT,
+                      fontWeight: 700,
+                      fontSize: 10,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      marginBottom: 6,
+                    }}
+                  >
                     Ship To
                   </div>
-                  <div style={{ fontWeight: 700 }}>{COMPANY.legalEntityName}</div>
+                  <div style={{ fontWeight: 700 }}>
+                    {COMPANY.legalEntityName}
+                  </div>
                   {COMPANY.manufacturingCenter.lines.map((l, i) => (
                     <div key={i} style={{ color: '#333' }}>
                       {l}
                     </div>
                   ))}
+                  {/* A supplier cannot raise a compliant tax invoice without the
+                      buyer's GSTIN, so it belongs on the order rather than in a
+                      follow-up email. Matches the server twin's Ship To block. */}
+                  <div style={{ marginTop: 3, color: MUTED }}>
+                    GSTIN: {COMPANY.gstin}
+                  </div>
                 </div>
               </div>
 
@@ -412,8 +511,30 @@ export function PurchaseOrderPrintDocument({
                       <td style={tdR}>{formatINR(line.lineTotal)}</td>
                     </tr>
                   ))}
+                  {/* Taxable value + GST, only on an order that carries tax */}
+                  {taxes.length > 0 && (
+                    <tr className="print-avoid-break">
+                      <td colSpan={6} style={taxLabelStyle}>
+                        Taxable Value (INR)
+                      </td>
+                      <td style={taxAmountStyle}>
+                        {formatINR(po.totalAmount)}
+                      </td>
+                    </tr>
+                  )}
+                  {taxes.map(([label, rate, amount]) => (
+                    <tr key={label} className="print-avoid-break">
+                      <td colSpan={6} style={taxLabelStyle}>
+                        {label} @ {Number(rate)}%
+                      </td>
+                      <td style={taxAmountStyle}>{formatINR(amount)}</td>
+                    </tr>
+                  ))}
                   {/* Grand total — highlighted */}
-                  <tr className="print-avoid-break" style={{ background: '#eef1f4' }}>
+                  <tr
+                    className="print-avoid-break"
+                    style={{ background: '#eef1f4' }}
+                  >
                     <td
                       colSpan={6}
                       style={{
@@ -438,17 +559,20 @@ export function PurchaseOrderPrintDocument({
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {formatINR(po.totalAmount)}
+                      {formatINR(po.grandTotal)}
                     </td>
                   </tr>
                 </tbody>
               </table>
 
-              {/* Amount in words + tax caption */}
+              {/* Amount in words + tax caption. The words spell out the payable
+                  figure, because that is the number the supplier will invoice
+                  and be paid against. */}
               <p style={{ fontSize: 10.5, color: MUTED, marginBottom: 24 }}>
-                Amount in words: {amountToIndianWords(po.totalAmount)}. Prices
-                are exclusive of applicable taxes and duties unless stated
-                otherwise.
+                Amount in words: {amountToIndianWords(po.grandTotal)}.{' '}
+                {Number(po.gst.totalTax) === 0
+                  ? 'Prices are exclusive of applicable taxes and duties unless stated otherwise.'
+                  : `Inclusive of GST as shown above.${po.gst.stateName ? ` Place of supply: ${po.gst.stateName}.` : ''} Other taxes and duties, if any, are excluded unless stated otherwise.`}
               </p>
 
               {/* Advance payment terms — must match the server-rendered PDF in
@@ -512,10 +636,14 @@ export function PurchaseOrderPrintDocument({
                   },
                 ].map((b) => (
                   <div key={b.heading} style={{ flex: 1, fontSize: 11 }}>
-                    <div style={{ fontWeight: 700, color: NAVY, marginBottom: 44 }}>
+                    <div
+                      style={{ fontWeight: 700, color: NAVY, marginBottom: 44 }}
+                    >
                       {b.heading}
                     </div>
-                    <div style={{ borderTop: `1px solid ${NAVY}`, paddingTop: 6 }}>
+                    <div
+                      style={{ borderTop: `1px solid ${NAVY}`, paddingTop: 6 }}
+                    >
                       {b.l1}
                     </div>
                     <div style={{ color: MUTED }}>{b.l2}</div>
@@ -528,6 +656,79 @@ export function PurchaseOrderPrintDocument({
                 This purchase order was generated on {generatedOn} by{' '}
                 {COMPANY.legalEntityName}.
               </div>
+
+              {/* Terms and conditions annexure — must match the server-rendered
+                  PDF in purchase-order-document.ts. Inside the same <tbody>
+                  cell so it inherits the running letterhead, address footer and
+                  page counter; the PO number is repeated in the heading so a
+                  page separated from the order still names its order. */}
+              {PURCHASE_ORDER_TERMS.length > 0 && (
+                <div
+                  style={{
+                    pageBreakBefore: 'always',
+                    breakBefore: 'page',
+                    paddingTop: 18,
+                  }}
+                >
+                  <Kicker>Terms and Conditions</Kicker>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: MUTED,
+                      margin: '8px 0 16px',
+                    }}
+                  >
+                    Annexure to {po.poNumber} — these terms form an integral
+                    part of this purchase order.
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <tbody>
+                      {PURCHASE_ORDER_TERMS.map((clause, i) => (
+                        <tr key={clause.label} className="print-avoid-break">
+                          <td
+                            style={{
+                              width: 22,
+                              verticalAlign: 'top',
+                              padding: '0 0 9px',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: NAVY,
+                            }}
+                          >
+                            {i + 1}.
+                          </td>
+                          <td
+                            style={{
+                              verticalAlign: 'top',
+                              padding: '0 0 9px',
+                              fontSize: 11,
+                              color: '#111',
+                            }}
+                          >
+                            <span style={{ fontWeight: 700, color: NAVY }}>
+                              {clause.label}:
+                            </span>{' '}
+                            {clause.text}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div
+                    style={{
+                      borderTop: `1px solid ${RULE}`,
+                      marginTop: 14,
+                      paddingTop: 8,
+                      fontSize: 10.5,
+                      color: MUTED,
+                    }}
+                  >
+                    Acceptance of this purchase order, or commencement of supply
+                    against it, constitutes acceptance of the terms and
+                    conditions stated above.
+                  </div>
+                </div>
+              )}
             </td>
           </tr>
         </tbody>

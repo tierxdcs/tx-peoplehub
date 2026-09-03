@@ -405,6 +405,17 @@ export default function PurchaseOrderDetailPage() {
     (po.status === 'ISSUED' ||
       po.status === 'PARTIALLY_RECEIVED' ||
       po.status === 'FULLY_RECEIVED');
+  // The tax lines actually on the order, in the same order the printed PO shows
+  // them. A zero-rated tax is omitted rather than shown as "0.00", so an order
+  // raised before GST reached the PO reads as untaxed rather than zero-taxed.
+  const taxRows = (
+    [
+      ['CGST', po.gst.cgstRate, po.gst.cgstAmount],
+      ['SGST', po.gst.sgstRate, po.gst.sgstAmount],
+      ['IGST', po.gst.igstRate, po.gst.igstAmount],
+    ] as const
+  ).filter(([, rate]) => Number(rate) !== 0);
+  const hasGst = taxRows.length > 0;
 
   return (
     <>
@@ -468,9 +479,19 @@ export default function PurchaseOrderDetailPage() {
               </Button>
             )}
             {canManage && po.status === 'DRAFT' && (
-              <Button onClick={handleSubmitForApproval} disabled={acting}>
-                Submit for approval
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    router.push(`/stores/purchase-orders/new?edit=${po.id}`)
+                  }
+                >
+                  Edit PO
+                </Button>
+                <Button onClick={handleSubmitForApproval} disabled={acting}>
+                  Submit for approval
+                </Button>
+              </>
             )}
             {canManage && po.status === 'APPROVED' && (
               <Button variant="outline" onClick={handleIssue} disabled={acting}>
@@ -632,10 +653,57 @@ export default function PurchaseOrderDetailPage() {
           />
           <Info label="Raised By" value={po.createdByName ?? '—'} />
           <Info
-            label="Total Value"
-            value={formatINR(po.totalAmount, numberFormatStyle)}
+            label={hasGst ? 'Order Value (incl. GST)' : 'Total Value'}
+            value={formatINR(
+              hasGst ? po.grandTotal : po.totalAmount,
+              numberFormatStyle,
+            )}
           />
         </div>
+
+        {/* GST. The taxable value is what the approval ladder, the advance and
+            the AP three-way match all key off; the grand total is what the party
+            will invoice. Both are named so the two are never confused. */}
+        <Card className="mb-6">
+          <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
+            <CardTitle className="text-base">GST</CardTitle>
+            <span className="text-xs text-muted-foreground">
+              Place of supply: {po.gst.stateName || po.gst.stateCode} ·{' '}
+              {po.gst.intraState ? 'Intra-state' : 'Inter-state'}
+            </span>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {hasGst ? (
+              <div className="max-w-sm space-y-1.5">
+                <GstRow
+                  label="Taxable value"
+                  value={formatINR(po.totalAmount, numberFormatStyle)}
+                />
+                {taxRows.map(([label, rate, amount]) => (
+                  <GstRow
+                    key={label}
+                    label={`${label} @ ${Number(rate)}%`}
+                    value={formatINR(amount, numberFormatStyle)}
+                  />
+                ))}
+                <div className="flex items-center justify-between gap-4 border-t pt-1.5 font-semibold">
+                  <span>Total payable</span>
+                  <span className="tabular-nums">
+                    {formatINR(po.grandTotal, numberFormatStyle)}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">
+                No GST on this order — the printed PO says prices are exclusive
+                of applicable taxes and duties.
+                {isDraft && canManage
+                  ? ' Use Edit PO to add a rate before it is issued.'
+                  : ''}
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Advance payment. Shown whenever the PO carries a commitment, and also
             on an editable DRAFT so one can be added — this is the only place a
@@ -947,6 +1015,16 @@ function Info({ label, value }: { label: string; value: string }) {
         {label}
       </div>
       <div className="mt-0.5 text-sm font-medium">{value}</div>
+    </div>
+  );
+}
+
+/** One line of the GST breakdown: label left, rupee figure right-aligned. */
+function GstRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="tabular-nums">{value}</span>
     </div>
   );
 }

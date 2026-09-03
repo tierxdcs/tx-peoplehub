@@ -1,6 +1,10 @@
 'use client';
 
-import type { CertificateFile, PublicCompanyInfo, SectionKey } from '../../lib/scm-supplier';
+import type {
+  CertificateFile,
+  PublicCompanyInfo,
+  SectionKey,
+} from '../../lib/scm-supplier';
 
 /**
  * The Company Information section + the 9 supplier-questionnaire sections +
@@ -81,6 +85,11 @@ export function QuestionnaireSections({
           onChange={(v) => onCompanyInfoChange('msmeUdyamCertificate', v)}
         />
         <FieldRow
+          label="GSTIN"
+          value={companyInfo.gstin ?? ''}
+          onChange={(v) => onCompanyInfoChange('gstin', v.toUpperCase())}
+        />
+        <FieldRow
           label="Contact Person Name"
           value={companyInfo.contactPersonName ?? ''}
           onChange={(v) => onCompanyInfoChange('contactPersonName', v)}
@@ -106,7 +115,16 @@ export function QuestionnaireSections({
       <Section n="2" title="Material Range">
         <H3>Material Categories Supplied</H3>
         <CheckGrid
-          options={['Ferrous Metals', 'Non-Ferrous Metals', 'Polymers / Plastics', 'Composites', 'Rubber / Elastomers', 'Chemicals', 'Adhesives / Sealants', 'Fasteners / Hardware']}
+          options={[
+            'Ferrous Metals',
+            'Non-Ferrous Metals',
+            'Polymers / Plastics',
+            'Composites',
+            'Rubber / Elastomers',
+            'Chemicals',
+            'Adhesives / Sealants',
+            'Fasteners / Hardware',
+          ]}
           selected={(g('materialRange').categories as string[]) ?? []}
           onChange={(v) => setField('materialRange', 'categories', v)}
         />
@@ -118,7 +136,16 @@ export function QuestionnaireSections({
         />
         <H3>Form Supplied</H3>
         <CheckGrid
-          options={['Sheet / Coil', 'Bar / Rod', 'Tube / Pipe', 'Wire', 'Pellets / Granules', 'Powder', 'Liquid', 'Ingot / Billet']}
+          options={[
+            'Sheet / Coil',
+            'Bar / Rod',
+            'Tube / Pipe',
+            'Wire',
+            'Pellets / Granules',
+            'Powder',
+            'Liquid',
+            'Ingot / Billet',
+          ]}
           selected={(g('materialRange').forms as string[]) ?? []}
           onChange={(v) => setField('materialRange', 'forms', v)}
         />
@@ -128,9 +155,21 @@ export function QuestionnaireSections({
       <Section n="3" title="Material Certifications">
         <H3>Certifications Held</H3>
         <CheckGrid
-          options={['Mill Test Certificate (MTC / EN 10204 3.1)', 'RoHS', 'REACH', 'Material Safety Data Sheet (MSDS)', 'Certificate of Analysis', 'Certificate of Conformance', 'DFARS / Melt Origin']}
-          selected={(g('materialCertifications').certifications as string[]) ?? []}
-          onChange={(v) => setField('materialCertifications', 'certifications', v)}
+          options={[
+            'Mill Test Certificate (MTC / EN 10204 3.1)',
+            'RoHS',
+            'REACH',
+            'Material Safety Data Sheet (MSDS)',
+            'Certificate of Analysis',
+            'Certificate of Conformance',
+            'DFARS / Melt Origin',
+          ]}
+          selected={
+            (g('materialCertifications').certifications as string[]) ?? []
+          }
+          onChange={(v) =>
+            setField('materialCertifications', 'certifications', v)
+          }
         />
         <div style={{ margin: '10px 0' }}>
           <label style={{ fontSize: 13.5, color: THEME_TEXT, marginRight: 10 }}>
@@ -184,7 +223,15 @@ export function QuestionnaireSections({
       <Section n="5" title="Quality Certifications">
         <H3>Quality Systems</H3>
         <CheckGrid
-          options={['ISO 9001', 'ISO 14001', 'ISO 45001', 'IATF 16949', 'AS9100', 'ISO 13485', 'NADCAP']}
+          options={[
+            'ISO 9001',
+            'ISO 14001',
+            'ISO 45001',
+            'IATF 16949',
+            'AS9100',
+            'ISO 13485',
+            'NADCAP',
+          ]}
           selected={(g('qualityCertifications').systems as string[]) ?? []}
           onChange={(v) => setField('qualityCertifications', 'systems', v)}
         />
@@ -220,7 +267,8 @@ export function QuestionnaireSections({
       {/* 7. Packaging & Delivery — OPTIONAL */}
       <Section n="7" title="Packaging & Delivery" optional>
         <p style={{ fontSize: 13, color: THEME_MUTED, margin: '0 0 10px' }}>
-          This section is optional — you may leave it blank if it does not apply.
+          This section is optional — you may leave it blank if it does not
+          apply.
         </p>
         <FieldRows
           section="packagingAndDelivery"
@@ -256,15 +304,38 @@ export function QuestionnaireSections({
       {/* 9. References */}
       <Section n="9" title="References">
         {[0, 1, 2].map((i) => (
-          <div key={i} style={{ padding: '12px 14px', background: THEME_SUBTLE, borderRadius: 4, marginBottom: 12 }}>
+          <div
+            key={i}
+            style={{
+              padding: '12px 14px',
+              background: THEME_SUBTLE,
+              borderRadius: 4,
+              marginBottom: 12,
+            }}
+          >
             <H4>{`Reference ${i + 1}`}</H4>
-            {(['company', 'contact', 'phoneEmail', 'relationship'] as const).map((f) => (
+            {(
+              ['company', 'contact', 'phoneEmail', 'relationship'] as const
+            ).map((f) => (
               <FieldRow
                 key={f}
-                label={{ company: 'Company Name', contact: 'Contact Person', phoneEmail: 'Phone / Email', relationship: 'Relationship / Materials Supplied' }[f]}
-                value={((g('references')[`ref${i}`] as Record<string, string>) ?? {})[f] ?? ''}
+                label={
+                  {
+                    company: 'Company Name',
+                    contact: 'Contact Person',
+                    phoneEmail: 'Phone / Email',
+                    relationship: 'Relationship / Materials Supplied',
+                  }[f]
+                }
+                value={
+                  ((g('references')[`ref${i}`] as Record<string, string>) ??
+                    {})[f] ?? ''
+                }
                 onChange={(val) => {
-                  const refs = g('references') as Record<string, Record<string, string>>;
+                  const refs = g('references') as Record<
+                    string,
+                    Record<string, string>
+                  >;
                   const cur = refs[`ref${i}`] ?? {};
                   setField('references', `ref${i}`, { ...cur, [f]: val });
                 }}
@@ -280,11 +351,21 @@ export function QuestionnaireSections({
           We certify that the information provided in this questionnaire is true
           and accurate to the best of our knowledge.
         </p>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, margin: '10px 0' }}>
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 14,
+            margin: '10px 0',
+          }}
+        >
           <input
             type="checkbox"
             checked={!!g('declaration').certified}
-            onChange={(e) => setField('declaration', 'certified', e.target.checked)}
+            onChange={(e) =>
+              setField('declaration', 'certified', e.target.checked)
+            }
           />
           I certify the above.
         </label>
@@ -347,11 +428,28 @@ function Section({
 }) {
   return (
     <section style={{ marginTop: 30 }}>
-      <h2 style={{ fontSize: 16, margin: '0 0 14px', paddingBottom: 8, borderBottom: `2px solid ${THEME_INK}`, color: THEME_INK }}>
-        <span style={{ color: ACCENT, fontWeight: 700, marginRight: 6 }}>{n}</span>
+      <h2
+        style={{
+          fontSize: 16,
+          margin: '0 0 14px',
+          paddingBottom: 8,
+          borderBottom: `2px solid ${THEME_INK}`,
+          color: THEME_INK,
+        }}
+      >
+        <span style={{ color: ACCENT, fontWeight: 700, marginRight: 6 }}>
+          {n}
+        </span>
         {title}
         {optional && (
-          <span style={{ marginLeft: 8, fontSize: 12.5, fontWeight: 400, color: THEME_MUTED }}>
+          <span
+            style={{
+              marginLeft: 8,
+              fontSize: 12.5,
+              fontWeight: 400,
+              color: THEME_MUTED,
+            }}
+          >
             (Optional)
           </span>
         )}
@@ -361,10 +459,18 @@ function Section({
   );
 }
 function H3({ children }: { children: React.ReactNode }) {
-  return <h3 style={{ fontSize: 13.5, margin: '16px 0 8px', color: THEME_INK }}>{children}</h3>;
+  return (
+    <h3 style={{ fontSize: 13.5, margin: '16px 0 8px', color: THEME_INK }}>
+      {children}
+    </h3>
+  );
 }
 function H4({ children }: { children: React.ReactNode }) {
-  return <h4 style={{ fontSize: 13, margin: '0 0 8px', color: THEME_MUTED }}>{children}</h4>;
+  return (
+    <h4 style={{ fontSize: 13, margin: '0 0 8px', color: THEME_MUTED }}>
+      {children}
+    </h4>
+  );
 }
 
 function CheckGrid({
@@ -377,14 +483,35 @@ function CheckGrid({
   onChange: (v: string[]) => void;
 }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 26px', marginBottom: 6 }}>
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '8px 26px',
+        marginBottom: 6,
+      }}
+    >
       {options.map((o) => (
-        <label key={o} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: THEME_TEXT, minWidth: 150 }}>
+        <label
+          key={o}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 13.5,
+            color: THEME_TEXT,
+            minWidth: 150,
+          }}
+        >
           <input
             type="checkbox"
             checked={selected.includes(o)}
             onChange={(e) =>
-              onChange(e.target.checked ? [...selected, o] : selected.filter((x) => x !== o))
+              onChange(
+                e.target.checked
+                  ? [...selected, o]
+                  : selected.filter((x) => x !== o),
+              )
             }
           />
           {o}
@@ -429,11 +556,33 @@ function DynamicList({
   );
 }
 
-function FieldRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function FieldRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '5px 0', borderBottom: `1px solid ${THEME_BORDER}` }}>
-      <span style={{ width: '40%', fontSize: 13.5, color: THEME_TEXT }}>{label}</span>
-      <input style={inputStyle} value={value} onChange={(e) => onChange(e.target.value)} />
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '5px 0',
+        borderBottom: `1px solid ${THEME_BORDER}`,
+      }}
+    >
+      <span style={{ width: '40%', fontSize: 13.5, color: THEME_TEXT }}>
+        {label}
+      </span>
+      <input
+        style={inputStyle}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </div>
   );
 }

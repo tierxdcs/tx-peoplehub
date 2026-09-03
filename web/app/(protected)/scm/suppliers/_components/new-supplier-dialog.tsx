@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import { ApiError } from '../../../../lib/api';
-import { createSupplier, type CreateSupplierInput } from '../../../../lib/scm-supplier';
+import {
+  createSupplier,
+  type CreateSupplierInput,
+} from '../../../../lib/scm-supplier';
 import { useToast } from '../../../../components/ui/toaster';
 import {
   Dialog,
@@ -42,7 +45,10 @@ export function NewSupplierDialog({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  const required: (keyof CreateSupplierInput)[] = ['companyName', 'contactEmail'];
+  const required: (keyof CreateSupplierInput)[] = [
+    'companyName',
+    'contactEmail',
+  ];
 
   async function submit() {
     for (const k of required) {
@@ -58,7 +64,9 @@ export function NewSupplierDialog({
       toast.success('Supplier created.');
       onCreated(created.id);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to create supplier.');
+      setError(
+        err instanceof ApiError ? err.message : 'Failed to create supplier.',
+      );
       setSubmitting(false);
     }
   }
@@ -76,10 +84,28 @@ export function NewSupplierDialog({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Company name" required htmlFor="s-company">
-            <Input id="s-company" value={form.companyName} onChange={(e) => set('companyName', e.target.value)} />
+            <Input
+              id="s-company"
+              value={form.companyName}
+              onChange={(e) => set('companyName', e.target.value)}
+            />
           </Field>
           <Field label="Contact email" required htmlFor="s-email">
-            <Input id="s-email" type="email" value={form.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} />
+            <Input
+              id="s-email"
+              type="email"
+              value={form.contactEmail}
+              onChange={(e) => set('contactEmail', e.target.value)}
+            />
+          </Field>
+          <Field label="GSTIN" htmlFor="s-gstin">
+            <Input
+              id="s-gstin"
+              maxLength={15}
+              placeholder="29ABCDE1234F1Z5"
+              value={form.gstin ?? ''}
+              onChange={(e) => set('gstin', e.target.value.toUpperCase())}
+            />
           </Field>
         </div>
 

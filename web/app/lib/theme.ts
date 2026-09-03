@@ -34,6 +34,13 @@ export const COMPANY = {
    * wordmark/display name.
    */
   legalEntityName: 'Phaze Dynamics India Pvt Ltd',
+  /**
+   * Our GST registration. A supplier cannot raise a compliant tax invoice
+   * against a purchase order without it, so printed orders state it.
+   * Server-rendered documents read the same number from the authoritative
+   * FinanceCompanySettings row instead — keep the two in step.
+   */
+  gstin: '29AARCP3898H1ZG',
   /** "Get in touch" block on document headers (top-right). */
   contactEmail: 'info@phaze-dynamics.com',
   website: 'www.phaze-dynamics.com',

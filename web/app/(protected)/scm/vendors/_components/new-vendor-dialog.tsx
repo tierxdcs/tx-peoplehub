@@ -38,10 +38,7 @@ export function NewVendorDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function set<K extends keyof CreateVendorInput>(
-    key: K,
-    value: string,
-  ) {
+  function set<K extends keyof CreateVendorInput>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
@@ -61,7 +58,9 @@ export function NewVendorDialog({
       toast.success('Vendor created.');
       onCreated(created.id);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to create vendor.');
+      setError(
+        err instanceof ApiError ? err.message : 'Failed to create vendor.',
+      );
       setSubmitting(false);
     }
   }
@@ -79,16 +78,34 @@ export function NewVendorDialog({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Company name" required htmlFor="s-company">
-            <Input id="s-company" value={form.companyName} onChange={(e) => set('companyName', e.target.value)} />
+            <Input
+              id="s-company"
+              value={form.companyName}
+              onChange={(e) => set('companyName', e.target.value)}
+            />
           </Field>
           <Field label="Contact email" required htmlFor="s-email">
-            <Input id="s-email" type="email" value={form.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} />
+            <Input
+              id="s-email"
+              type="email"
+              value={form.contactEmail}
+              onChange={(e) => set('contactEmail', e.target.value)}
+            />
+          </Field>
+          <Field label="GSTIN" htmlFor="v-gstin">
+            <Input
+              id="v-gstin"
+              maxLength={15}
+              placeholder="29ABCDE1234F1Z5"
+              value={form.gstin ?? ''}
+              onChange={(e) => set('gstin', e.target.value.toUpperCase())}
+            />
           </Field>
         </div>
 
         <p className="mt-3 text-xs text-muted-foreground">
-          The vendor will fill in company details, contact person, and the
-          rest of the profile themselves via the questionnaire.
+          The vendor will fill in company details, contact person, and the rest
+          of the profile themselves via the questionnaire.
         </p>
 
         {error && <p className="mt-3 text-sm text-destructive">{error}</p>}

@@ -177,7 +177,9 @@ export default function PurchaseOrdersPage() {
                   <TableHead>Supplier / Vendor / Ad-hoc Party</TableHead>
                   <TableHead>Order Date</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Total Value</TableHead>
+                  {/* Pre-tax on purpose: this is the figure the approval tiers
+                      above key off. The GST-inclusive total is on the PO itself. */}
+                  <TableHead className="text-right">Taxable Value</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -222,18 +224,34 @@ export default function PurchaseOrdersPage() {
                       {formatINR(po.totalAmount, numberFormatStyle)}
                     </TableCell>
                     <TableCell className="text-right">
-                      {po.canDelete && (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void remove(po);
-                          }}
-                        >
-                          <Trash2 className="size-4" /> Delete
-                        </Button>
-                      )}
+                      <div className="flex justify-end gap-2">
+                        {canCreate && po.status === 'DRAFT' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              router.push(
+                                `/stores/purchase-orders/new?edit=${po.id}`,
+                              );
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        )}
+                        {po.canDelete && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void remove(po);
+                            }}
+                          >
+                            <Trash2 className="size-4" /> Delete
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

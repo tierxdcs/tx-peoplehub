@@ -80,6 +80,38 @@ export class PurchaseOrderAdvanceEntity {
   }
 }
 
+/**
+ * GST on the order: order-level rates applied once to the summed line total, and
+ * the rupee figures that follow from them. Always present — zero rates mean the
+ * order carries no tax line, which is how every order raised before GST was
+ * added to the PO reads.
+ *
+ * `stateCode` is the SUPPLIER's registration state, because that is what decides
+ * the split on an inward supply: the company's own state is intra-state
+ * (CGST + SGST), anywhere else is inter-state (IGST).
+ */
+export class PurchaseOrderGstEntity {
+  @ApiProperty({ description: "Supplier's two-digit GST state code" })
+  stateCode!: string;
+  @ApiProperty({ description: "GSTN's spelling of that state" })
+  stateName!: string;
+  @ApiProperty({ description: 'Supplier is in the company’s own state' })
+  intraState!: boolean;
+  @ApiProperty({ description: 'Percentages, Decimal as string' })
+  igstRate!: string;
+  @ApiProperty() cgstRate!: string;
+  @ApiProperty() sgstRate!: string;
+  @ApiProperty({ description: 'Rupee tax, Decimal as string' })
+  igstAmount!: string;
+  @ApiProperty() cgstAmount!: string;
+  @ApiProperty() sgstAmount!: string;
+  @ApiProperty({ description: 'IGST + CGST + SGST' }) totalTax!: string;
+
+  constructor(p: Partial<PurchaseOrderGstEntity>) {
+    Object.assign(this, p);
+  }
+}
+
 export class PurchaseOrderEntity {
   @ApiProperty() id!: string;
   @ApiProperty() poNumber!: string;
@@ -92,6 +124,9 @@ export class PurchaseOrderEntity {
   @ApiProperty({ nullable: true }) adHocPartyName!: string | null;
   @ApiProperty({ nullable: true }) adHocContactInfo!: string | null;
   @ApiProperty({ nullable: true }) adHocPartyAddress!: string | null;
+  @ApiProperty({ nullable: true }) partyAddress!: string | null;
+  @ApiProperty({ nullable: true }) partyContactInfo!: string | null;
+  @ApiProperty({ nullable: true }) partyGstin!: string | null;
   @ApiProperty({ nullable: true }) ceoApprovedById!: string | null;
   @ApiProperty({ nullable: true }) ceoApprovedAt!: string | null;
   @ApiProperty({ nullable: true }) rejectedById!: string | null;
@@ -116,8 +151,21 @@ export class PurchaseOrderEntity {
    */
   @ApiProperty({ nullable: true }) partyEmail!: string | null;
 
-  @ApiProperty({ description: 'Sum of the line totals' })
+  /**
+   * Sum of the line totals — the taxable value, and the basis for the approval
+   * tier and the advance. Deliberately pre-tax: adding GST here would silently
+   * re-tier approvals on orders straddling a threshold and restate every advance.
+   */
+  @ApiProperty({ description: 'Sum of the line totals, before GST' })
   totalAmount!: string;
+
+  @ApiProperty({ type: PurchaseOrderGstEntity })
+  gst!: PurchaseOrderGstEntity;
+
+  @ApiProperty({
+    description: 'totalAmount + GST — what the party will invoice',
+  })
+  grandTotal!: string;
 
   @ApiProperty({ nullable: true, description: 'PO value frozen at submission' })
   approvalAmount!: string | null;

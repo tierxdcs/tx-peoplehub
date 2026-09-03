@@ -21,7 +21,12 @@ import {
 } from '../../../../lib/scm-supplier';
 import { inviteEmailMessage } from '../../../../lib/invite-email';
 import { PageContainer } from '../../../../components/ui/page-container';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '../../../../components/ui/card';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Skeleton } from '../../../../components/ui/skeleton';
@@ -99,7 +104,9 @@ export default function SupplierDetailPage() {
       setInvitePassword('');
       toast.success('Invite link generated.');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to generate invite.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to generate invite.',
+      );
     } finally {
       setBusy(false);
     }
@@ -125,7 +132,9 @@ export default function SupplierDetailPage() {
       if (message.tone === 'success') toast.success(message.text);
       else toast.toast({ title: 'Email not sent', description: message.text });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to send the email.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to send the email.',
+      );
     } finally {
       setEmailing(false);
     }
@@ -170,7 +179,9 @@ export default function SupplierDetailPage() {
       setInvite(null);
       toast.success('New revision created.');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to create revision.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to create revision.',
+      );
     }
   }
 
@@ -188,9 +199,13 @@ export default function SupplierDetailPage() {
     try {
       await clearAuditClassificationOverride(id, audit.id);
       await load();
-      toast.success('Override cleared — reverted to the computed classification.');
+      toast.success(
+        'Override cleared — reverted to the computed classification.',
+      );
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to clear override.');
+      toast.error(
+        err instanceof ApiError ? err.message : 'Failed to clear override.',
+      );
     }
   }
 
@@ -249,17 +264,39 @@ export default function SupplierDetailPage() {
           <CardTitle>Company Information</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-x-8 gap-y-2 pt-0 text-sm sm:grid-cols-2">
-          <Info label="Registered address / origin" value={supplier.registeredAddress ?? '—'} />
-          <Info label="Factory address" value={supplier.factoryAddress ?? '—'} />
-          <Info label="Year established" value={supplier.yearEstablished ?? '—'} />
+          <Info
+            label="Registered address / origin"
+            value={supplier.registeredAddress ?? '—'}
+          />
+          <Info
+            label="Factory address"
+            value={supplier.factoryAddress ?? '—'}
+          />
+          <Info
+            label="Year established"
+            value={supplier.yearEstablished ?? '—'}
+          />
           <Info label="Employees" value={supplier.numberOfEmployees ?? '—'} />
-          <Info label="Annual turnover" value={supplier.annualTurnover ?? '—'} />
-          <Info label="MSME / UDYAM" value={supplier.msmeUdyamCertificate ?? '—'} />
+          <Info
+            label="Annual turnover"
+            value={supplier.annualTurnover ?? '—'}
+          />
+          <Info
+            label="MSME / UDYAM"
+            value={supplier.msmeUdyamCertificate ?? '—'}
+          />
+          <Info label="GSTIN" value={supplier.gstin ?? '—'} />
           <Info
             label="Contact"
-            value={joinParts([supplier.contactPersonName, supplier.contactPersonDesignation])}
+            value={joinParts([
+              supplier.contactPersonName,
+              supplier.contactPersonDesignation,
+            ])}
           />
-          <Info label="Email / phone" value={joinParts([supplier.contactEmail, supplier.contactPhone])} />
+          <Info
+            label="Email / phone"
+            value={joinParts([supplier.contactEmail, supplier.contactPhone])}
+          />
           <Info label="Website" value={supplier.website ?? '—'} />
         </CardContent>
       </Card>
@@ -282,7 +319,9 @@ export default function SupplierDetailPage() {
             <TableBody>
               {supplier.questionnaires.map((q) => (
                 <TableRow key={q.id}>
-                  <TableCell className="font-medium">Rev {q.revisionNumber}</TableCell>
+                  <TableCell className="font-medium">
+                    Rev {q.revisionNumber}
+                  </TableCell>
                   <TableCell>
                     <StatusBadge value={q.status} />
                   </TableCell>
@@ -306,12 +345,18 @@ export default function SupplierDetailPage() {
               {invite && !invite.revokedAt ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <Input readOnly value={publicUrl(invite.token)} className="h-8" />
+                    <Input
+                      readOnly
+                      value={publicUrl(invite.token)}
+                      className="h-8"
+                    />
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        void navigator.clipboard?.writeText(publicUrl(invite.token));
+                        void navigator.clipboard?.writeText(
+                          publicUrl(invite.token),
+                        );
                         toast.success('Link copied.');
                       }}
                     >
@@ -324,13 +369,18 @@ export default function SupplierDetailPage() {
                     >
                       {emailing ? 'Sending…' : 'Email to supplier'}
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => revoke(invite.id)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => revoke(invite.id)}
+                    >
                       Revoke
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Expires {new Date(invite.expiresAt).toLocaleDateString()} (14-day
-                    default){invite.hasPassword ? ' · password-protected' : ''}.{' '}
+                    Expires {new Date(invite.expiresAt).toLocaleDateString()}{' '}
+                    (14-day default)
+                    {invite.hasPassword ? ' · password-protected' : ''}.{' '}
                     {supplier.contactEmail
                       ? `Emails go to ${supplier.contactEmail}.`
                       : 'Add a contact email to send it from here, or copy the link.'}
@@ -366,10 +416,15 @@ export default function SupplierDetailPage() {
               <div className="flex-1 text-sm">
                 <span className="font-medium">Fill internally</span>
                 <span className="ml-2 text-xs text-muted-foreground">
-                  Enter the supplier’s answers yourself (e.g. from a call or email).
+                  Enter the supplier’s answers yourself (e.g. from a call or
+                  email).
                 </span>
               </div>
-              <Button size="sm" variant="outline" onClick={() => setFillingInternally(true)}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setFillingInternally(true)}
+              >
                 Fill Internally
               </Button>
             </div>
@@ -401,7 +456,11 @@ export default function SupplierDetailPage() {
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle>Audits</CardTitle>
           {canManage && latestQuestionnaire?.status === 'SUBMITTED' && (
-            <Button size="sm" variant="outline" onClick={() => setAuditing(true)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAuditing(true)}
+            >
               Create Audit
             </Button>
           )}
@@ -418,14 +477,20 @@ export default function SupplierDetailPage() {
                   <TableHead>Auditor</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead>Classification</TableHead>
-                  {canOverride && <TableHead className="text-right">Override</TableHead>}
+                  {canOverride && (
+                    <TableHead className="text-right">Override</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {supplier.audits.map((a) => (
                   <TableRow key={a.id}>
-                    <TableCell>{new Date(a.auditDate).toLocaleDateString()}</TableCell>
-                    <TableCell>{a.auditType === 'PHYSICAL' ? 'Physical' : 'Virtual'}</TableCell>
+                    <TableCell>
+                      {new Date(a.auditDate).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      {a.auditType === 'PHYSICAL' ? 'Physical' : 'Virtual'}
+                    </TableCell>
                     <TableCell>{a.auditorName ?? '—'}</TableCell>
                     <TableCell className="text-right font-medium">
                       {a.totalScore} / 100
@@ -546,9 +611,7 @@ function FilledByTag({ filledBy }: { filledBy: FilledBy | null }) {
     <span
       className={
         'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ' +
-        (internal
-          ? 'bg-warning/15 text-warning'
-          : 'bg-success/15 text-success')
+        (internal ? 'bg-warning/15 text-warning' : 'bg-success/15 text-success')
       }
     >
       {FILLED_BY_LABEL[filledBy]}
