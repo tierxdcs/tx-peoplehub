@@ -204,7 +204,7 @@ export class RfqController {
   @Delete(':id')
   @ApiOperation({
     summary:
-      'Delete a DRAFT RFQ outright, with its lines, invitees and technical attachments (SCM Manager+/SA). Once issued an RFQ must be cancelled instead.',
+      'Delete an RFQ except ISSUED/AWARDED, with its lines, quotes and attachments (owner or SUPER_ADMIN/CEO).',
   })
   remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.service.remove(id, user);

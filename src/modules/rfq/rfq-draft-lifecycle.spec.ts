@@ -50,6 +50,7 @@ describe('RfqService draft save / delete', () => {
     access = {
       assertCanManageRfqs: jest.fn(),
       assertCanReadRfqs: jest.fn(),
+      isSuperAdmin: jest.fn().mockReturnValue(false),
     };
     storage = { deleteObjectStrict: jest.fn() };
     service = new RfqService(
@@ -229,6 +230,7 @@ describe('RfqService draft save / delete', () => {
   describe('remove (delete draft)', () => {
     it('deletes the draft and purges its attachment objects', async () => {
       prisma.rfq.findUnique.mockResolvedValue({
+        createdById: 'u1',
         status: 'DRAFT',
         attachments: [{ fileKey: 'rfq/a.pdf' }, { fileKey: 'rfq/b.pdf' }],
         invitees: [{ quotes: [] }],
@@ -241,29 +243,34 @@ describe('RfqService draft save / delete', () => {
       });
     });
 
-    it('refuses to delete anything past DRAFT', async () => {
-      prisma.rfq.findUnique.mockResolvedValue({
-        status: 'ISSUED',
-        attachments: [],
-        invitees: [],
-      });
-      await expect(service.remove('rfq-1', user)).rejects.toThrow(
-        /Only a DRAFT RFQ can be deleted/,
-      );
-      expect(prisma.rfq.delete).not.toHaveBeenCalled();
-    });
+    it.each(['ISSUED', 'AWARDED'])(
+      'refuses to delete %s RFQs',
+      async (status) => {
+        prisma.rfq.findUnique.mockResolvedValue({
+          createdById: 'u1',
+          status,
+          attachments: [],
+          invitees: [],
+        });
+        await expect(service.remove('rfq-1', user)).rejects.toThrow(
+          `${status} RFQs cannot be deleted`,
+        );
+        expect(prisma.rfq.delete).not.toHaveBeenCalled();
+      },
+    );
 
-    it('refuses to destroy a partner quote that somehow exists', async () => {
+    it('deletes a closed owner RFQ and purges quote attachments', async () => {
       prisma.rfq.findUnique.mockResolvedValue({
-        status: 'DRAFT',
+        createdById: 'u1',
+        status: 'CLOSED',
         attachments: [],
-        invitees: [{ quotes: [] }, { quotes: [{ id: 'q1' }] }],
+        invitees: [{ quotes: [{ attachmentFileKeys: ['quotes/a.pdf'] }] }],
       });
-      await expect(service.remove('rfq-1', user)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
-      expect(storage.deleteObjectStrict).not.toHaveBeenCalled();
-      expect(prisma.rfq.delete).not.toHaveBeenCalled();
+      await service.remove('rfq-1', user);
+      expect(storage.deleteObjectStrict).toHaveBeenCalledWith('quotes/a.pdf');
+      expect(prisma.rfq.delete).toHaveBeenCalledWith({
+        where: { id: 'rfq-1' },
+      });
     });
 
     it('404s for an unknown RFQ', async () => {
@@ -273,10 +280,31 @@ describe('RfqService draft save / delete', () => {
       );
     });
 
-    it('requires SCM manage rights', async () => {
-      access.assertCanManageRfqs.mockRejectedValue(new Error('forbidden'));
-      await expect(service.remove('rfq-1', user)).rejects.toThrow('forbidden');
-      expect(prisma.rfq.findUnique).not.toHaveBeenCalled();
+    it('rejects a user who is neither owner nor SUPER_ADMIN', async () => {
+      prisma.rfq.findUnique.mockResolvedValue({
+        createdById: 'someone-else',
+        status: 'DRAFT',
+        attachments: [],
+        invitees: [],
+      });
+      await expect(service.remove('rfq-1', user)).rejects.toThrow(
+        'Only the RFQ owner or SUPER_ADMIN/CEO',
+      );
+      expect(prisma.rfq.delete).not.toHaveBeenCalled();
+    });
+
+    it("allows SUPER_ADMIN/CEO to delete another owner's eligible RFQ", async () => {
+      access.isSuperAdmin.mockReturnValue(true);
+      prisma.rfq.findUnique.mockResolvedValue({
+        createdById: 'someone-else',
+        status: 'CANCELLED',
+        attachments: [],
+        invitees: [],
+      });
+      await service.remove('rfq-1', user);
+      expect(prisma.rfq.delete).toHaveBeenCalledWith({
+        where: { id: 'rfq-1' },
+      });
     });
   });
 });

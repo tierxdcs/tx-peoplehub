@@ -106,6 +106,7 @@ export interface Rfq {
   pmRejectionComment: string | null;
   pmApproverName: string | null;
   canApprove: boolean;
+  canDelete: boolean;
   lines: RfqLine[];
   invitees: RfqInvitee[];
   quotesVisible: boolean;
@@ -292,7 +293,10 @@ export function getRfqQuoteStageSourcingLines(intakeId: string) {
     `/rfqs/quote-stage-options/${intakeId}/sourcing-lines`,
   );
 }
-export function getRfqQuoteStageAttachment(intakeId: string, attachmentId: string) {
+export function getRfqQuoteStageAttachment(
+  intakeId: string,
+  attachmentId: string,
+) {
   return apiFetch<{ url: string; fileName: string; expiresInSeconds: number }>(
     `/rfqs/quote-stage-options/${intakeId}/attachments/${attachmentId}`,
   );
@@ -368,8 +372,8 @@ export function updateRfq(id: string, input: Partial<CreateRfqInput>) {
   });
 }
 /**
- * Delete a DRAFT RFQ outright (lines, invitees and technical drawings go with
- * it). Only DRAFT is deletable — from ISSUED on, use cancelRfq.
+ * Delete an RFQ except ISSUED/AWARDED. Backend restricts this to its owner or
+ * SUPER_ADMIN/CEO and removes lines, quotes and stored attachments with it.
  */
 export function deleteRfq(id: string) {
   return apiFetch<void>(`/rfqs/${id}`, { method: 'DELETE' });

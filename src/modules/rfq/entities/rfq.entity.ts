@@ -96,6 +96,8 @@ export class RfqEntity {
   @ApiProperty({ nullable: true }) pmApproverName!: string | null;
   /** True when the CURRENT viewer may approve/reject this RFQ right now. */
   @ApiProperty() canApprove!: boolean;
+  /** Owner/SUPER_ADMIN delete action; never true for ISSUED or AWARDED. */
+  @ApiProperty() canDelete!: boolean;
 
   @ApiProperty({ type: [RfqLineEntity] }) lines!: RfqLineEntity[];
   @ApiProperty({ type: [RfqInviteeEntity] }) invitees!: RfqInviteeEntity[];

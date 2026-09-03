@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -158,6 +159,7 @@ type RfqWithRelations = Prisma.RfqGetPayload<{ include: typeof RFQ_INCLUDE }>;
  * approval eligibility must be resolved server-side and folded into each entity.
  */
 type ApprovalContext = {
+  actorId: string;
   /** Viewer is SUPER_ADMIN → universal approval override. */
   isSuperAdmin: boolean;
   /** Viewer holds the Project Manager designation (Employee.isProjectManager). */
@@ -345,6 +347,7 @@ export class RfqService {
       .map((p) => `${p.firstName} ${p.lastName}`.trim())
       .filter(Boolean);
     return {
+      actorId: user.id,
       isSuperAdmin,
       isProjectManager,
       pmApproverName: names.length ? names.join(', ') : null,
@@ -715,7 +718,8 @@ export class RfqService {
         rawAttachments: true,
       },
     });
-    if (!intake) throw new NotFoundException('Quote-stage customer BOM not found');
+    if (!intake)
+      throw new NotFoundException('Quote-stage customer BOM not found');
     const files = this.intakeAttachments(
       intake.rawAttachments,
       intake.rawFileKey,
@@ -751,7 +755,9 @@ export class RfqService {
         return [];
       });
     }
-    return legacyKey && legacyName ? [{ key: legacyKey, name: legacyName }] : [];
+    return legacyKey && legacyName
+      ? [{ key: legacyKey, name: legacyName }]
+      : [];
   }
 
   async quoteStageSourcingLines(intakeId: string, user: AuthenticatedUser) {
@@ -1000,42 +1006,42 @@ export class RfqService {
     return this.get(id, user);
   }
 
-  /**
-   * Delete a DRAFT RFQ outright. Unlike cancel (which keeps a CANCELLED record
-   * for the audit trail), this is for drafts that should never have existed —
-   * a mis-keyed RFQ, a duplicate, a scratch draft. Lines, invitees, and
-   * attachment metadata cascade; the attachments' R2 objects are removed here
-   * because nothing would be left pointing at them afterwards. Only ever
-   * reachable while DRAFT: from ISSUED onwards partners have been contacted, so
-   * cancel is the only exit.
-   */
+  /** Delete any RFQ except ISSUED/AWARDED, by its creator or SUPER_ADMIN/CEO. */
   async remove(id: string, user: AuthenticatedUser): Promise<void> {
-    await this.access.assertCanManageRfqs(user);
     const rfq = await this.prisma.rfq.findUnique({
       where: { id },
       select: {
+        createdById: true,
         status: true,
         attachments: { select: { fileKey: true } },
-        invitees: { select: { quotes: { select: { id: true } } } },
+        invitees: {
+          select: { quotes: { select: { attachmentFileKeys: true } } },
+        },
       },
     });
     if (!rfq) throw new NotFoundException('RFQ not found');
-    if (rfq.status !== RfqStatus.DRAFT) {
-      throw new BadRequestException(
-        `Only a DRAFT RFQ can be deleted — this one is ${rfq.status}. Cancel it instead to keep the record.`,
+    if (!this.access.isSuperAdmin(user) && rfq.createdById !== user.id) {
+      throw new ForbiddenException(
+        'Only the RFQ owner or SUPER_ADMIN/CEO may delete this RFQ',
       );
     }
-    // Defensive: a DRAFT has no live quote links, so this should be unreachable.
-    // If a quote somehow exists, the partner's work is not ours to destroy.
-    if (rfq.invitees.some((invitee) => invitee.quotes.length > 0)) {
-      throw new BadRequestException(
-        'A partner has already started a quote on this RFQ — cancel it instead of deleting',
-      );
+    if (rfq.status === RfqStatus.ISSUED || rfq.status === RfqStatus.AWARDED) {
+      throw new BadRequestException(`${rfq.status} RFQs cannot be deleted`);
     }
     // Storage first so a failed object delete leaves the RFQ (and its
     // attachment metadata) intact and the whole operation retryable.
-    for (const file of rfq.attachments) {
-      await this.storage.deleteObjectStrict(file.fileKey);
+    const fileKeys = new Set(rfq.attachments.map((file) => file.fileKey));
+    for (const invitee of rfq.invitees) {
+      for (const quote of invitee.quotes) {
+        if (Array.isArray(quote.attachmentFileKeys)) {
+          for (const key of quote.attachmentFileKeys) {
+            if (typeof key === 'string') fileKeys.add(key);
+          }
+        }
+      }
+    }
+    for (const fileKey of fileKeys) {
+      await this.storage.deleteObjectStrict(fileKey);
     }
     await this.prisma.rfq.delete({ where: { id } });
   }
@@ -2105,6 +2111,10 @@ export class RfqService {
       pmRejectionComment: rfq.pmRejectionComment,
       pmApproverName: ctx.pmApproverName,
       canApprove,
+      canDelete:
+        (ctx.isSuperAdmin || rfq.createdById === ctx.actorId) &&
+        rfq.status !== RfqStatus.ISSUED &&
+        rfq.status !== RfqStatus.AWARDED,
       lines: rfq.lines.map(
         (l) =>
           new RfqLineEntity({

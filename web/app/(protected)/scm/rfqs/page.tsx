@@ -3,9 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FileText, Plus } from 'lucide-react';
+import { FileText, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../../../lib/auth-context';
-import { listRfqs, type Rfq, type RfqStatus } from '../../../lib/rfq';
+import {
+  deleteRfq,
+  listRfqs,
+  type Rfq,
+  type RfqStatus,
+} from '../../../lib/rfq';
 import { dateOnlyStr } from '../../../lib/date';
 import { PageContainer } from '../../../components/ui/page-container';
 import { PageHeader } from '../../../components/ui/page-header';
@@ -18,6 +23,8 @@ import { RegisterToolbar } from '../../../components/ui/register-toolbar';
 import { RegisterPagination } from '../../../components/ui/register-pagination';
 import { useRegisterList } from '../../../lib/use-register-list';
 import { Skeleton } from '../../../components/ui/skeleton';
+import { useToast } from '../../../components/ui/toaster';
+import { useConfirm } from '../../../components/ui/confirm';
 import {
   Table,
   TableBody,
@@ -41,6 +48,8 @@ const STATUSES: RfqStatus[] = [
  */
 export default function RfqsPage() {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const { user } = useAuth();
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +83,25 @@ export default function RfqsPage() {
     (rfq) =>
       `${rfq.rfqNumber} ${rfq.title} ${rfq.status} ${rfq.projectName ?? ''} ${rfq.orderNumber ?? ''} ${rfq.customerName ?? ''}`,
   );
+
+  async function remove(rfq: Rfq) {
+    const accepted = await confirm({
+      title: 'Delete RFQ?',
+      description: `Permanently delete ${rfq.rfqNumber}, its quotes and attachments? This cannot be undone.`,
+      confirmLabel: 'Delete RFQ',
+      destructive: true,
+    });
+    if (!accepted) return;
+    try {
+      await deleteRfq(rfq.id);
+      toast.success(`${rfq.rfqNumber} deleted`);
+      await load();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to delete RFQ',
+      );
+    }
+  }
 
   return (
     <PageContainer>
@@ -137,6 +165,7 @@ export default function RfqsPage() {
                   <TableHead className="text-right">Invitees</TableHead>
                   <TableHead>Project</TableHead>
                   <TableHead>Order ID</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -165,6 +194,20 @@ export default function RfqsPage() {
                     </TableCell>
                     <TableCell>{rfq.projectName ?? '—'}</TableCell>
                     <TableCell>{rfq.orderNumber ?? '—'}</TableCell>
+                    <TableCell className="text-right">
+                      {rfq.canDelete && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void remove(rfq);
+                          }}
+                        >
+                          <Trash2 className="size-4" /> Delete
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
