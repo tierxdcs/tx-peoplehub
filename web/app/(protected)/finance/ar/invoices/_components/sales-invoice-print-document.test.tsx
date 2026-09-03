@@ -7,7 +7,7 @@ import {
 } from './sales-invoice-print-document';
 
 const supplier = {
-  legalName: 'Phaze Dynamics India Pvt Ltd',
+  legalName: 'Phaze Dynamics Private Limited',
   gstin: '29AARCP3898H1ZG',
   addressLine1: '173, Industrial Suburb, 2nd Stage',
   addressLine2: null,
@@ -71,7 +71,7 @@ describe('SalesInvoicePrintDocument supplier block', () => {
     expect(screen.getByText('GSTIN: 29AARCP3898H1ZG')).toBeTruthy();
     // Registered name appears twice: the Rule 46 block and the signatory line.
     expect(
-      screen.getAllByText(/Phaze Dynamics India Pvt Ltd/).length,
+      screen.getAllByText(/Phaze Dynamics Private Limited/).length,
     ).toBeGreaterThanOrEqual(2);
     // Full single-line address — the footer prints the same street on its own
     // line, so match through the city to stay unambiguous.
@@ -80,6 +80,15 @@ describe('SalesInvoicePrintDocument supplier block', () => {
         '173, Industrial Suburb, 2nd Stage, Bengaluru, Karnataka, 560022',
       ),
     ).toBeTruthy();
+  });
+
+  it('prints the company bank details for customer payment', () => {
+    render(
+      <SalesInvoicePrintDocument invoice={invoice} generatedOn="2026-09-02" />,
+    );
+
+    expect(screen.getByText('Account Number: 777705031248')).toBeTruthy();
+    expect(screen.getByText('IFSC Code: ICICI0000078')).toBeTruthy();
   });
 
   it('names one legal entity only, preferring the statutory record', () => {

@@ -33,7 +33,7 @@ export const COMPANY = {
    * name the actual company (proposal closing), distinct from the `name`
    * wordmark/display name.
    */
-  legalEntityName: 'Phaze Dynamics India Pvt Ltd',
+  legalEntityName: 'Phaze Dynamics Private Limited',
   /**
    * Our GST registration. A supplier cannot raise a compliant tax invoice
    * against a purchase order without it, so printed orders state it.
@@ -41,6 +41,10 @@ export const COMPANY = {
    * FinanceCompanySettings row instead — keep the two in step.
    */
   gstin: '29AARCP3898H1ZG',
+  bankDetails: {
+    accountNumber: '777705031248',
+    ifscCode: 'ICICI0000078',
+  },
   /** "Get in touch" block on document headers (top-right). */
   contactEmail: 'info@phaze-dynamics.com',
   website: 'www.phaze-dynamics.com',

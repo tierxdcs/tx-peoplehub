@@ -938,13 +938,14 @@ export async function seed(prisma: PrismaClient): Promise<void> {
       // The real registered identity — this prints on the face of every tax
       // invoice and goes to the IRP, so it must not be a placeholder. PAN is
       // characters 3-12 of the GSTIN and has to agree with it.
-      legalName: 'Phaze Dynamics India Pvt Ltd',
+      legalName: 'Phaze Dynamics Private Limited',
       gstin: '29AARCP3898H1ZG',
-      addressLine1: '1 Industrial Area',
+      addressLine1: '173, Industrial Suburb, 2nd Stage',
+      addressLine2: 'Yeshwanthpur',
       city: 'Bengaluru',
       state: 'Karnataka',
       stateCode: '29',
-      postalCode: '560001',
+      postalCode: '560022',
       pan: 'AARCP3898H',
       tan: 'BLRP00000A',
     },

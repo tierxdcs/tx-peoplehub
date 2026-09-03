@@ -245,16 +245,26 @@ export function SalesInvoicePrintDocument({
     const value = invoice.signedQrCode;
     if (!value) {
       setQrImage(null);
-      return () => { active = false; };
+      return () => {
+        active = false;
+      };
     }
     if (value.startsWith('data:image/')) {
       setQrImage(value);
-      return () => { active = false; };
+      return () => {
+        active = false;
+      };
     }
-    QRCode.toDataURL(value, { errorCorrectionLevel: 'M', margin: 0, width: 144 })
+    QRCode.toDataURL(value, {
+      errorCorrectionLevel: 'M',
+      margin: 0,
+      width: 144,
+    })
       .then((dataUrl) => active && setQrImage(dataUrl))
       .catch(() => active && setQrImage(null));
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [invoice.signedQrCode]);
   const th: React.CSSProperties = {
     color: '#fff',
@@ -458,7 +468,9 @@ export function SalesInvoicePrintDocument({
                       <td style={td}>
                         {/* pre-line: the customer-facing description sits on
                             its own line under the name in the saved text. */}
-                        <div style={{ fontWeight: 600, whiteSpace: 'pre-line' }}>
+                        <div
+                          style={{ fontWeight: 600, whiteSpace: 'pre-line' }}
+                        >
                           {line.description}
                         </div>
                         {/* This prints on the customer's tax invoice: when the
@@ -511,18 +523,43 @@ export function SalesInvoicePrintDocument({
                       </div>
                     </div>
                   )}
+                  <div className="print-avoid-break" style={{ marginTop: 18 }}>
+                    <div style={{ color: NAVY, fontWeight: 700 }}>
+                      Bank details
+                    </div>
+                    <div style={{ marginTop: 3 }}>
+                      Account Number: {COMPANY.bankDetails.accountNumber}
+                    </div>
+                    <div>IFSC Code: {COMPANY.bankDetails.ifscCode}</div>
+                  </div>
                   {(invoice.irn || invoice.eWayBillNumber) && (
-                    <div className="print-avoid-break" style={{ color: MUTED, marginTop: 18 }}>
+                    <div
+                      className="print-avoid-break"
+                      style={{ color: MUTED, marginTop: 18 }}
+                    >
                       {qrImage && (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img alt="GST e-invoice signed QR code" src={qrImage} style={{ height: 112, marginBottom: 8, width: 112 }} />
+                        <img
+                          alt="GST e-invoice signed QR code"
+                          src={qrImage}
+                          style={{ height: 112, marginBottom: 8, width: 112 }}
+                        />
                       )}
-                      {invoice.irn && <div style={{ overflowWrap: 'anywhere' }}>IRN: {invoice.irn}</div>}
+                      {invoice.irn && (
+                        <div style={{ overflowWrap: 'anywhere' }}>
+                          IRN: {invoice.irn}
+                        </div>
+                      )}
                       {invoice.irnAcknowledgementNumber && (
                         <div>Ack No.: {invoice.irnAcknowledgementNumber}</div>
                       )}
                       {invoice.irnAcknowledgementDate && (
-                        <div>Ack Date: {new Date(invoice.irnAcknowledgementDate).toLocaleString('en-IN')}</div>
+                        <div>
+                          Ack Date:{' '}
+                          {new Date(
+                            invoice.irnAcknowledgementDate,
+                          ).toLocaleString('en-IN')}
+                        </div>
                       )}
                       {invoice.eWayBillNumber && (
                         <div>E-way bill: {invoice.eWayBillNumber}</div>
