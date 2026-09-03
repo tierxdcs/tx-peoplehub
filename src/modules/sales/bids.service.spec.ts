@@ -152,6 +152,23 @@ describe('BidsService', () => {
       expect(result.lineItems?.[0].unitPrice).toBe('125000');
     });
 
+    it('uses a bid-specific unit-price override without updating the product catalog', async () => {
+      const result = await service.create(
+        {
+          opportunityId: 'opp-1',
+          customerId: 'cust-1',
+          validUntil: '2026-10-31',
+          lineItems: [{ productId: 'prod-1', unitPrice: 130000, quantity: 2 }],
+        },
+        rep,
+      );
+
+      expect(result.lineItems?.[0].unitPrice).toBe('130000');
+      expect(result.subtotal).toBe('260000');
+      expect(prisma.product.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.product.update).toBeUndefined();
+    });
+
     it('applies a per-line discount before the bid-level discount', async () => {
       const result = await service.create(
         {

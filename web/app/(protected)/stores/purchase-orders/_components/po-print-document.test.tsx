@@ -138,7 +138,7 @@ describe('PurchaseOrderPrintDocument buyer identity', () => {
       <PurchaseOrderPrintDocument po={po(null)} generatedOn="2026-09-02" />,
     );
     const text = container.textContent ?? '';
-    expect(text).toContain('Phaze Dynamics India Pvt Ltd');
+    expect(text).toContain('Phaze Dynamics Private Limited');
     expect(text).toContain('GSTIN: 29AARCP3898H1ZG');
   });
 });

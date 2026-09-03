@@ -44,8 +44,8 @@ interface LineDraft {
   adHoc: boolean;
   adHocProductName: string;
   adHocDescription: string;
-  /** Rep-typed unit price for an ad-hoc line (real lines derive it). */
-  adHocUnitPrice: string;
+  /** Bid-specific base unit price; prefilled from catalog for real products. */
+  unitPriceInput: string;
 }
 
 /** Sentinel <option> value that switches a line into ad-hoc entry mode. */
@@ -60,7 +60,7 @@ function blankLine(): LineDraft {
     adHoc: false,
     adHocProductName: '',
     adHocDescription: '',
-    adHocUnitPrice: '',
+    unitPriceInput: '',
   };
 }
 
@@ -116,8 +116,8 @@ function computeTotals(
   const priceById = new Map(products.map((p) => [p.id, Number(p.unitPrice)]));
   let subtotal = 0;
   for (const l of lines) {
-    const price = l.adHoc
-      ? Number(l.adHocUnitPrice)
+    const price = l.unitPriceInput
+      ? Number(l.unitPriceInput)
       : priceById.get(l.productId);
     if (price === undefined || Number.isNaN(price) || !l.quantity) continue;
     const qty = Number(l.quantity);
@@ -233,12 +233,11 @@ export default function NewBidPage() {
       setError('Add at least one line item with a product and quantity');
       return;
     }
-    // Ad-hoc lines have no Product to snapshot a price from — require one.
-    const adHocMissingPrice = validLines.some(
-      (l) => l.adHoc && (l.adHocUnitPrice === '' || Number(l.adHocUnitPrice) < 0),
+    const missingPrice = validLines.some(
+      (l) => l.unitPriceInput === '' || Number(l.unitPriceInput) < 0,
     );
-    if (adHocMissingPrice) {
-      setError('Enter a unit price for each new (ad-hoc) product line');
+    if (missingPrice) {
+      setError('Enter a unit price for every bid line');
       return;
     }
 
@@ -281,9 +280,12 @@ export default function NewBidPage() {
               ? {
                   adHocProductName: l.adHocProductName.trim(),
                   adHocDescription: l.adHocDescription.trim() || undefined,
-                  unitPrice: Number(l.adHocUnitPrice),
+                  unitPrice: Number(l.unitPriceInput),
                 }
-              : { productId: l.productId }),
+              : {
+                  productId: l.productId,
+                  unitPrice: Number(l.unitPriceInput),
+                }),
             quantity: Number(l.quantity),
             lineDiscountPercent: l.lineDiscountPercent
               ? Number(l.lineDiscountPercent)
@@ -452,6 +454,10 @@ export default function NewBidPage() {
           <SCard className="overflow-hidden">
             <div className="flex flex-wrap items-center gap-2.5 px-5 pb-3.5 pt-[18px]">
               <span className="text-[14px] font-bold">Line items</span>
+              <span className="text-[11.5px] text-black/45 dark:text-white/40">
+                Unit-price edits apply only to this bid; the Product Catalog is
+                unchanged.
+              </span>
               <span className="ml-auto text-[11.5px] text-black/40 dark:text-white/35">
                 Amounts in ₹
               </span>
@@ -470,8 +476,8 @@ export default function NewBidPage() {
                 </div>
                 {lines.map((l, i) => {
                   const product = products.find((p) => p.id === l.productId);
-                  const unit = l.adHoc
-                    ? Number(l.adHocUnitPrice) || 0
+                  const unit = l.unitPriceInput
+                    ? Number(l.unitPriceInput)
                     : product
                       ? Number(product.unitPrice)
                       : 0;
@@ -484,9 +490,7 @@ export default function NewBidPage() {
                     marginNum,
                   );
                   const lineTotal = quotedUnit * qty * (1 - disc / 100);
-                  const hasValue = l.adHoc
-                    ? l.adHocUnitPrice !== ''
-                    : !!product;
+                  const hasValue = l.unitPriceInput !== '';
                   return (
                     <div
                       key={i}
@@ -511,14 +515,23 @@ export default function NewBidPage() {
                           onChange={(e) => {
                             const v = e.target.value;
                             if (v === AD_HOC_OPTION) {
-                              updateLine(i, { adHoc: true, productId: '' });
+                              updateLine(i, {
+                                adHoc: true,
+                                productId: '',
+                                unitPriceInput: '',
+                              });
                             } else {
+                              const selectedProduct = products.find(
+                                (candidate) => candidate.id === v,
+                              );
                               updateLine(i, {
                                 adHoc: false,
                                 productId: v,
                                 adHocProductName: '',
                                 adHocDescription: '',
-                                adHocUnitPrice: '',
+                                unitPriceInput: selectedProduct
+                                  ? String(selectedProduct.unitPrice)
+                                  : '',
                               });
                             }
                           }}
@@ -539,25 +552,19 @@ export default function NewBidPage() {
                             </option>
                           ))}
                         </Select>
-                        {l.adHoc ? (
-                          <Input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            placeholder="0.00"
-                            className="text-right tabular-nums"
-                            value={l.adHocUnitPrice}
-                            onChange={(e) =>
-                              updateLine(i, { adHocUnitPrice: e.target.value })
-                            }
-                          />
-                        ) : (
-                          <div className="text-right text-[12.5px] tabular-nums text-black/65 dark:text-white/60">
-                            {product
-                              ? formatINR(product.unitPrice, numberFormatStyle)
-                              : '—'}
-                          </div>
-                        )}
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          placeholder="0.00"
+                          aria-label={`Unit price for line ${i + 1}`}
+                          title="Bid-specific unit price; does not update the Product Catalog"
+                          className="text-right tabular-nums"
+                          value={l.unitPriceInput}
+                          onChange={(e) =>
+                            updateLine(i, { unitPriceInput: e.target.value })
+                          }
+                        />
                         <Input
                           type="number"
                           min={0}
@@ -748,7 +755,11 @@ export default function NewBidPage() {
                       />
                       {isPercent && amcResolved[yearNumber] > 0 && (
                         <span className="mt-0.5 block text-xs text-muted-foreground">
-                          = {formatINR(amcResolved[yearNumber], numberFormatStyle)}
+                          ={' '}
+                          {formatINR(
+                            amcResolved[yearNumber],
+                            numberFormatStyle,
+                          )}
                         </span>
                       )}
                     </div>
@@ -796,8 +807,8 @@ export default function NewBidPage() {
                 </span>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
-                Tax is applied server-side from the active GST config; the
-                final total appears on the bid after saving.
+                Tax is applied server-side from the active GST config; the final
+                total appears on the bid after saving.
               </div>
             </div>
           </SCard>

@@ -17,8 +17,8 @@ import {
 } from 'class-validator';
 
 /**
- * A bid line is either a real Product (productId set — unit price is snapshotted
- * server-side from Product.unitPrice) OR an ad-hoc placeholder the rep types in
+ * A bid line is either a real Product (productId set — unit price defaults to
+ * Product.unitPrice but may be overridden for this bid) OR an ad-hoc placeholder the rep types in
  * (adHocProductName + unitPrice set, productId omitted). Exactly one of the two
  * modes must be used per line — enforced in BidsService.create. Ad-hoc lines
  * must be resolved to a real Product before the bid can convert to an order.
@@ -51,7 +51,7 @@ export class BidLineItemDto {
   @ApiPropertyOptional({
     example: 12500,
     description:
-      'Unit price. Required for an ad-hoc line (there is no Product to snapshot from); ignored for a real-product line, which snapshots Product.unitPrice.',
+      'Bid-specific base unit price. Required for an ad-hoc line; optional for a real-product line, where it overrides the snapshotted Product.unitPrice without changing the Product catalog.',
   })
   @IsOptional()
   @IsNumber()

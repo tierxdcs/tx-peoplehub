@@ -156,8 +156,9 @@ export class BidsService {
       }
     }
 
-    // Snapshot each real product's current unitPrice — never a live reference.
-    // Ad-hoc lines carry the rep-typed unitPrice instead.
+    // Snapshot each real product's current unitPrice unless Sales supplied a
+    // bid-only override. This never writes back to Product: a quotation price
+    // must not change the catalog price used by unrelated opportunities.
     const productIds = dto.lineItems
       .map((li) => li.productId)
       .filter((id): id is string => !!id);
@@ -181,7 +182,10 @@ export class BidsService {
             `productId ${li.productId} does not reference a product`,
           );
         }
-        baseUnitPrice = snapshot;
+        baseUnitPrice =
+          li.unitPrice !== undefined
+            ? new Prisma.Decimal(li.unitPrice)
+            : snapshot;
       } else {
         baseUnitPrice = new Prisma.Decimal(li.unitPrice as number);
       }
