@@ -9,7 +9,15 @@ import {
   useState,
 } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ArrowUpDown, ClipboardCheck, Plus } from 'lucide-react';
+import {
+  ArrowUpDown,
+  CheckCircle2,
+  ClipboardCheck,
+  Clock3,
+  Plus,
+  Send,
+  Users,
+} from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { useIsHrStaff } from '../../../lib/use-is-hr-staff';
@@ -356,6 +364,16 @@ export default function CandidateRequisitionsPage() {
   // pulls the page back in range when a filter shrinks the list under it.
   const list = useRegisterList(rows, requisitionSearchText);
   const filtersActive = hasActiveRequisitionFilters(filters) || !!list.search;
+  const summary = useMemo(() => {
+    const stages = register.map(requisitionStage);
+    return {
+      open: stages.filter(
+        (stage) => !['FULFILLED', 'REJECTED', 'CANCELLED'].includes(stage),
+      ).length,
+      offersOut: stages.filter((stage) => stage === 'OFFER EXTENDED').length,
+      fulfilled: stages.filter((stage) => stage === 'FULFILLED').length,
+    };
+  }, [register]);
 
   /** Clicking the sorted column flips it; any other column takes its own default. */
   function toggleSort(key: RequisitionSortKey) {
@@ -386,6 +404,36 @@ export default function CandidateRequisitionsPage() {
           ) : undefined
         }
       />
+      <section
+        aria-label="Requisition overview"
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        <SummaryCard
+          label="Open requisitions"
+          value={summary.open}
+          hint="Active hiring demand"
+          icon={<Users className="size-4" />}
+        />
+        <SummaryCard
+          label="Awaiting your approval"
+          value={queue.length}
+          hint={isSuperAdmin ? 'Final CEO decisions' : 'Vertical decisions'}
+          icon={<Clock3 className="size-4" />}
+          attention={queue.length > 0}
+        />
+        <SummaryCard
+          label="Offers extended"
+          value={summary.offersOut}
+          hint="Waiting for candidates"
+          icon={<Send className="size-4" />}
+        />
+        <SummaryCard
+          label="Positions fulfilled"
+          value={summary.fulfilled}
+          hint="Onboarding completed"
+          icon={<CheckCircle2 className="size-4" />}
+        />
+      </section>
       {canCreate && (
         <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
           <DialogContent className="max-w-3xl">
@@ -449,14 +497,12 @@ export default function CandidateRequisitionsPage() {
                   max={20}
                   step={1}
                   value={numberOfPositions}
-                  onChange={(event) =>
-                    setNumberOfPositions(event.target.value)
-                  }
+                  onChange={(event) => setNumberOfPositions(event.target.value)}
                   required
                 />
                 <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                  Raises that many identical requisitions — each is approved
-                  and filled separately.
+                  Raises that many identical requisitions — each is approved and
+                  filled separately.
                 </span>
               </label>
               <label className="text-sm font-medium sm:col-span-2">
@@ -509,7 +555,7 @@ export default function CandidateRequisitionsPage() {
       )}
 
       {queue.length > 0 && (
-        <RequisitionTable
+        <ApprovalQueue
           title={
             isSuperAdmin
               ? 'Awaiting final CEO approval'
@@ -518,20 +564,7 @@ export default function CandidateRequisitionsPage() {
           items={queue}
           numberFormatStyle={numberFormatStyle}
           onView={setViewing}
-          actions={(requisition) => (
-            <>
-              <Button size="sm" onClick={() => decide(requisition, true)}>
-                Approve
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => decide(requisition, false)}
-              >
-                Reject
-              </Button>
-            </>
-          )}
+          onDecide={decide}
         />
       )}
 
@@ -652,6 +685,137 @@ export default function CandidateRequisitionsPage() {
         numberFormatStyle={numberFormatStyle}
       />
     </PageContainer>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  hint,
+  icon,
+  attention = false,
+}: {
+  label: string;
+  value: number;
+  hint: string;
+  icon: React.ReactNode;
+  attention?: boolean;
+}) {
+  return (
+    <Card className={attention ? 'border-amber-500/45 bg-amber-500/5' : ''}>
+      <CardContent className="flex items-start justify-between p-4">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground">{label}</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+        </div>
+        <div
+          className={
+            attention
+              ? 'rounded-full bg-amber-500/15 p-2 text-amber-500'
+              : 'rounded-full bg-muted p-2 text-muted-foreground'
+          }
+        >
+          {icon}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ApprovalQueue({
+  title,
+  items,
+  numberFormatStyle,
+  onView,
+  onDecide,
+}: {
+  title: string;
+  items: Requisition[];
+  numberFormatStyle: 'india' | 'international';
+  onView: (requisition: Requisition) => void;
+  onDecide: (requisition: Requisition, approve: boolean) => void;
+}) {
+  return (
+    <section className="space-y-3" aria-label={title}>
+      <div className="flex items-center gap-2">
+        <div className="rounded-full bg-amber-500/15 p-2 text-amber-500">
+          <Clock3 className="size-4" />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold">{title}</h2>
+          <p className="text-xs text-muted-foreground">
+            Review the role and budget before making a decision.
+          </p>
+        </div>
+        <Badge variant="secondary" className="ml-auto">
+          {items.length} pending
+        </Badge>
+      </div>
+      <div className="grid gap-3 xl:grid-cols-2">
+        {items.map((requisition) => (
+          <Card key={requisition.id} className="overflow-hidden">
+            <CardContent className="p-0">
+              <div className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">
+                      {requisition.positionTitle}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {requisition.requisitionNumber} ·{' '}
+                      {requisition.vertical.name}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="shrink-0">
+                    Pending approval
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Requested by
+                    </p>
+                    <p className="mt-0.5">
+                      {requisition.requestedBy.firstName}{' '}
+                      {requisition.requestedBy.lastName}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Annual CTC</p>
+                    <p className="mt-0.5 font-medium tabular-nums">
+                      {formatINR(
+                        requisition.budgetAnnualCtc,
+                        numberFormatStyle,
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t bg-muted/20 px-4 py-3">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onView(requisition)}
+                >
+                  View details
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => onDecide(requisition, false)}
+                >
+                  Reject
+                </Button>
+                <Button size="sm" onClick={() => onDecide(requisition, true)}>
+                  Approve
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -832,7 +996,9 @@ function RequisitionDetailsDialog({
   const [stage, setStage] = useState<HiringStage>('JOB_POSTED');
   const [saving, setSaving] = useState(false);
   const [applications, setApplications] = useState<CandidateApplication[]>([]);
-  const [applicationLinks, setApplicationLinks] = useState<ApplicationLink[]>([]);
+  const [applicationLinks, setApplicationLinks] = useState<ApplicationLink[]>(
+    [],
+  );
   const [applicationPassword, setApplicationPassword] = useState('');
   // Which link's "Email link" form is open; only one at a time, since the
   // addresses typed for one link would never be meant for another.
@@ -897,18 +1063,25 @@ function RequisitionDetailsDialog({
       );
       toast.success('Application link created and copied');
     } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : 'Link creation failed');
+      toast.error(
+        error instanceof ApiError ? error.message : 'Link creation failed',
+      );
     }
   }
 
   async function revokeApplicationLink(linkId: string) {
     try {
-      await apiFetch(`/candidate-requisitions/application-links/${linkId}/revoke`, {
-        method: 'POST',
-      });
+      await apiFetch(
+        `/candidate-requisitions/application-links/${linkId}/revoke`,
+        {
+          method: 'POST',
+        },
+      );
       setApplicationLinks((items) =>
         items.map((item) =>
-          item.id === linkId ? { ...item, revokedAt: new Date().toISOString() } : item,
+          item.id === linkId
+            ? { ...item, revokedAt: new Date().toISOString() }
+            : item,
         ),
       );
       toast.success('Application link revoked');
@@ -955,7 +1128,9 @@ function RequisitionDetailsDialog({
       }
     } catch (error) {
       toast.error(
-        error instanceof ApiError ? error.message : 'Failed to email the application link',
+        error instanceof ApiError
+          ? error.message
+          : 'Failed to email the application link',
       );
     } finally {
       setEmailing(false);
@@ -996,7 +1171,9 @@ function RequisitionDetailsDialog({
       );
       window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
     } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : 'Resume download failed');
+      toast.error(
+        error instanceof ApiError ? error.message : 'Resume download failed',
+      );
     }
   }
 
@@ -1036,7 +1213,8 @@ function RequisitionDetailsDialog({
     !!requisition &&
     requisition.hiringStage !== 'CANDIDATE_SELECTED' &&
     !requisition.offerLetters.some((offer) => offer.acceptedAt);
-  const publicOrigin = typeof window === 'undefined' ? '' : window.location.origin;
+  const publicOrigin =
+    typeof window === 'undefined' ? '' : window.location.origin;
 
   return (
     <Dialog
@@ -1146,8 +1324,8 @@ function RequisitionDetailsDialog({
                     </label>
                     <p className="text-xs text-muted-foreground">
                       Offer Extended and Fulfilled are not set here: sending the
-                      approved offer letter extends the offer, and onboarding the
-                      candidate who accepted it fulfils the requisition.
+                      approved offer letter extends the offer, and onboarding
+                      the candidate who accepted it fulfils the requisition.
                     </p>
                     <Button onClick={saveLifecycle} disabled={saving}>
                       {saving ? 'Saving…' : 'Save progress'}
@@ -1167,9 +1345,13 @@ function RequisitionDetailsDialog({
                           type="password"
                           placeholder="Optional link password"
                           value={applicationPassword}
-                          onChange={(event) => setApplicationPassword(event.target.value)}
+                          onChange={(event) =>
+                            setApplicationPassword(event.target.value)
+                          }
                         />
-                        <Button onClick={generateApplicationLink}>Generate link</Button>
+                        <Button onClick={generateApplicationLink}>
+                          Generate link
+                        </Button>
                       </div>
                     )}
                     {applicationLinks.map((link) => {
@@ -1180,30 +1362,58 @@ function RequisitionDetailsDialog({
                         new Date(link.expiresAt) > new Date() &&
                         linksOpen;
                       return (
-                        <div key={link.id} className="space-y-3 rounded-md border p-3">
+                        <div
+                          key={link.id}
+                          className="space-y-3 rounded-md border p-3"
+                        >
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div className="min-w-0">
                               <p className="truncate font-medium">{url}</p>
                               <p className="text-xs text-muted-foreground">
-                                Expires {new Date(link.expiresAt).toLocaleDateString()}
-                                {link.hasPassword ? ' · Password protected' : ' · No password'}
+                                Expires{' '}
+                                {new Date(link.expiresAt).toLocaleDateString()}
+                                {link.hasPassword
+                                  ? ' · Password protected'
+                                  : ' · No password'}
                                 {link.revokedAt ? ' · Revoked' : ''}
                               </p>
                             </div>
                             <div className="flex gap-2">
-                              {!link.revokedAt && <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(url)}>Copy</Button>}
+                              {!link.revokedAt && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    navigator.clipboard.writeText(url)
+                                  }
+                                >
+                                  Copy
+                                </Button>
+                              )}
                               {canEmail && (
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   onClick={() =>
-                                    setEmailLinkId((current) => (current === link.id ? null : link.id))
+                                    setEmailLinkId((current) =>
+                                      current === link.id ? null : link.id,
+                                    )
                                   }
                                 >
-                                  {emailLinkId === link.id ? 'Cancel email' : 'Email link'}
+                                  {emailLinkId === link.id
+                                    ? 'Cancel email'
+                                    : 'Email link'}
                                 </Button>
                               )}
-                              {canEditLifecycle && !link.revokedAt && <Button size="sm" variant="destructive" onClick={() => revokeApplicationLink(link.id)}>Revoke</Button>}
+                              {canEditLifecycle && !link.revokedAt && (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => revokeApplicationLink(link.id)}
+                                >
+                                  Revoke
+                                </Button>
+                              )}
                             </div>
                           </div>
                           {canEmail && emailLinkId === link.id && (
@@ -1212,18 +1422,22 @@ function RequisitionDetailsDialog({
                                 type="text"
                                 placeholder="Candidate emails, separated by commas"
                                 value={emailTo}
-                                onChange={(event) => setEmailTo(event.target.value)}
+                                onChange={(event) =>
+                                  setEmailTo(event.target.value)
+                                }
                               />
                               <Textarea
                                 rows={2}
                                 placeholder="Optional note to include in the email"
                                 value={emailNote}
-                                onChange={(event) => setEmailNote(event.target.value)}
+                                onChange={(event) =>
+                                  setEmailNote(event.target.value)
+                                }
                               />
                               <div className="flex items-center justify-between gap-2">
                                 <p className="text-xs text-muted-foreground">
-                                  Each candidate gets their own email — nobody sees who else was
-                                  approached.
+                                  Each candidate gets their own email — nobody
+                                  sees who else was approached.
                                   {link.hasPassword
                                     ? ' The link password is never included; share it separately.'
                                     : ''}
@@ -1231,7 +1445,10 @@ function RequisitionDetailsDialog({
                                 <Button
                                   size="sm"
                                   onClick={() => emailApplicationLink(link.id)}
-                                  disabled={emailing || !parseRecipientInput(emailTo).length}
+                                  disabled={
+                                    emailing ||
+                                    !parseRecipientInput(emailTo).length
+                                  }
                                 >
                                   {emailing ? 'Sending…' : 'Send email'}
                                 </Button>
@@ -1241,13 +1458,19 @@ function RequisitionDetailsDialog({
                         </div>
                       );
                     })}
-                    {!applicationLinks.length && <p className="text-sm text-muted-foreground">No application link has been generated.</p>}
+                    {!applicationLinks.length && (
+                      <p className="text-sm text-muted-foreground">
+                        No application link has been generated.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               )}
               <Card>
                 <CardHeader>
-                  <CardTitle>Candidate applications ({applications.length})</CardTitle>
+                  <CardTitle>
+                    Candidate applications ({applications.length})
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {applications.map((application) => (
@@ -1255,18 +1478,41 @@ function RequisitionDetailsDialog({
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <p className="font-semibold">{application.name}</p>
-                          <p className="text-muted-foreground">{application.contact} · {application.areaOfExpertise}</p>
+                          <p className="text-muted-foreground">
+                            {application.contact} ·{' '}
+                            {application.areaOfExpertise}
+                          </p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {application.totalExperienceYears} years total · {application.relevantExperienceYears} years relevant · Submitted {new Date(application.submittedAt).toLocaleString()}
+                            {application.totalExperienceYears} years total ·{' '}
+                            {application.relevantExperienceYears} years relevant
+                            · Submitted{' '}
+                            {new Date(application.submittedAt).toLocaleString()}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button size="sm" variant="outline" onClick={() => downloadResume(application)}>Resume</Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => downloadResume(application)}
+                          >
+                            Resume
+                          </Button>
                           {canEditLifecycle ? (
-                            <Select value={application.status} onChange={(event) => updateApplicationStatus(application, event.target.value as CandidateApplication['status'])}>
+                            <Select
+                              value={application.status}
+                              onChange={(event) =>
+                                updateApplicationStatus(
+                                  application,
+                                  event.target
+                                    .value as CandidateApplication['status'],
+                                )
+                              }
+                            >
                               <option value="SUBMITTED">Submitted</option>
                               <option value="UNDER_REVIEW">Under review</option>
-                              <option value="INTERVIEW_SCHEDULED">Interview scheduled</option>
+                              <option value="INTERVIEW_SCHEDULED">
+                                Interview scheduled
+                              </option>
                               <option value="SELECTED">Selected</option>
                               <option value="REJECTED">Rejected</option>
                               {/* Set by recording the candidate's decline on the
@@ -1276,17 +1522,41 @@ function RequisitionDetailsDialog({
                                 Offer declined
                               </option>
                             </Select>
-                          ) : <Badge variant="secondary">{application.status.replaceAll('_', ' ')}</Badge>}
+                          ) : (
+                            <Badge variant="secondary">
+                              {application.status.replaceAll('_', ' ')}
+                            </Badge>
+                          )}
                         </div>
                       </div>
-                      <p className="mt-3 whitespace-pre-wrap">{application.aboutExperience}</p>
-                      {application.projects && <p className="mt-2 whitespace-pre-wrap text-muted-foreground"><strong>Projects:</strong> {application.projects}</p>}
+                      <p className="mt-3 whitespace-pre-wrap">
+                        {application.aboutExperience}
+                      </p>
+                      {application.projects && (
+                        <p className="mt-2 whitespace-pre-wrap text-muted-foreground">
+                          <strong>Projects:</strong> {application.projects}
+                        </p>
+                      )}
                       <p className="mt-2 text-xs text-muted-foreground">
-                        Current CTC: {application.currentCtc ? formatINR(application.currentCtc, numberFormatStyle) : '—'} · Expected CTC: {application.expectedCtc ? formatINR(application.expectedCtc, numberFormatStyle) : '—'}
+                        Current CTC:{' '}
+                        {application.currentCtc
+                          ? formatINR(application.currentCtc, numberFormatStyle)
+                          : '—'}{' '}
+                        · Expected CTC:{' '}
+                        {application.expectedCtc
+                          ? formatINR(
+                              application.expectedCtc,
+                              numberFormatStyle,
+                            )
+                          : '—'}
                       </p>
                     </div>
                   ))}
-                  {!applications.length && <p className="text-sm text-muted-foreground">No applications received yet.</p>}
+                  {!applications.length && (
+                    <p className="text-sm text-muted-foreground">
+                      No applications received yet.
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             </div>
