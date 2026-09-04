@@ -48,6 +48,23 @@ import {
 
 type Candidate = { id: string; itemCode: string; name: string; score: number };
 
+/** Remove the redundant customer prefix used by legacy opportunity titles. */
+export function bomIntakeProductDescription(
+  opportunityName: string,
+  customerName?: string | null,
+): string {
+  const name = opportunityName.trim();
+  const customer = customerName?.trim();
+  if (!customer) return name;
+  for (const separator of [' — ', ' – ', ' - ']) {
+    const prefix = `${customer}${separator}`;
+    if (name.toLocaleLowerCase().startsWith(prefix.toLocaleLowerCase())) {
+      return name.slice(prefix.length).trim();
+    }
+  }
+  return name;
+}
+
 export type IntakeDerivedStatus =
   | 'DESIGN_IN_PROGRESS'
   | 'DRAFT'
@@ -404,10 +421,12 @@ export class CustomerBomIntakeService implements OnModuleInit {
         data: {
           sku: fgCode,
           name: dto.productName.trim(),
-          // Intake provenance belongs on CustomerBomIntake itself. Do not put
-          // it in the customer-facing catalog description: bids print Product
-          // descriptions verbatim on the proposal.
-          description: null,
+          // Retain the actual requirement, without exposing internal intake
+          // provenance or repeating the customer name on their proposal.
+          description: bomIntakeProductDescription(
+            opportunity.name,
+            opportunity.customer?.name,
+          ),
           // Nobody can price this yet: the cost arrives later from the awarded
           // RFQ quotes. autoPricedFromBomCost hands the price to the BOM
           // release, which will set it from that cost at the target margin.
@@ -1389,7 +1408,13 @@ export class CustomerBomIntakeService implements OnModuleInit {
     await this.access.assertSalesAccess(user);
     const opportunity = await this.prisma.opportunity.findUnique({
       where: { id },
-      select: { id: true, name: true, ownerId: true, customerId: true },
+      select: {
+        id: true,
+        name: true,
+        ownerId: true,
+        customerId: true,
+        customer: { select: { name: true } },
+      },
     });
     if (!opportunity) throw new NotFoundException('Opportunity not found');
     await this.access.assertCanAccessOwned(user, opportunity.ownerId);

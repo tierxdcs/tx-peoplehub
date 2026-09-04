@@ -2,10 +2,31 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   CustomerBomIntakeService,
   approvedQuote,
+  bomIntakeProductDescription,
   customerBomFileInput,
   deriveIntakeStatus,
   fuzzyItemScore,
 } from './customer-bom-intake.service';
+
+describe('bomIntakeProductDescription', () => {
+  it('removes a redundant customer prefix and retains the requirement', () => {
+    expect(
+      bomIntakeProductDescription(
+        "Yokogawa India Limited — Basic PDU's of IEC socket",
+        'Yokogawa India Limited',
+      ),
+    ).toBe("Basic PDU's of IEC socket");
+  });
+
+  it('retains an opportunity name that is already only a description', () => {
+    expect(
+      bomIntakeProductDescription(
+        'Vertical PDU with universal sockets',
+        'Yokogawa India Limited',
+      ),
+    ).toBe('Vertical PDU with universal sockets');
+  });
+});
 
 describe('customerBomFileInput', () => {
   it('allows a manually transcribed intake with no source file', () => {
@@ -58,9 +79,11 @@ describe('deriveIntakeStatus — register lifecycle label', () => {
       deriveIntakeStatus('DESIGN_PENDING' as any, 'RELEASED' as any, []),
     ).toBe('RELEASED');
     expect(
-      deriveIntakeStatus('DESIGN_PENDING' as any, 'DRAFT' as any, [
-        'AWARDED',
-      ] as any),
+      deriveIntakeStatus(
+        'DESIGN_PENDING' as any,
+        'DRAFT' as any,
+        ['AWARDED'] as any,
+      ),
     ).toBe('PRICED');
   });
 });
@@ -444,7 +467,11 @@ describe('CustomerBomIntakeService.create — catalog pricing defaults', () => {
       opportunity: {
         findUnique: jest
           .fn()
-          .mockResolvedValue({ id: 'opp-1', name: 'Hyperscale', ownerId: 'sales-1' }),
+          .mockResolvedValue({
+            id: 'opp-1',
+            name: 'Hyperscale',
+            ownerId: 'sales-1',
+          }),
       },
       businessUnit: { findFirst: jest.fn().mockResolvedValue({ id: 'bu-1' }) },
       item: {
@@ -482,7 +509,9 @@ describe('CustomerBomIntakeService.create — catalog pricing defaults', () => {
       numbering,
       {} as any,
       { create: jest.fn() } as any,
-      { get: jest.fn().mockReturnValue({ submitTransition: jest.fn() }) } as any,
+      {
+        get: jest.fn().mockReturnValue({ submitTransition: jest.fn() }),
+      } as any,
       design,
       {} as any,
     );
@@ -602,9 +631,9 @@ describe('CustomerBomIntakeService.create — catalog pricing defaults', () => {
       user,
     );
 
-    expect(
-      design.raiseRequestForBomIntake.mock.calls[0][0].targetDate,
-    ).toEqual(new Date('2026-11-20T00:00:00.000Z'));
+    expect(design.raiseRequestForBomIntake.mock.calls[0][0].targetDate).toEqual(
+      new Date('2026-11-20T00:00:00.000Z'),
+    );
   });
 
   it('refuses design work with no deadline at all', async () => {
@@ -772,7 +801,11 @@ describe('CustomerBomIntakeService.sendToDesign', () => {
     productName: 'Platform Emergency Kiosk',
     productId: 'prod-1',
     expectedBy: new Date('2026-10-20T00:00:00.000Z'),
-    opportunity: { name: 'Metro Phase 3', ownerId: 'sales-1', customerId: 'cust-1' },
+    opportunity: {
+      name: 'Metro Phase 3',
+      ownerId: 'sales-1',
+      customerId: 'cust-1',
+    },
     designRequests: [],
     ...overrides,
   });
@@ -809,9 +842,9 @@ describe('CustomerBomIntakeService.sendToDesign', () => {
       { ...dto, targetDate: '2026-10-05T00:00:00.000Z' },
       user,
     );
-    expect(
-      design.raiseRequestForBomIntake.mock.calls[0][0].targetDate,
-    ).toEqual(new Date('2026-10-05T00:00:00.000Z'));
+    expect(design.raiseRequestForBomIntake.mock.calls[0][0].targetDate).toEqual(
+      new Date('2026-10-05T00:00:00.000Z'),
+    );
   });
 
   it('refuses when neither a target date nor a promised date exists', async () => {
@@ -891,7 +924,10 @@ describe('CustomerBomIntakeService.sendToDesign', () => {
 describe('CustomerBomIntakeService.handoverDesignBom', () => {
   function setup(intake: Record<string, unknown> | null) {
     const prisma: any = {
-      customerBomIntake: { findUnique: jest.fn().mockResolvedValue(intake), update: jest.fn() },
+      customerBomIntake: {
+        findUnique: jest.fn().mockResolvedValue(intake),
+        update: jest.fn(),
+      },
       customerBomIntakeLine: { deleteMany: jest.fn() },
       bom: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -1132,9 +1168,9 @@ describe('CustomerBomIntakeService raw file access', () => {
 
   it('404s on an unknown intake before touching storage', async () => {
     const { service, storage } = setup(null);
-    await expect(
-      service.fileUrl('nope', salesUser),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.fileUrl('nope', salesUser)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     await expect(
       service.designFileUrl('nope', designer),
     ).rejects.toBeInstanceOf(NotFoundException);

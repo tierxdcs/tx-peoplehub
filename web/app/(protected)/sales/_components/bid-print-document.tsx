@@ -17,9 +17,16 @@ export function proposalProductDescription(
   description: string | null,
 ): string | null {
   if (!description) return null;
-  return /^created from customer bom intake for\b/i.test(description.trim())
-    ? null
-    : description;
+  const trimmed = description.trim();
+  if (!/^created from customer bom intake for\b/i.test(trimmed)) {
+    return description;
+  }
+  const withoutProvenance = trimmed.replace(
+    /^created from customer bom intake for\s*/i,
+    '',
+  );
+  const requirement = withoutProvenance.match(/^.+?\s+(?:—|–|-)\s+([\s\S]+)$/);
+  return (requirement?.[1] ?? withoutProvenance).trim() || null;
 }
 
 /** Render an address object/string as newline-joined lines (skips blanks). */

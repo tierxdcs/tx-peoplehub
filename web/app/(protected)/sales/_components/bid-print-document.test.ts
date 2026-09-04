@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { proposalProductDescription } from './bid-print-document';
 
 describe('proposalProductDescription', () => {
-  it('hides legacy customer BOM intake provenance', () => {
+  it('removes BOM-intake provenance and customer while retaining the requirement', () => {
     expect(
       proposalProductDescription(
-        'Created from customer BOM intake for Yokogawa India Limited',
+        "Created from customer BOM intake for Yokogawa India Limited — Basic PDU's of IEC socket",
       ),
-    ).toBeNull();
+    ).toBe("Basic PDU's of IEC socket");
   });
 
   it('retains a genuine customer-facing product specification', () => {
