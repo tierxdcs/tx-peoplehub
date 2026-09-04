@@ -525,12 +525,30 @@ export function SalesInvoicePrintDocument({
                   )}
                   <div className="print-avoid-break" style={{ marginTop: 18 }}>
                     <div style={{ color: NAVY, fontWeight: 700 }}>
-                      Bank details
+                      Company&apos;s Bank Details
                     </div>
-                    <div style={{ marginTop: 3 }}>
-                      Account Number: {COMPANY.bankDetails.accountNumber}
-                    </div>
-                    <div>IFSC Code: {COMPANY.bankDetails.ifscCode}</div>
+                    <table style={{ borderCollapse: 'collapse', marginTop: 3 }}>
+                      <tbody>
+                        {[
+                          [
+                            "A/c Holder's Name",
+                            COMPANY.bankDetails.accountHolderName,
+                          ],
+                          ['Bank Name', COMPANY.bankDetails.bankName],
+                          ['A/c No.', COMPANY.bankDetails.accountNumber],
+                          [
+                            'Branch & IFS Code',
+                            `${COMPANY.bankDetails.branch} & ${COMPANY.bankDetails.ifscCode}`,
+                          ],
+                        ].map(([label, value]) => (
+                          <tr key={label}>
+                            <td style={{ padding: '0 8px 0 0' }}>{label}</td>
+                            <td style={{ padding: '0 8px 0 0' }}>:</td>
+                            <td style={{ fontWeight: 700 }}>{value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                   {(invoice.irn || invoice.eWayBillNumber) && (
                     <div

@@ -87,8 +87,14 @@ describe('SalesInvoicePrintDocument supplier block', () => {
       <SalesInvoicePrintDocument invoice={invoice} generatedOn="2026-09-02" />,
     );
 
-    expect(screen.getByText('Account Number: 777705031248')).toBeTruthy();
-    expect(screen.getByText('IFSC Code: ICICI0000078')).toBeTruthy();
+    expect(screen.getByText("Company's Bank Details")).toBeTruthy();
+    expect(screen.getByText("A/c Holder's Name")).toBeTruthy();
+    expect(
+      screen.getByText('PHAZE DYNAMICS INDIA PRIVATE LIMITED'),
+    ).toBeTruthy();
+    expect(screen.getByText('ICICI BANK')).toBeTruthy();
+    expect(screen.getByText('777705031248')).toBeTruthy();
+    expect(screen.getByText('MALLESWARAM & ICIC0000078')).toBeTruthy();
   });
 
   it('names one legal entity only, preferring the statutory record', () => {

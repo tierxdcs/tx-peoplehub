@@ -42,8 +42,11 @@ export const COMPANY = {
    */
   gstin: '29AARCP3898H1ZG',
   bankDetails: {
+    accountHolderName: 'PHAZE DYNAMICS INDIA PRIVATE LIMITED',
+    bankName: 'ICICI BANK',
     accountNumber: '777705031248',
-    ifscCode: 'ICICI0000078',
+    branch: 'MALLESWARAM',
+    ifscCode: 'ICIC0000078',
   },
   /** "Get in touch" block on document headers (top-right). */
   contactEmail: 'info@phaze-dynamics.com',
