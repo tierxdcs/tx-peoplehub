@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ClipboardCheck, Plus } from 'lucide-react';
+import { ArrowUpDown, ClipboardCheck, Plus } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { useIsHrStaff } from '../../../lib/use-is-hr-staff';
@@ -52,6 +52,19 @@ import { useNumberFormat } from '../../../lib/number-format-context';
 import { RegisterToolbar } from '../../../components/ui/register-toolbar';
 import { RegisterPagination } from '../../../components/ui/register-pagination';
 import { EmptyState } from '../../../components/ui/empty-state';
+import { useRegisterList } from '../../../lib/use-register-list';
+import {
+  EMPTY_REQUISITION_FILTERS,
+  REQUISITION_SORT_DEFAULT_DIRECTION,
+  filterRequisitions,
+  hasActiveRequisitionFilters,
+  requisitionFilterOptions,
+  requisitionSearchText,
+  requisitionStage,
+  sortRequisitions,
+  type RequisitionSortKey,
+  type SortDirection,
+} from '../../../lib/candidate-requisition-register';
 import type { EmploymentType } from '../../../lib/types';
 
 type HiringStage =
@@ -153,13 +166,12 @@ function offerLetterSummary(offer: Requisition['offerLetters'][number]) {
   return `${offer.referenceNumber} · ${offer.status.replaceAll('_', ' ')} · ${answer}`;
 }
 
-function lifecycleLabel(requisition: Requisition) {
-  if (requisition.status !== 'APPROVED') {
-    return requisition.status.replaceAll('_', ' ');
-  }
-  if (requisition.hiringStage === 'CANDIDATE_SELECTED') return 'FULFILLED';
-  return requisition.hiringStage?.replaceAll('_', ' ') ?? 'APPROVED';
-}
+/** How one column sorts, and the click that changes it. */
+type SortState = {
+  key: RequisitionSortKey;
+  direction: SortDirection;
+  toggle: (key: RequisitionSortKey) => void;
+};
 
 export default function CandidateRequisitionsPage() {
   const { user } = useAuth();
@@ -184,9 +196,12 @@ export default function CandidateRequisitionsPage() {
   const [budgetAnnualCtc, setBudgetAnnualCtc] = useState('');
   const [numberOfPositions, setNumberOfPositions] = useState('1');
   const [targetJoiningDate, setTargetJoiningDate] = useState('');
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [filters, setFilters] = useState(EMPTY_REQUISITION_FILTERS);
+  // Newest first, matching the order the register arrives in — so the default
+  // view is unchanged and sorting is something the user opts into.
+  const [sortKey, setSortKey] =
+    useState<RequisitionSortKey>('requisitionNumber');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const canCreate =
     user &&
     ['MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role) &&
@@ -325,17 +340,37 @@ export default function CandidateRequisitionsPage() {
     }
   }
 
-  const filtered = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    if (!needle) return register;
-    return register.filter((requisition) =>
-      `${requisition.requisitionNumber} ${requisition.positionTitle} ${lifecycleLabel(requisition)} ${requisition.requestedBy.firstName} ${requisition.requestedBy.lastName} ${requisition.vertical.name} ${requisition.selectedCandidateName ?? ''}`
-        .toLowerCase()
-        .includes(needle),
-    );
-  }, [register, search]);
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
+  // Dropdowns are built from the register itself, so an option never returns an
+  // empty list and a vertical nobody has hired for never appears.
+  const options = useMemo(() => requisitionFilterOptions(register), [register]);
+  const rows = useMemo(
+    () =>
+      sortRequisitions(
+        filterRequisitions(register, filters),
+        sortKey,
+        sortDirection,
+      ),
+    [register, filters, sortKey, sortDirection],
+  );
+  // Search and paging on top of the filtered, sorted rows — the shared hook also
+  // pulls the page back in range when a filter shrinks the list under it.
+  const list = useRegisterList(rows, requisitionSearchText);
+  const filtersActive = hasActiveRequisitionFilters(filters) || !!list.search;
+
+  /** Clicking the sorted column flips it; any other column takes its own default. */
+  function toggleSort(key: RequisitionSortKey) {
+    if (key === sortKey) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+    setSortKey(key);
+    setSortDirection(REQUISITION_SORT_DEFAULT_DIRECTION[key]);
+  }
+
+  const clearFilters = () => {
+    setFilters(EMPTY_REQUISITION_FILTERS);
+    list.setSearch('');
+  };
 
   return (
     <PageContainer>
@@ -502,18 +537,93 @@ export default function CandidateRequisitionsPage() {
 
       <RegisterToolbar
         title="Requisition Register"
-        search={search}
-        onSearchChange={(value) => {
-          setSearch(value);
-          setPage(1);
-        }}
-        searchPlaceholder="Search requester, position, candidate or stage"
+        search={list.search}
+        onSearchChange={list.setSearch}
+        searchPlaceholder="Search requisition, requester, position, candidate or stage"
+        filters={
+          <>
+            <Select
+              className="w-56"
+              aria-label="Filter by hiring stage"
+              value={filters.stage}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  stage: event.target.value,
+                }))
+              }
+            >
+              <option value="">All stages</option>
+              {/* The two groups first: "what is still to be filled" is the
+                  question HR asks far more often than any single stage. */}
+              <optgroup label="Groups">
+                <option value="group:open">Open — not yet filled</option>
+                <option value="group:closed">
+                  Closed — filled, rejected or cancelled
+                </option>
+              </optgroup>
+              <optgroup label="Stage">
+                {options.stages.map((stage) => (
+                  <option key={stage} value={stage}>
+                    {stage}
+                  </option>
+                ))}
+              </optgroup>
+            </Select>
+            <Select
+              className="w-48"
+              aria-label="Filter by vertical"
+              value={filters.vertical}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  vertical: event.target.value,
+                }))
+              }
+            >
+              <option value="">All verticals</option>
+              {options.verticals.map((vertical) => (
+                <option key={vertical} value={vertical}>
+                  {vertical}
+                </option>
+              ))}
+            </Select>
+            <Select
+              className="w-48"
+              aria-label="Filter by requester"
+              value={filters.requesterId}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  requesterId: event.target.value,
+                }))
+              }
+            >
+              <option value="">All requesters</option>
+              {options.requesters.map((requester) => (
+                <option key={requester.id} value={requester.id}>
+                  {requester.name}
+                </option>
+              ))}
+            </Select>
+            {filtersActive && (
+              <Button variant="outline" onClick={clearFilters}>
+                Clear
+              </Button>
+            )}
+          </>
+        }
       />
       <RequisitionTable
-        title="All visible requisitions"
-        items={pageItems}
+        title={
+          filtersActive
+            ? `Showing ${list.filteredItems.length} of ${register.length} requisitions`
+            : 'All visible requisitions'
+        }
+        items={list.visibleItems}
         numberFormatStyle={numberFormatStyle}
         onView={setViewing}
+        sort={{ key: sortKey, direction: sortDirection, toggle: toggleSort }}
         actions={(requisition) =>
           requisition.requestedBy.id === user?.sub &&
           ['PENDING_VERTICAL_APPROVAL', 'PENDING_SUPERADMIN_APPROVAL'].includes(
@@ -530,9 +640,9 @@ export default function CandidateRequisitionsPage() {
         }
       />
       <RegisterPagination
-        page={page}
-        pageCount={pageCount}
-        onPageChange={setPage}
+        page={list.page}
+        pageCount={list.pageCount}
+        onPageChange={list.setPage}
       />
       <RequisitionDetailsDialog
         requisition={viewing}
@@ -545,18 +655,71 @@ export default function CandidateRequisitionsPage() {
   );
 }
 
+/**
+ * One column heading. Sortable only where the caller passes sort state — the
+ * approval queue is a handful of rows in the order they must be decided, so
+ * offering to reorder it would be noise.
+ */
+function SortHead({
+  label,
+  sortKey,
+  sort,
+  right,
+}: {
+  label: string;
+  sortKey: RequisitionSortKey;
+  sort?: SortState;
+  right?: boolean;
+}) {
+  if (!sort) {
+    return (
+      <TableHead className={right ? 'text-right' : undefined}>
+        {label}
+      </TableHead>
+    );
+  }
+  const active = sort.key === sortKey;
+  return (
+    <TableHead
+      className={right ? 'text-right' : undefined}
+      // aria-sort belongs to the column, not the button inside it.
+      aria-sort={
+        active
+          ? sort.direction === 'asc'
+            ? 'ascending'
+            : 'descending'
+          : 'none'
+      }
+    >
+      <button
+        type="button"
+        onClick={() => sort.toggle(sortKey)}
+        aria-label={`Sort by ${label.toLowerCase()}`}
+        className={`inline-flex items-center gap-1 hover:text-foreground ${
+          active ? 'text-foreground' : ''
+        }`}
+      >
+        {label}
+        <ArrowUpDown className="size-3" />
+      </button>
+    </TableHead>
+  );
+}
+
 function RequisitionTable({
   title,
   items,
   numberFormatStyle,
   onView,
   actions,
+  sort,
 }: {
   title: string;
   items: Requisition[];
   numberFormatStyle: 'india' | 'international';
   onView: (requisition: Requisition) => void;
   actions?: (requisition: Requisition) => React.ReactNode;
+  sort?: SortState;
 }) {
   return (
     <Card>
@@ -567,11 +730,20 @@ function RequisitionTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Requisition</TableHead>
-              <TableHead>Position</TableHead>
-              <TableHead>Requester</TableHead>
-              <TableHead className="text-right">Annual CTC budget</TableHead>
-              <TableHead>Hiring status</TableHead>
+              <SortHead
+                label="Requisition"
+                sortKey="requisitionNumber"
+                sort={sort}
+              />
+              <SortHead label="Position" sortKey="positionTitle" sort={sort} />
+              <SortHead label="Requester" sortKey="requester" sort={sort} />
+              <SortHead
+                label="Annual CTC budget"
+                sortKey="budgetAnnualCtc"
+                sort={sort}
+                right
+              />
+              <SortHead label="Hiring status" sortKey="stage" sort={sort} />
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -600,12 +772,12 @@ function RequisitionTable({
                 <TableCell>
                   <Badge
                     variant={
-                      lifecycleLabel(requisition) === 'FULFILLED'
+                      requisitionStage(requisition) === 'FULFILLED'
                         ? 'success'
                         : 'secondary'
                     }
                   >
-                    {lifecycleLabel(requisition)}
+                    {requisitionStage(requisition)}
                   </Badge>
                   {requisition.selectedCandidateName && (
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -911,7 +1083,7 @@ function RequisitionDetailsDialog({
                 />
                 <Detail
                   label="Current status"
-                  value={lifecycleLabel(requisition)}
+                  value={requisitionStage(requisition)}
                 />
                 {requisition.selectedCandidateName && (
                   <Detail
