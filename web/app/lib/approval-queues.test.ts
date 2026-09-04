@@ -3,6 +3,7 @@ import {
   APPROVAL_QUEUES,
   approvalBadgesByHref,
   oldestPendingApproval,
+  pendingApprovalQueues,
   totalPendingApprovals,
   type PendingCounts,
 } from './approval-queues';
@@ -89,6 +90,84 @@ describe('approvalBadgesByHref', () => {
       '/scm/bom/pending-approval',
       '/stores/purchase-orders',
     ]);
+  });
+});
+
+describe('pendingApprovalQueues', () => {
+  it('returns nothing before the payload has loaded, and nothing when clear', () => {
+    expect(pendingApprovalQueues(null, NOW)).toEqual([]);
+    expect(pendingApprovalQueues(counts(), NOW)).toEqual([]);
+  });
+
+  it('lists only the non-empty queues, longest-waiting first', () => {
+    const rows = pendingApprovalQueues(
+      counts({
+        leaveApprovals: { count: 2, oldestPendingAt: hoursAgo(30) },
+        expenseClaimApprovals: { count: 5, oldestPendingAt: hoursAgo(100) },
+        designChangeApprovals: { count: 1, oldestPendingAt: hoursAgo(80) },
+      }),
+      NOW,
+    );
+
+    expect(rows.map((r) => r.queue.key)).toEqual([
+      'expenseClaimApprovals',
+      'designChangeApprovals',
+      'leaveApprovals',
+    ]);
+    expect(rows.map((r) => r.tier)).toEqual(['stale', 'stale', 'aging']);
+    expect(rows[0].count).toBe(5);
+  });
+
+  it('sends each row to a link the queue actually registers', () => {
+    const rows = pendingApprovalQueues(
+      counts({
+        leaveApprovals: { count: 1, oldestPendingAt: hoursAgo(3) },
+        adHocPoApprovals: { count: 1, oldestPendingAt: hoursAgo(9) },
+      }),
+      NOW,
+    );
+
+    expect(rows.map((r) => r.href)).toEqual([
+      '/stores/purchase-orders',
+      '/team/leave-approvals',
+    ]);
+  });
+
+  it('keeps a queue with no waiting-since stamp, at the bottom', () => {
+    // The user still has to act on it; we just cannot say how overdue it is.
+    const rows = pendingApprovalQueues(
+      counts({
+        adHocPoApprovals: { count: 4, oldestPendingAt: null },
+        leaveApprovals: { count: 1, oldestPendingAt: hoursAgo(2) },
+      }),
+      NOW,
+    );
+
+    expect(rows.map((r) => r.queue.key)).toEqual([
+      'leaveApprovals',
+      'adHocPoApprovals',
+    ]);
+    expect(rows[1].hoursWaiting).toBe(0);
+    expect(rows[1].tier).toBe('ok');
+  });
+
+  it('adds up to the number on the chip that opens it', () => {
+    const payload = counts({
+      bidAssessmentApprovals: { count: 1, oldestPendingAt: hoursAgo(5) },
+      candidateRequisitionApprovals: {
+        count: 7,
+        oldestPendingAt: hoursAgo(60),
+      },
+      bomReleaseApprovals: { count: 2, oldestPendingAt: null },
+      expenseClaimApprovals: { count: 3, oldestPendingAt: hoursAgo(1) },
+      adHocPoApprovals: { count: 1, oldestPendingAt: hoursAgo(12) },
+    });
+
+    const rows = pendingApprovalQueues(payload, NOW);
+    expect(rows).toHaveLength(5);
+    expect(rows.reduce((total, r) => total + r.count, 0)).toBe(
+      totalPendingApprovals(payload),
+    );
   });
 });
 

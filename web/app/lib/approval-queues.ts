@@ -153,6 +153,48 @@ export interface OldestApproval {
   tier: UrgencyTier;
 }
 
+/** One non-empty queue, with where it goes and how long it has been waiting. */
+export interface PendingApprovalQueue {
+  queue: ApprovalQueueDef;
+  count: number;
+  /** null when the queue reports no waiting-since stamp for its oldest item. */
+  oldestPendingAt: string | null;
+  href: string;
+  hoursWaiting: number;
+  tier: UrgencyTier;
+}
+
+/**
+ * Every queue with something in it, longest-waiting first — the rows of the
+ * dashboard's approvals dropdown. Queues that report no waiting-since stamp
+ * count as zero hours and sink to the bottom rather than being dropped: the user
+ * still has to act on them, we just can't say how overdue they are.
+ *
+ * Sorting is stable, so queues that have waited the same whole number of hours
+ * stay in registry order.
+ */
+export function pendingApprovalQueues(
+  counts: PendingCounts | null,
+  now: Date = new Date(),
+): PendingApprovalQueue[] {
+  if (!counts) return [];
+  return APPROVAL_QUEUES.filter((queue) => (counts[queue.key]?.count ?? 0) > 0)
+    .map((queue) => {
+      const summary = counts[queue.key];
+      return {
+        queue,
+        count: summary.count,
+        oldestPendingAt: summary.oldestPendingAt,
+        href: queue.hrefs[0],
+        hoursWaiting: summary.oldestPendingAt
+          ? ageHours(summary.oldestPendingAt, now)
+          : 0,
+        tier: queueTier(summary.oldestPendingAt, now),
+      };
+    })
+    .sort((a, b) => b.hoursWaiting - a.hoursWaiting);
+}
+
 /**
  * The single longest-waiting pending approval across every queue — what the
  * dashboard banner compares against the most-overdue Kanban task. Queues that
@@ -162,20 +204,15 @@ export function oldestPendingApproval(
   counts: PendingCounts | null,
   now: Date = new Date(),
 ): OldestApproval | null {
-  if (!counts) return null;
-  let best: OldestApproval | null = null;
-  for (const queue of APPROVAL_QUEUES) {
-    const summary = counts[queue.key];
-    if (!summary || summary.count <= 0 || !summary.oldestPendingAt) continue;
-    const hoursWaiting = ageHours(summary.oldestPendingAt, now);
-    if (best && hoursWaiting <= best.hoursWaiting) continue;
-    best = {
-      queue,
-      count: summary.count,
-      oldestPendingAt: summary.oldestPendingAt,
-      hoursWaiting,
-      tier: queueTier(summary.oldestPendingAt, now),
+  for (const row of pendingApprovalQueues(counts, now)) {
+    if (!row.oldestPendingAt) continue;
+    return {
+      queue: row.queue,
+      count: row.count,
+      oldestPendingAt: row.oldestPendingAt,
+      hoursWaiting: row.hoursWaiting,
+      tier: row.tier,
     };
   }
-  return best;
+  return null;
 }

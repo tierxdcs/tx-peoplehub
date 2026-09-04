@@ -37,12 +37,11 @@ import {
 } from '../../lib/pings';
 import { usePendingApprovalCounts } from '../../lib/use-pending-approval-counts';
 import {
-  APPROVAL_QUEUES,
   oldestPendingApproval,
-  totalPendingApprovals,
   type OldestApproval,
 } from '../../lib/approval-queues';
 import { CheckinTimer } from './_components/checkin-timer';
+import { PendingApprovalsMenu } from './_components/pending-approvals-menu';
 import { ageHours } from '../../lib/urgency';
 import {
   getMyEfficiencyScore,
@@ -333,23 +332,6 @@ export default function DashboardPage() {
   ).length;
   const projectsAtRisk = health.atRisk + health.blocked;
 
-  // Everything waiting on this user, across all 12 queues. The ribbon links to
-  // the longest-waiting queue — the one worth opening first — and names the full
-  // split on hover, since no single page lists every approval type.
-  const pendingApprovals = useMemo(
-    () => totalPendingApprovals(counts),
-    [counts],
-  );
-  const approvalsHref =
-    oldestPendingApproval(counts, now)?.queue.hrefs[0] ?? '/dashboard';
-  const approvalsBreakdown = useMemo(() => {
-    if (!counts) return '';
-    const parts = APPROVAL_QUEUES.filter(
-      (queue) => (counts[queue.key]?.count ?? 0) > 0,
-    ).map((queue) => `${queue.label}: ${counts[queue.key].count}`);
-    return parts.join('\n');
-  }, [counts]);
-
   const dateLabel = now
     .toLocaleDateString('en-GB', {
       weekday: 'short',
@@ -377,19 +359,7 @@ export default function DashboardPage() {
           {dateLabel}
         </span>
         <span className="hidden h-3.5 w-px bg-black/15 dark:bg-white/[.12] sm:inline" />
-        {pendingApprovals > 0 ? (
-          <Link
-            href={approvalsHref}
-            title={approvalsBreakdown}
-            className="rounded-full bg-[#E08A2C]/[.16] px-[11px] py-[5px] text-[11.5px] font-semibold text-[#C9761B] transition-opacity hover:opacity-80 dark:text-[#E08A2C]"
-          >
-            {pendingApprovals} awaiting your approval
-          </Link>
-        ) : (
-          <span className="rounded-full px-[11px] py-[5px] text-[11.5px] font-medium text-black/50 dark:text-white/45">
-            No approvals pending
-          </span>
-        )}
+        <PendingApprovalsMenu counts={counts} now={now} />
         <span className="h-3.5 w-px bg-black/15 dark:bg-white/[.12]" />
         <CheckinTimer />
         {(stats.overdue > 0 || projectsAtRisk > 0) && (
