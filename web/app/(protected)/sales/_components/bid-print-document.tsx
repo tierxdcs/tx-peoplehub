@@ -12,6 +12,16 @@ const ACCENT = '#e0a83d';
 const RULE = '#dfe3e8';
 const MUTED = '#6b7280';
 
+/** Keep legacy internal BOM-intake provenance off customer proposals. */
+export function proposalProductDescription(
+  description: string | null,
+): string | null {
+  if (!description) return null;
+  return /^created from customer bom intake for\b/i.test(description.trim())
+    ? null
+    : description;
+}
+
 /** Render an address object/string as newline-joined lines (skips blanks). */
 function addressLines(addr: unknown): string[] {
   if (!addr) return [];
@@ -61,47 +71,56 @@ function Kicker({ children }: { children: React.ReactNode }) {
 function PageHeader() {
   return (
     <div>
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        paddingBottom: 10,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        {COMPANY.logoPath ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={COMPANY.logoPath}
-            alt={`${COMPANY.name} logo`}
-            style={{ height: 52, width: 'auto', objectFit: 'contain' }}
-          />
-        ) : (
-          <span style={{ fontSize: 22, fontWeight: 800 }}>{COMPANY.name}</span>
-        )}
-      </div>
-      <div style={{ textAlign: 'right', fontSize: 11, color: MUTED }}>
-        <div
-          style={{
-            fontSize: 9,
-            fontWeight: 700,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            color: NAVY,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 6,
-          }}
-        >
-          <span style={{ width: 8, height: 8, background: ACCENT, display: 'inline-block' }} />
-          Get in touch
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          paddingBottom: 10,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          {COMPANY.logoPath ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={COMPANY.logoPath}
+              alt={`${COMPANY.name} logo`}
+              style={{ height: 52, width: 'auto', objectFit: 'contain' }}
+            />
+          ) : (
+            <span style={{ fontSize: 22, fontWeight: 800 }}>
+              {COMPANY.name}
+            </span>
+          )}
         </div>
-        <div style={{ marginTop: 3 }}>{COMPANY.contactEmail}</div>
-        <div>{COMPANY.website}</div>
+        <div style={{ textAlign: 'right', fontSize: 11, color: MUTED }}>
+          <div
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: NAVY,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: 6,
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                background: ACCENT,
+                display: 'inline-block',
+              }}
+            />
+            Get in touch
+          </div>
+          <div style={{ marginTop: 3 }}>{COMPANY.contactEmail}</div>
+          <div>{COMPANY.website}</div>
+        </div>
       </div>
-    </div>
       {/* Thin full-width rule with an amber segment on the left — repeats on
        * every page as part of the running header (matches the reference). The
        * base line is a solid navy BORDER (prints even when "Background
@@ -145,7 +164,9 @@ function PageFooter() {
           }}
         />
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 24 }}>
+      <div
+        style={{ display: 'flex', justifyContent: 'space-between', gap: 24 }}
+      >
         <div style={{ fontSize: 9, color: MUTED, maxWidth: '55%' }}>
           <div
             style={{
@@ -326,7 +347,9 @@ export function BidPrintDocument({
                 >
                   <tbody>
                     <tr>
-                      <td style={{ color: MUTED, paddingRight: 14 }}>Quote Ref</td>
+                      <td style={{ color: MUTED, paddingRight: 14 }}>
+                        Quote Ref
+                      </td>
                       <td
                         style={{
                           fontWeight: 700,
@@ -338,7 +361,13 @@ export function BidPrintDocument({
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ color: MUTED, paddingRight: 14, paddingTop: 4 }}>
+                      <td
+                        style={{
+                          color: MUTED,
+                          paddingRight: 14,
+                          paddingTop: 4,
+                        }}
+                      >
                         Quote Date
                       </td>
                       <td
@@ -352,7 +381,13 @@ export function BidPrintDocument({
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ color: MUTED, paddingRight: 14, paddingTop: 4 }}>
+                      <td
+                        style={{
+                          color: MUTED,
+                          paddingRight: 14,
+                          paddingTop: 4,
+                        }}
+                      >
                         Valid Until
                       </td>
                       <td
@@ -379,7 +414,16 @@ export function BidPrintDocument({
                 }}
               >
                 <div style={{ fontSize: 12 }}>
-                  <div style={{ color: ACCENT, fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+                  <div
+                    style={{
+                      color: ACCENT,
+                      fontWeight: 700,
+                      fontSize: 10,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      marginBottom: 6,
+                    }}
+                  >
                     Prepared For
                   </div>
                   <div style={{ fontWeight: 700 }}>{contactName ?? '—'}</div>
@@ -391,7 +435,16 @@ export function BidPrintDocument({
                   ))}
                 </div>
                 <div style={{ fontSize: 12, textAlign: 'right' }}>
-                  <div style={{ color: ACCENT, fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+                  <div
+                    style={{
+                      color: ACCENT,
+                      fontWeight: 700,
+                      fontSize: 10,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      marginBottom: 6,
+                    }}
+                  >
                     Prepared By
                   </div>
                   <div style={{ fontWeight: 700 }}>{COMPANY.name}</div>
@@ -414,10 +467,10 @@ export function BidPrintDocument({
                 Dear {contactName ?? 'Sir/Madam'},
               </p>
               <p style={{ fontSize: 12, marginBottom: 24 }}>
-                We sincerely thank you for your interest in our solutions and for
-                considering {COMPANY.name} for your esteemed requirements. It is
-                our pleasure to submit our commercial offer for the supply of{' '}
-                {subject ?? 'your requirements'}, as detailed below.
+                We sincerely thank you for your interest in our solutions and
+                for considering {COMPANY.name} for your esteemed requirements.
+                It is our pleasure to submit our commercial offer for the supply
+                of {subject ?? 'your requirements'}, as detailed below.
               </p>
 
               {/* Commercial offer table */}
@@ -456,10 +509,12 @@ export function BidPrintDocument({
                       <td style={td}>{i + 1}</td>
                       <td style={td}>{li.productSku}</td>
                       <td style={td}>
-                        <span style={{ fontWeight: 600 }}>{li.productName}</span>
-                        {li.productDescription && (
+                        <span style={{ fontWeight: 600 }}>
+                          {li.productName}
+                        </span>
+                        {proposalProductDescription(li.productDescription) && (
                           <div style={{ color: MUTED, marginTop: 2 }}>
-                            {li.productDescription}
+                            {proposalProductDescription(li.productDescription)}
                           </div>
                         )}
                       </td>
@@ -509,7 +564,10 @@ export function BidPrintDocument({
                     </tr>
                   ))}
                   {/* Grand total — highlighted */}
-                  <tr className="print-avoid-break" style={{ background: '#eef1f4' }}>
+                  <tr
+                    className="print-avoid-break"
+                    style={{ background: '#eef1f4' }}
+                  >
                     <td
                       colSpan={6}
                       style={{
@@ -553,7 +611,9 @@ export function BidPrintDocument({
 
               {/* General terms & conditions */}
               <Kicker>General Terms &amp; Conditions</Kicker>
-              <ol style={{ fontSize: 11, paddingLeft: 20, margin: '10px 0 28px' }}>
+              <ol
+                style={{ fontSize: 11, paddingLeft: 20, margin: '10px 0 28px' }}
+              >
                 {PROPOSAL_TERMS.map((term, i) => (
                   <li
                     key={i}
@@ -588,10 +648,14 @@ export function BidPrintDocument({
                   },
                 ].map((b) => (
                   <div key={b.heading} style={{ flex: 1, fontSize: 11 }}>
-                    <div style={{ fontWeight: 700, color: NAVY, marginBottom: 44 }}>
+                    <div
+                      style={{ fontWeight: 700, color: NAVY, marginBottom: 44 }}
+                    >
                       {b.heading}
                     </div>
-                    <div style={{ borderTop: `1px solid ${NAVY}`, paddingTop: 6 }}>
+                    <div
+                      style={{ borderTop: `1px solid ${NAVY}`, paddingTop: 6 }}
+                    >
                       {b.l1}
                     </div>
                     <div style={{ color: MUTED }}>{b.l2}</div>
@@ -601,12 +665,14 @@ export function BidPrintDocument({
 
               {/* Closing */}
               <p style={{ fontSize: 12, marginBottom: 14 }}>
-                We look forward to the opportunity of working with you and remain
-                available for any technical or commercial clarifications.
+                We look forward to the opportunity of working with you and
+                remain available for any technical or commercial clarifications.
               </p>
               <div style={{ fontSize: 12 }}>
                 <div>Warm regards,</div>
-                <div style={{ fontWeight: 700, marginTop: 2 }}>{preparedBy}</div>
+                <div style={{ fontWeight: 700, marginTop: 2 }}>
+                  {preparedBy}
+                </div>
                 <div>{COMPANY.legalEntityName}</div>
               </div>
             </td>

@@ -177,10 +177,11 @@ function customerBomFileInputs(dto: {
   attachments?: Array<{ fileKey: string; fileName: string }>;
 }) {
   const legacy = customerBomFileInput(dto);
-  const files = dto.attachments?.map((file) => ({
-    key: file.fileKey,
-    name: file.fileName,
-  })) ?? (legacy ? [legacy] : []);
+  const files =
+    dto.attachments?.map((file) => ({
+      key: file.fileKey,
+      name: file.fileName,
+    })) ?? (legacy ? [legacy] : []);
   if (files.length > 10) {
     throw new BadRequestException('A BOM intake can contain at most 10 files');
   }
@@ -403,7 +404,10 @@ export class CustomerBomIntakeService implements OnModuleInit {
         data: {
           sku: fgCode,
           name: dto.productName.trim(),
-          description: `Created from customer BOM intake for ${opportunity.name}`,
+          // Intake provenance belongs on CustomerBomIntake itself. Do not put
+          // it in the customer-facing catalog description: bids print Product
+          // descriptions verbatim on the proposal.
+          description: null,
           // Nobody can price this yet: the cost arrives later from the awarded
           // RFQ quotes. autoPricedFromBomCost hands the price to the BOM
           // release, which will set it from that cost at the target margin.
@@ -910,7 +914,9 @@ export class CustomerBomIntakeService implements OnModuleInit {
         opportunity: {
           select: { name: true, ownerId: true, customerId: true },
         },
-        designRequests: { select: { id: true, requestNumber: true, status: true } },
+        designRequests: {
+          select: { id: true, requestNumber: true, status: true },
+        },
       },
     });
     if (!intake) throw new NotFoundException('Customer BOM intake not found');
@@ -971,7 +977,11 @@ export class CustomerBomIntakeService implements OnModuleInit {
         expectedBy: true,
         createdAt: true,
         opportunity: {
-          select: { id: true, name: true, customer: { select: { name: true } } },
+          select: {
+            id: true,
+            name: true,
+            customer: { select: { name: true } },
+          },
         },
         businessUnit: { select: { name: true } },
         bom: { select: { id: true, status: true, revisionNumber: true } },
@@ -1006,7 +1016,11 @@ export class CustomerBomIntakeService implements OnModuleInit {
         rawFileName: true,
         finishedGoodItemId: true,
         opportunity: {
-          select: { id: true, name: true, customer: { select: { name: true } } },
+          select: {
+            id: true,
+            name: true,
+            customer: { select: { name: true } },
+          },
         },
         businessUnit: { select: { name: true } },
         createdBy: { select: { firstName: true, lastName: true } },
@@ -1115,7 +1129,9 @@ export class CustomerBomIntakeService implements OnModuleInit {
         finishedGoodItemId: true,
         createdById: true,
         opportunity: { select: { id: true, name: true, ownerId: true } },
-        designRequests: { select: { id: true, requestNumber: true, status: true } },
+        designRequests: {
+          select: { id: true, requestNumber: true, status: true },
+        },
       },
     });
     if (!intake) throw new NotFoundException('Customer BOM intake not found');
