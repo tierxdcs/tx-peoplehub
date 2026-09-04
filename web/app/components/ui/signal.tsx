@@ -80,9 +80,12 @@ export const SIGNAL_BTN_OUTLINE =
  */
 export function SignalPage({
   className,
+  style,
   children,
 }: {
   className?: string;
+  /** For page-scoped CSS custom properties (e.g. a measured chrome height). */
+  style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
   useEffect(() => {
@@ -93,6 +96,7 @@ export function SignalPage({
   }, []);
   return (
     <div
+      style={style}
       className={cn(
         '-m-4 min-h-[calc(100dvh-3.5rem)] bg-[#F4F4F4] text-[#1B1B1B] md:-m-6 dark:bg-[#1B1B1B] dark:text-[#EDEDED]',
         className,

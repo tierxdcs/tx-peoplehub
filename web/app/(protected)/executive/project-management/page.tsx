@@ -91,8 +91,16 @@ const DELIVERY_TIERS: Array<{
 }> = [
   { tier: 'OVERDUE', label: 'Overdue', color: CHART_COLORS.red },
   { tier: 'URGENT', label: 'Due within 2 days', color: '#E5484D' },
-  { tier: 'APPROACHING', label: 'Due within a week', color: CHART_COLORS.orange },
-  { tier: 'ON_TRACK', label: 'More than a week out', color: CHART_COLORS.green },
+  {
+    tier: 'APPROACHING',
+    label: 'Due within a week',
+    color: CHART_COLORS.orange,
+  },
+  {
+    tier: 'ON_TRACK',
+    label: 'More than a week out',
+    color: CHART_COLORS.green,
+  },
   { tier: 'UNCONFIRMED', label: 'No promised date', color: CHART_COLORS.slate },
 ];
 
@@ -130,7 +138,11 @@ function Row({
 }) {
   return (
     <div
-      className={cn('border-b py-2.5 last:border-b-0', SIGNAL_ROW_DIVIDER, className)}
+      className={cn(
+        'border-b py-2.5 last:border-b-0',
+        SIGNAL_ROW_DIVIDER,
+        className,
+      )}
     >
       {children}
     </div>
@@ -157,7 +169,9 @@ function BucketBars({
     <div className="space-y-2">
       {buckets.map((bucket) => (
         <div key={bucket.key} className="flex items-center gap-3">
-          <span className={cn('w-[76px] flex-none text-[11.5px]', SIGNAL_MUTED)}>
+          <span
+            className={cn('w-[76px] flex-none text-[11.5px]', SIGNAL_MUTED)}
+          >
             {bucket.label}
           </span>
           <span className="h-[9px] flex-1 overflow-hidden rounded-[3px] bg-black/[.06] dark:bg-white/[.07]">
@@ -201,7 +215,9 @@ export default function ProjectManagementExecutiveDashboardPage() {
         setError(null);
       })
       .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : 'Failed to load dashboard'),
+        setError(
+          err instanceof Error ? err.message : 'Failed to load dashboard',
+        ),
       )
       .finally(() => setLoading(false));
   }, []);
@@ -252,6 +268,11 @@ export default function ProjectManagementExecutiveDashboardPage() {
   );
 
   const overdueDeliveries = deliveryByTier.get('OVERDUE') ?? 0;
+  const troubledPercent =
+    healthCounts.total > 0
+      ? ((healthCounts.BLOCKED + healthCounts.AT_RISK) / healthCounts.total) *
+        100
+      : null;
 
   if (!data) {
     return (
@@ -277,11 +298,22 @@ export default function ProjectManagementExecutiveDashboardPage() {
     );
   }
 
-  const { portfolio, blockers, workload, awaitingKickoff, ordersAwaitingDelivery, milestones, actionItems, risks, pings } = data;
+  const {
+    portfolio,
+    blockers,
+    workload,
+    awaitingKickoff,
+    ordersAwaitingDelivery,
+    milestones,
+    actionItems,
+    risks,
+    pings,
+  } = data;
 
   return (
     <ExecutiveShell
       active="project-management"
+      fixedHeader
       title="Project Management Dashboard"
       chip={
         <SignalChip>
@@ -302,36 +334,68 @@ export default function ProjectManagementExecutiveDashboardPage() {
           Refresh
         </button>
       }
+      // ══ Who to look at, and the one project to look at first ═══════════
+      toolbar={
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={cn('text-[12px] font-semibold', SIGNAL_MUTED)}>
+              Project manager
+            </span>
+            <select
+              value={pmFilter}
+              onChange={(event) => setPmFilter(event.target.value)}
+              className="min-w-64 rounded-lg border border-black/15 bg-white px-3 py-2 text-[12px] dark:border-white/[.16] dark:bg-[#232323]"
+            >
+              <option value="">All project managers</option>
+              {workload.rows.map((row) => (
+                <option key={row.pmId} value={row.pmId}>
+                  {row.pm} — {row.activeProjects} project(s), {row.openTasks}{' '}
+                  task(s)
+                </option>
+              ))}
+            </select>
+            {filtered && (
+              <button
+                type="button"
+                onClick={() => setPmFilter('')}
+                className={cn(SIGNAL_BTN_GHOST, 'text-[11.5px]')}
+              >
+                Clear filter
+              </button>
+            )}
+            <span className={cn('ml-auto text-[11.5px]', SIGNAL_FAINT)}>
+              {projects.length} project(s) in this view
+            </span>
+          </div>
+          <nav
+            className="flex gap-1 overflow-x-auto"
+            aria-label="Dashboard sections"
+          >
+            {[
+              ['#portfolio', 'Overview'],
+              ['#projects', 'Projects'],
+              ['#blockers', `Blockers (${blockers.total})`],
+              ['#delivery', `Delivery (${overdueDeliveries} overdue)`],
+              ['#workload', 'Workload'],
+              ['#execution', 'Milestones & actions'],
+              [
+                '#risks',
+                `Risks & pings (${risks.highImpactOpen + pings.unacknowledged})`,
+              ],
+            ].map(([href, label]) => (
+              <a
+                key={href}
+                href={href}
+                className="whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11.5px] font-medium text-black/55 hover:bg-black/[.06] hover:text-black/80 dark:text-white/55 dark:hover:bg-white/[.08] dark:hover:text-white/85"
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+        </div>
+      }
     >
       {error && <Callout variant="danger">{error}</Callout>}
-
-      {/* ══ Who to look at, and the one project to look at first ═══════════ */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={cn('text-[12px] font-semibold', SIGNAL_MUTED)}>
-          Project manager
-        </span>
-        <select
-          value={pmFilter}
-          onChange={(event) => setPmFilter(event.target.value)}
-          className="rounded-lg border border-black/15 bg-white px-3 py-2 text-[12px] dark:border-white/[.16] dark:bg-[#232323]"
-        >
-          <option value="">All project managers</option>
-          {workload.rows.map((row) => (
-            <option key={row.pmId} value={row.pmId}>
-              {row.pm} — {row.activeProjects} project(s), {row.openTasks} task(s)
-            </option>
-          ))}
-        </select>
-        {filtered && (
-          <button
-            type="button"
-            onClick={() => setPmFilter('')}
-            className={cn(SIGNAL_BTN_GHOST, 'text-[11.5px]')}
-          >
-            Clear
-          </button>
-        )}
-      </div>
 
       {portfolio.worst && !filtered && (
         <Callout variant="danger">
@@ -341,47 +405,49 @@ export default function ProjectManagementExecutiveDashboardPage() {
         </Callout>
       )}
 
-      <StatStrip>
-        <StatTile
-          label="Blocked projects"
-          value={healthCounts.BLOCKED}
-          valueClass={healthCounts.BLOCKED > 0 ? DANGER_TEXT : undefined}
-          hint={
-            healthCounts.BLOCKED === 0
-              ? `nothing blocked across ${healthCounts.total} active project(s)`
-              : `of ${healthCounts.total} active · ${blockers.total} blocker(s) to clear`
-          }
-        />
-        <StatTile
-          label="At-risk projects"
-          value={healthCounts.AT_RISK}
-          valueClass={healthCounts.AT_RISK > 0 ? WARNING_TEXT : undefined}
-          hint={`${milestones.overdue} overdue milestone(s) · ${actionItems.overdue} overdue action(s)`}
-        />
-        <StatTile
-          label="Overdue deliveries"
-          value={overdueDeliveries}
-          valueClass={overdueDeliveries > 0 ? DANGER_TEXT : undefined}
-          hint={
-            data.delivery.measured === 0
-              ? 'no project has a promised date to measure against'
-              : `of ${deliveryRows.length - (deliveryByTier.get('UNCONFIRMED') ?? 0)} with a promised date · avg overrun ${number(data.delivery.averageOverrunDays)} day(s)`
-          }
-        />
-        <StatTile
-          label="Awaiting kickoff"
-          value={awaitingKickoff.total}
-          valueClass={awaitingKickoff.total > 0 ? WARNING_TEXT : undefined}
-          hint={
-            awaitingKickoff.total === 0
-              ? 'every qualifying order has a kickoff'
-              : `oldest waiting ${awaitingKickoff.rows[0]?.waitingDays ?? 0} day(s) · ${awaitingKickoff.alreadyOverdue} already past its promised date`
-          }
-        />
-      </StatStrip>
+      <div id="portfolio" className="scroll-mt-[var(--exec-chrome-height)]">
+        <StatStrip>
+          <StatTile
+            label="Blocked projects"
+            value={healthCounts.BLOCKED}
+            valueClass={healthCounts.BLOCKED > 0 ? DANGER_TEXT : undefined}
+            hint={
+              healthCounts.BLOCKED === 0
+                ? `nothing blocked across ${healthCounts.total} active project(s)`
+                : `of ${healthCounts.total} active · ${blockers.total} blocker(s) to clear`
+            }
+          />
+          <StatTile
+            label="At-risk projects"
+            value={healthCounts.AT_RISK}
+            valueClass={healthCounts.AT_RISK > 0 ? WARNING_TEXT : undefined}
+            hint={`${milestones.overdue} overdue milestone(s) · ${actionItems.overdue} overdue action(s)`}
+          />
+          <StatTile
+            label="Overdue deliveries"
+            value={overdueDeliveries}
+            valueClass={overdueDeliveries > 0 ? DANGER_TEXT : undefined}
+            hint={
+              data.delivery.measured === 0
+                ? 'no project has a promised date to measure against'
+                : `of ${deliveryRows.length - (deliveryByTier.get('UNCONFIRMED') ?? 0)} with a promised date · avg overrun ${number(data.delivery.averageOverrunDays)} day(s)`
+            }
+          />
+          <StatTile
+            label="Awaiting kickoff"
+            value={awaitingKickoff.total}
+            valueClass={awaitingKickoff.total > 0 ? WARNING_TEXT : undefined}
+            hint={
+              awaitingKickoff.total === 0
+                ? 'every qualifying order has a kickoff'
+                : `oldest waiting ${awaitingKickoff.rows[0]?.waitingDays ?? 0} day(s) · ${awaitingKickoff.alreadyOverdue} already past its promised date`
+            }
+          />
+        </StatStrip>
+      </div>
 
       {/* ══ §1 Portfolio shape: health, stage, age ════════════════════════ */}
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid scroll-mt-[var(--exec-chrome-height)] gap-4 xl:grid-cols-2">
         <SCard className="p-5">
           <SCardTitle
             title="Project health"
@@ -393,17 +459,17 @@ export default function ProjectManagementExecutiveDashboardPage() {
           />
           <div className="mt-4 flex items-center gap-5">
             <Donut
-              slices={(['BLOCKED', 'AT_RISK', 'ON_TRACK'] as ProjectHealth[]).map(
-                (health) => ({
-                  label: titleCase(health),
-                  value: healthCounts[health],
-                  color: HEALTH_COLOR[health],
-                  percentLabel:
-                    healthCounts.total > 0
-                      ? `${Math.round((healthCounts[health] / healthCounts.total) * 100)}%`
-                      : null,
-                }),
-              )}
+              slices={(
+                ['BLOCKED', 'AT_RISK', 'ON_TRACK'] as ProjectHealth[]
+              ).map((health) => ({
+                label: titleCase(health),
+                value: healthCounts[health],
+                color: HEALTH_COLOR[health],
+                percentLabel:
+                  healthCounts.total > 0
+                    ? `${Math.round((healthCounts[health] / healthCounts.total) * 100)}%`
+                    : null,
+              }))}
               centerValue={String(healthCounts.total)}
               centerLabel="active projects"
             />
@@ -424,12 +490,11 @@ export default function ProjectManagementExecutiveDashboardPage() {
                 ),
               )}
               <div className={cn('pt-1 text-[11.5px]', SIGNAL_FAINT)}>
-                {filtered
-                  ? 'Portfolio-wide'
-                  : 'Needing intervention'}
-                :{' '}
+                {filtered ? 'Portfolio-wide' : 'Needing intervention'}:{' '}
                 <span className="font-semibold tabular-nums">
-                  {percent(portfolio.troubledPercent)}
+                  {troubledPercent === null
+                    ? '—'
+                    : `${troubledPercent.toFixed(1)}%`}
                 </span>{' '}
                 · average project age{' '}
                 <span className="font-semibold tabular-nums">
@@ -484,108 +549,113 @@ export default function ProjectManagementExecutiveDashboardPage() {
       </div>
 
       {/* ══ §1 The named list: every project, its PM, its health ═════════ */}
-      <SCard className="p-5">
-        <SCardTitle
-          title="Project status"
-          subtitle="Worst first — every project named with the PM who owns it"
-          right={
-            <span className={cn('text-[11px]', SIGNAL_FAINT)}>
-              {projects.length} of {portfolio.activeTotal} shown
-            </span>
-          }
-        />
-        <div className="mt-3 grid gap-x-6 md:grid-cols-2">
-          {projects.length === 0 ? (
-            <Empty>
-              {portfolio.note ??
-                'No active project for the selected project manager.'}
-            </Empty>
-          ) : (
-            projects.map((project) => (
-              <Row key={project.kickoffId}>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Link
-                    href={`/project-kickoff/${project.kickoffId}`}
-                    className={cn('text-[13px] font-semibold', SIGNAL_LINK)}
-                  >
-                    {project.projectName}
-                  </Link>
-                  <ToneChip tone={HEALTH_TONE[project.health]}>
-                    {titleCase(project.health)}
-                  </ToneChip>
-                  <span
-                    className={cn(
-                      'ml-auto text-[11.5px] font-semibold tabular-nums',
-                      DELIVERY_URGENCY_TEXT_CLASS[
-                        deliveryUrgencyTier(project.daysUntilDue)
-                      ],
-                    )}
-                  >
-                    {deliveryCountdownLabel(project.daysUntilDue)}
-                  </span>
-                </div>
-                <div className={cn('mt-1 text-[12px]', SIGNAL_MUTED)}>
-                  PM <span className="font-semibold">{project.pm}</span> ·{' '}
-                  {project.orderNumber} · {titleCase(project.currentStage)} ·{' '}
-                  {project.ageDays} day(s) old
-                </div>
-                <div className={cn('mt-1 text-[12px]')}>
-                  {project.healthReason}
-                </div>
-                {/* The lamp strip: the shared stage ladder, unmodified. */}
-                <div className="mt-2 flex gap-1">
-                  {project.stages.map((stage) => (
+      <div id="projects" className="scroll-mt-[var(--exec-chrome-height)]">
+        <SCard className="p-5">
+          <SCardTitle
+            title="Project status"
+            subtitle="Worst first — every project named with the PM who owns it"
+            right={
+              <span className={cn('text-[11px]', SIGNAL_FAINT)}>
+                {projects.length} of {portfolio.activeTotal} shown
+              </span>
+            }
+          />
+          <div className="mt-3 grid gap-x-6 md:grid-cols-2">
+            {projects.length === 0 ? (
+              <Empty>
+                {portfolio.note ??
+                  'No active project for the selected project manager.'}
+              </Empty>
+            ) : (
+              projects.map((project) => (
+                <Row key={project.kickoffId}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/project-kickoff/${project.kickoffId}`}
+                      className={cn('text-[13px] font-semibold', SIGNAL_LINK)}
+                    >
+                      {project.projectName}
+                    </Link>
+                    <ToneChip tone={HEALTH_TONE[project.health]}>
+                      {titleCase(project.health)}
+                    </ToneChip>
                     <span
-                      key={stage.key}
-                      title={`${stage.label}: ${stage.detail || titleCase(stage.state)}`}
-                      className="h-[5px] flex-1 rounded-full"
-                      style={{
-                        background:
-                          stage.state === 'COMPLETE'
-                            ? CHART_COLORS.green
-                            : stage.state === 'IN_PROGRESS'
-                              ? CHART_COLORS.blue
-                              : stage.state === 'ATTENTION'
-                                ? CHART_COLORS.red
-                                : 'var(--sd-track)',
-                      }}
-                    />
-                  ))}
-                </div>
-                {(project.overdueMilestones > 0 ||
-                  project.overdueActionItems > 0 ||
-                  project.openHighRisks > 0 ||
-                  project.overdueTasks > 0) && (
-                  <div className={cn('mt-1.5 text-[11.5px]', WARNING_TEXT)}>
-                    {[
-                      project.overdueMilestones > 0 &&
-                        `${project.overdueMilestones} overdue milestone(s)`,
-                      project.overdueActionItems > 0 &&
-                        `${project.overdueActionItems} overdue action(s)`,
-                      project.openHighRisks > 0 &&
-                        `${project.openHighRisks} severe risk(s)`,
-                      project.overdueTasks > 0 &&
-                        `${project.overdueTasks} overdue task(s)`,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
+                      className={cn(
+                        'ml-auto text-[11.5px] font-semibold tabular-nums',
+                        DELIVERY_URGENCY_TEXT_CLASS[
+                          deliveryUrgencyTier(project.daysUntilDue)
+                        ],
+                      )}
+                    >
+                      {deliveryCountdownLabel(project.daysUntilDue)}
+                    </span>
                   </div>
-                )}
-                {project.nextMilestone && (
-                  <div className={cn('mt-1 text-[11.5px]', SIGNAL_FAINT)}>
-                    Next: {project.nextMilestone.name} ·{' '}
-                    {project.nextMilestone.owner} ·{' '}
-                    {date(project.nextMilestone.targetDate)}
+                  <div className={cn('mt-1 text-[12px]', SIGNAL_MUTED)}>
+                    PM <span className="font-semibold">{project.pm}</span> ·{' '}
+                    {project.orderNumber} · {titleCase(project.currentStage)} ·{' '}
+                    {project.ageDays} day(s) old
                   </div>
-                )}
-              </Row>
-            ))
-          )}
-        </div>
-      </SCard>
+                  <div className={cn('mt-1 text-[12px]')}>
+                    {project.healthReason}
+                  </div>
+                  {/* The lamp strip: the shared stage ladder, unmodified. */}
+                  <div className="mt-2 flex gap-1">
+                    {project.stages.map((stage) => (
+                      <span
+                        key={stage.key}
+                        title={`${stage.label}: ${stage.detail || titleCase(stage.state)}`}
+                        className="h-[5px] flex-1 rounded-full"
+                        style={{
+                          background:
+                            stage.state === 'COMPLETE'
+                              ? CHART_COLORS.green
+                              : stage.state === 'IN_PROGRESS'
+                                ? CHART_COLORS.blue
+                                : stage.state === 'ATTENTION'
+                                  ? CHART_COLORS.red
+                                  : 'var(--sd-track)',
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {(project.overdueMilestones > 0 ||
+                    project.overdueActionItems > 0 ||
+                    project.openHighRisks > 0 ||
+                    project.overdueTasks > 0) && (
+                    <div className={cn('mt-1.5 text-[11.5px]', WARNING_TEXT)}>
+                      {[
+                        project.overdueMilestones > 0 &&
+                          `${project.overdueMilestones} overdue milestone(s)`,
+                        project.overdueActionItems > 0 &&
+                          `${project.overdueActionItems} overdue action(s)`,
+                        project.openHighRisks > 0 &&
+                          `${project.openHighRisks} severe risk(s)`,
+                        project.overdueTasks > 0 &&
+                          `${project.overdueTasks} overdue task(s)`,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </div>
+                  )}
+                  {project.nextMilestone && (
+                    <div className={cn('mt-1 text-[11.5px]', SIGNAL_FAINT)}>
+                      Next: {project.nextMilestone.name} ·{' '}
+                      {project.nextMilestone.owner} ·{' '}
+                      {date(project.nextMilestone.targetDate)}
+                    </div>
+                  )}
+                </Row>
+              ))
+            )}
+          </div>
+        </SCard>
+      </div>
 
       {/* ══ §2 Actionable blockers — who to call ══════════════════════════ */}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+      <div
+        id="blockers"
+        className="grid scroll-mt-[var(--exec-chrome-height)] gap-4 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]"
+      >
         <SCard className="p-5">
           <SCardTitle
             title="Actionable blockers"
@@ -611,11 +681,17 @@ export default function ProjectManagementExecutiveDashboardPage() {
                     <div className="flex gap-2">
                       {entry.severity === 'BLOCKED' ? (
                         <ShieldAlert
-                          className={cn('mt-0.5 size-3.5 flex-none', DANGER_TEXT)}
+                          className={cn(
+                            'mt-0.5 size-3.5 flex-none',
+                            DANGER_TEXT,
+                          )}
                         />
                       ) : (
                         <AlertTriangle
-                          className={cn('mt-0.5 size-3.5 flex-none', WARNING_TEXT)}
+                          className={cn(
+                            'mt-0.5 size-3.5 flex-none',
+                            WARNING_TEXT,
+                          )}
                         />
                       )}
                       <div className="min-w-0 flex-1">
@@ -698,9 +774,14 @@ export default function ProjectManagementExecutiveDashboardPage() {
                       >
                         {owner.owner}
                       </span>
-                      <span className={cn('flex-none text-[12px] tabular-nums', SIGNAL_MUTED)}>
-                        {owner.count} blocker(s) · {owner.projectCount} project(s)
-                        · {percent(owner.sharePercent)}
+                      <span
+                        className={cn(
+                          'flex-none text-[12px] tabular-nums',
+                          SIGNAL_MUTED,
+                        )}
+                      >
+                        {owner.count} blocker(s) · {owner.projectCount}{' '}
+                        project(s) · {percent(owner.sharePercent)}
                       </span>
                     </Row>
                   ))}
@@ -718,215 +799,233 @@ export default function ProjectManagementExecutiveDashboardPage() {
       </div>
 
       {/* ══ §3 Delivery date progress, per PM ════════════════════════════ */}
-      <SCard className="p-5">
-        <SCardTitle
-          title="Delivery date progress"
-          subtitle="Same promised-date urgency scale the PLM rows use, grouped by PM"
-          right={
-            <span className={cn('text-[11px]', SIGNAL_FAINT)}>
-              {data.delivery.unconfirmed} project(s) have no promised date
-            </span>
-          }
-        />
-        <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,4fr)_minmax(0,6fr)]">
-          <div>
-            <SplitBar
-              segments={DELIVERY_TIERS.filter(
-                (tier) => (deliveryByTier.get(tier.tier) ?? 0) > 0,
-              ).map((tier) => ({
-                label: tier.label,
-                value: deliveryByTier.get(tier.tier) ?? 0,
-                color: tier.color,
-              }))}
-            />
-            <div className="mt-4 space-y-2">
-              {DELIVERY_TIERS.map((tier) => (
-                <LegendRow
-                  key={tier.tier}
-                  color={tier.color}
-                  label={tier.label}
-                  value={String(deliveryByTier.get(tier.tier) ?? 0)}
-                  percentLabel={
-                    deliveryRows.length > 0
-                      ? `${Math.round(((deliveryByTier.get(tier.tier) ?? 0) / deliveryRows.length) * 100)}%`
-                      : null
-                  }
-                />
-              ))}
+      <div id="delivery" className="scroll-mt-[var(--exec-chrome-height)]">
+        <SCard className="p-5">
+          <SCardTitle
+            title="Delivery date progress"
+            subtitle="Same promised-date urgency scale the PLM rows use, grouped by PM"
+            right={
+              <span className={cn('text-[11px]', SIGNAL_FAINT)}>
+                {data.delivery.unconfirmed} project(s) have no promised date
+              </span>
+            }
+          />
+          <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,4fr)_minmax(0,6fr)]">
+            <div>
+              <SplitBar
+                segments={DELIVERY_TIERS.filter(
+                  (tier) => (deliveryByTier.get(tier.tier) ?? 0) > 0,
+                ).map((tier) => ({
+                  label: tier.label,
+                  value: deliveryByTier.get(tier.tier) ?? 0,
+                  color: tier.color,
+                }))}
+              />
+              <div className="mt-4 space-y-2">
+                {DELIVERY_TIERS.map((tier) => (
+                  <LegendRow
+                    key={tier.tier}
+                    color={tier.color}
+                    label={tier.label}
+                    value={String(deliveryByTier.get(tier.tier) ?? 0)}
+                    percentLabel={
+                      deliveryRows.length > 0
+                        ? `${Math.round(((deliveryByTier.get(tier.tier) ?? 0) / deliveryRows.length) * 100)}%`
+                        : null
+                    }
+                  />
+                ))}
+              </div>
+              {data.delivery.note && (
+                <p className={cn('mt-3 text-[11.5px]', SIGNAL_MUTED)}>
+                  {data.delivery.note}
+                </p>
+              )}
             </div>
-            {data.delivery.note && (
-              <p className={cn('mt-3 text-[11.5px]', SIGNAL_MUTED)}>
-                {data.delivery.note}
-              </p>
-            )}
+            <div>
+              {deliveryRows.length === 0 ? (
+                <Empty>
+                  No active project for the selected project manager.
+                </Empty>
+              ) : (
+                deliveryRows
+                  .slice()
+                  .sort(
+                    (left, right) =>
+                      (left.daysUntilDue ?? Number.POSITIVE_INFINITY) -
+                      (right.daysUntilDue ?? Number.POSITIVE_INFINITY),
+                  )
+                  .map((row) => {
+                    const tier = deliveryUrgencyTier(row.daysUntilDue);
+                    return (
+                      <Row
+                        key={row.kickoffId}
+                        className="flex items-start justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <Link
+                            href={`/project-kickoff/${row.kickoffId}`}
+                            className={cn(
+                              'text-[13px] font-semibold',
+                              SIGNAL_LINK,
+                            )}
+                          >
+                            {row.projectName}
+                          </Link>
+                          <div className={cn('mt-1 text-[12px]', SIGNAL_MUTED)}>
+                            PM {row.pm} · {row.orderNumber} ·{' '}
+                            {titleCase(row.currentStage)}
+                          </div>
+                        </div>
+                        <div className="flex-none text-right">
+                          <div
+                            className={cn(
+                              'text-[12px] font-semibold',
+                              DELIVERY_URGENCY_TEXT_CLASS[tier],
+                            )}
+                          >
+                            {deliveryCountdownLabel(row.daysUntilDue)}
+                          </div>
+                          <div className={cn('mt-1 text-[11px]', SIGNAL_FAINT)}>
+                            {date(row.promisedDeliveryDate)} ·{' '}
+                            {titleCase(row.fulfilmentStatus)}
+                          </div>
+                        </div>
+                      </Row>
+                    );
+                  })
+              )}
+            </div>
           </div>
-          <div>
-            {deliveryRows.length === 0 ? (
-              <Empty>No active project for the selected project manager.</Empty>
-            ) : (
-              deliveryRows
-                .slice()
-                .sort(
-                  (left, right) =>
-                    (left.daysUntilDue ?? Number.POSITIVE_INFINITY) -
-                    (right.daysUntilDue ?? Number.POSITIVE_INFINITY),
-                )
-                .map((row) => {
-                  const tier = deliveryUrgencyTier(row.daysUntilDue);
-                  return (
-                    <Row
-                      key={row.kickoffId}
-                      className="flex items-start justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <Link
-                          href={`/project-kickoff/${row.kickoffId}`}
-                          className={cn('text-[13px] font-semibold', SIGNAL_LINK)}
-                        >
-                          {row.projectName}
-                        </Link>
-                        <div className={cn('mt-1 text-[12px]', SIGNAL_MUTED)}>
-                          PM {row.pm} · {row.orderNumber} ·{' '}
-                          {titleCase(row.currentStage)}
-                        </div>
-                      </div>
-                      <div className="flex-none text-right">
-                        <div
-                          className={cn(
-                            'text-[12px] font-semibold',
-                            DELIVERY_URGENCY_TEXT_CLASS[tier],
-                          )}
-                        >
-                          {deliveryCountdownLabel(row.daysUntilDue)}
-                        </div>
-                        <div className={cn('mt-1 text-[11px]', SIGNAL_FAINT)}>
-                          {date(row.promisedDeliveryDate)} ·{' '}
-                          {titleCase(row.fulfilmentStatus)}
-                        </div>
-                      </div>
-                    </Row>
-                  );
-                })
-            )}
-          </div>
-        </div>
-      </SCard>
+        </SCard>
+      </div>
 
       {/* ══ §4 Team workload — the redistribution view ═══════════════════ */}
-      <SCard className="p-5">
-        <SCardTitle
-          title="Team workload"
-          subtitle="Open board tasks and active projects each PM carries"
-          right={
-            <span className={cn('text-[11px]', SIGNAL_FAINT)}>
-              bars are relative to the busiest PM
-            </span>
-          }
-        />
-        <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
-          <div className="flex items-center gap-4">
-            <Gauge
-              percent={
-                workload.taskImbalancePercent === null
-                  ? null
-                  : Number(workload.taskImbalancePercent)
-              }
-              label="Imbalance"
-              color={
-                Number(workload.taskImbalancePercent ?? 0) >= 50
-                  ? CHART_COLORS.red
-                  : CHART_COLORS.orange
-              }
-            />
-            <div className={cn('text-[11.5px]', SIGNAL_MUTED)}>
-              <p>
-                0% is an even split across {workload.pmCount} PM(s); 100% means
-                one PM carries every open task.
-              </p>
-              <p className="mt-2">
-                {workload.totalOpenTasks} open task(s) · average{' '}
-                {number(workload.averageTasksPerPm)} per PM · busiest carries{' '}
-                {workload.peakOpenTasks}
-              </p>
-              <p className="mt-2">
-                Projects per PM: average{' '}
-                {number(workload.averageProjectsPerPm)} · imbalance{' '}
-                {percent(workload.projectImbalancePercent)}
-              </p>
-              {workload.note && <p className="mt-2">{workload.note}</p>}
+      <div id="workload" className="scroll-mt-[var(--exec-chrome-height)]">
+        <SCard className="p-5">
+          <SCardTitle
+            title="Team workload"
+            subtitle="Open board tasks and active projects each PM carries"
+            right={
+              <span className={cn('text-[11px]', SIGNAL_FAINT)}>
+                bars are relative to the busiest PM
+              </span>
+            }
+          />
+          <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
+            <div className="flex items-center gap-4">
+              <Gauge
+                percent={
+                  workload.taskImbalancePercent === null
+                    ? null
+                    : Number(workload.taskImbalancePercent)
+                }
+                label="Imbalance"
+                color={
+                  Number(workload.taskImbalancePercent ?? 0) >= 50
+                    ? CHART_COLORS.red
+                    : CHART_COLORS.orange
+                }
+              />
+              <div className={cn('text-[11.5px]', SIGNAL_MUTED)}>
+                <p>
+                  0% is an even split across {workload.pmCount} PM(s); 100%
+                  means one PM carries every open task.
+                </p>
+                <p className="mt-2">
+                  {workload.totalOpenTasks} open task(s) · average{' '}
+                  {number(workload.averageTasksPerPm)} per PM · busiest carries{' '}
+                  {workload.peakOpenTasks}
+                </p>
+                <p className="mt-2">
+                  Projects per PM: average{' '}
+                  {number(workload.averageProjectsPerPm)} · imbalance{' '}
+                  {percent(workload.projectImbalancePercent)}
+                </p>
+                {workload.note && <p className="mt-2">{workload.note}</p>}
+              </div>
+            </div>
+            <div>
+              {workloadRows.length === 0 ? (
+                <Empty>
+                  No project manager currently carries an active project.
+                </Empty>
+              ) : (
+                workloadRows.map((row) => (
+                  <Row key={row.pmId}>
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="text-[13px] font-semibold">
+                        {row.pm}
+                      </span>
+                      <span className="text-[15px] font-extrabold tabular-nums tracking-[-.4px]">
+                        {row.openTasks}
+                      </span>
+                      <span className={cn('text-[11.5px]', SIGNAL_MUTED)}>
+                        open task(s) across {row.activeProjects} project(s) ·{' '}
+                        {number(row.tasksPerProject)} per project
+                      </span>
+                      {row.overdueTasks > 0 && (
+                        <span
+                          className={cn(
+                            'ml-auto text-[11.5px] font-semibold',
+                            DANGER_TEXT,
+                          )}
+                        >
+                          {row.overdueTasks} overdue
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 h-[9px] overflow-hidden rounded-[3px] bg-black/[.06] dark:bg-white/[.07]">
+                      <div
+                        className="h-full rounded-[3px]"
+                        style={{
+                          width: `${row.loadPercent === null ? 0 : Math.max(Number(row.loadPercent), row.openTasks > 0 ? 2 : 0)}%`,
+                          background:
+                            row.blockedProjects > 0
+                              ? CHART_COLORS.red
+                              : row.atRiskProjects > 0
+                                ? CHART_COLORS.orange
+                                : CHART_COLORS.blue,
+                        }}
+                      />
+                    </div>
+                    <div className="mt-2">
+                      <SplitBar
+                        segments={[
+                          {
+                            label: `${row.blockedProjects} blocked`,
+                            value: row.blockedProjects,
+                            color: CHART_COLORS.red,
+                          },
+                          {
+                            label: `${row.atRiskProjects} at risk`,
+                            value: row.atRiskProjects,
+                            color: CHART_COLORS.orange,
+                          },
+                          {
+                            label: `${row.onTrackProjects} on track`,
+                            value: row.onTrackProjects,
+                            color: CHART_COLORS.green,
+                          },
+                        ]}
+                      />
+                    </div>
+                    <div className={cn('mt-2 text-[11.5px]', SIGNAL_MUTED)}>
+                      {row.overdueMilestones} overdue milestone(s) ·{' '}
+                      {row.overdueActionItems} overdue action(s) ·{' '}
+                      {row.openHighRisks} open severe risk(s) ·{' '}
+                      {row.overdueDeliveries} overdue delivery(ies)
+                      {row.unassignedTasks > 0 && (
+                        <> · {row.unassignedTasks} task(s) with no assignee</>
+                      )}
+                    </div>
+                  </Row>
+                ))
+              )}
             </div>
           </div>
-          <div>
-            {workloadRows.length === 0 ? (
-              <Empty>No project manager currently carries an active project.</Empty>
-            ) : (
-              workloadRows.map((row) => (
-                <Row key={row.pmId}>
-                  <div className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="text-[13px] font-semibold">{row.pm}</span>
-                    <span className="text-[15px] font-extrabold tabular-nums tracking-[-.4px]">
-                      {row.openTasks}
-                    </span>
-                    <span className={cn('text-[11.5px]', SIGNAL_MUTED)}>
-                      open task(s) across {row.activeProjects} project(s) ·{' '}
-                      {number(row.tasksPerProject)} per project
-                    </span>
-                    {row.overdueTasks > 0 && (
-                      <span className={cn('ml-auto text-[11.5px] font-semibold', DANGER_TEXT)}>
-                        {row.overdueTasks} overdue
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1.5 h-[9px] overflow-hidden rounded-[3px] bg-black/[.06] dark:bg-white/[.07]">
-                    <div
-                      className="h-full rounded-[3px]"
-                      style={{
-                        width: `${row.loadPercent === null ? 0 : Math.max(Number(row.loadPercent), row.openTasks > 0 ? 2 : 0)}%`,
-                        background:
-                          row.blockedProjects > 0
-                            ? CHART_COLORS.red
-                            : row.atRiskProjects > 0
-                              ? CHART_COLORS.orange
-                              : CHART_COLORS.blue,
-                      }}
-                    />
-                  </div>
-                  <div className="mt-2">
-                    <SplitBar
-                      segments={[
-                        {
-                          label: `${row.blockedProjects} blocked`,
-                          value: row.blockedProjects,
-                          color: CHART_COLORS.red,
-                        },
-                        {
-                          label: `${row.atRiskProjects} at risk`,
-                          value: row.atRiskProjects,
-                          color: CHART_COLORS.orange,
-                        },
-                        {
-                          label: `${row.onTrackProjects} on track`,
-                          value: row.onTrackProjects,
-                          color: CHART_COLORS.green,
-                        },
-                      ]}
-                    />
-                  </div>
-                  <div className={cn('mt-2 text-[11.5px]', SIGNAL_MUTED)}>
-                    {row.overdueMilestones} overdue milestone(s) ·{' '}
-                    {row.overdueActionItems} overdue action(s) ·{' '}
-                    {row.openHighRisks} open severe risk(s) ·{' '}
-                    {row.overdueDeliveries} overdue delivery(ies)
-                    {row.unassignedTasks > 0 && (
-                      <> · {row.unassignedTasks} task(s) with no assignee</>
-                    )}
-                  </div>
-                </Row>
-              ))
-            )}
-          </div>
-        </div>
-      </SCard>
+        </SCard>
+      </div>
 
       {/* ══ §5 Projects awaiting kickoff · §6 Orders awaiting delivery ═══ */}
       <div className="grid gap-4 xl:grid-cols-2">
@@ -935,7 +1034,9 @@ export default function ProjectManagementExecutiveDashboardPage() {
             title="Projects awaiting kickoff"
             subtitle="Executed OCS or confirmed internal order, no kickoff created"
             right={
-              <ToneChip tone={awaitingKickoff.total > 0 ? 'warning' : 'success'}>
+              <ToneChip
+                tone={awaitingKickoff.total > 0 ? 'warning' : 'success'}
+              >
                 {awaitingKickoff.total} waiting
               </ToneChip>
             }
@@ -959,7 +1060,10 @@ export default function ProjectManagementExecutiveDashboardPage() {
                       <div className="min-w-0">
                         <Link
                           href={`/sales/orders/${row.id}`}
-                          className={cn('text-[13px] font-semibold', SIGNAL_LINK)}
+                          className={cn(
+                            'text-[13px] font-semibold',
+                            SIGNAL_LINK,
+                          )}
                         >
                           {row.orderNumber}
                         </Link>
@@ -1010,7 +1114,9 @@ export default function ProjectManagementExecutiveDashboardPage() {
             title="Orders awaiting delivery"
             subtitle="Project orders where not every line has been dispatched"
             right={
-              <ToneChip tone={ordersAwaitingDelivery.total > 0 ? 'info' : 'success'}>
+              <ToneChip
+                tone={ordersAwaitingDelivery.total > 0 ? 'info' : 'success'}
+              >
                 {ordersAwaitingDelivery.total} order(s) ·{' '}
                 {ordersAwaitingDelivery.lineCount} line(s)
               </ToneChip>
@@ -1085,7 +1191,10 @@ export default function ProjectManagementExecutiveDashboardPage() {
       </div>
 
       {/* ══ §7 Milestone and action item health ══════════════════════════ */}
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div
+        id="execution"
+        className="grid scroll-mt-[var(--exec-chrome-height)] gap-4 xl:grid-cols-2"
+      >
         <SCard className="p-5">
           <SCardTitle
             title="Milestone health"
@@ -1162,7 +1271,9 @@ export default function ProjectManagementExecutiveDashboardPage() {
                       · PM {row.pm} · owner {row.owner} · target{' '}
                       {date(row.targetDate)}
                       {row.flaggedDelayed && (
-                        <span className={cn('ml-1 font-semibold', WARNING_TEXT)}>
+                        <span
+                          className={cn('ml-1 font-semibold', WARNING_TEXT)}
+                        >
                           · flagged delayed
                         </span>
                       )}
@@ -1257,7 +1368,8 @@ export default function ProjectManagementExecutiveDashboardPage() {
           </div>
           <div className="mt-4">
             <div className={cn('mb-1', SIGNAL_EYEBROW)}>Overdue now</div>
-            {actionItems.rows.filter((row) => matches(row.pmId)).length === 0 ? (
+            {actionItems.rows.filter((row) => matches(row.pmId)).length ===
+            0 ? (
               <Empty>
                 {actionItems.overdue === 0
                   ? 'No open action item is past its due date.'
@@ -1304,7 +1416,10 @@ export default function ProjectManagementExecutiveDashboardPage() {
       </div>
 
       {/* ══ §8 Open high-impact risks · §9 Project-linked pings ══════════ */}
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div
+        id="risks"
+        className="grid scroll-mt-[var(--exec-chrome-height)] gap-4 xl:grid-cols-2"
+      >
         <SCard className="p-5">
           <SCardTitle
             title="Open high-impact risks"
@@ -1375,13 +1490,16 @@ export default function ProjectManagementExecutiveDashboardPage() {
                 <p className={cn('mt-2 text-[11px]', SIGNAL_FAINT)}>
                   Columns are likelihood · {risks.open} open risk(s) of{' '}
                   {risks.total} on the register ·{' '}
-                  <span className={risks.unmitigated > 0 ? DANGER_TEXT : undefined}>
+                  <span
+                    className={risks.unmitigated > 0 ? DANGER_TEXT : undefined}
+                  >
                     {risks.unmitigated} severe risk(s) with no mitigation plan (
                     {percent(risks.unmitigatedPercent)})
                   </span>
                 </p>
                 <div className="mt-4">
-                  {risks.rows.filter((row) => matches(row.pmId)).length === 0 ? (
+                  {risks.rows.filter((row) => matches(row.pmId)).length ===
+                  0 ? (
                     <Empty>
                       No open severe risk for the selected project manager.
                     </Empty>
@@ -1472,7 +1590,8 @@ export default function ProjectManagementExecutiveDashboardPage() {
                   </div>
                 </div>
                 <div className="mt-4">
-                  {pings.rows.filter((row) => matches(row.pmId)).length === 0 ? (
+                  {pings.rows.filter((row) => matches(row.pmId)).length ===
+                  0 ? (
                     <Empty>
                       No unresolved ping for the selected project manager.
                     </Empty>
@@ -1504,7 +1623,9 @@ export default function ProjectManagementExecutiveDashboardPage() {
                                 {row.ageHours}h old
                               </span>
                             </div>
-                            <div className={cn('mt-1 text-[12px]', SIGNAL_MUTED)}>
+                            <div
+                              className={cn('mt-1 text-[12px]', SIGNAL_MUTED)}
+                            >
                               {href ? (
                                 <Link href={href} className={SIGNAL_LINK}>
                                   {row.project}
@@ -1515,7 +1636,12 @@ export default function ProjectManagementExecutiveDashboardPage() {
                               · PM {row.pm} · from {row.from} · with{' '}
                               {row.owners.join(', ') || 'no recipient'}
                               {row.unacknowledged && (
-                                <span className={cn('ml-1 font-semibold', DANGER_TEXT)}>
+                                <span
+                                  className={cn(
+                                    'ml-1 font-semibold',
+                                    DANGER_TEXT,
+                                  )}
+                                >
                                   · unacknowledged
                                 </span>
                               )}
@@ -1536,18 +1662,27 @@ export default function ProjectManagementExecutiveDashboardPage() {
 
       {/* ══ Where every number comes from ═══════════════════════════════ */}
       <SCard className="p-5">
-        <SCardTitle
-          title="How this dashboard is calculated"
-          subtitle="The backend's own basis, shown rather than paraphrased"
-        />
-        <ul className={cn('mt-3 space-y-1.5 text-[11.5px]', SIGNAL_MUTED)}>
-          {data.basis.map((line) => (
-            <li key={line} className="flex gap-2">
-              <span className={SIGNAL_FAINT}>·</span>
-              <span>{line}</span>
-            </li>
-          ))}
-        </ul>
+        <details>
+          <summary className="cursor-pointer list-none">
+            <SCardTitle
+              title="How this dashboard is calculated"
+              subtitle="Metric definitions and source rules"
+              right={
+                <span className={cn('text-[11px]', SIGNAL_FAINT)}>
+                  Expand methodology
+                </span>
+              }
+            />
+          </summary>
+          <ul className={cn('mt-3 space-y-1.5 text-[11.5px]', SIGNAL_MUTED)}>
+            {data.basis.map((line) => (
+              <li key={line} className="flex gap-2">
+                <span className={SIGNAL_FAINT}>·</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
       </SCard>
     </ExecutiveShell>
   );

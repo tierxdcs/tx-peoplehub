@@ -20,6 +20,14 @@ export class FinancePayrollController {
     return this.runs.accountsQueue(user);
   }
 
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Finance review detail and vertical cost analytics',
+  })
+  review(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.runs.financeReview(id, user);
+  }
+
   @Post(':id/approve')
   @ApiOperation({
     summary: 'Finance Head approves payroll and posts its accrual journal',

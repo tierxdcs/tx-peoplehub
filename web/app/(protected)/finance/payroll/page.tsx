@@ -1,9 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../../lib/api';
 import { formatINR } from '../../../lib/sales';
 import { useNumberFormat } from '../../../lib/number-format-context';
+import { useFinanceAccess } from '../../../lib/use-finance-access';
 import {
   SignalHeader,
   SignalPage,
@@ -55,9 +57,11 @@ const months = [
 export default function SalaryPaymentsPage() {
   const [runs, setRuns] = useState<Payroll[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
   const { style } = useNumberFormat();
+  const { isAccountsHead } = useFinanceAccess();
   const load = useCallback(async () => {
     try {
       setRuns(await apiFetch<Payroll[]>('/finance/payroll'));
@@ -158,16 +162,27 @@ export default function SalaryPaymentsPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {run.status === 'PENDING_APPROVAL' && (
-                      <Button size="sm" onClick={() => void approve(run)}>
-                        Approve
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          router.push(`/finance/payroll/${run.id}`)
+                        }
+                      >
+                        View details
                       </Button>
-                    )}
-                    {['APPROVED', 'LOCKED'].includes(run.status) && (
-                      <Button size="sm" onClick={() => void pay(run)}>
-                        Record bank payment
-                      </Button>
-                    )}
+                      {isAccountsHead && run.status === 'PENDING_APPROVAL' && (
+                        <Button size="sm" onClick={() => void approve(run)}>
+                          Approve
+                        </Button>
+                      )}
+                      {['APPROVED', 'LOCKED'].includes(run.status) && (
+                        <Button size="sm" onClick={() => void pay(run)}>
+                          Record bank payment
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

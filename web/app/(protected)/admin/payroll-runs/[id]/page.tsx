@@ -1,10 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Send } from 'lucide-react';
+import { Search, Send } from 'lucide-react';
 import { apiFetch, ApiError } from '../../../../lib/api';
-import { Employee, PayrollRun, Payslip } from '../../../../lib/types';
+import {
+  Employee,
+  PayrollRun,
+  Payslip,
+  PayslipStatus,
+  Vertical,
+} from '../../../../lib/types';
 import { formatINR } from '../../../../lib/sales';
 import { useNumberFormat } from '../../../../lib/number-format-context';
 import {
@@ -14,6 +20,8 @@ import {
   SignalPage,
 } from '../../../../components/ui/signal';
 import { Button } from '../../../../components/ui/button';
+import { Input } from '../../../../components/ui/input';
+import { Select } from '../../../../components/ui/select';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { EmptyState } from '../../../../components/ui/empty-state';
 import { StatusBadge } from '../../../../components/ui/status-badge';
@@ -49,9 +57,13 @@ export default function PayrollRunDetailPage() {
   const { style: numberFormatStyle } = useNumberFormat();
   const [run, setRun] = useState<PayrollRun | null>(null);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
-  const [employeeNames, setEmployeeNames] = useState<Record<string, string>>(
-    {},
-  );
+  const [employeeMeta, setEmployeeMeta] = useState<
+    Record<string, { name: string; verticalId: string; verticalName: string }>
+  >({});
+  const [verticals, setVerticals] = useState<Vertical[]>([]);
+  const [search, setSearch] = useState('');
+  const [verticalFilter, setVerticalFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<PayslipStatus | ''>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -72,18 +84,34 @@ export default function PayrollRunDetailPage() {
         setPayslips(payslipsRes);
 
         const ids = [...new Set(payslipsRes.map((p) => p.employeeId))];
-        const resolved: Record<string, string> = {};
+        const verticalsRes = await apiFetch<Vertical[]>('/verticals');
+        setVerticals(verticalsRes);
+        const verticalById = new Map(verticalsRes.map((v) => [v.id, v.name]));
+        const resolved: Record<
+          string,
+          { name: string; verticalId: string; verticalName: string }
+        > = {};
         await Promise.all(
           ids.map(async (empId) => {
             try {
               const emp = await apiFetch<Employee>(`/employees/${empId}`);
-              resolved[empId] = `${emp.firstName} ${emp.lastName}`;
+              resolved[empId] = {
+                name: `${emp.firstName} ${emp.lastName}`,
+                verticalId: emp.verticalId ?? '',
+                verticalName: emp.verticalId
+                  ? (verticalById.get(emp.verticalId) ?? 'Unknown vertical')
+                  : 'Not assigned',
+              };
             } catch {
-              resolved[empId] = empId;
+              resolved[empId] = {
+                name: empId,
+                verticalId: '',
+                verticalName: 'Unknown',
+              };
             }
           }),
         );
-        setEmployeeNames(resolved);
+        setEmployeeMeta(resolved);
       }
     } catch {
       setError('Failed to load payroll run');
@@ -95,6 +123,22 @@ export default function PayrollRunDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const filteredPayslips = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return payslips.filter((payslip) => {
+      const meta = employeeMeta[payslip.employeeId];
+      const matchesSearch =
+        !query ||
+        meta?.name.toLowerCase().includes(query) ||
+        payslip.employeeId.toLowerCase().includes(query) ||
+        meta?.verticalName.toLowerCase().includes(query);
+      const matchesVertical =
+        !verticalFilter || meta?.verticalId === verticalFilter;
+      const matchesStatus = !statusFilter || payslip.status === statusFilter;
+      return matchesSearch && matchesVertical && matchesStatus;
+    });
+  }, [employeeMeta, payslips, search, statusFilter, verticalFilter]);
 
   async function handleProcess() {
     const ok = await confirm({
@@ -250,14 +294,55 @@ export default function PayrollRunDetailPage() {
             {processError && (
               <p className="mb-3 text-sm text-destructive">{processError}</p>
             )}
+            <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(16rem,1fr)_14rem_12rem]">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search employee, ID or vertical"
+                  aria-label="Search payslips"
+                />
+              </div>
+              <Select
+                value={verticalFilter}
+                onChange={(event) => setVerticalFilter(event.target.value)}
+                aria-label="Filter by vertical"
+              >
+                <option value="">All verticals</option>
+                {verticals.map((vertical) => (
+                  <option key={vertical.id} value={vertical.id}>
+                    {vertical.name}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as PayslipStatus | '')
+                }
+                aria-label="Filter by payslip status"
+              >
+                <option value="">All statuses</option>
+                <option value="GENERATED">Generated</option>
+                <option value="PAID">Paid</option>
+              </Select>
+            </div>
             <SCard className="overflow-hidden">
               {payslips.length === 0 ? (
                 <EmptyState title="No payslips" />
+              ) : filteredPayslips.length === 0 ? (
+                <EmptyState
+                  title="No matching payslips"
+                  description="Try changing the search or filters."
+                />
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Employee</TableHead>
+                      <TableHead>Vertical</TableHead>
                       <TableHead className="text-right">Gross</TableHead>
                       <TableHead className="text-right">Net Pay</TableHead>
                       <TableHead>Status</TableHead>
@@ -265,10 +350,13 @@ export default function PayrollRunDetailPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {payslips.map((p) => (
+                    {filteredPayslips.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className="font-medium">
-                          {employeeNames[p.employeeId] ?? '…'}
+                          {employeeMeta[p.employeeId]?.name ?? '…'}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {employeeMeta[p.employeeId]?.verticalName ?? '…'}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {formatINR(p.grossEarnings, numberFormatStyle)}

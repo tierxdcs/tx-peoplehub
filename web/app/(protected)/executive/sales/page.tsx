@@ -69,7 +69,9 @@ export default function SalesExecutiveDashboardPage() {
         setError(null);
       })
       .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : 'Failed to load dashboard'),
+        setError(
+          err instanceof Error ? err.message : 'Failed to load dashboard',
+        ),
       )
       .finally(() => setLoading(false));
   }, []);
@@ -85,6 +87,7 @@ export default function SalesExecutiveDashboardPage() {
   return (
     <ExecutiveShell
       active="sales"
+      fixedHeader
       title="Sales Dashboard"
       chip={data ? <SignalChip>{data.period.label}</SignalChip> : undefined}
       description={
@@ -105,6 +108,39 @@ export default function SalesExecutiveDashboardPage() {
           Refresh
         </button>
       }
+      toolbar={
+        data ? (
+          <nav
+            className="flex gap-1 overflow-x-auto"
+            aria-label="Sales dashboard sections"
+          >
+            {[
+              [
+                '#sales-revenue',
+                `Revenue (${data.revenue.booked.orderCount} won orders)`,
+              ],
+              [
+                '#sales-performance',
+                `Performance (${data.winRate.bidsSubmitted} submitted bids)`,
+              ],
+              ['#sales-pipeline', 'Pipeline & margin'],
+              [
+                '#sales-cash-customers',
+                `Cash & customers (${data.customers.activeCount} active)`,
+              ],
+              ['#sales-mix-pricing', 'Business mix & pricing'],
+            ].map(([href, label]) => (
+              <a
+                key={href}
+                href={href}
+                className="whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11.5px] font-medium text-black/55 hover:bg-black/[.06] hover:text-black/80 dark:text-white/55 dark:hover:bg-white/[.08] dark:hover:text-white/85"
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+        ) : undefined
+      }
     >
       {error && <Callout variant="danger">{error}</Callout>}
       {!data ? (
@@ -114,74 +150,82 @@ export default function SalesExecutiveDashboardPage() {
       ) : (
         <>
           {/* ── Revenue: two distinct figures, one shared trend ─────────── */}
-          <SCard className="p-[18px]">
-            <SCardTitle
-              title="Revenue"
-              subtitle={`${data.period.label} to date`}
-              right={
-                <span className={cn('text-[11px]', SIGNAL_FAINT)}>
-                  Booked = orders won · Recognised = invoices issued
-                </span>
-              }
-            />
-            <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
-              <div className="space-y-4">
-                <RevenueFigure
-                  label="Booked revenue (YTD)"
-                  value={money(data.revenue.booked.total)}
-                  countLabel={`${data.revenue.booked.orderCount} won ${
-                    data.revenue.booked.orderCount === 1 ? 'order' : 'orders'
-                  }`}
-                  color={CHART_COLORS.blue}
-                  yoy={data.revenue.booked.yoy}
-                  formatMoney={money}
-                />
-                <RevenueFigure
-                  label="Recognised revenue (YTD)"
-                  value={money(data.revenue.recognised.total)}
-                  countLabel={`${data.revenue.recognised.invoiceCount} issued ${
-                    data.revenue.recognised.invoiceCount === 1
-                      ? 'invoice'
-                      : 'invoices'
-                  }`}
-                  color={CHART_COLORS.green}
-                  yoy={data.revenue.recognised.yoy}
-                  formatMoney={money}
-                />
-                <div className="rounded-lg bg-black/[.04] px-3 py-2.5 dark:bg-white/[.05]">
-                  <div className={SIGNAL_EYEBROW}>Booked, not yet billed</div>
-                  <div className="mt-1 text-[16px] font-extrabold tracking-[-.6px] tabular-nums">
-                    {money(data.revenue.bookedNotYetRecognised)}
-                  </div>
-                  <p className={cn('mt-1 text-[11px]', SIGNAL_FAINT)}>
-                    Won order value still ahead of the invoicing run rate.
-                  </p>
-                </div>
-              </div>
-              <TrendChart
-                labels={trendLabels(data.revenue.booked.trend)}
-                height={200}
-                formatValue={compact}
-                series={[
-                  {
-                    label: 'Booked',
-                    color: CHART_COLORS.blue,
-                    values: trendValues(data.revenue.booked.trend),
-                    fill: true,
-                  },
-                  {
-                    label: 'Recognised',
-                    color: CHART_COLORS.green,
-                    values: trendValues(data.revenue.recognised.trend),
-                  },
-                ]}
-                emptyMessage="No orders or invoices in this fiscal year yet"
+          <div
+            id="sales-revenue"
+            className="scroll-mt-[var(--exec-chrome-height)]"
+          >
+            <SCard className="p-[18px]">
+              <SCardTitle
+                title="Revenue"
+                subtitle={`${data.period.label} to date`}
+                right={
+                  <span className={cn('text-[11px]', SIGNAL_FAINT)}>
+                    Booked = orders won · Recognised = invoices issued
+                  </span>
+                }
               />
-            </div>
-          </SCard>
+              <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
+                <div className="space-y-4">
+                  <RevenueFigure
+                    label="Booked revenue (YTD)"
+                    value={money(data.revenue.booked.total)}
+                    countLabel={`${data.revenue.booked.orderCount} won ${
+                      data.revenue.booked.orderCount === 1 ? 'order' : 'orders'
+                    }`}
+                    color={CHART_COLORS.blue}
+                    yoy={data.revenue.booked.yoy}
+                    formatMoney={money}
+                  />
+                  <RevenueFigure
+                    label="Recognised revenue (YTD)"
+                    value={money(data.revenue.recognised.total)}
+                    countLabel={`${data.revenue.recognised.invoiceCount} issued ${
+                      data.revenue.recognised.invoiceCount === 1
+                        ? 'invoice'
+                        : 'invoices'
+                    }`}
+                    color={CHART_COLORS.green}
+                    yoy={data.revenue.recognised.yoy}
+                    formatMoney={money}
+                  />
+                  <div className="rounded-lg bg-black/[.04] px-3 py-2.5 dark:bg-white/[.05]">
+                    <div className={SIGNAL_EYEBROW}>Booked, not yet billed</div>
+                    <div className="mt-1 text-[16px] font-extrabold tracking-[-.6px] tabular-nums">
+                      {money(data.revenue.bookedNotYetRecognised)}
+                    </div>
+                    <p className={cn('mt-1 text-[11px]', SIGNAL_FAINT)}>
+                      Won order value still ahead of the invoicing run rate.
+                    </p>
+                  </div>
+                </div>
+                <TrendChart
+                  labels={trendLabels(data.revenue.booked.trend)}
+                  height={200}
+                  formatValue={compact}
+                  series={[
+                    {
+                      label: 'Booked',
+                      color: CHART_COLORS.blue,
+                      values: trendValues(data.revenue.booked.trend),
+                      fill: true,
+                    },
+                    {
+                      label: 'Recognised',
+                      color: CHART_COLORS.green,
+                      values: trendValues(data.revenue.recognised.trend),
+                    },
+                  ]}
+                  emptyMessage="No orders or invoices in this fiscal year yet"
+                />
+              </div>
+            </SCard>
+          </div>
 
           {/* ── Headline KPIs, each with its own trend ──────────────────── */}
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-black/10 bg-black/10 md:grid-cols-4 dark:border-white/[.08] dark:bg-white/[.08]">
+          <div
+            id="sales-performance"
+            className="grid scroll-mt-[var(--exec-chrome-height)] grid-cols-2 gap-px overflow-hidden rounded-xl border border-black/10 bg-black/10 md:grid-cols-4 dark:border-white/[.08] dark:bg-white/[.08]"
+          >
             <KpiTile
               label="Win rate"
               value={
@@ -252,7 +296,10 @@ export default function SalesExecutiveDashboardPage() {
             />
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div
+            id="sales-pipeline"
+            className="grid scroll-mt-[var(--exec-chrome-height)] gap-4 lg:grid-cols-2"
+          >
             {/* ── Funnel ───────────────────────────────────────────────── */}
             <SCard className="p-[18px]">
               <SCardTitle
@@ -265,8 +312,7 @@ export default function SalesExecutiveDashboardPage() {
                     key: stage.key,
                     label: stage.label,
                     count: stage.count,
-                    valueLabel:
-                      stage.value === null ? '—' : money(stage.value),
+                    valueLabel: stage.value === null ? '—' : money(stage.value),
                     note: stage.valueNote,
                     color: FUNNEL_COLORS[index % FUNNEL_COLORS.length],
                   }))}
@@ -281,7 +327,9 @@ export default function SalesExecutiveDashboardPage() {
                 subtitle="won orders, released-BOM cost roll-up"
                 right={
                   <ToneChip
-                    tone={data.margin.status === 'AVAILABLE' ? 'success' : 'neutral'}
+                    tone={
+                      data.margin.status === 'AVAILABLE' ? 'success' : 'neutral'
+                    }
                   >
                     {data.margin.status === 'AVAILABLE'
                       ? `${data.margin.ordersMeasured} costed`
@@ -328,7 +376,10 @@ export default function SalesExecutiveDashboardPage() {
             </SCard>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div
+            id="sales-cash-customers"
+            className="grid scroll-mt-[var(--exec-chrome-height)] gap-4 lg:grid-cols-2"
+          >
             {/* ── Cash ─────────────────────────────────────────────────── */}
             <SCard className="p-[18px]">
               <SCardTitle title="Cash flow" subtitle="accounts receivable" />
@@ -434,7 +485,9 @@ export default function SalesExecutiveDashboardPage() {
                 </div>
               </div>
               <div className="mt-5">
-                <div className={SIGNAL_EYEBROW}>New vs repeat (this period)</div>
+                <div className={SIGNAL_EYEBROW}>
+                  New vs repeat (this period)
+                </div>
                 <div className="mt-2">
                   <SplitBar
                     segments={[
@@ -452,15 +505,18 @@ export default function SalesExecutiveDashboardPage() {
                   />
                 </div>
                 <p className={cn('mt-2 text-[11px]', SIGNAL_FAINT)}>
-                  Split by booked value. &quot;New&quot; means the customer had no
-                  order before {formatDate(data.period.startsOn)}.
+                  Split by booked value. &quot;New&quot; means the customer had
+                  no order before {formatDate(data.period.startsOn)}.
                 </p>
               </div>
             </SCard>
           </div>
 
           {/* ── Business units + discount trend ──────────────────────────── */}
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div
+            id="sales-mix-pricing"
+            className="grid scroll-mt-[var(--exec-chrome-height)] gap-4 lg:grid-cols-2"
+          >
             <SCard className="p-[18px]">
               <SCardTitle
                 title="Booked revenue by business unit"
@@ -506,7 +562,9 @@ export default function SalesExecutiveDashboardPage() {
                 title="Average discount granted"
                 subtitle="early warning for margin erosion"
                 right={
-                  <span className={cn('text-[11px] tabular-nums', SIGNAL_FAINT)}>
+                  <span
+                    className={cn('text-[11px] tabular-nums', SIGNAL_FAINT)}
+                  >
                     {data.discount.averagePercent === null
                       ? 'not measurable'
                       : `${Number(data.discount.averagePercent).toFixed(2)}% period average`}
@@ -534,17 +592,29 @@ export default function SalesExecutiveDashboardPage() {
 
           {/* ── The rules every figure above was computed under ─────────── */}
           <SCard className="p-[18px]">
-            <SCardTitle title="Basis and exclusions" />
-            <ul className="mt-2.5 space-y-1.5">
-              {data.basis.map((line) => (
-                <li
-                  key={line}
-                  className={cn('text-[12px] leading-relaxed', SIGNAL_MUTED)}
-                >
-                  {line}
-                </li>
-              ))}
-            </ul>
+            <details>
+              <summary className="cursor-pointer list-none">
+                <SCardTitle
+                  title="Basis and exclusions"
+                  subtitle="Metric definitions, scope and data limitations"
+                  right={
+                    <span className={cn('text-[11px]', SIGNAL_FAINT)}>
+                      Expand methodology
+                    </span>
+                  }
+                />
+              </summary>
+              <ul className="mt-2.5 space-y-1.5">
+                {data.basis.map((line) => (
+                  <li
+                    key={line}
+                    className={cn('text-[12px] leading-relaxed', SIGNAL_MUTED)}
+                  >
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </details>
           </SCard>
         </>
       )}
@@ -585,7 +655,10 @@ function RevenueFigure({
   return (
     <div>
       <div className="flex items-center gap-2">
-        <span className="h-[3px] w-3.5 rounded-full" style={{ background: color }} />
+        <span
+          className="h-[3px] w-3.5 rounded-full"
+          style={{ background: color }}
+        />
         <span className={SIGNAL_EYEBROW}>{label}</span>
       </div>
       <div className="mt-1.5 text-[27px] font-extrabold leading-none tracking-[-1.3px] tabular-nums">

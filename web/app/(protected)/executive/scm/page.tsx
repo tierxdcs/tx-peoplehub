@@ -137,6 +137,7 @@ export default function ScmExecutiveDashboardPage() {
   return (
     <ExecutiveShell
       active="scm"
+      fixedHeader
       title="SCM Dashboard"
       chip={
         data ? (
@@ -162,6 +163,48 @@ export default function ScmExecutiveDashboardPage() {
           Refresh
         </button>
       }
+      toolbar={
+        data ? (
+          <nav
+            className="flex gap-1 overflow-x-auto"
+            aria-label="SCM dashboard sections"
+          >
+            {[
+              ['#scm-overview', 'Overview'],
+              [
+                '#scm-rfqs',
+                `RFQs (${data.rfqHealth.open.awaitingPmApproval} awaiting approval)`,
+              ],
+              [
+                '#scm-purchase-orders',
+                `Purchase orders (${data.purchaseOrders.overdue.count} overdue)`,
+              ],
+              [
+                '#scm-supply-base',
+                `Supply base (${data.supplyBase.overrides.count} overrides)`,
+              ],
+              [
+                '#scm-vendor-execution',
+                `Vendor execution (${data.vendorProjects.overdueUpdates} overdue)`,
+              ],
+              ['#scm-backlog', `Backlog (${data.sourcingBacklog.total})`],
+              ['#scm-cost', 'Cost'],
+              [
+                '#scm-quality',
+                `Quality (${data.qualityOfSupply.ncrs.open} open NCRs)`,
+              ],
+            ].map(([href, label]) => (
+              <a
+                key={href}
+                href={href}
+                className="whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11.5px] font-medium text-black/55 hover:bg-black/[.06] hover:text-black/80 dark:text-white/55 dark:hover:bg-white/[.08] dark:hover:text-white/85"
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+        ) : undefined
+      }
     >
       {error && <Callout variant="danger">{error}</Callout>}
       {!data ? (
@@ -171,55 +214,64 @@ export default function ScmExecutiveDashboardPage() {
       ) : (
         <>
           {/* ══ What is holding the supply chain up ═══════════════════════ */}
-          <StatStrip>
-            <StatTile
-              label="RFQs awaiting PM approval"
-              value={data.rfqHealth.open.awaitingPmApproval}
-              valueClass={
-                data.rfqHealth.open.awaitingPmApproval > 0
-                  ? WARNING_TEXT
-                  : undefined
-              }
-              hint={
-                data.rfqHealth.open.awaitingPmApproval === 0
-                  ? `no RFQ is held at the approval gate · ${data.rfqHealth.open.total} open in total`
-                  : `of ${data.rfqHealth.open.total} open · oldest waiting ${
-                      data.rfqHealth.open.awaitingPmApprovalRfqs[0]
-                        ?.waitingDays ?? 0
-                    } day(s)`
-              }
-            />
-            <StatTile
-              label="Overdue purchase orders"
-              value={data.purchaseOrders.overdue.count}
-              valueClass={
-                data.purchaseOrders.overdue.count > 0 ? DANGER_TEXT : undefined
-              }
-              hint={
-                data.purchaseOrders.overdue.count === 0
-                  ? 'every dated order is still inside its expected delivery date'
-                  : `${money(data.purchaseOrders.overdue.value)} past expected delivery`
-              }
-            />
-            <StatTile
-              label="Ad-hoc POs in approval"
-              value={data.purchaseOrders.adHoc.pendingCount}
-              valueClass={
-                data.purchaseOrders.adHoc.pendingCount > 0
-                  ? WARNING_TEXT
-                  : undefined
-              }
-              hint={`${data.purchaseOrders.adHoc.approvedThisPeriod} approved in ${data.period.label} · purchases outside the vetted base`}
-            />
-            <StatTile
-              label="Vendor updates overdue"
-              value={data.vendorProjects.overdueUpdates}
-              valueClass={
-                data.vendorProjects.overdueUpdates > 0 ? DANGER_TEXT : undefined
-              }
-              hint={`of ${data.vendorProjects.lineCount} vendor-executed line(s) across ${data.vendorProjects.vendorCount} vendor(s)`}
-            />
-          </StatStrip>
+          <div
+            id="scm-overview"
+            className="scroll-mt-[var(--exec-chrome-height)]"
+          >
+            <StatStrip>
+              <StatTile
+                label="RFQs awaiting PM approval"
+                value={data.rfqHealth.open.awaitingPmApproval}
+                valueClass={
+                  data.rfqHealth.open.awaitingPmApproval > 0
+                    ? WARNING_TEXT
+                    : undefined
+                }
+                hint={
+                  data.rfqHealth.open.awaitingPmApproval === 0
+                    ? `no RFQ is held at the approval gate · ${data.rfqHealth.open.total} open in total`
+                    : `of ${data.rfqHealth.open.total} open · oldest waiting ${
+                        data.rfqHealth.open.awaitingPmApprovalRfqs[0]
+                          ?.waitingDays ?? 0
+                      } day(s)`
+                }
+              />
+              <StatTile
+                label="Overdue purchase orders"
+                value={data.purchaseOrders.overdue.count}
+                valueClass={
+                  data.purchaseOrders.overdue.count > 0
+                    ? DANGER_TEXT
+                    : undefined
+                }
+                hint={
+                  data.purchaseOrders.overdue.count === 0
+                    ? 'every dated order is still inside its expected delivery date'
+                    : `${money(data.purchaseOrders.overdue.value)} past expected delivery`
+                }
+              />
+              <StatTile
+                label="Ad-hoc POs in approval"
+                value={data.purchaseOrders.adHoc.pendingCount}
+                valueClass={
+                  data.purchaseOrders.adHoc.pendingCount > 0
+                    ? WARNING_TEXT
+                    : undefined
+                }
+                hint={`${data.purchaseOrders.adHoc.approvedThisPeriod} approved in ${data.period.label} · purchases outside the vetted base`}
+              />
+              <StatTile
+                label="Vendor updates overdue"
+                value={data.vendorProjects.overdueUpdates}
+                valueClass={
+                  data.vendorProjects.overdueUpdates > 0
+                    ? DANGER_TEXT
+                    : undefined
+                }
+                hint={`of ${data.vendorProjects.lineCount} vendor-executed line(s) across ${data.vendorProjects.vendorCount} vendor(s)`}
+              />
+            </StatStrip>
+          </div>
 
           {onFire === 0 && (
             <SCard className="p-[18px]">
@@ -233,6 +285,10 @@ export default function ScmExecutiveDashboardPage() {
           )}
 
           {/* ══ §1 RFQ health ════════════════════════════════════════════ */}
+          <span
+            id="scm-rfqs"
+            className="-mb-4 block scroll-mt-[var(--exec-chrome-height)]"
+          />
           <SCard className="p-[18px]">
             <SCardTitle
               title="RFQ health"
@@ -538,6 +594,10 @@ export default function ScmExecutiveDashboardPage() {
           </SCard>
 
           {/* ══ §2 Purchase order health ═════════════════════════════════ */}
+          <span
+            id="scm-purchase-orders"
+            className="-mb-4 block scroll-mt-[var(--exec-chrome-height)]"
+          />
           <SCard className="p-[18px]">
             <SCardTitle
               title="Purchase order health"
@@ -702,6 +762,10 @@ export default function ScmExecutiveDashboardPage() {
           </SCard>
 
           {/* ══ §3 Vendor / supplier base ════════════════════════════════ */}
+          <span
+            id="scm-supply-base"
+            className="-mb-4 block scroll-mt-[var(--exec-chrome-height)]"
+          />
           <SCard className="p-[18px]">
             <SCardTitle
               title="Vendor and supplier base"
@@ -936,6 +1000,10 @@ export default function ScmExecutiveDashboardPage() {
           </SCard>
 
           {/* ══ §4 Vendor-operated project progress — the full detail ════ */}
+          <span
+            id="scm-vendor-execution"
+            className="-mb-4 block scroll-mt-[var(--exec-chrome-height)]"
+          />
           <SCard
             className={cn(
               'p-[18px]',
@@ -1026,6 +1094,10 @@ export default function ScmExecutiveDashboardPage() {
           </SCard>
 
           {/* ══ §5 Sourcing backlog ══════════════════════════════════════ */}
+          <span
+            id="scm-backlog"
+            className="-mb-4 block scroll-mt-[var(--exec-chrome-height)]"
+          />
           <SCard className="p-[18px]">
             <SCardTitle
               title="Sourcing backlog"
@@ -1119,6 +1191,10 @@ export default function ScmExecutiveDashboardPage() {
           </SCard>
 
           {/* ══ §6 Cost performance ══════════════════════════════════════ */}
+          <span
+            id="scm-cost"
+            className="-mb-4 block scroll-mt-[var(--exec-chrome-height)]"
+          />
           <SCard className="p-[18px]">
             <SCardTitle
               title="Cost performance"
@@ -1251,6 +1327,10 @@ export default function ScmExecutiveDashboardPage() {
           </SCard>
 
           {/* ══ §7 Quality of supply ═════════════════════════════════════ */}
+          <span
+            id="scm-quality"
+            className="-mb-4 block scroll-mt-[var(--exec-chrome-height)]"
+          />
           <SCard className="p-[18px]">
             <SCardTitle
               title="Quality of supply"
@@ -1509,20 +1589,29 @@ export default function ScmExecutiveDashboardPage() {
 
           {/* ══ What this dashboard is measured from ═════════════════════ */}
           <SCard className="p-[18px]">
-            <SCardTitle
-              title="What this reads"
-              subtitle="the scope and the measurement basis behind every number above"
-            />
-            <ul className="mt-2.5 space-y-1.5">
-              {data.basis.map((entry) => (
-                <li
-                  key={entry}
-                  className={cn('text-[12px] leading-relaxed', SIGNAL_MUTED)}
-                >
-                  · {entry}
-                </li>
-              ))}
-            </ul>
+            <details>
+              <summary className="cursor-pointer list-none">
+                <SCardTitle
+                  title="What this reads"
+                  subtitle="Metric definitions, scope and data limitations"
+                  right={
+                    <span className={cn('text-[11px]', SIGNAL_FAINT)}>
+                      Expand methodology
+                    </span>
+                  }
+                />
+              </summary>
+              <ul className="mt-2.5 space-y-1.5">
+                {data.basis.map((entry) => (
+                  <li
+                    key={entry}
+                    className={cn('text-[12px] leading-relaxed', SIGNAL_MUTED)}
+                  >
+                    · {entry}
+                  </li>
+                ))}
+              </ul>
+            </details>
           </SCard>
         </>
       )}

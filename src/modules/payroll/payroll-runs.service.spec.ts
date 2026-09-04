@@ -4,7 +4,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { EmployeeStatus, PayrollRunStatus } from '@prisma/client';
+import { EmployeeStatus, PayrollRunStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { PayrollRunsService } from './payroll-runs.service';
 import { PayrollComputationService } from './payroll-computation.service';
@@ -18,6 +18,7 @@ describe('PayrollRunsService', () => {
     loadRequiredConfigs: jest.Mock;
     computeForEmployee: jest.Mock;
   };
+  let financeAccess: { assertCanUseFinance: jest.Mock };
 
   const draftRun = {
     id: 'run-1',
@@ -48,13 +49,14 @@ describe('PayrollRunsService', () => {
       loadRequiredConfigs: jest.fn(),
       computeForEmployee: jest.fn(),
     };
+    financeAccess = { assertCanUseFinance: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PayrollRunsService,
         { provide: PrismaService, useValue: prisma },
         { provide: PayrollComputationService, useValue: computation },
-        { provide: FinanceAccessService, useValue: {} },
+        { provide: FinanceAccessService, useValue: financeAccess },
         { provide: FinanceService, useValue: {} },
       ],
     }).compile();
@@ -272,6 +274,65 @@ describe('PayrollRunsService', () => {
       });
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('payslip-1');
+    });
+  });
+
+  describe('financeReview', () => {
+    it('groups payroll cost by employee vertical and returns control totals', async () => {
+      const decimal = (value: number) => new Prisma.Decimal(value);
+      prisma.payrollRun.findUnique.mockResolvedValue({
+        ...draftRun,
+        status: PayrollRunStatus.PENDING_APPROVAL,
+        submittedAt: new Date(),
+        payslips: [
+          {
+            id: 'payslip-1',
+            payrollRunId: 'run-1',
+            employeeId: 'emp-1',
+            grossEarnings: decimal(100),
+            basicPaid: decimal(50),
+            hraPaid: decimal(20),
+            specialAllowancePaid: decimal(30),
+            otherAllowancesPaid: decimal(0),
+            pfEmployee: decimal(5),
+            pfEmployer: decimal(10),
+            esiEmployee: null,
+            esiEmployer: decimal(2),
+            professionalTax: null,
+            tdsDeducted: decimal(8),
+            unpaidLeaveDeduction: decimal(4),
+            netPay: decimal(83),
+            statutoryConfigSnapshot: {},
+            status: 'GENERATED',
+            createdAt: new Date(),
+            employee: {
+              employeeId: 'EMP-1',
+              firstName: 'Asha',
+              lastName: 'Rao',
+              designation: 'Accountant',
+              vertical: { id: 'v1', name: 'Accounts', code: 'ACCOUNTS' },
+            },
+          },
+        ],
+      });
+
+      const result = await service.financeReview('run-1', {
+        id: 'finance-1',
+        email: 'finance@example.com',
+        role: 'EMPLOYEE' as never,
+        verticalId: 'v1',
+      });
+
+      expect(financeAccess.assertCanUseFinance).toHaveBeenCalled();
+      expect(result.totals.totalExpense).toBe('108');
+      expect(result.verticals).toEqual([
+        expect.objectContaining({
+          verticalName: 'Accounts',
+          employeeCount: 1,
+          totalExpense: '108',
+        }),
+      ]);
+      expect(result.payslips[0].employee.employeeId).toBe('EMP-1');
     });
   });
 });

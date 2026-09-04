@@ -228,6 +228,111 @@ export class PayrollRunsService {
     });
   }
 
+  async financeReview(id: string, user: AuthenticatedUser) {
+    await this.financeAccess.assertCanUseFinance(user);
+    const run = await this.prisma.payrollRun.findUnique({
+      where: { id },
+      include: {
+        payslips: {
+          include: {
+            employee: {
+              select: {
+                employeeId: true,
+                firstName: true,
+                lastName: true,
+                designation: true,
+                vertical: { select: { id: true, name: true, code: true } },
+              },
+            },
+          },
+          orderBy: { employee: { firstName: 'asc' } },
+        },
+      },
+    });
+    if (!run) throw new NotFoundException('Payroll run not found');
+    if (run.status === PayrollRunStatus.DRAFT) {
+      throw new BadRequestException('Payroll has not been sent to Accounts');
+    }
+
+    const totals = this.totals(run.payslips);
+    const verticals = new Map<
+      string,
+      {
+        verticalId: string | null;
+        verticalName: string;
+        employeeCount: number;
+        grossEarnings: Prisma.Decimal;
+        employerContributions: Prisma.Decimal;
+        unpaidLeaveDeduction: Prisma.Decimal;
+        tds: Prisma.Decimal;
+        netPay: Prisma.Decimal;
+        totalExpense: Prisma.Decimal;
+      }
+    >();
+    for (const payslip of run.payslips) {
+      const vertical = payslip.employee.vertical;
+      const key = vertical?.id ?? 'unassigned';
+      const row = verticals.get(key) ?? {
+        verticalId: vertical?.id ?? null,
+        verticalName: vertical?.name ?? 'Not assigned',
+        employeeCount: 0,
+        grossEarnings: new Prisma.Decimal(0),
+        employerContributions: new Prisma.Decimal(0),
+        unpaidLeaveDeduction: new Prisma.Decimal(0),
+        tds: new Prisma.Decimal(0),
+        netPay: new Prisma.Decimal(0),
+        totalExpense: new Prisma.Decimal(0),
+      };
+      const employer = payslip.pfEmployer.plus(payslip.esiEmployer ?? 0);
+      row.employeeCount += 1;
+      row.grossEarnings = row.grossEarnings.plus(payslip.grossEarnings);
+      row.employerContributions = row.employerContributions.plus(employer);
+      row.unpaidLeaveDeduction = row.unpaidLeaveDeduction.plus(
+        payslip.unpaidLeaveDeduction,
+      );
+      row.tds = row.tds.plus(payslip.tdsDeducted);
+      row.netPay = row.netPay.plus(payslip.netPay);
+      row.totalExpense = row.totalExpense.plus(
+        payslip.grossEarnings
+          .minus(payslip.unpaidLeaveDeduction)
+          .plus(employer),
+      );
+      verticals.set(key, row);
+    }
+
+    const serialize = (value: Prisma.Decimal) => value.toString();
+    return {
+      ...this.toEntity(run),
+      totals: {
+        employeeCount: totals.employeeCount,
+        grossEarnings: serialize(totals.grossEarnings),
+        employerContributions: serialize(totals.employerContributions),
+        unpaidLeaveDeduction: serialize(totals.unpaidLeaveDeduction),
+        tds: serialize(totals.tds),
+        netPay: serialize(totals.netPay),
+        totalExpense: serialize(totals.totalExpense),
+        averageNetPay: totals.employeeCount
+          ? serialize(totals.netPay.div(totals.employeeCount))
+          : '0',
+      },
+      verticals: [...verticals.values()]
+        .sort((a, b) => b.totalExpense.comparedTo(a.totalExpense))
+        .map((row) => ({
+          ...row,
+          grossEarnings: serialize(row.grossEarnings),
+          employerContributions: serialize(row.employerContributions),
+          unpaidLeaveDeduction: serialize(row.unpaidLeaveDeduction),
+          tds: serialize(row.tds),
+          netPay: serialize(row.netPay),
+          totalExpense: serialize(row.totalExpense),
+        })),
+      payslips: run.payslips.map((payslip) => ({
+        ...this.toPayslipEntity(payslip),
+        employee: payslip.employee,
+      })),
+    };
+  }
+
   async approve(id: string, user: AuthenticatedUser) {
     await this.financeAccess.assertAccountsHead(user);
     const run = await this.prisma.payrollRun.findUnique({

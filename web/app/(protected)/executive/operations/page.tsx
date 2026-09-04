@@ -155,6 +155,7 @@ export default function OperationsExecutiveDashboardPage() {
   return (
     <ExecutiveShell
       active="operations"
+      fixedHeader
       title="Operations Dashboard"
       chip={
         data ? (
@@ -180,6 +181,35 @@ export default function OperationsExecutiveDashboardPage() {
           Refresh
         </button>
       }
+      toolbar={
+        data ? (
+          <nav
+            className="flex gap-1 overflow-x-auto"
+            aria-label="Operations dashboard sections"
+          >
+            {[
+              ['#operations-overview', 'Overview'],
+              ['#operations-blockers', `Blockers (${blockedLines.length})`],
+              ['#operations-delivery', `Delivery (${urgency.overdue} overdue)`],
+              ['#operations-flow', 'Flow & OTD'],
+              ['#operations-facilities', 'Facilities'],
+              [
+                '#operations-supply',
+                `Design & supply (${data.design.overdueTotal + data.procurement.overduePurchaseOrders.count})`,
+              ],
+              ['#operations-quality', `Quality (${data.quality.openNcrCount})`],
+            ].map(([href, label]) => (
+              <a
+                key={href}
+                href={href}
+                className="whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11.5px] font-medium text-black/55 hover:bg-black/[.06] hover:text-black/80 dark:text-white/55 dark:hover:bg-white/[.08] dark:hover:text-white/85"
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+        ) : undefined
+      }
     >
       {error && <Callout variant="danger">{error}</Callout>}
       {!data ? (
@@ -189,7 +219,11 @@ export default function OperationsExecutiveDashboardPage() {
       ) : (
         <>
           {/* ══ What is on fire ═══════════════════════════════════════════ */}
-          <StatStrip>
+          <div
+            id="operations-overview"
+            className="scroll-mt-[var(--exec-chrome-height)]"
+          >
+            <StatStrip>
             <StatTile
               label="Lines overdue"
               value={urgency.overdue}
@@ -229,7 +263,8 @@ export default function OperationsExecutiveDashboardPage() {
                 `${data.vendorUpdateHealth.dueSoon} due soon of ${data.vendorUpdateHealth.measuredLines} on cadence`
               }
             />
-          </StatStrip>
+            </StatStrip>
+          </div>
 
           {onFire === 0 && (
             <SCard className="p-[18px]">
@@ -246,6 +281,7 @@ export default function OperationsExecutiveDashboardPage() {
           )}
 
           {/* ══ §3 Blockers — the most prominent section ═══════════════════ */}
+          <span id="operations-blockers" className="-mb-4 block scroll-mt-[var(--exec-chrome-height)]" />
           <SCard
             className={cn(
               'p-[18px]',
@@ -331,6 +367,7 @@ export default function OperationsExecutiveDashboardPage() {
           </SCard>
 
           {/* ══ §2 Delivery timeline urgency + §1 portfolio health ════════ */}
+          <span id="operations-delivery" className="-mb-4 block scroll-mt-[var(--exec-chrome-height)]" />
           <div className="grid gap-4 lg:grid-cols-2">
             <SCard className="p-[18px]">
               <SCardTitle
@@ -518,6 +555,7 @@ export default function OperationsExecutiveDashboardPage() {
           </div>
 
           {/* ══ §4 PLM stage funnel + §5 OTD ══════════════════════════════ */}
+          <span id="operations-flow" className="-mb-4 block scroll-mt-[var(--exec-chrome-height)]" />
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)]">
             <SCard className="p-[18px]">
               <SCardTitle
@@ -593,6 +631,7 @@ export default function OperationsExecutiveDashboardPage() {
           </div>
 
           {/* ══ §12 Balaji MetalTech: in-house depth ══════════════════════ */}
+          <span id="operations-facilities" className="-mb-4 block scroll-mt-[var(--exec-chrome-height)]" />
           <SCard className="p-[18px]">
             <SCardTitle
               title={
@@ -707,6 +746,7 @@ export default function OperationsExecutiveDashboardPage() {
           </SCard>
 
           {/* ══ §6 Design stage bottlenecks + §8 procurement ══════════════ */}
+          <span id="operations-supply" className="-mb-4 block scroll-mt-[var(--exec-chrome-height)]" />
           <div className="grid gap-4 lg:grid-cols-2">
             <SCard className="p-[18px]">
               <SCardTitle
@@ -913,6 +953,7 @@ export default function OperationsExecutiveDashboardPage() {
           </div>
 
           {/* ══ §9 Quality: cost of poor quality, as a quality signal ══════ */}
+          <span id="operations-quality" className="-mb-4 block scroll-mt-[var(--exec-chrome-height)]" />
           <SCard className="p-[18px]">
             <SCardTitle
               title="Quality cost and open non-conformances"
@@ -962,17 +1003,32 @@ export default function OperationsExecutiveDashboardPage() {
 
           {/* ══ The rules every figure above was computed under ═══════════ */}
           <SCard className="p-[18px]">
-            <SCardTitle title="Basis and exclusions" />
-            <ul className="mt-2.5 space-y-1.5">
-              {data.basis.map((entry) => (
-                <li
-                  key={entry}
-                  className={cn('text-[12px] leading-relaxed', SIGNAL_MUTED)}
-                >
-                  {entry}
-                </li>
-              ))}
-            </ul>
+            <details>
+              <summary className="cursor-pointer list-none">
+                <SCardTitle
+                  title="Basis and exclusions"
+                  subtitle="Metric definitions, scope and data limitations"
+                  right={
+                    <span className={cn('text-[11px]', SIGNAL_FAINT)}>
+                      Expand methodology
+                    </span>
+                  }
+                />
+              </summary>
+              <ul className="mt-2.5 space-y-1.5">
+                {data.basis.map((entry) => (
+                  <li
+                    key={entry}
+                    className={cn(
+                      'text-[12px] leading-relaxed',
+                      SIGNAL_MUTED,
+                    )}
+                  >
+                    {entry}
+                  </li>
+                ))}
+              </ul>
+            </details>
           </SCard>
         </>
       )}
