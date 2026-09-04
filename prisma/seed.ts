@@ -36,12 +36,48 @@ const BUSINESS_UNITS: Array<{
   displayOrder: number;
   colorHex: string;
 }> = [
-  { name: 'Phaze Edge', code: 'EDGE', description: 'Edge and micro data-centre solutions.', displayOrder: 1, colorHex: '#2563EB' },
-  { name: 'Phaze Infrastructure', code: 'INFRA', description: 'Racks, cabinets, enclosures and physical infrastructure.', displayOrder: 2, colorHex: '#64748B' },
-  { name: 'Phaze Hyperscale', code: 'HYPERSCALE', description: 'Hyperscale and OCP/ORV-class deployments.', displayOrder: 3, colorHex: '#7C3AED' },
-  { name: 'Phaze MOD', code: 'MOD', description: 'Modular and containerised data-centre systems.', displayOrder: 4, colorHex: '#0891B2' },
-  { name: 'Phaze Intelligence', code: 'INTELLIGENCE', description: 'Monitoring, software and intelligent systems.', displayOrder: 5, colorHex: '#D97706' },
-  { name: 'Phaze Services', code: 'SERVICES', description: 'Services, support and everything not otherwise classified.', displayOrder: 6, colorHex: '#059669' },
+  {
+    name: 'Phaze Edge',
+    code: 'EDGE',
+    description: 'Edge and micro data-centre solutions.',
+    displayOrder: 1,
+    colorHex: '#2563EB',
+  },
+  {
+    name: 'Phaze Infrastructure',
+    code: 'INFRA',
+    description: 'Racks, cabinets, enclosures and physical infrastructure.',
+    displayOrder: 2,
+    colorHex: '#64748B',
+  },
+  {
+    name: 'Phaze Hyperscale',
+    code: 'HYPERSCALE',
+    description: 'Hyperscale and OCP/ORV-class deployments.',
+    displayOrder: 3,
+    colorHex: '#7C3AED',
+  },
+  {
+    name: 'Phaze MOD',
+    code: 'MOD',
+    description: 'Modular and containerised data-centre systems.',
+    displayOrder: 4,
+    colorHex: '#0891B2',
+  },
+  {
+    name: 'Phaze Intelligence',
+    code: 'INTELLIGENCE',
+    description: 'Monitoring, software and intelligent systems.',
+    displayOrder: 5,
+    colorHex: '#D97706',
+  },
+  {
+    name: 'Phaze Services',
+    code: 'SERVICES',
+    description: 'Services, support and everything not otherwise classified.',
+    displayOrder: 6,
+    colorHex: '#059669',
+  },
 ];
 
 /// Default store/warehouse locations for the inventory MVP (idempotent).
@@ -258,21 +294,98 @@ const ACCOUNT_GROUPS: Array<{
   /** Signals a bank/cash-eligible group for Contra voucher ledger restriction. */
   isBankOrCash?: boolean;
 }> = [
-  { code: 'GRP-BANK', name: 'Bank Accounts', accountType: AccountType.ASSET, normalBalance: NormalBalance.DEBIT, isBankOrCash: true },
-  { code: 'GRP-CASH', name: 'Cash-in-Hand', accountType: AccountType.ASSET, normalBalance: NormalBalance.DEBIT, isBankOrCash: true },
-  { code: 'GRP-DEBTORS', name: 'Sundry Debtors', accountType: AccountType.ASSET, normalBalance: NormalBalance.DEBIT },
-  { code: 'GRP-STOCK', name: 'Stock-in-Hand', accountType: AccountType.ASSET, normalBalance: NormalBalance.DEBIT },
-  { code: 'GRP-LOANS-ADVANCES', name: 'Loans and Advances (Asset)', accountType: AccountType.ASSET, normalBalance: NormalBalance.DEBIT },
-  { code: 'GRP-FIXED-ASSETS', name: 'Fixed Assets', accountType: AccountType.ASSET, normalBalance: NormalBalance.DEBIT },
-  { code: 'GRP-CREDITORS', name: 'Sundry Creditors', accountType: AccountType.LIABILITY, normalBalance: NormalBalance.CREDIT },
-  { code: 'GRP-DUTIES-TAXES', name: 'Duties and Taxes', accountType: AccountType.LIABILITY, normalBalance: NormalBalance.CREDIT },
-  { code: 'GRP-CURRENT-LIAB', name: 'Current Liabilities', accountType: AccountType.LIABILITY, normalBalance: NormalBalance.CREDIT },
-  { code: 'GRP-CAPITAL', name: 'Capital Account', accountType: AccountType.EQUITY, normalBalance: NormalBalance.CREDIT },
-  { code: 'GRP-SALES', name: 'Sales Accounts', accountType: AccountType.REVENUE, normalBalance: NormalBalance.CREDIT },
-  { code: 'GRP-PURCHASE', name: 'Purchase Accounts', accountType: AccountType.COST_OF_GOODS_SOLD, normalBalance: NormalBalance.DEBIT },
-  { code: 'GRP-INDIRECT-EXP', name: 'Indirect Expenses', accountType: AccountType.EXPENSE, normalBalance: NormalBalance.DEBIT },
-  { code: 'GRP-INDIRECT-INC', name: 'Indirect Income', accountType: AccountType.OTHER_INCOME, normalBalance: NormalBalance.CREDIT },
-  { code: 'GRP-OTHER-EXP', name: 'Other Expenses (Non-operating)', accountType: AccountType.OTHER_EXPENSE, normalBalance: NormalBalance.DEBIT },
+  {
+    code: 'GRP-BANK',
+    name: 'Bank Accounts',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+    isBankOrCash: true,
+  },
+  {
+    code: 'GRP-CASH',
+    name: 'Cash-in-Hand',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+    isBankOrCash: true,
+  },
+  {
+    code: 'GRP-DEBTORS',
+    name: 'Sundry Debtors',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: 'GRP-STOCK',
+    name: 'Stock-in-Hand',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: 'GRP-LOANS-ADVANCES',
+    name: 'Loans and Advances (Asset)',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: 'GRP-FIXED-ASSETS',
+    name: 'Fixed Assets',
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: 'GRP-CREDITORS',
+    name: 'Sundry Creditors',
+    accountType: AccountType.LIABILITY,
+    normalBalance: NormalBalance.CREDIT,
+  },
+  {
+    code: 'GRP-DUTIES-TAXES',
+    name: 'Duties and Taxes',
+    accountType: AccountType.LIABILITY,
+    normalBalance: NormalBalance.CREDIT,
+  },
+  {
+    code: 'GRP-CURRENT-LIAB',
+    name: 'Current Liabilities',
+    accountType: AccountType.LIABILITY,
+    normalBalance: NormalBalance.CREDIT,
+  },
+  {
+    code: 'GRP-CAPITAL',
+    name: 'Capital Account',
+    accountType: AccountType.EQUITY,
+    normalBalance: NormalBalance.CREDIT,
+  },
+  {
+    code: 'GRP-SALES',
+    name: 'Sales Accounts',
+    accountType: AccountType.REVENUE,
+    normalBalance: NormalBalance.CREDIT,
+  },
+  {
+    code: 'GRP-PURCHASE',
+    name: 'Purchase Accounts',
+    accountType: AccountType.COST_OF_GOODS_SOLD,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: 'GRP-INDIRECT-EXP',
+    name: 'Indirect Expenses',
+    accountType: AccountType.EXPENSE,
+    normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: 'GRP-INDIRECT-INC',
+    name: 'Indirect Income',
+    accountType: AccountType.OTHER_INCOME,
+    normalBalance: NormalBalance.CREDIT,
+  },
+  {
+    code: 'GRP-OTHER-EXP',
+    name: 'Other Expenses (Non-operating)',
+    accountType: AccountType.OTHER_EXPENSE,
+    normalBalance: NormalBalance.DEBIT,
+  },
 ];
 
 /** Which group each of the 25 base accounts reparents under. */
@@ -572,11 +685,36 @@ export async function seed(prisma: PrismaClient): Promise<void> {
     where: { code: 'HR' },
   });
   const provisioningTypes = [
-    { name: 'Laptop', requiresScmFulfillment: true, approverType: ProvisioningApproverType.SUPER_ADMIN, approverVerticalId: null },
-    { name: 'Email ID Creation', requiresScmFulfillment: false, approverType: ProvisioningApproverType.SUPER_ADMIN, approverVerticalId: null },
-    { name: 'ID Card', requiresScmFulfillment: true, approverType: ProvisioningApproverType.VERTICAL_OWNER, approverVerticalId: hrVertical.id },
-    { name: 'Business Card', requiresScmFulfillment: true, approverType: ProvisioningApproverType.VERTICAL_OWNER, approverVerticalId: hrVertical.id },
-    { name: 'Joining Kit', requiresScmFulfillment: true, approverType: ProvisioningApproverType.VERTICAL_OWNER, approverVerticalId: hrVertical.id },
+    {
+      name: 'Laptop',
+      requiresScmFulfillment: true,
+      approverType: ProvisioningApproverType.SUPER_ADMIN,
+      approverVerticalId: null,
+    },
+    {
+      name: 'Email ID Creation',
+      requiresScmFulfillment: false,
+      approverType: ProvisioningApproverType.SUPER_ADMIN,
+      approverVerticalId: null,
+    },
+    {
+      name: 'ID Card',
+      requiresScmFulfillment: true,
+      approverType: ProvisioningApproverType.VERTICAL_OWNER,
+      approverVerticalId: hrVertical.id,
+    },
+    {
+      name: 'Business Card',
+      requiresScmFulfillment: true,
+      approverType: ProvisioningApproverType.VERTICAL_OWNER,
+      approverVerticalId: hrVertical.id,
+    },
+    {
+      name: 'Joining Kit',
+      requiresScmFulfillment: true,
+      approverType: ProvisioningApproverType.VERTICAL_OWNER,
+      approverVerticalId: hrVertical.id,
+    },
   ];
   for (const item of provisioningTypes) {
     await prisma.provisioningItemType.upsert({
@@ -760,12 +898,19 @@ export async function seed(prisma: PrismaClient): Promise<void> {
     });
     groupIdByCode.set(group.code, row.id);
   }
-  for (const [accountCode, groupCode] of Object.entries(ACCOUNT_GROUP_MEMBERSHIP)) {
+  for (const [accountCode, groupCode] of Object.entries(
+    ACCOUNT_GROUP_MEMBERSHIP,
+  )) {
     const groupId = groupIdByCode.get(groupCode);
     if (!groupId) continue;
-    const account = await prisma.ledgerAccount.findUnique({ where: { code: accountCode } });
+    const account = await prisma.ledgerAccount.findUnique({
+      where: { code: accountCode },
+    });
     if (account && account.parentId !== groupId) {
-      await prisma.ledgerAccount.update({ where: { code: accountCode }, data: { parentId: groupId } });
+      await prisma.ledgerAccount.update({
+        where: { code: accountCode },
+        data: { parentId: groupId },
+      });
     }
   }
 
@@ -938,7 +1083,7 @@ export async function seed(prisma: PrismaClient): Promise<void> {
       // The real registered identity — this prints on the face of every tax
       // invoice and goes to the IRP, so it must not be a placeholder. PAN is
       // characters 3-12 of the GSTIN and has to agree with it.
-      legalName: 'Phaze Dynamics Private Limited',
+      legalName: 'Phaze Dynamics India Private Limited',
       gstin: '29AARCP3898H1ZG',
       addressLine1: '173, Industrial Suburb, 2nd Stage',
       addressLine2: 'Yeshwanthpur',
@@ -969,8 +1114,18 @@ export async function seed(prisma: PrismaClient): Promise<void> {
     },
   });
   const MONTHS = [
-    'April', 'May', 'June', 'July', 'August', 'September',
-    'October', 'November', 'December', 'January', 'February', 'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+    'January',
+    'February',
+    'March',
   ];
   let periodsCreated = 0;
   for (let i = 0; i < 12; i++) {

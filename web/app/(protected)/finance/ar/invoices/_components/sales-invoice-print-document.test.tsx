@@ -7,7 +7,7 @@ import {
 } from './sales-invoice-print-document';
 
 const supplier = {
-  legalName: 'Phaze Dynamics Private Limited',
+  legalName: 'Phaze Dynamics India Private Limited',
   gstin: '29AARCP3898H1ZG',
   addressLine1: '173, Industrial Suburb, 2nd Stage',
   addressLine2: null,
@@ -71,7 +71,7 @@ describe('SalesInvoicePrintDocument supplier block', () => {
     expect(screen.getByText('GSTIN: 29AARCP3898H1ZG')).toBeTruthy();
     // Registered name appears twice: the Rule 46 block and the signatory line.
     expect(
-      screen.getAllByText(/Phaze Dynamics Private Limited/).length,
+      screen.getAllByText(/Phaze Dynamics India Private Limited/).length,
     ).toBeGreaterThanOrEqual(2);
     // Full single-line address — the footer prints the same street on its own
     // line, so match through the city to stay unambiguous.

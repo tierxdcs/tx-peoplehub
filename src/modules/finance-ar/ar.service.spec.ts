@@ -292,7 +292,7 @@ describe('ArService invoice calculations', () => {
   describe('invoice — supplier identity for the printed tax invoice', () => {
     const user = { id: 'accounts-1' } as any;
     const settings = {
-      legalName: 'Phaze Dynamics India Pvt Ltd',
+      legalName: 'Phaze Dynamics India Private Limited',
       gstin: '29AARCP3898H1ZG',
       addressLine1: '1 Industrial Area',
       addressLine2: null,
@@ -333,7 +333,7 @@ describe('ArService invoice calculations', () => {
 
       expect(result.invoiceNumber).toBe('INV-2026-0002');
       expect(result.supplier).toEqual({
-        legalName: 'Phaze Dynamics India Pvt Ltd',
+        legalName: 'Phaze Dynamics India Private Limited',
         gstin: '29AARCP3898H1ZG',
         addressLine1: '1 Industrial Area',
         addressLine2: null,

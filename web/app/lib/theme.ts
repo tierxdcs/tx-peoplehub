@@ -33,7 +33,7 @@ export const COMPANY = {
    * name the actual company (proposal closing), distinct from the `name`
    * wordmark/display name.
    */
-  legalEntityName: 'Phaze Dynamics Private Limited',
+  legalEntityName: 'Phaze Dynamics India Private Limited',
   /**
    * Our GST registration. A supplier cannot raise a compliant tax invoice
    * against a purchase order without it, so printed orders state it.
