@@ -19,6 +19,7 @@ function access(
     isRndStaff?: boolean;
     isStoreStaff?: boolean;
     isScmStaff?: boolean;
+    logisticsAccessLevel?: 'VIEW' | 'OPERATE' | null;
     isFinanceUser?: boolean;
     isQualityUser?: boolean;
   } = {},
@@ -40,6 +41,7 @@ function access(
     isRndStaff: opts.isRndStaff ?? false,
     isStoreStaff: opts.isStoreStaff ?? false,
     isScmStaff: opts.isScmStaff ?? false,
+    logisticsAccessLevel: opts.logisticsAccessLevel ?? null,
     isQualityUser: opts.isQualityUser ?? false,
     payslipsEnabled: false,
   };
@@ -298,6 +300,19 @@ describe('sidebarNav — the reported bug', () => {
     expect(shown).toContain('OTD Analytics');
   });
 
+  it.each(['VIEW', 'OPERATE'] as const)(
+    'a user with a temporary Logistics %s grant sees Logistics navigation',
+    (logisticsAccessLevel) => {
+      const a = access('EMPLOYEE', { logisticsAccessLevel });
+      const shown = labels(
+        a,
+        activeModule('/logistics/dispatch', availableModules(a)),
+      );
+      expect(shown).toContain('Dispatch Register');
+      expect(shown).toContain('OTD Analytics');
+    },
+  );
+
   it('a non-Store, non-SuperAdmin user does NOT see the Logistics group', () => {
     const a = access('EMPLOYEE');
     const shown = labels(a, activeModule('/profile', availableModules(a)));
@@ -534,17 +549,17 @@ describe('sharedNav — Executive Dashboards', () => {
       'EMPLOYEE',
     ] as const) {
       const a = access(role);
-      expect(labels(a, activeModule('/dashboard', availableModules(a)))).not.toContain(
-        'Sales Dashboard',
-      );
+      expect(
+        labels(a, activeModule('/dashboard', availableModules(a))),
+      ).not.toContain('Sales Dashboard');
     }
   });
 
   it('appears for a plain EMPLOYEE with the grant — it is not a role or a seniority gate', () => {
     const a = granted(access('EMPLOYEE'));
-    expect(labels(a, activeModule('/dashboard', availableModules(a)))).toContain(
-      'Sales Dashboard',
-    );
+    expect(
+      labels(a, activeModule('/dashboard', availableModules(a))),
+    ).toContain('Sales Dashboard');
   });
 
   it('appears regardless of vertical', () => {

@@ -37,6 +37,7 @@ import {
 import { EmployeesService } from './employees.service';
 import { OrgChartService } from './org-chart.service';
 import { CtcPreviewDto } from '../payroll/dto/ctc-preview.dto';
+import { LogisticsAccessDto } from './dto/logistics-access.dto';
 
 /**
  * Reference module controller for the access-control backbone. Guarded
@@ -499,6 +500,28 @@ export class EmployeesController {
   })
   revokeExecutiveDashboardAccess(@Param('id') id: string) {
     return this.employeesService.setExecutiveDashboardAccess(id, false);
+  }
+
+  @Patch(':id/logistics-access')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Grant time-bound Logistics access' })
+  grantLogisticsAccess(
+    @Param('id') id: string,
+    @Body() dto: LogisticsAccessDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.employeesService.grantLogisticsAccess(id, dto, user.id);
+  }
+
+  @Delete(':id/logistics-access')
+  @Roles(Role.SUPER_ADMIN)
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Revoke temporary Logistics access' })
+  async revokeLogisticsAccess(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.employeesService.revokeLogisticsAccess(id, user.id);
   }
 
   @Patch(':id/reset-password')

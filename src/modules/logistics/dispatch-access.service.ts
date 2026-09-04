@@ -1,7 +1,17 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { EmployeeStatus, Role } from '@prisma/client';
+import { EmployeeStatus, LogisticsAccessLevel, Role } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+
+type DispatchEmployeeAccess = {
+  status: EmployeeStatus;
+  isQcInspector: boolean;
+  verticalCode: string | null;
+  logisticsAccessLevel: LogisticsAccessLevel | null;
+  logisticsAccessStartsAt: Date | null;
+  logisticsAccessExpiresAt: Date | null;
+  logisticsAccessRevokedAt: Date | null;
+};
 
 /**
  * Access rules for Logistics & Dispatch:
@@ -19,16 +29,18 @@ export class DispatchAccessService {
     return user.role === Role.SUPER_ADMIN;
   }
 
-  private async load(user: AuthenticatedUser): Promise<{
-    status: EmployeeStatus;
-    isQcInspector: boolean;
-    verticalCode: string | null;
-  } | null> {
+  private async load(
+    user: AuthenticatedUser,
+  ): Promise<DispatchEmployeeAccess | null> {
     const emp = await this.prisma.employee.findUnique({
       where: { id: user.id },
       select: {
         status: true,
         isQcInspector: true,
+        logisticsAccessLevel: true,
+        logisticsAccessStartsAt: true,
+        logisticsAccessExpiresAt: true,
+        logisticsAccessRevokedAt: true,
         vertical: { select: { code: true } },
       },
     });
@@ -37,7 +49,38 @@ export class DispatchAccessService {
       status: emp.status,
       isQcInspector: emp.isQcInspector,
       verticalCode: emp.vertical?.code ?? null,
+      logisticsAccessLevel: emp.logisticsAccessLevel,
+      logisticsAccessStartsAt: emp.logisticsAccessStartsAt,
+      logisticsAccessExpiresAt: emp.logisticsAccessExpiresAt,
+      logisticsAccessRevokedAt: emp.logisticsAccessRevokedAt,
     };
+  }
+
+  private activeGrant(emp: DispatchEmployeeAccess) {
+    const now = new Date();
+    if (
+      emp.status !== EmployeeStatus.ACTIVE ||
+      emp.logisticsAccessRevokedAt ||
+      !emp.logisticsAccessLevel ||
+      !emp.logisticsAccessStartsAt ||
+      !emp.logisticsAccessExpiresAt ||
+      emp.logisticsAccessStartsAt > now ||
+      emp.logisticsAccessExpiresAt <= now
+    ) {
+      return null;
+    }
+    return emp.logisticsAccessLevel;
+  }
+
+  async currentAccess(user: AuthenticatedUser) {
+    if (this.isSuperAdmin(user)) {
+      return { level: LogisticsAccessLevel.OPERATE, expiresAt: null };
+    }
+    const emp = await this.load(user);
+    if (!emp) return { level: null, expiresAt: null };
+    const native = emp.verticalCode === 'PRODUCTION' || emp.isQcInspector;
+    const level = native ? LogisticsAccessLevel.OPERATE : this.activeGrant(emp);
+    return { level, expiresAt: native ? null : emp.logisticsAccessExpiresAt };
   }
 
   /** Create / dispatch a DC, capture POD — Production, QC Inspector, or admin. */
@@ -47,12 +90,14 @@ export class DispatchAccessService {
     if (
       emp &&
       emp.status === EmployeeStatus.ACTIVE &&
-      (emp.verticalCode === 'PRODUCTION' || emp.isQcInspector)
+      (emp.verticalCode === 'PRODUCTION' ||
+        emp.isQcInspector ||
+        this.activeGrant(emp) === LogisticsAccessLevel.OPERATE)
     ) {
       return;
     }
     throw new ForbiddenException(
-      'Only an active Production-vertical employee, designated QC Inspector, or SUPER_ADMIN may create or dispatch delivery challans',
+      'Only an active Logistics Operator, Production employee, designated QC Inspector, or SUPER_ADMIN may create or dispatch delivery challans',
     );
   }
 
@@ -65,7 +110,8 @@ export class DispatchAccessService {
       emp.status === EmployeeStatus.ACTIVE &&
       (emp.isQcInspector ||
         emp.verticalCode === 'QUALITY' ||
-        emp.verticalCode === 'PRODUCTION')
+        emp.verticalCode === 'PRODUCTION' ||
+        this.activeGrant(emp) === LogisticsAccessLevel.OPERATE)
     ) {
       return;
     }

@@ -34,6 +34,13 @@ export interface Employee {
   isAccountsHead: boolean;
   /** Discretionary CEO grant for the Executive Dashboards section. */
   hasExecutiveDashboardAccess: boolean;
+  logisticsAccessLevel: 'VIEW' | 'OPERATE' | null;
+  logisticsAccessStartsAt: string | null;
+  logisticsAccessExpiresAt: string | null;
+  logisticsAccessGrantedAt: string | null;
+  logisticsAccessGrantedById: string | null;
+  logisticsAccessRevokedAt: string | null;
+  logisticsAccessRevokedById: string | null;
   officialEmail: string | null;
   photoStorageKey?: string | null;
   signatureText?: string | null;

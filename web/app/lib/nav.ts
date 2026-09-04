@@ -41,6 +41,7 @@ export interface Access {
   isFinanceUser: boolean;
   isFinanceAuditor?: boolean;
   isAccountsHead: boolean;
+  logisticsAccessLevel?: 'VIEW' | 'OPERATE' | null;
   isQualityUser?: boolean;
   isQmsHead?: boolean;
   isDesignUser?: boolean;
@@ -295,6 +296,7 @@ export function sharedNav(access: Access): NavGroup[] {
   if (
     access.isStoreStaff ||
     access.isScmStaff ||
+    !!access.logisticsAccessLevel ||
     flags(access.user).isSuperAdmin
   ) {
     groups.push({

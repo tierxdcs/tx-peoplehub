@@ -14,6 +14,7 @@ import {
   Prisma,
   Role,
 } from '@prisma/client';
+import { LogisticsAccessDto } from './dto/logistics-access.dto';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../core/database/prisma.service';
@@ -1234,6 +1235,50 @@ export class EmployeesService {
     return this.toEntity(updated);
   }
 
+  async grantLogisticsAccess(
+    id: string,
+    dto: LogisticsAccessDto,
+    grantedById: string,
+  ): Promise<EmployeeEntity> {
+    const target = await this.findRawOrThrow(id);
+    if (target.status !== EmployeeStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Only an active employee can receive Logistics access',
+      );
+    }
+    const startsAt = new Date(dto.startsAt);
+    const expiresAt = new Date(dto.expiresAt);
+    if (expiresAt <= startsAt || expiresAt <= new Date()) {
+      throw new BadRequestException(
+        'Logistics access expiry must be after its start',
+      );
+    }
+    const updated = await this.prisma.employee.update({
+      where: { id },
+      data: {
+        logisticsAccessLevel: dto.level,
+        logisticsAccessStartsAt: startsAt,
+        logisticsAccessExpiresAt: expiresAt,
+        logisticsAccessGrantedAt: new Date(),
+        logisticsAccessGrantedById: grantedById,
+        logisticsAccessRevokedAt: null,
+        logisticsAccessRevokedById: null,
+      },
+    });
+    return this.toEntity(updated);
+  }
+
+  async revokeLogisticsAccess(id: string, revokedById: string): Promise<void> {
+    await this.findRawOrThrow(id);
+    await this.prisma.employee.update({
+      where: { id },
+      data: {
+        logisticsAccessRevokedAt: new Date(),
+        logisticsAccessRevokedById: revokedById,
+      },
+    });
+  }
+
   /**
    * Designate / revoke a Scrum Master. Unlike Sales Head, MULTIPLE holders are
    * allowed (company-wide capability), so this is a simple per-employee flag
@@ -1876,6 +1921,13 @@ export class EmployeesService {
       isRdHead: employee.isRdHead,
       isAccountsHead: employee.isAccountsHead,
       hasExecutiveDashboardAccess: employee.hasExecutiveDashboardAccess,
+      logisticsAccessLevel: employee.logisticsAccessLevel,
+      logisticsAccessStartsAt: employee.logisticsAccessStartsAt,
+      logisticsAccessExpiresAt: employee.logisticsAccessExpiresAt,
+      logisticsAccessGrantedAt: employee.logisticsAccessGrantedAt,
+      logisticsAccessGrantedById: employee.logisticsAccessGrantedById,
+      logisticsAccessRevokedAt: employee.logisticsAccessRevokedAt,
+      logisticsAccessRevokedById: employee.logisticsAccessRevokedById,
       officialEmail: employee.officialEmail,
       photoStorageKey: employee.photoStorageKey,
       signatureText: employee.signatureText,

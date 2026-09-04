@@ -3,6 +3,7 @@ import {
   AccessStatus,
   EmployeeStatus,
   EmploymentType,
+  LogisticsAccessLevel,
   Role,
   SignatureFont,
 } from '@prisma/client';
@@ -130,6 +131,15 @@ export class EmployeeEntity {
       'Whether this employee has been granted access to the Executive Dashboards section (a discretionary CEO grant, independent of vertical and seniority)',
   })
   hasExecutiveDashboardAccess!: boolean;
+
+  @ApiProperty({ enum: LogisticsAccessLevel, nullable: true })
+  logisticsAccessLevel!: LogisticsAccessLevel | null;
+  @ApiProperty({ nullable: true }) logisticsAccessStartsAt!: Date | null;
+  @ApiProperty({ nullable: true }) logisticsAccessExpiresAt!: Date | null;
+  @ApiProperty({ nullable: true }) logisticsAccessGrantedAt!: Date | null;
+  @ApiProperty({ nullable: true }) logisticsAccessGrantedById!: string | null;
+  @ApiProperty({ nullable: true }) logisticsAccessRevokedAt!: Date | null;
+  @ApiProperty({ nullable: true }) logisticsAccessRevokedById!: string | null;
 
   @ApiProperty({ nullable: true })
   officialEmail!: string | null;

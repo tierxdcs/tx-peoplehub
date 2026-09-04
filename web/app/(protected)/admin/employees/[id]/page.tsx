@@ -7,6 +7,8 @@ import { Employee, PaginatedResult, Vertical } from '../../../../lib/types';
 import { EmployeeForm, EmployeeFormValues } from '../_components/employee-form';
 import { Badge } from '../../../../components/ui/badge';
 import { Button } from '../../../../components/ui/button';
+import { Input } from '../../../../components/ui/input';
+import { Select } from '../../../../components/ui/select';
 import {
   SCard,
   SCardTitle,
@@ -66,6 +68,11 @@ export default function EditEmployeePage() {
   );
   const [loading, setLoading] = useState(true);
   const [designating, setDesignating] = useState(false);
+  const [logisticsLevel, setLogisticsLevel] = useState<'VIEW' | 'OPERATE'>(
+    'OPERATE',
+  );
+  const [logisticsStartsAt, setLogisticsStartsAt] = useState('');
+  const [logisticsExpiresAt, setLogisticsExpiresAt] = useState('');
   // The generated temporary password from a force-reset — held in state ONLY to
   // show once in the dialog below; never persisted or logged.
   const [tempPassword, setTempPassword] = useState<string | null>(null);
@@ -80,6 +87,18 @@ export default function EditEmployeePage() {
       apiFetch<PaginatedResult<Employee>>('/employees?page=1&limit=100'),
     ]);
     setEmployee(employeeRes);
+    const toLocalInput = (value: string | null | undefined) => {
+      if (!value) return '';
+      const date = new Date(value);
+      const offset = date.getTimezoneOffset() * 60_000;
+      return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+    };
+    setLogisticsLevel(employeeRes.logisticsAccessLevel ?? 'OPERATE');
+    setLogisticsStartsAt(
+      toLocalInput(employeeRes.logisticsAccessStartsAt) ||
+        toLocalInput(new Date().toISOString()),
+    );
+    setLogisticsExpiresAt(toLocalInput(employeeRes.logisticsAccessExpiresAt));
     setVerticals(verticalsRes);
     setCandidateManagers(
       employeesRes.items.filter(
@@ -383,6 +402,67 @@ export default function EditEmployeePage() {
     }
   }
 
+  async function grantLogisticsAccess() {
+    if (!employee || !logisticsStartsAt || !logisticsExpiresAt) {
+      toast.error('Choose both a start and expiry time.');
+      return;
+    }
+    const ok = await confirm({
+      title: 'Grant temporary Logistics access',
+      description: `${employee.firstName} ${employee.lastName} will receive ${logisticsLevel === 'OPERATE' ? 'Operator access to create and manage dispatches' : 'read-only Viewer access'} until ${new Date(logisticsExpiresAt).toLocaleString()}. Their Accounts vertical and other permissions will not change.`,
+      confirmLabel: 'Grant access',
+    });
+    if (!ok) return;
+    setDesignating(true);
+    try {
+      await apiFetch(`/employees/${employee.id}/logistics-access`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          level: logisticsLevel,
+          startsAt: new Date(logisticsStartsAt).toISOString(),
+          expiresAt: new Date(logisticsExpiresAt).toISOString(),
+        }),
+      });
+      toast.success('Temporary Logistics access granted');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to grant Logistics access',
+      );
+    } finally {
+      setDesignating(false);
+    }
+  }
+
+  async function revokeLogisticsAccess() {
+    if (!employee) return;
+    const ok = await confirm({
+      title: 'Revoke temporary Logistics access',
+      description: `Remove ${employee.firstName} ${employee.lastName}’s temporary Logistics access immediately?`,
+      confirmLabel: 'Revoke access',
+      destructive: true,
+    });
+    if (!ok) return;
+    setDesignating(true);
+    try {
+      await apiFetch(`/employees/${employee.id}/logistics-access`, {
+        method: 'DELETE',
+      });
+      toast.success('Temporary Logistics access revoked');
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to revoke Logistics access',
+      );
+    } finally {
+      setDesignating(false);
+    }
+  }
+
   async function setQmsHead(next: boolean) {
     if (!employee) return;
     const ok = await confirm({
@@ -646,7 +726,16 @@ export default function EditEmployeePage() {
     employee.isDesignHead ||
     employee.isProductionHead ||
     employee.isScmHead ||
-    employee.hasExecutiveDashboardAccess;
+    employee.hasExecutiveDashboardAccess ||
+    !!employee.logisticsAccessLevel;
+
+  const logisticsGrantActive =
+    !!employee.logisticsAccessLevel &&
+    !employee.logisticsAccessRevokedAt &&
+    !!employee.logisticsAccessStartsAt &&
+    !!employee.logisticsAccessExpiresAt &&
+    new Date(employee.logisticsAccessStartsAt) <= new Date() &&
+    new Date(employee.logisticsAccessExpiresAt) > new Date();
 
   return (
     <SignalPage>
@@ -679,6 +768,14 @@ export default function EditEmployeePage() {
             {employee.isScmHead && <Badge variant="info">SCM Head</Badge>}
             {employee.hasExecutiveDashboardAccess && (
               <Badge variant="info">Executive Dashboards</Badge>
+            )}
+            {logisticsGrantActive && (
+              <Badge variant="info">
+                Logistics{' '}
+                {employee.logisticsAccessLevel === 'OPERATE'
+                  ? 'Operator'
+                  : 'Viewer'}
+              </Badge>
             )}
           </span>
         }
@@ -1055,6 +1152,88 @@ export default function EditEmployeePage() {
                     ? 'Revoke access'
                     : 'Grant access'}
                 </Button>
+              )}
+            </SCard>
+          )}
+
+          {(isSuperAdmin || !!employee.logisticsAccessLevel) && (
+            <SCard className="px-5 py-[18px]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="text-[13px]">
+                  <div className="font-semibold">
+                    Temporary Logistics access
+                  </div>
+                  <div className={cn('mt-0.5', SIGNAL_MUTED)}>
+                    {logisticsGrantActive
+                      ? `${employee.logisticsAccessLevel === 'OPERATE' ? 'Operator' : 'Viewer'} access is active until ${new Date(employee.logisticsAccessExpiresAt!).toLocaleString()}.`
+                      : employee.logisticsAccessRevokedAt
+                        ? 'The previous temporary grant was revoked.'
+                        : employee.logisticsAccessLevel
+                          ? 'The previous temporary grant is scheduled or expired.'
+                          : 'Grant time-bound Logistics access without moving this employee out of Accounts.'}
+                  </div>
+                  <div className={cn('mt-1', SIGNAL_MUTED)}>
+                    Operators can create/edit delivery challans, dispatch goods
+                    and record POD. Viewers can only inspect Logistics records.
+                    Final QC remains restricted to QC Inspectors and the CEO.
+                  </div>
+                </div>
+                {isSuperAdmin && logisticsGrantActive && (
+                  <Button
+                    variant="destructive"
+                    disabled={designating}
+                    onClick={revokeLogisticsAccess}
+                  >
+                    Revoke now
+                  </Button>
+                )}
+              </div>
+              {isSuperAdmin && (
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <label className="space-y-1 text-[13px]">
+                    <span className="font-medium">Access level</span>
+                    <Select
+                      value={logisticsLevel}
+                      onChange={(event) =>
+                        setLogisticsLevel(
+                          event.target.value as 'VIEW' | 'OPERATE',
+                        )
+                      }
+                    >
+                      <option value="OPERATE">Logistics Operator</option>
+                      <option value="VIEW">Logistics Viewer</option>
+                    </Select>
+                  </label>
+                  <label className="space-y-1 text-[13px]">
+                    <span className="font-medium">Starts at</span>
+                    <Input
+                      type="datetime-local"
+                      value={logisticsStartsAt}
+                      onChange={(event) =>
+                        setLogisticsStartsAt(event.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="space-y-1 text-[13px]">
+                    <span className="font-medium">Expires at</span>
+                    <Input
+                      type="datetime-local"
+                      value={logisticsExpiresAt}
+                      onChange={(event) =>
+                        setLogisticsExpiresAt(event.target.value)
+                      }
+                    />
+                  </label>
+                  <Button
+                    className="sm:col-start-3"
+                    disabled={
+                      designating || !logisticsStartsAt || !logisticsExpiresAt
+                    }
+                    onClick={grantLogisticsAccess}
+                  >
+                    {logisticsGrantActive ? 'Replace grant' : 'Grant access'}
+                  </Button>
+                </div>
               )}
             </SCard>
           )}

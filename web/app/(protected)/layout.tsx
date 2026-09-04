@@ -9,6 +9,7 @@ import { useIsSalesHead } from '../lib/use-is-sales-head';
 import { useIsRndHead } from '../lib/use-is-rnd-head';
 import { useIsRndStaff } from '../lib/use-is-rnd-staff';
 import { useIsStoreStaff } from '../lib/use-is-store-staff';
+import { useLogisticsAccess } from '../lib/use-logistics-access';
 import { useIsScmStaff } from '../lib/use-is-scm-staff';
 import { useFinanceAccess } from '../lib/use-finance-access';
 import { useQmsAccess } from '../lib/use-qms-access';
@@ -44,6 +45,8 @@ export default function ProtectedLayout({
   const { isRndHead, loading: rndHeadLoading } = useIsRndHead();
   const { isRndStaff, loading: rndStaffLoading } = useIsRndStaff();
   const { isStoreStaff, loading: storeLoading } = useIsStoreStaff();
+  const { logisticsAccessLevel, loading: logisticsLoading } =
+    useLogisticsAccess();
   const { isScmStaff, loading: scmLoading } = useIsScmStaff();
   const {
     isFinanceUser,
@@ -57,10 +60,8 @@ export default function ProtectedLayout({
     isDesignHead,
     loading: designLoading,
   } = useDesignAccess();
-  const {
-    hasExecutiveDashboardAccess,
-    loading: executiveLoading,
-  } = useExecutiveAccess();
+  const { hasExecutiveDashboardAccess, loading: executiveLoading } =
+    useExecutiveAccess();
   const { counts } = usePendingApprovalCounts();
   const router = useRouter();
   const pathname = usePathname();
@@ -84,6 +85,7 @@ export default function ProtectedLayout({
     rndHeadLoading ||
     rndStaffLoading ||
     storeLoading ||
+    logisticsLoading ||
     scmLoading ||
     financeLoading ||
     qmsLoading ||
@@ -103,6 +105,7 @@ export default function ProtectedLayout({
     isRndHead,
     isRndStaff,
     isStoreStaff,
+    logisticsAccessLevel,
     isScmStaff,
     isFinanceUser,
     isFinanceAuditor,

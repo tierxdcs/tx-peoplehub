@@ -531,6 +531,16 @@ model Employee {
   /// rather than adding their own.
   hasExecutiveDashboardAccess Boolean @default(false)
 
+  /// Temporary, employee-specific Logistics access. This does not alter the
+  /// employee's vertical or QC authority; expiry/revocation is checked live.
+  logisticsAccessLevel       LogisticsAccessLevel?
+  logisticsAccessStartsAt    DateTime?
+  logisticsAccessExpiresAt   DateTime?
+  logisticsAccessGrantedAt   DateTime?
+  logisticsAccessGrantedById String?
+  logisticsAccessRevokedAt   DateTime?
+  logisticsAccessRevokedById String?
+
   /// Internal e-signature (a display layer, NOT a legally-binding e-sign).
   /// Self-service typed text rendered in a chosen signature-style font;
   /// snapshotted onto approval records at approval time.
@@ -760,6 +770,7 @@ model Employee {
   @@index([verticalId])
   @@index([reportingManagerId])
   @@index([accessStatus])
+  @@index([logisticsAccessExpiresAt])
   @@map("employees")
 }
 
@@ -5142,6 +5153,11 @@ enum Gstr2bMatchStatus {
   MATCHED
   MISMATCHED
   IGNORED
+}
+
+enum LogisticsAccessLevel {
+  VIEW
+  OPERATE
 }
 
 enum TdsReturnQuarter {
